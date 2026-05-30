@@ -1,0 +1,28 @@
+title: CIFSwitch - Malicious NSS Module or sudoers.d Drop (LPE Payload)
+id: 9a8b7c6d-5e4f-4a3b-2c1d-0f9e8d7c6b5a
+status: experimental
+description: >
+    Detects the file-drop artifacts of the CIFSwitch (cifs.upcall) local privilege
+    escalation PoC: a fake NSS module named libnss_pwn.so.2 loaded by the root
+    cifs.upcall helper after a namespace switch, and/or a sudoers drop matching
+    /etc/sudoers.d/cifs-upcall-poc-*. These names come directly from the public PoC.
+references:
+    - https://github.com/manizada/CIFSwitch
+    - https://heyitsas.im/posts/cifswitch/
+author: Actioner
+date: 2026-05-30
+tags:
+    - attack.t1068
+    - attack.t1574.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_nss:
+        TargetFilename|endswith: '/libnss_pwn.so.2'
+    selection_sudoers:
+        TargetFilename|startswith: '/etc/sudoers.d/cifs-upcall-poc-'
+    condition: selection_nss or selection_sudoers
+falsepositives:
+    - None expected; both names are exploit-specific PoC artifacts
+level: high
