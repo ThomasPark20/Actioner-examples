@@ -1,0 +1,27 @@
+title: Gogs Pull Request Merge Failure Indicating --exec Argument Injection
+id: b2e8d4c6-1a73-49f5-9c0d-6e2f8a3b7d41
+status: experimental
+description: >
+    Detects the Gogs server error log signature produced when a malicious pull
+    request base branch name beginning with --exec= is passed to git during a
+    rebase merge, where git rejects the injected flag with "unknown option exec=".
+    Indicative of attempted exploitation of the Gogs argument-injection RCE
+    (GHSA-qf6p-p7ww-cwr9).
+references:
+    - https://www.rapid7.com/blog/post/ve-authenticated-rce-via-argument-injection-gogs-unfixed/
+    - https://www.bleepingcomputer.com/news/security/new-gogs-zero-day-flaw-lets-hackers-get-remote-code-execution/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    product: gogs
+    service: application
+detection:
+    selection_merge:
+        - "unknown option `exec="
+    condition: selection_merge
+falsepositives:
+    - Unlikely; the literal git "unknown option exec=" string in a Gogs merge context is highly specific
+level: low

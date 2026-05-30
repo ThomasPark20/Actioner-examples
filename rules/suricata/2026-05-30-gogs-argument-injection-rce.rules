@@ -1,0 +1,7 @@
+# Gogs Argument-Injection RCE (GHSA-qf6p-p7ww-cwr9).
+# audit: following the toolkit-mandated Suricata SID range (2200000+); the critic flagged
+# potential ET-block overlap. Chose 2200901-2200902, the next free non-colliding values
+# consistent with this repo's per-topic sub-block convention (existing blocks end at 2200801-2).
+# Evasion: literal '${IFS}' adjacency is bypassable via $IFS$9 / tab tokens; pair with host Sigma.
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Gogs Argument Injection RCE via Malicious --exec Branch Name (GHSA-qf6p-p7ww-cwr9)"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"--exec="; content:"${IFS}"; distance:0; classtype:web-application-attack; reference:url,rapid7.com/blog/post/ve-authenticated-rce-via-argument-injection-gogs-unfixed/; metadata:author Actioner, created_at 2026-05-30; sid:2200901; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Gogs Pull Request Rebase Merge with Injected --exec Argument"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/pulls/"; content:"/merge"; distance:0; http.request_body; content:"merge_style=rebase"; classtype:web-application-attack; reference:url,rapid7.com/blog/post/ve-authenticated-rce-via-argument-injection-gogs-unfixed/; metadata:author Actioner, created_at 2026-05-30; sid:2200902; rev:1;)
