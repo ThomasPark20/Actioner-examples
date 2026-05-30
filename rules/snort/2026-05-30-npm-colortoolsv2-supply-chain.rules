@@ -1,0 +1,3 @@
+# colortoolsv2/mimelib2 npm EtherHiding campaign — second-stage C2 hosts (Snort 2.9)
+# Source: https://www.reversinglabs.com/blog/ethereum-contracts-malicious-code
+alert ip $HOME_NET any -> [45.125.67.172,193.233.201.21] any (msg:"ACTIONER colortoolsv2/mimelib2 npm second-stage C2 host contact"; flow:to_server; reference:url,reversinglabs.com/blog/ethereum-contracts-malicious-code; classtype:trojan-activity; sid:2100801; rev:1;)

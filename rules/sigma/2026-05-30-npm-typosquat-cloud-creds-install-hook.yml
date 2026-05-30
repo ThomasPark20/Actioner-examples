@@ -1,0 +1,45 @@
+title: npm Install-Hook Spawning Cloud Credential Harvester (Typosquat OpenSearch Supply-Chain)
+id: 3f1c9a2e-7d4b-4e8a-9c61-2a5b8e0f1d34
+status: experimental
+description: Detects a Node.js process spawned from an npm install lifecycle hook that immediately reaches into cloud/CI credential stores (AWS IMDS/STS/Secrets Manager, HashiCorp Vault, npm tokens), consistent with the vpmdhaj typosquatted OpenSearch/ElasticSearch npm campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/28/typosquatted-npm-packages-used-steal-cloud-ci-cd-secrets/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+    - attack.t1552.005
+    - attack.t1555
+    - attack.t1580
+    - attack.t1528
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_proc:
+        Image|endswith:
+            - '/node'
+            - '/bun'
+    selection_hook:
+        ParentCommandLine|contains:
+            - 'preinstall'
+            - 'postinstall'
+            - 'npm install'
+            - 'npm ci'
+    selection_target:
+        CommandLine|contains:
+            - '169.254.169.254'
+            - '169.254.170.2'
+            - 'GetCallerIdentity'
+            - 'AssumeRole'
+            - 'GetSecretValue'
+            - 'ListSecrets'
+            - 'VAULT_TOKEN'
+            - 'VAULT_AUTH_TOKEN'
+            - '/-/npm/v1/tokens'
+            - '__DAEMONIZED'
+    condition: selection_proc and (selection_hook or selection_target)
+falsepositives:
+    - Legitimate cloud-aware npm packages that query instance metadata during installation (rare; tune by package allowlist)
+level: high

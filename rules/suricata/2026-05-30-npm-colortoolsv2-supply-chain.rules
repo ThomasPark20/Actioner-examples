@@ -1,0 +1,4 @@
+# colortoolsv2/mimelib2 npm EtherHiding campaign — second-stage C2 + on-chain resolver (Suricata)
+# Source: https://www.reversinglabs.com/blog/ethereum-contracts-malicious-code
+alert ip $HOME_NET any -> [45.125.67.172,193.233.201.21] any (msg:"Actioner - colortoolsv2/mimelib2 npm second-stage C2 host contact"; flow:to_server; reference:url,reversinglabs.com/blog/ethereum-contracts-malicious-code; classtype:trojan-activity; sid:2200801; rev:1; metadata:author Actioner, created_at 2026-05-30;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - colortoolsv2 Ethereum C2-resolution contract address in HTTP"; flow:established,to_server; http.uri; content:"1f171a1b07c108eae05a5bccbe86922d66227e2b"; nocase; reference:url,reversinglabs.com/blog/ethereum-contracts-malicious-code; classtype:trojan-activity; sid:2200802; rev:1; metadata:author Actioner, created_at 2026-05-30;)
