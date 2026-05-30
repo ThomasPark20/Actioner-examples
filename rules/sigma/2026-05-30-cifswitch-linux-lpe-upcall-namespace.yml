@@ -1,0 +1,33 @@
+title: CIFSwitch - cifs.upcall Spawned From Userspace Key Request (LPE)
+id: 7c1e2a3b-4d5f-4a6b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects the CIFSwitch local privilege escalation pattern where an unprivileged
+    user forges a cifs.spnego key request, causing the request-key upcall helper to
+    launch /usr/sbin/cifs.upcall as root. Legitimately, cifs.upcall is invoked by the
+    kernel's request-key mechanism (parent /sbin/request-key) for an active CIFS mount;
+    here it is reachable from an attacker-controlled namespace setup. Flags cifs.upcall
+    executions whose ancestry includes unshare/namespace tooling.
+references:
+    - https://heyitsas.im/posts/cifswitch/
+    - https://github.com/manizada/CIFSwitch
+    - https://www.bleepingcomputer.com/news/security/new-cifswitch-linux-flaw-gives-root-on-multiple-distributions/
+author: Actioner
+date: 2026-05-30
+tags:
+    - attack.t1068
+    - attack.t1611
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_upcall:
+        Image|endswith: '/cifs.upcall'
+    selection_ns_ancestry:
+        ParentImage|endswith:
+            - '/unshare'
+            - '/cifswitch-poc.py'
+    condition: selection_upcall and selection_ns_ancestry
+falsepositives:
+    - Administrators manually testing cifs.upcall within a namespace
+level: high

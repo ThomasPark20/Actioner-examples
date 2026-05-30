@@ -1,0 +1,32 @@
+title: CIFSwitch - Userspace request_key/add_key for cifs.spnego Key Type
+id: 1f2e3d4c-5b6a-4978-8a6b-7c8d9e0f1a2b
+status: experimental
+description: >
+    Detects userspace invocation of the request_key/add_key/keyctl syscalls associated
+    with forging a cifs.spnego key (CIFSwitch LPE). The kernel CIFS client is the only
+    legitimate creator of cifs.spnego keys; an unprivileged process issuing these key
+    syscalls is anomalous and precedes the cifs.upcall root helper launch. On x86_64
+    auditd records the syscall by name when interpreted (add_key=248, request_key=249,
+    keyctl=250); this rule matches the interpreted syscall names.
+references:
+    - https://heyitsas.im/posts/cifswitch/
+    - https://github.com/torvalds/linux/commit/3da1fdf4efbc490041eb4f836bf596201203f8f2
+author: Actioner
+date: 2026-05-30
+tags:
+    - attack.t1068
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'SYSCALL'
+        syscall:
+            - 'request_key'
+            - 'add_key'
+    filter_root:
+        uid: 0
+    condition: selection and not filter_root
+falsepositives:
+    - Legitimate keyring-using software run as non-root (e.g. krb5/gnome-keyring) - tune by adding exe filters
+level: medium
