@@ -1,0 +1,35 @@
+title: Gogs Argument Injection via git rebase --exec Child Process
+id: 7f3c1a2e-9d54-4b6a-8e21-3c5f0a7b91d2
+status: experimental
+description: >
+    Detects a git child process spawned by the Gogs server carrying an injected
+    --exec flag, the artifact of CWE-88 argument injection (GHSA-qf6p-p7ww-cwr9)
+    where a malicious pull request base branch name beginning with --exec= is
+    passed to git rebase, causing git to run an attacker command via sh -c.
+references:
+    - https://www.rapid7.com/blog/post/ve-authenticated-rce-via-argument-injection-gogs-unfixed/
+    - https://www.securityweek.com/gogs-zero-day-exposes-servers-to-remote-code-execution/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith: '/gogs'
+    selection_git:
+        Image|endswith:
+            - '/git'
+            - '\git.exe'
+    selection_inject:
+        CommandLine|contains:
+            - 'rebase'
+            - 'checkout'
+    selection_exec:
+        CommandLine|contains: '--exec='
+    condition: selection_parent and selection_git and selection_inject and selection_exec
+falsepositives:
+    - Legitimate CI tooling invoking git rebase with a genuine --exec hook (rare as a direct child of the gogs server process)
+level: medium
