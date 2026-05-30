@@ -1,0 +1,28 @@
+title: Shai-Hulud Exfiltration Repo Marker and Dead-Man-Switch Token
+id: c4d2f6a8-1b09-4e3c-8a7d-9f2e0b5c3a14
+status: experimental
+description: >
+    Detects host-side artifacts of Mini Shai-Hulud GitHub-based exfiltration and
+    persistence: the reversed campaign repo description used when creating public
+    exfil repos, and the dead-man-switch GitHub token names that wipe the host if
+    revoked.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/
+    - https://cybersecurityreach.org/investigations/ifyourevokethistokenitwillwipethecomputeroftheowner-shai-hulud-2026
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1567
+    - attack.t1657
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains:
+            - 'niagA oG eW ereH :duluH-iahS'
+            - 'IfYouRevokeThisTokenItWillWipeTheComputerOfTheOwner'
+            - 'IfYouInvalidateThisTokenItWillNukeTheComputerOfTheOwner'
+    condition: selection
+falsepositives:
+    - Threat-intel/research tooling referencing these reversed/token markers
+level: medium
