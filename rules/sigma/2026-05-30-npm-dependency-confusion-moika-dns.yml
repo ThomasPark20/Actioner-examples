@@ -1,0 +1,25 @@
+title: NPM Dependency-Confusion moika.tech C2/Lure DNS Query
+id: b4d9c139-7057-44b6-893f-bb6e0b4f1b13
+status: experimental
+description: Detects DNS resolution of the moika.tech C2 or t-in-one.io lure domains used by the npm dependency-confusion campaign reported by Microsoft (2026-05-29).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/29/33-malicious-npm-packages-abuse-dependency-confusion-profile-developer-environments/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1071.001
+    - attack.t1195.003
+logsource:
+    category: dns_query
+detection:
+    c2:
+        QueryName: 'oob.moika.tech'
+    lure:
+        QueryName:
+            - 'npm.t-in-one.io'
+            - 'docs.t-in-one.io'
+            - 'jira.t-in-one.io'
+    condition: c2 or lure
+falsepositives:
+    - None expected; dedicated attacker infrastructure
+level: high

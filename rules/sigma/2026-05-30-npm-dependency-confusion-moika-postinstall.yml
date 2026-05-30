@@ -1,0 +1,30 @@
+title: NPM postinstall Hook Executes node scripts/postinstall.js
+id: f3513d72-70cd-410e-a464-a61b46954e87
+status: experimental
+description: Detects a node process launched from an npm postinstall lifecycle hook running scripts/postinstall.js, consistent with the dependency-confusion stager in the moika.tech campaign. Behavioral backstop for when network IOCs rotate; correlate with the moika.tech network indicators to confirm.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/29/33-malicious-npm-packages-abuse-dependency-confusion-profile-developer-environments/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1059.007
+    - attack.t1195.003
+    - attack.t1027
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    node_proc:
+        Image|endswith:
+            - '\node.exe'
+            - '/node'
+    postinstall_script:
+        CommandLine|contains: 'scripts/postinstall.js'
+    parent_npm:
+        ParentImage|contains:
+            - 'npm'
+            - 'node_modules/.bin'
+    condition: node_proc and postinstall_script and parent_npm
+falsepositives:
+    - Legitimate packages with a scripts/postinstall.js build step; correlate with the moika.tech network IOCs to confirm
+level: medium
