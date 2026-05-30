@@ -1,0 +1,7 @@
+# Mini Shai-Hulud (@antv) C2 / Session Exfil Egress — Snort 2.9.20
+# sid:2100501 — HIGH precision: TLS record anchor (|16 03|) + literal C2 domain in ClientHello SNI.
+# sid:2100502 — MEDIUM precision: filev2.getsession.org is the LEGITIMATE Session P2P network;
+#   the host+/file/ pairing is the campaign anchor but benign Session traffic exists. Pair with the
+#   SNI/DNS anchor (sid:2100501) or scope to CI-runner source ranges before alerting in production.
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Mini Shai-Hulud C2 SNI t.m-kosche.com [HIGH]"; flow:established,to_server; content:"|16 03|"; depth:2; content:"t.m-kosche.com"; nocase; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/; sid:2100501; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mini Shai-Hulud Session Exfil filev2.getsession.org [MEDIUM - pair with SNI/DNS anchor]"; flow:established,to_server; content:"filev2.getsession.org"; nocase; content:"/file/"; nocase; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/; sid:2100502; rev:1;)

@@ -1,0 +1,33 @@
+title: Shai-Hulud CI Runner Memory Secret Scraping and Sudoers Injection
+id: 7b1e9d04-2a3f-4c88-9e15-6d4b0a2f8c77
+status: experimental
+description: >
+    Detects the Mini Shai-Hulud CI/CD credential-theft chain: scraping the GitHub
+    Actions Runner.Worker process memory for masked secrets via the distinctive
+    grep/tr scrape command, and/or injecting a passwordless sudoers rule for the
+    runner user.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/
+    - https://flashpoint.io/blog/mini-shai-hulud-worm-new-era-ci-cd-exploitation/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1552.001
+    - attack.t1003.007
+    - attack.t1548.003
+detection:
+    selection_memscrape:
+        CommandLine|contains|all:
+            - 'grep'
+            - '-aoE'
+            - 'tr -d'
+            - '":{"value":"'
+    selection_sudoers:
+        CommandLine|contains: 'runner ALL=(ALL) NOPASSWD:ALL'
+    condition: selection_memscrape or selection_sudoers
+falsepositives:
+    - Security tooling that legitimately greps runner memory for the masked-secret format (rare)
+level: medium
+logsource:
+    category: process_creation
+    product: linux

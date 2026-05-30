@@ -1,0 +1,32 @@
+title: Mini Shai-Hulud npm Preinstall Bun Loader Execution
+id: 2f8a1c34-9d52-4e7b-b6a1-3c0e5f7a9b21
+status: experimental
+description: >
+    Detects the Mini Shai-Hulud (@antv) supply-chain payload executing during npm
+    install via a malicious preinstall hook that bootstraps the Bun runtime and runs
+    the obfuscated stager (setup_bun.js -> bun run index.js / bun_environment.js).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/20/mini-shai-hulud-compromised-antv-npm-packages-enable-ci-cd-credential-theft/
+    - https://snyk.io/blog/mini-shai-hulud-antv-npm-supply-chain-attack/
+author: Actioner
+date: 2026/05/30
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_npm_lifecycle:
+        CommandLine|contains:
+            - 'npm-lifecycle'
+            - 'preinstall'
+    selection_loader:
+        CommandLine|contains:
+            - 'setup_bun.js'
+            - 'bun_environment.js'
+            - 'bun run index.js'
+            - 'bun run .claude/'
+    condition: selection_npm_lifecycle and selection_loader
+falsepositives:
+    - Legitimate packages that genuinely ship a Bun-based preinstall step (rare)
+level: high
