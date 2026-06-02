@@ -1,0 +1,34 @@
+title: Miasma Shai-Hulud npm Preinstall Loader to Bun Runtime Download
+id: 1d7b9e02-6a4f-4c38-8e91-2f5c0a7b6d44
+status: experimental
+description: >
+    Detects the Miasma Red Hat npm worm install-time chain: the preinstall hook
+    runs the obfuscated index.js loader which fetches the pinned Bun runtime
+    (bun-v1.3.13) and stages a transient payload under /tmp before executing the
+    credential stealer.
+references:
+    - https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/
+    - https://safedep.io/redhat-cloud-services-hit-by-mini-shai-hulud-npm-worm/
+author: Actioner
+date: 2026/06/02
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_bun_dl:
+        CommandLine|contains: 'oven-sh/bun/releases/download/bun-v1.3.13'
+    selection_tmp_stage:
+        CommandLine|contains|all:
+            - '/tmp/b-'
+            - 'bun'
+        CommandLine|contains:
+            - 'index.js'
+            - '_index.js'
+    condition: selection_bun_dl or selection_tmp_stage
+falsepositives:
+    - Legitimate projects pinning and installing Bun 1.3.13 at this exact path (uncommon in install scripts)
+level: medium

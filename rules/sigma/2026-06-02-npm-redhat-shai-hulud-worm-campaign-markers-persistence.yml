@@ -1,0 +1,32 @@
+title: Shai-Hulud Lineage and Miasma-Distinct Campaign Markers
+id: 4c0e8a37-9b21-4d6f-a3e7-5f1b2c8d0a96
+status: experimental
+description: >
+    Detects host artifacts of the Shai-Hulud / Miasma ("Spreading Blight") Red Hat
+    npm worm. Miasma-distinct: the GitHub exfil-repo description marker and the
+    firedalazer commit-search C2 marker. Shared Shai-Hulud lineage (also detected by
+    the prior antv rule — dedupe at deployment): the dead-man-switch token used as a
+    commit-message prefix, and the kitty-monitor / gh-token-monitor persistence units.
+references:
+    - https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/
+    - https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages
+author: Actioner
+date: 2026/06/02
+tags:
+    - attack.t1567
+    - attack.t1543.002
+    - attack.t1657
+detection:
+    selection:
+        CommandLine|contains:
+            - 'Miasma: The Spreading Blight'
+            - 'IfYouInvalidateThisTokenItWillNukeTheComputerOfTheOwner'
+            - 'search/commits?q=firedalazer'
+            - 'kitty-monitor'
+            - 'gh-token-monitor'
+    condition: selection
+falsepositives:
+    - Threat-intel or IR tooling referencing these published campaign markers
+level: high
+logsource:
+    category: process_creation

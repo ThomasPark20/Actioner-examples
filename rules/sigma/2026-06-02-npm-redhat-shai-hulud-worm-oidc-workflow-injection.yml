@@ -1,0 +1,33 @@
+title: Miasma Shai-Hulud Malicious OIDC Trusted-Publishing Workflow Injection
+id: 8a2f4d61-3c97-4e0a-9b15-7d2e6f0a4c83
+status: experimental
+description: >
+    Detects the Miasma ("Spreading Blight") Red Hat npm worm's injected GitHub
+    Actions workflow that abuses id-token:write OIDC trusted-publishing to push
+    backdoored npm releases, running the obfuscated loader via Bun (bun run _index.js)
+    with the campaign-specific OIDC_PACKAGES env var.
+references:
+    - https://www.wiz.io/blog/miasma-supply-chain-attack-targeting-redhat-npm-packages
+    - https://research.jfrog.com/post/shai-hulud-miasma-redhat-cloud-services/
+author: Actioner
+date: 2026/06/02
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+    - attack.t1606.002
+logsource:
+    category: process_creation
+detection:
+    selection_bun:
+        CommandLine|contains:
+            - 'bun run _index.js'
+            - 'bun run $GITHUB_ACTION_PATH/index.js'
+    selection_env:
+        CommandLine|contains:
+            - 'OIDC_PACKAGES'
+            - 'REPO_ID_SUFFIX'
+            - 'WORKFLOW_ID'
+    condition: selection_bun or selection_env
+falsepositives:
+    - Legitimate release automation that genuinely runs a Bun script named _index.js (rare)
+level: high
