@@ -1,0 +1,26 @@
+title: Sicoob.Sdk NuGet Credential Exfiltration via Sentry Ingest Host
+id: a20a7faa-3385-4b4b-ad98-5051c0e00669
+status: experimental
+description: >
+    Detects DNS resolution of the attacker-controlled Sentry ingest host used by the
+    malicious Sicoob.Sdk NuGet package to exfiltrate PFX certificates, PFX passwords,
+    client IDs, and boleto API responses. The subdomain encodes the attacker's unique
+    Sentry organization/project ID and is not a benign Sentry tenant for normal apps.
+references:
+    - https://socket.dev/blog/malicious-nuget-package-impersonates-sicoob-sdk
+    - https://thehackernews.com/2026/05/malicious-sicoob-nuget-steals-banking.html
+author: Actioner
+date: 2026-06-03
+tags:
+    - attack.t1041
+    - attack.t1567
+    - attack.t1552.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName: 'o4511335034847232.ingest.de.sentry.io'
+    condition: selection
+falsepositives:
+    - None expected; this Sentry tenant subdomain is attacker-controlled
+level: critical
