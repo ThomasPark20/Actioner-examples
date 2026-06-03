@@ -1,0 +1,23 @@
+title: codexui-android C2 Domain DNS Resolution
+id: 3c9f4a17-8e62-4b05-a7d3-1d2e9f0b6c84
+status: experimental
+description: >
+    Detects DNS resolution of the codexui-android C2/exfiltration domain anyclaw[.]store
+    (observed host sentry.anyclaw[.]store), the attacker-controlled server that
+    masquerades as Sentry telemetry and receives the exfiltrated Codex tokens.
+references:
+    - https://www.aikido.dev/blog/codex-remote-ui-steals-ai-tokens
+    - https://thehackernews.com/2026/06/openai-codex-authentication-tokens.html
+author: Actioner
+date: 2026/06/03
+tags:
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'anyclaw.store'
+    condition: selection
+falsepositives:
+    - None expected; domain is attacker-registered infrastructure
+level: high

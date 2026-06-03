@@ -1,0 +1,28 @@
+title: codexui-android Token Exfiltration to sentry.anyclaw.store
+id: b1d6e2f4-7a83-4c12-9e55-3f0a1c8d2e90
+status: experimental
+description: >
+    Detects HTTP POST exfiltration of stolen OpenAI Codex tokens by the malicious
+    codexui-android npm package to its C2 endpoint sentry.anyclaw.store/startlog,
+    identifiable by the host, the /startlog URI, and the codexui/ User-Agent.
+references:
+    - https://www.aikido.dev/blog/codex-remote-ui-steals-ai-tokens
+    - https://thehackernews.com/2026/06/openai-codex-authentication-tokens.html
+author: Actioner
+date: 2026/06/03
+tags:
+    - attack.t1567
+    - attack.t1552.001
+logsource:
+    category: proxy
+detection:
+    selection_host:
+        c-uri|contains: 'sentry.anyclaw.store'
+    selection_uri:
+        c-uri|contains: '/startlog'
+    selection_ua:
+        cs-User-Agent|startswith: 'codexui/'
+    condition: selection_host or selection_uri or selection_ua
+falsepositives:
+    - None expected; the host and User-Agent are attacker-specific
+level: high

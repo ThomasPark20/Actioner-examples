@@ -1,0 +1,33 @@
+title: codexui-android Install Hook Reading Codex Auth Token File
+id: 6f3a1c8e-2b94-4d77-9a1e-5c0d8e2f7b41
+status: experimental
+description: >
+    Detects a node/pnpm/npm process tree reading the OpenAI Codex credential file
+    (~/.codex/auth.json or $CODEX_HOME/auth.json), consistent with the malicious
+    codexui-android npm package whose chunk-PUR7OUAG.js exfiltrates Codex tokens at
+    module load time.
+references:
+    - https://www.aikido.dev/blog/codex-remote-ui-steals-ai-tokens
+    - https://thehackernews.com/2026/06/openai-codex-authentication-tokens.html
+author: Actioner
+date: 2026/06/03
+tags:
+    - attack.t1195.002
+    - attack.t1552.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_interp:
+        Image|endswith:
+            - '/node'
+            - '/pnpm'
+            - '/npm'
+    selection_target:
+        CommandLine|contains:
+            - '.codex/auth.json'
+            - 'codexui-android'
+    condition: selection_interp and selection_target
+falsepositives:
+    - Legitimate Codex CLI tooling that reads its own auth.json
+level: medium
