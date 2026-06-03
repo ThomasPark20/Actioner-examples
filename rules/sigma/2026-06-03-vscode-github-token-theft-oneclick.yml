@@ -1,0 +1,35 @@
+title: Malicious VS Code Local Workspace Extension Manifest Written to Disk
+id: 480bde3f-10f3-4275-b18a-dae14b8dee40
+status: experimental
+description: >
+    Detects a VS Code/Code-OSS local workspace extension manifest (package.json)
+    being created under a repository's .vscode/extensions directory. This is the
+    on-disk artifact of the github.dev "one-click" GitHub token theft, where a
+    cloned/opened repo ships a local workspace extension whose keybinding silently
+    runs workbench.extensions.installExtension with skipPublisherTrust to load a
+    token-stealing extension. Local workspace extensions execute with repo trust
+    and are an unusual, attacker-controllable artifact in a checked-out tree.
+references:
+    - https://blog.ammaraskar.com/github-token-stealing/
+    - https://github.com/microsoft/vscode/issues/319593
+    - https://www.bleepingcomputer.com/news/security/vs-code-zero-day-lets-hackers-steal-github-tokens-in-one-click/
+author: Actioner
+date: 2026-06-03
+tags:
+    - attack.t1204.001
+    - attack.t1528
+    - attack.t1176
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '\.vscode\extensions\'
+        TargetFilename|endswith: '\package.json'
+    selection_nix:
+        TargetFilename|contains: '/.vscode/extensions/'
+        TargetFilename|endswith: '/package.json'
+    condition: selection or selection_nix
+falsepositives:
+    - Legitimately committed local workspace extensions in a trusted monorepo
+    - Developers intentionally distributing a workspace-scoped extension
+level: medium
