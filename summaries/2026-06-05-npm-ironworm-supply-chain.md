@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-05
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 2026-06-05 — applied critic NEEDS-REVISION verdict: added Cursor/auth.json to credential Sigma rule; renamed GHA Sigma rule to match detection logic; replaced T1588.004→T1020, downgraded GHA rule critical→high; downgraded Snort confidence medium→low with /api/agent caveat; fixed ATT&CK table T1204.002→T1059.004 and T1562.003→T1564.001; removed T1204.002 from preinstall Sigma tags -->
 
 ## Executive Summary
 
@@ -219,15 +220,14 @@ IronWorm self-propagates through two vectors:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Trojanized npm packages via compromised maintainer account |
-| T1204.002 | User Execution: Malicious File | npm preinstall hook executes Rust ELF binary without user interaction |
-| T1059.004 | Command and Scripting Interpreter: Unix Shell | Binary execution via shell from preinstall hook |
+| T1059.004 | Command and Scripting Interpreter: Unix Shell | npm preinstall hook automatically executes Rust ELF binary via shell (no user interaction required) |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvesting of 20+ credential files from developer workstations |
 | T1552.007 | Unsecured Credentials: Container API | Docker and Kubernetes config harvesting |
 | T1083 | File and Directory Discovery | Scanning for credential files across known paths |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP C2 over Tor to /api/agent endpoint |
 | T1573.002 | Encrypted Channel: Asymmetric Cryptography | Tor network for C2 communications |
 | T1014 | Rootkit | eBPF kernel rootkit hiding processes and connections |
-| T1562.003 | Impair Defenses: Impair Command History Logging | eBPF filtering of /proc to hide from monitoring tools |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | eBPF filtering of /proc to hide processes and connections from monitoring tools |
 | T1027.002 | Obfuscated Files or Information: Software Packing | Modified UPX packing with overwritten magic bytes |
 | T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | Per-call-site string encryption with unique keys |
 | T1560.001 | Archive Collected Data: Archive via Utility | Secrets exfiltrated via workflow artifacts and temp.sh |
@@ -297,6 +297,7 @@ These detections target the IronWorm npm supply chain attack at PoC/advisory-spe
 Detects execution of suspicious binaries at `tools/setup` or `scripts/precheck` spawned by a Node.js/npm parent process, the primary IronWorm delivery mechanism.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0; splunk 0; log_scale 0. No matching product pipeline for linux/process_creation — portability proven without pipeline only (field names unmapped). -->
+<!-- revision: v1.1 — removed T1204.002 tag (npm preinstall is automatic, not user execution); kept T1059.004 only -->
 ```yaml
 title: IronWorm npm Preinstall Hook Executing Suspicious Binary
 id: 7c3e1a8d-f2b4-4e9a-b6d1-8a5c3f7e2d90
@@ -311,7 +312,6 @@ references:
 author: Actioner
 date: 2026/06/05
 tags:
-    - attack.t1204.002
     - attack.t1059.004
 logsource:
     category: process_creation

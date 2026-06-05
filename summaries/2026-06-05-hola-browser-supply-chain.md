@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-05
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: critic NEEDS-REVISION applied 2026-06-05. Fixed misattributed hashes, added path constraint to Sigma rule 1, added \Hola\app\ path to Sigma rule 2, dropped speculative Snort rule, demoted Suricata to low confidence, removed T1105, fixed process chain, removed vacuous defanging block, added \Hola\app\ IOC. -->
 
 ## Executive Summary
 
@@ -95,12 +96,6 @@ The malware employed the following evasion techniques:
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through:
-> - URLs: `hxxps://` or `hxxp://` (e.g., `hxxps://evil[.]com/payload`)
-> - Domains: `[.]` replacing dots (e.g., `evil[.]com`, `c2[.]attacker[.]net`)
-> - IP addresses: `[.]` replacing dots (e.g., `1.2.3[.]4`, `192.168[.]1[.]100`)
-> - Email addresses: `[at]` replacing @ (e.g., `attacker[at]evil[.]com`)
-
 ### Package / Software Level
 
 | Package / Component | Malicious Version | Description |
@@ -113,11 +108,12 @@ The malware employed the following evasion techniques:
 |----------|------|---------------|-------------|
 | Windows | C:\Program Files\Hola\me.exe | e3541caf708c075f0bb22fc68b03acd8457fea7cf0732ea935b1eb016d1c7721 | Malicious cryptominer binary (Troj/GoMiner-B) |
 | Windows | C:\Program Files\Hola\HolaMonitorService.exe | e3541caf708c075f0bb22fc68b03acd8457fea7cf0732ea935b1eb016d1c7721 | Self-copy of me.exe for service persistence |
+| Windows | C:\Program Files\Hola\app\HolaMonitorService.exe | e3541caf708c075f0bb22fc68b03acd8457fea7cf0732ea935b1eb016d1c7721 | Alternate self-copy path (ANY.RUN confirmed `\app\` subdirectory) |
 | Windows | (installer) | 174086534a2de730058465a4a4e231ce3778ab17ebebfd7f62b3bf9750bc7bdb | Certified Hola Browser installer (reference clean hash) |
 
-**Additional hashes for me.exe (Sophos sample):**
-- SHA1: 8046735d354814bf9ef9a053cb9cad8cfec261f2
-- MD5: 8462f61e68b37d220eab2462b3cbcec8
+<!-- revision: removed SHA1 8046735d... and MD5 8462f61e... previously listed as me.exe hashes.
+     Critic identified these as clean Hola installer hashes, NOT me.exe hashes.
+     Retaining only SHA256 e3541caf... (Sophos) and ANY.RUN hashes below. -->
 
 **Additional hashes for me.exe (ANY.RUN sandbox sample):**
 - SHA256: 4cdeb5df217764a8b6a20d518b76ccb30cbe623365a13d9dcd40900950f1ed99
@@ -132,7 +128,8 @@ The malware employed the following evasion techniques:
 
 ### Behavioral
 
-- **Process chain:** `explorer.exe` -> `me.exe` -> `HolaMonitorService.exe` (via service manager: `services.exe` -> `HolaMonitorService.exe`)
+- **Process chain (delivery):** `explorer.exe` -> `me.exe` (user runs compromised installer component)
+- **Process chain (persistence):** `services.exe` -> `HolaMonitorService.exe` (Windows Service Control Manager starts the installed service independently)
 - **Service registration:** Creates Windows service `hola_monitor_svc` with automatic startup
 - **Registry modification:** Creates `HKLM\SYSTEM\ControlSet001\Services\EventLog\Application\hola_monitor_svc` with EventCreate.exe as message file
 - **Windows Defender exclusion:** Adds Hola installation directory to Defender exclusion path
@@ -148,8 +145,8 @@ The malware employed the following evasion techniques:
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Binary named `HolaMonitorService.exe` to mimic legitimate Hola service |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | Adds Windows Defender exclusion for installation directory |
 | T1496 | Resource Hijacking | XMRig-based Monero cryptocurrency mining |
-| T1105 | Ingress Tool Transfer | Malicious binary delivered via compromised update/install pipeline |
 | T1497 | Virtualization/Sandbox Evasion | Anti-VM strings present in binary |
+<!-- revision: removed T1105 (Ingress Tool Transfer) — delivery was via compromised installer (T1195.002), not separate tool transfer. -->
 
 ## Impact Assessment
 
@@ -211,6 +208,7 @@ These detections target the Hola Browser supply chain cryptominer at the PoC/adv
 
 Detects `me.exe` or `HolaMonitorService.exe` execution in the Hola directory, or service installation commands referencing `hola_monitor_svc`.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: added Image|contains '\Hola\' path constraint to selection_service_exe per critic (prevents matching any binary named HolaMonitorService.exe outside Hola directory). -->
 <!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on published file paths and service name from Sophos X-Ops report. FP: legitimate Hola VPN service components (verify hash/signature). -->
 
 ```yaml
@@ -240,6 +238,7 @@ detection:
         Image|contains: '\Hola\'
     selection_service_exe:
         Image|endswith: '\HolaMonitorService.exe'
+        Image|contains: '\Hola\'
     selection_service_install:
         CommandLine|contains|all:
             - 'hola_monitor_svc'
@@ -252,8 +251,9 @@ level: high
 
 ### Sigma: Hola Browser Cryptominer File Drop
 
-Detects creation of `me.exe` or `HolaMonitorService.exe` in the Hola installation directory.
+Detects creation of `me.exe` or `HolaMonitorService.exe` in the Hola installation directory (including `\app\` subdirectory variant confirmed by ANY.RUN).
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: added selection_monitor_app for \Hola\app\HolaMonitorService.exe path (ANY.RUN confirmed). Replaced T1105 tag with T1195.002. -->
 <!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on published file drop paths from Sophos X-Ops. FP: legitimate Hola updates (check signature). -->
 
 ```yaml
@@ -262,8 +262,9 @@ id: 7b2d6f91-3e4a-4c89-b5d7-2a1f8e0c9d34
 status: experimental
 description: >
     Detects the creation of the undeclared me.exe or HolaMonitorService.exe files
-    in the Hola Browser installation directory, indicative of the supply chain
-    cryptominer compromise affecting Hola Browser v1.251.91.0.
+    in the Hola Browser installation directory (including \app\ subdirectory),
+    indicative of the supply chain cryptominer compromise affecting Hola Browser
+    v1.251.91.0.
 references:
     - https://www.sophos.com/en-us/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser
     - https://www.bleepingcomputer.com/news/security/hola-browser-for-windows-compromised-to-deliver-cryptominer/
@@ -271,7 +272,7 @@ references:
 author: Actioner
 date: 2026-06-05
 tags:
-    - attack.t1105
+    - attack.t1195.002
     - attack.t1036.005
 logsource:
     category: file_event
@@ -281,7 +282,9 @@ detection:
         TargetFilename|endswith: '\Hola\me.exe'
     selection_monitor:
         TargetFilename|endswith: '\Hola\HolaMonitorService.exe'
-    condition: selection_me or selection_monitor
+    selection_monitor_app:
+        TargetFilename|endswith: '\Hola\app\HolaMonitorService.exe'
+    condition: selection_me or selection_monitor or selection_monitor_app
 falsepositives:
     - Legitimate Hola VPN updates (verify digital signature and hash)
 level: high
@@ -324,15 +327,10 @@ falsepositives:
 level: high
 ```
 
-### Snort: Hola Browser Cryptominer Service Name in Network Traffic
-
-Detects the `hola_monitor_svc` service name string in outbound TCP traffic, potentially indicative of the cryptominer's C2 or telemetry communication.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf -T with include 0. Service name in network traffic is uncommon but possible in telemetry/update checks. Low expected volume. -->
-
-```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Hola Browser Supply Chain Cryptominer Service Registry Event"; flow:established,to_server; content:"hola_monitor_svc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.sophos.com/en-us/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser; sid:2100101; rev:1;)
-```
+<!-- revision: DROPPED Snort rule "Hola Browser Cryptominer Service Name in Network Traffic" (sid:2100101).
+     Critic verdict: no source provides evidence that hola_monitor_svc appears in network traffic;
+     ANY.RUN showed zero malicious network connections; msg field contained copy-paste error
+     ("Service Registry Event"); speculative rule with no empirical basis. -->
 
 ### Suricata: Hola Browser Cryptominer XMRig Stratum Connection
 
