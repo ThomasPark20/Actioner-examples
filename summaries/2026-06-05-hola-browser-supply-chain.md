@@ -165,6 +165,7 @@ Check for the presence of the malicious files and service:
 # Check for malicious files
 Get-Item "C:\Program Files\Hola\me.exe" -ErrorAction SilentlyContinue
 Get-Item "C:\Program Files\Hola\HolaMonitorService.exe" -ErrorAction SilentlyContinue
+Get-Item "C:\Program Files\Hola\app\HolaMonitorService.exe" -ErrorAction SilentlyContinue
 
 # Check for the malicious service
 Get-Service -Name "hola_monitor_svc" -ErrorAction SilentlyContinue
@@ -202,7 +203,7 @@ Get-FileHash "C:\Program Files\Hola\me.exe" -Algorithm SHA256 -ErrorAction Silen
 
 ## Detection Rules
 
-These detections target the Hola Browser supply chain cryptominer at the PoC/advisory-specific altitude, keying on file paths, service names, and XMRig strings published by Sophos X-Ops. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles does not equal fires -- verify in your pipeline with the published hashes.
+These detections target the Hola Browser supply chain cryptominer at the PoC/advisory-specific altitude, keying on file paths, service names, and XMRig strings published by Sophos X-Ops. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles does not equal fires -- verify in your pipeline with the published hashes. One Snort rule was dropped during review (speculative, no evidence of service name in network traffic). The Suricata rule is a generic XMRig Stratum companion -- pair with host-side IOCs for attribution.
 
 ### Sigma: Hola Browser Cryptominer Service Installation (Process Creation)
 
@@ -334,12 +335,13 @@ level: high
 
 ### Suricata: Hola Browser Cryptominer XMRig Stratum Connection
 
-Detects XMRig Stratum mining protocol JSON-RPC login attempts containing the `xmrig` identifier, consistent with the compromised Hola Browser cryptominer.
-**Status:** compile ✅ compiles · confidence: medium
+Detects XMRig Stratum mining protocol JSON-RPC login attempts containing the `xmrig` identifier. **Generic companion rule** -- detects any XMRig Stratum connection, not Hola-specific. Pair with host-side IOCs (file hashes, service name, file paths) for attribution to this supply chain compromise.
+**Status:** compile ✅ compiles · confidence: low
+<!-- revision: demoted confidence medium->low per critic. This is a generic XMRig Stratum detector, not Hola-specific. within:50 may be tight for some JSON formatters. Label as generic companion — pair with host-side IOCs. -->
 <!-- audit: suricata -T -S 0. Keys on XMRig Stratum JSON-RPC login pattern. Generic to XMRig miners, not Hola-specific — pair with host IOCs for attribution. -->
 
 ```suricata
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Hola Browser Supply Chain Cryptominer XMRig Stratum Connection"; flow:established,to_server; content:"|22|method|22|"; content:"|22|login|22|"; distance:0; within:50; content:"xmrig"; nocase; classtype:trojan-activity; reference:url,www.sophos.com/en-us/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser; metadata:author Actioner, created_at 2026-06-05; sid:2200101; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Generic XMRig Stratum Connection (companion to Hola Browser Supply Chain)"; flow:established,to_server; content:"|22|method|22|"; content:"|22|login|22|"; distance:0; within:50; content:"xmrig"; nocase; classtype:trojan-activity; reference:url,www.sophos.com/en-us/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser; metadata:author Actioner, created_at 2026-06-05, confidence low, note generic_companion_pair_with_host_IOCs; sid:2200101; rev:2;)
 ```
 
 ### YARA: Hola Browser Supply Chain XMRig Miner Binary
