@@ -290,7 +290,7 @@ ss -tlnp | grep 8738
 
 ## Detection Rules
 
-These detections target the IronWorm npm supply chain attack at PoC/advisory-specific altitude. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale. The YARA rule keys on the published BIP-39 seed phrase and has been sample-tested. Note: compiles does not equal fires -- verify in your pipeline with real telemetry.
+These detections target the IronWorm npm supply chain attack at PoC/advisory-specific altitude. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale (verified with `sigma check` and `sigma convert --without-pipeline`). The YARA rule keys on the published BIP-39 seed phrase and has been sample-tested. The Snort rules are low confidence due to generic URI patterns and should be used in correlation only. Note: compiles does not equal fires -- verify in your pipeline with real telemetry.
 
 ### Sigma: IronWorm npm Preinstall Hook Binary Execution
 
@@ -339,6 +339,7 @@ level: high
 Detects file access to AWS, Kubernetes, Docker, and AI tool credential paths by a process originating from a `node_modules` directory.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check 0; splunk 0; log_scale 0. Medium confidence because file_event coverage on Linux requires auditd or Sysmon-for-Linux — not universal. -->
+<!-- revision: v1.1 — added ~/Cursor/auth.json to credential file list per critic FIX verdict -->
 ```yaml
 title: IronWorm Credential File Access via Suspicious Process
 id: 9b4f2c6e-a1d3-4e8b-c7f5-2d9a6b3e1f80
@@ -368,6 +369,7 @@ detection:
             - '/.docker/config.json'
             - '/.claude/.credentials.json'
             - '/.codex/auth.json'
+            - '/Cursor/auth.json'
             - '/.gemini/settings.json'
     condition: selection_process and selection_files
 falsepositives:
@@ -375,26 +377,27 @@ falsepositives:
 level: high
 ```
 
-### Sigma: IronWorm GitHub Actions Workflow Modification
+### Sigma: IronWorm GitHub Actions Workflow Modification from node_modules
 
 Detects modification of GitHub Actions workflow YAML files by a process originating from `node_modules` or the `tools/setup` binary, indicating IronWorm's workflow hijacking technique.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check 0; splunk 0; log_scale 0. Medium confidence: workflow modifications could come from legitimate CI tooling. Scope to systems where node_modules processes should not modify .github/workflows/. -->
+<!-- revision: v1.1 — renamed title from "Secret Exfiltration Pattern" to match actual detection logic (workflow file modification from node_modules); replaced T1588.004 (digital certificates, wrong) with T1020 (Automated Exfiltration); downgraded level from critical to high (CI tooling could trigger) -->
 ```yaml
-title: IronWorm GitHub Actions Secret Exfiltration Pattern
+title: IronWorm GitHub Actions Workflow Modification from node_modules
 id: 3d8a5f1c-b6e2-4c7d-9a0f-1e4b7c3d6a82
 status: experimental
 description: >
-    Detects GitHub Actions workflow modifications that dump all secrets via
-    toJSON(secrets) expression, a technique used by IronWorm to exfiltrate CI/CD
-    secrets without external C2 by embedding them in workflow artifacts.
+    Detects modification of GitHub Actions workflow YAML files by a process
+    originating from node_modules or the tools/setup binary, indicating
+    IronWorm's workflow hijacking technique for CI/CD secret exfiltration.
 references:
     - https://research.jfrog.com/post/iron-worm-shai-hulud-rustier-cousin/
     - https://www.bleepingcomputer.com/news/security/new-ironworm-malware-hits-36-packages-in-npm-supply-chain-attack/
 author: Actioner
 date: 2026/06/05
 tags:
-    - attack.t1588.004
+    - attack.t1020
     - attack.t1560.001
 logsource:
     category: file_event
@@ -410,14 +413,15 @@ detection:
     condition: selection_path and selection_process
 falsepositives:
     - CI/CD automation tools modifying workflow files legitimately
-level: critical
+level: high
 ```
 
 ### Snort: IronWorm C2 and Exfiltration Traffic
 
-Detects HTTP POST requests to the `/api/agent` C2 endpoint and exfiltration to `temp.sh` file-sharing service used as IronWorm's fallback exfil channel.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c minimal -T exit 0. Medium confidence: /api/agent is a generic URI pattern; combine with other indicators for higher fidelity. temp.sh rule is more specific. -->
+Detects HTTP POST requests to the `/api/agent` C2 endpoint and exfiltration to `temp.sh` file-sharing service used as IronWorm's fallback exfil channel. **Caveat:** `/api/agent` is a generic REST API pattern that will produce false positives in isolation; use these rules in correlation with host-based IronWorm indicators only. The Tor C2 hidden service address is undisclosed, limiting network-level specificity.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: snort -c minimal -T exit 0. Low confidence: /api/agent is a generic URI pattern common in REST APIs; high FP risk without correlation. temp.sh rule is more defensible but still broad. Tor C2 address undisclosed — inherent limitation. -->
+<!-- revision: v1.1 — downgraded confidence from medium to low per critic verdict; added /api/agent genericity caveat and Tor address limitation note -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm C2 Beacon via Tor to /api/agent Endpoint"; flow:established,to_server; content:"/api/agent"; fast_pattern; content:"POST"; content:"Host|3A|"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/iron-worm-shai-hulud-rustier-cousin;)
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm Exfiltration via temp.sh File Sharing Service"; flow:established,to_server; content:"temp.sh"; fast_pattern; content:"POST"; sid:2100102; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/iron-worm-shai-hulud-rustier-cousin;)
@@ -425,9 +429,10 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm Exfiltrat
 
 ### Suricata: IronWorm C2 and Exfiltration Traffic
 
-Detects HTTP POST to `/api/agent` and exfiltration to `temp[.]sh` using Suricata's HTTP-aware dot-notation sticky buffers for higher fidelity matching.
+Detects HTTP POST to `/api/agent` and exfiltration to `temp[.]sh` using Suricata's HTTP-aware dot-notation sticky buffers for higher fidelity matching. Note: the `/api/agent` rule should be used in correlation with host-based indicators only due to the generic URI pattern.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: suricata -T -S exit 0. Medium confidence: /api/agent is generic; temp.sh host match is more distinctive. Both use proper http.method/http.uri/http.host buffers. -->
+<!-- revision: v1.1 — KEEP per critic verdict; added correlation-only guidance for /api/agent rule -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm C2 POST to /api/agent Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/agent"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/iron-worm-shai-hulud-rustier-cousin; metadata:author Actioner, created_at 2026-06-05; sid:2200101; rev:1;)
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm Exfil to temp.sh File Sharing"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/iron-worm-shai-hulud-rustier-cousin; metadata:author Actioner, created_at 2026-06-05; sid:2200102; rev:1;)
@@ -438,6 +443,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - IronWorm Exfil to
 Detects the IronWorm ELF binary via the hardcoded BIP-39 seed phrase (operator OPSEC failure), Ethereum address, and distinctive combination of C2 endpoint with targeted credential file paths.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
 <!-- audit: yarac exit 0. Positive: ELF header + published BIP-39 seed phrase matched. Negative: ELF header + benign content, no match. Seed phrase is uniquely distinctive (12-word combination from the published JFrog report). -->
+<!-- revision: v1.1 — KEEP per critic verdict; no changes -->
 ```yara
 rule Malware_IronWorm_npm_Infostealer
 {
