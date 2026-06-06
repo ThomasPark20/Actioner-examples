@@ -1,0 +1,32 @@
+title: Reaper macOS Stealer - Fake Google Software Update Persistence
+id: 65212820-b536-4ec2-8707-5705c036bd59
+status: experimental
+description: >
+    Detects creation of files in the fake Google Software Update directory used by
+    the Reaper infostealer for persistence. The malware drops a Base64-encoded bash
+    script named GoogleUpdate and registers a LaunchAgent to execute it every 60 seconds.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+    - https://moonlock.com/mac-stealer-shub-reaper
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1543.001
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|contains|all:
+            - '/Application Support/Google/GoogleUpdate.app/Contents/MacOS/'
+            - 'GoogleUpdate'
+    filter_legit:
+        Image|contains:
+            - '/Google/Chrome'
+            - '/Google/GoogleUpdater'
+            - '/ksinstall'
+    condition: selection and not filter_legit
+falsepositives:
+    - Legitimate Google Chrome or Google Software Update installations
+level: high

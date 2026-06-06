@@ -1,0 +1,29 @@
+title: Reaper macOS Stealer - C2 Exfiltration via Curl to Known Domain
+id: 914441e5-9a7b-4122-95b8-49954921741e
+status: experimental
+description: >
+    Detects curl commands targeting the known Reaper C2 domain hebsbsbzjsjshduxbs.xyz.
+    The malware uses curl to upload chunked ZIP archives to /gate/chunk and maintain
+    a 60-second beacon to /api/bot/heartbeat. URI endpoint paths are only matched
+    when the C2 domain is also present in the command line to avoid false positives
+    from legitimate APIs using similar paths.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_curl:
+        Image|endswith: '/curl'
+    selection_c2_domain:
+        CommandLine|contains: 'hebsbsbzjsjshduxbs.xyz'
+    condition: selection_curl and selection_c2_domain
+falsepositives:
+    - None expected - hebsbsbzjsjshduxbs.xyz is a confirmed malicious C2 domain
+    - Note: URI paths /gate/chunk, /api/bot/heartbeat, /api/debug/event were removed as standalone matches because they can appear in legitimate APIs
+level: critical

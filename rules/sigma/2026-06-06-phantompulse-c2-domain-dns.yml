@@ -1,0 +1,25 @@
+title: PHANTOMPULSE C2 Domain DNS Query
+id: ceae41a0-bdea-4ffa-ba68-21d2423085b0
+status: experimental
+description: >
+    Detects DNS queries to known PHANTOMPULSE C2 domains. These domains were
+    identified in the REF6598 campaign targeting cryptocurrency and financial
+    sector organizations.
+references:
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'fefea22134.net'
+            - '0x666.info'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

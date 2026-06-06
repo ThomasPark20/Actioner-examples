@@ -1,0 +1,33 @@
+title: Reaper macOS Stealer - Script Editor Spawning Suspicious Processes
+id: 7bf778ef-1baf-420b-a9d3-d24e5d961572
+status: experimental
+description: >
+    Detects macOS Script Editor launching curl or bash child processes, a technique
+    used by the Reaper (SHub) infostealer to bypass Terminal-based protections
+    introduced in macOS Tahoe 26.4. The malware uses the applescript:// URL scheme
+    to pre-populate Script Editor with an obfuscated malicious payload.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+    - https://moonlock.com/mac-stealer-shub-reaper
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1059.002
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_parent:
+        ParentImage|endswith: '/Script Editor'
+    selection_child:
+        Image|endswith:
+            - '/curl'
+            - '/bash'
+            - '/sh'
+            - '/zsh'
+            - '/osascript'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate automation workflows using Script Editor
+    - Developer scripts executed via Script Editor
+level: high

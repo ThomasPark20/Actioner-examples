@@ -1,0 +1,27 @@
+title: OP-512 - DNS Query to Known C2 Domains
+id: 728f8cbd-2566-48d9-9030-7cd227a85543
+status: experimental
+description: >
+    Detects DNS queries to known OP-512 C2 domains used for web shell
+    self-reporting and command-and-control communication.
+references:
+    - https://reliaquest.com/blog/threat-spotlight-reliaquests-agentic-ai-uncovers-new-china-linked-cluster-op-512
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection_subdomain:
+        QueryName|endswith:
+            - '.lhlsjcb.com'
+            - '.hcgos.com'
+    selection_apex:
+        QueryName:
+            - 'lhlsjcb.com'
+            - 'hcgos.com'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - these are attacker-controlled domains
+level: critical

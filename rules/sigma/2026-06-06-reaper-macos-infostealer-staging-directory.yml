@@ -1,0 +1,28 @@
+title: Reaper macOS Stealer - SHub Staging Directory Activity
+id: 60403fa7-1e6c-4798-a8b2-616dbae50046
+status: experimental
+description: >
+    Detects file creation in the /tmp/shub_ staging directory or the presence of
+    shub_split.sh and shub_mzip_ archive files used by the Reaper infostealer
+    for data staging and chunked exfiltration.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1074.001
+    - attack.t1560.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_staging:
+        TargetFilename|contains: '/tmp/shub_'
+    selection_split:
+        TargetFilename|contains: '/tmp/shub_split.sh'
+    selection_archive:
+        TargetFilename|contains: '/tmp/shub_mzip_'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - the shub_ prefix in /tmp is highly specific to this malware family
+level: critical
