@@ -249,9 +249,9 @@ level: critical
 
 Detects HTTP requests containing the `/api/auth/validate-sso/` prefix combined with encoded traversal (`..%2`) in the URI, targeting CVE-2026-34908/34909.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Matches on http.uri containing both the SSO prefix and traversal encoding. fast_pattern on the SSO prefix (longer, more distinctive). Scope: any destination port (UniFi defaults to 11443 but operators may customize). -->
+<!-- audit: suricata -T exit 0. Uses http.uri.raw to inspect the pre-normalization URI where the percent-encoded traversal lives. fast_pattern on the SSO prefix. Scope: any destination port (UniFi defaults to 11443 but operators may customize). -->
 ```suricata
-alert http $HOME_NET any -> any any (msg:"Actioner - UniFi OS Auth Bypass via validate-sso Path Traversal (CVE-2026-34908/34909)"; flow:established,to_server; http.uri; content:"/api/auth/validate-sso/"; fast_pattern; content:"..%2"; classtype:web-application-attack; reference:cve,2026-34908; reference:cve,2026-34909; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis; metadata:author Actioner, created_at 2026-06-07; sid:2200001; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - UniFi OS Auth Bypass via validate-sso Path Traversal (CVE-2026-34908/34909)"; flow:established,to_server; http.uri.raw; content:"/api/auth/validate-sso/"; fast_pattern; content:"..%2"; classtype:web-application-attack; reference:cve,2026-34908; reference:cve,2026-34909; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis; metadata:author Actioner, created_at 2026-06-07; sid:2200001; rev:1;)
 ```
 
 ### Suricata: UniFi OS Command Injection via Package Update Endpoint
