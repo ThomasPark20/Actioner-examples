@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-07
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -268,25 +268,25 @@ alert http $HOME_NET any -> any any (msg:"Actioner - UniFi OS Command Injection 
 
 Detects HTTP requests with the `/api/auth/validate-sso/` prefix and encoded traversal in the raw URI, targeting CVE-2026-34908/34909.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0 (tested via include in snort.conf). Both contents match http_raw_uri — the bypass pattern exists only in the raw (percent-encoded) URI, not the normalized form. Snort 2.9 syntax (underscore buffers). -->
+<!-- audit: snort -T exit 0 (tested via include in snort.conf). Both contents match http_raw_uri — the bypass pattern exists only in the raw (percent-encoded) URI, not the normalized form. Snort 2.9 syntax (underscore buffers). fast_pattern removed from http_raw_uri — Snort 2.9 disallows fast_pattern on raw buffers; engine auto-selects longest content. -->
 ```snort
-alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Auth Bypass via validate-sso Path Traversal (CVE-2026-34908/34909)"; flow:established,to_server; content:"/api/auth/validate-sso/"; http_raw_uri; fast_pattern; content:"..%2"; http_raw_uri; sid:2100001; rev:1; classtype:web-application-attack; reference:cve,2026-34908; reference:cve,2026-34909; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis;)
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Auth Bypass via validate-sso Path Traversal (CVE-2026-34908/34909)"; flow:established,to_server; content:"/api/auth/validate-sso/"; http_raw_uri; content:"..%2"; http_raw_uri; sid:2100001; rev:1; classtype:web-application-attack; reference:cve,2026-34908; reference:cve,2026-34909; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis;)
 ```
 
 ### Snort: UniFi OS Command Injection via Package Update Endpoint
 
 Detects HTTP requests to the package-update endpoint with shell metacharacters in the URI, targeting CVE-2026-34910.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -T exit 0. PCRE with /U flag for http_uri buffer matching. Character class matches ; | ` $ &. Confidence medium: metacharacter scope is broad — semicolons and ampersands appear in benign URIs. -->
+<!-- audit: snort -T exit 0. PCRE with /U flag for http_uri buffer matching. Hex escapes used for metacharacters to avoid parse issues with literal ; $ in character class. Confidence medium: metacharacter scope is broad — semicolons and ampersands appear in benign URIs. -->
 ```snort
-alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Command Injection via Package Update Endpoint (CVE-2026-34910)"; flow:established,to_server; content:"/ucs/update/latest_package"; http_uri; fast_pattern; pcre:"/latest_package.*[;|`$&]/U"; sid:2100002; rev:1; classtype:web-application-attack; reference:cve,2026-34910; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis;)
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Command Injection via Package Update Endpoint (CVE-2026-34910)"; flow:established,to_server; content:"/ucs/update/latest_package"; http_uri; fast_pattern; pcre:"/latest_package.*[\x3b\x7c\x60\x24\x26]/U"; sid:2100002; rev:1; classtype:web-application-attack; reference:cve,2026-34910; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis;)
 ```
 
 ### YARA: N/A
 
 No file-level indicators suitable for YARA detection in this topic. The exploitation chain is entirely network-based (HTTP request manipulation) with no dropped malware artifacts or distinctive file signatures published.
 
-<!-- revision: (1) Sigma auth-bypass + cmd-injection rules: cs-uri-query→cs-uri-stem — traversal patterns are in the URI path, not query string; cs-uri-query would produce zero matches. (2) Sigma cmd-injection confidence high→medium; falsepositives updated to acknowledge semicolons/ampersands in legitimate URIs. (3) Snort cmd-injection confidence high→medium (metacharacter scope concern). Snort auth-bypass, Suricata auth-bypass, Suricata cmd-injection: kept at high. -->
+<!-- revision: (1) Sigma auth-bypass + cmd-injection rules: cs-uri-query→cs-uri-stem — traversal patterns are in the URI path, not query string; cs-uri-query would produce zero matches. (2) Sigma cmd-injection confidence high→medium; falsepositives updated to acknowledge semicolons/ampersands in legitimate URIs. (3) Snort cmd-injection confidence high→medium (metacharacter scope concern). (4) Snort auth-bypass: removed fast_pattern from http_raw_uri (Snort 2.9 disallows fast_pattern on raw buffers). (5) Snort cmd-injection PCRE: literal metacharacters→hex escapes (\x3b\x7c\x60\x24\x26) to avoid Snort 2.9 parse failure. Snort auth-bypass, Suricata auth-bypass, Suricata cmd-injection: kept at high. -->
 
 ## Lessons Learned
 

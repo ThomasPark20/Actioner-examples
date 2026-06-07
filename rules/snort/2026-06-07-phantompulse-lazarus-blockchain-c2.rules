@@ -1,0 +1,5 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Telemetry Report Beacon"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"/v1/telemetry/report"; http_uri; fast_pattern; content:"application/json"; http_header; sid:2100001; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Task Fetch"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"GET"; http_method; content:"/v1/telemetry/tasks/"; http_uri; fast_pattern; sid:2100002; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Keylog Upload"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"/v1/telemetry/keylog/"; http_uri; fast_pattern; content:"text/plain"; http_header; sid:2100003; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)

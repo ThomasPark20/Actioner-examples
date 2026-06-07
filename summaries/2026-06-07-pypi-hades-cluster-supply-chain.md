@@ -253,7 +253,7 @@ pip show lightning 2>/dev/null | grep -E "Version: 2\.6\.[23]"
 
 ## Detection Rules
 
-These detections target the Hades Cluster / Shai-Hulud credential stealer campaign at PoC/advisory-specific altitude. Four Sigma rules cover host-based indicators (file creation, process execution, persistence, exfiltration); Snort and Suricata rules cover C2 network traffic to `83.142.209.194` and exfiltration domains; two YARA rules match the obfuscated JavaScript stealer payload and the malicious `.pth` startup hook. All rules compile cleanly; compiles does not equal fires — verify against your telemetry.
+These detections target the Hades Cluster / Shai-Hulud credential stealer campaign at PoC/advisory-specific altitude. Four Sigma rules cover host-based indicators (file creation, process execution, persistence, exfiltration); Snort and Suricata rules cover C2 network traffic to `83.142.209[.]194` and exfiltration domains; two YARA rules match the obfuscated JavaScript stealer payload and the malicious `.pth` startup hook. All rules compile cleanly; compiles does not equal fires — verify against your telemetry.
 
 ### Sigma: Suspicious Python .pth Startup Hook File Creation
 

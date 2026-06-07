@@ -1,0 +1,110 @@
+title: PHANTOMPULSE RAT Loader Execution via Obsidian Plugin Abuse
+id: 8c3f2e1a-7b4d-4a9e-b6c5-d1e2f3a4b5c6
+status: experimental
+description: >
+    Detects the PHANTOMPULSE loader (syncobs.exe) spawned as a child of Obsidian.exe,
+    consistent with REF6598 campaign abusing Obsidian Shell Commands plugin for initial
+    code execution.
+references:
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1059.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\Obsidian.exe'
+    selection_child:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\cmd.exe'
+        CommandLine|contains:
+            - 'syncobs'
+            - 'script1.ps1'
+            - 'tt.ps1'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Obsidian Shell Commands plugin usage by developers
+level: high
+---
+title: PHANTOMPULSE Persistence via DotNetSvc Scheduled Tasks
+id: 4a2b1c3d-5e6f-7a8b-9c0d-e1f2a3b4c5d6
+status: experimental
+description: >
+    Detects creation of scheduled tasks with names used by PHANTOMPULSE for persistence,
+    including DotNetSvcUpdateTask, DotNetSvcCoreTask, and DotNetSvcUserTask.
+references:
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains:
+            - 'DotNetSvcUpdateTask'
+            - 'DotNetSvcCoreTask'
+            - 'DotNetSvcUserTask'
+    condition: selection_schtasks
+falsepositives:
+    - Unlikely - these task names are specific to PHANTOMPULSE
+level: high
+---
+title: PHANTOMPULSE RAT Payload Drop to AssetMon Directory
+id: 7f8e9d0c-1b2a-3c4d-5e6f-a7b8c9d0e1f2
+status: experimental
+description: >
+    Detects file creation of svcagent.dll in the AssetMon directory paths used by
+    PHANTOMPULSE for persistence and payload staging.
+references:
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1027
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\AssetMon\svcagent.dll'
+    condition: selection
+falsepositives:
+    - Unlikely - AssetMon\svcagent.dll is a PHANTOMPULSE-specific artifact
+level: critical
+---
+title: PHANTOMPULSE C2 Domain DNS Query
+id: 9a0b1c2d-3e4f-5a6b-7c8d-e9f0a1b2c3d4
+status: experimental
+description: >
+    Detects DNS queries to the known PHANTOMPULSE C2 panel domain panel.fefea22134.net,
+    used for command retrieval and telemetry exfiltration.
+references:
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'fefea22134.net'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
