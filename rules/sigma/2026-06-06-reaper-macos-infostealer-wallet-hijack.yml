@@ -1,0 +1,31 @@
+title: Reaper macOS Stealer - Crypto Wallet Application Hijacking
+id: f03f9625-5016-4f4b-b59e-876e86d6b592
+status: experimental
+description: >
+    Detects download of modified app.asar files and xattr -cr usage to clear
+    quarantine attributes, a technique used by the Reaper infostealer to hijack
+    desktop cryptocurrency wallet applications such as Exodus, Atomic, Ledger Live,
+    and Trezor Suite.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1553.001
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_xattr:
+        Image|endswith: '/xattr'
+        CommandLine|contains: '-cr'
+    selection_wallet_paths:
+        CommandLine|contains:
+            - 'Exodus'
+            - 'Atomic Wallet'
+            - 'Ledger Live'
+            - 'Trezor Suite'
+    condition: selection_xattr and selection_wallet_paths
+falsepositives:
+    - System administrators clearing quarantine attributes on legitimate wallet updates
+level: high

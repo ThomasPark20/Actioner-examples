@@ -1,0 +1,29 @@
+title: PHANTOMPULSE Scheduled Task Persistence via Rundll32
+id: e69d7b21-6963-4056-a358-88e59b20dc47
+status: experimental
+description: >
+    Detects creation of scheduled tasks matching PHANTOMPULSE RAT persistence
+    pattern using DotNetSvc naming convention with rundll32 DllRegisterServer
+    execution. The malware creates three scheduled tasks for persistence via
+    COM ITaskService interface.
+references:
+    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
+    - https://www.elastic.co/security-labs/phantom-in-the-vault
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1053.005
+    - attack.t1218.011
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_rundll32:
+        Image|endswith: '\rundll32.exe'
+        CommandLine|contains|all:
+            - 'svcagent.dll'
+            - 'DllRegisterServer'
+    condition: selection_rundll32
+falsepositives:
+    - Legitimate DLL registration via rundll32 using similarly named DLLs
+level: high

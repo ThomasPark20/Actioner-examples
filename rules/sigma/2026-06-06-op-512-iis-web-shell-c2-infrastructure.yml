@@ -1,0 +1,24 @@
+title: OP-512 - Network Connection to Known C2 Infrastructure
+id: 594c964f-6b68-4ce0-ab03-6b12aadbb5de
+status: experimental
+description: >
+    Detects outbound network connections to known OP-512 C2 infrastructure IPs,
+    including the Meterpreter C2 server on non-standard port 8053.
+references:
+    - https://reliaquest.com/blog/threat-spotlight-reliaquests-agentic-ai-uncovers-new-china-linked-cluster-op-512
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp:
+            - '43.160.202.246'
+            - '140.206.161.227'
+    condition: selection
+falsepositives:
+    - Unlikely - these are known attacker infrastructure IPs
+level: critical

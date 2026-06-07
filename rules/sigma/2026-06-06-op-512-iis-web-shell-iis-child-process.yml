@@ -1,0 +1,37 @@
+title: OP-512 - IIS Worker Process Spawning Suspicious Child Process
+id: 40afe81b-e7c4-452a-8b7d-b1ac3893f4c3
+status: experimental
+description: >
+    Detects IIS worker process (w3wp.exe) spawning command interpreters or
+    reconnaissance tools, consistent with web shell command execution observed
+    in OP-512 activity targeting IIS servers.
+references:
+    - https://reliaquest.com/blog/threat-spotlight-reliaquests-agentic-ai-uncovers-new-china-linked-cluster-op-512
+    - https://thehackernews.com/2026/06/new-threat-cluster-op-512-targets.html
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1505.003
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\w3wp.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\whoami.exe'
+            - '\net.exe'
+            - '\net1.exe'
+            - '\ipconfig.exe'
+            - '\systeminfo.exe'
+            - '\nltest.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate IIS management scripts or health checks spawning command-line tools
+    - Application pools that intentionally invoke command-line utilities
+level: medium

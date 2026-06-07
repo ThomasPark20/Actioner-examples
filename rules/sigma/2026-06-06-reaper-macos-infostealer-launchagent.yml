@@ -1,0 +1,30 @@
+title: Reaper macOS Stealer - Malicious Google Keystone LaunchAgent
+id: a9509c8e-7fe9-4e03-8b91-4006b4961e7a
+status: experimental
+description: >
+    Detects creation of the com.google.keystone.agent.plist LaunchAgent file
+    outside of the standard Google Chrome installation flow. The Reaper infostealer
+    uses this plist to maintain persistence by executing a beacon script every 60 seconds.
+references:
+    - https://www.sentinelone.com/blog/shub-reaper-macos-stealer-spoofs-apple-google-and-microsoft-in-a-single-attack-chain/
+    - https://moonlock.com/mac-stealer-shub-reaper
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1543.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith: '/com.google.keystone.agent.plist'
+        TargetFilename|contains: '/LaunchAgents/'
+    filter_chrome:
+        Image|contains:
+            - '/Google/Chrome'
+            - '/Google/GoogleUpdater'
+            - '/ksinstall'
+    condition: selection and not filter_chrome
+falsepositives:
+    - Legitimate Google Chrome or Google Earth installations creating Keystone agent
+level: medium

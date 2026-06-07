@@ -1,0 +1,24 @@
+title: OP-512 - IIS Worker Process DNS Query with Hex-Encoded Subdomain
+id: 283444e6-8c7e-4983-9bc7-856bdf6b4a46
+status: experimental
+description: >
+    Detects w3wp.exe performing DNS queries with long hex-encoded subdomain
+    patterns consistent with OP-512 DNS tunneling C2 communication, where
+    subdomains follow the pattern a.<hex>.c.<domain>.
+references:
+    - https://reliaquest.com/blog/threat-spotlight-reliaquests-agentic-ai-uncovers-new-china-linked-cluster-op-512
+author: Actioner
+date: 2026-06-06
+tags:
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection_process:
+        Image|endswith: '\w3wp.exe'
+    selection_query:
+        QueryName|re: '^a\.[0-9a-f]{8,}\.c\..+$'
+    condition: selection_process and selection_query
+falsepositives:
+    - CDN or cloud service subdomains with hex-encoded segments initiated by web applications
+level: high
