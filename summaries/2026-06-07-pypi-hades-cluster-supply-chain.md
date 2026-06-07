@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-07
-Version: 1.0 — DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -63,7 +63,7 @@ The stealer harvests credentials from:
 
 | Component | Indicator | Role |
 |-----------|-----------|------|
-| Primary C2 | `83.142.209.194` | Payload download, stage retrieval, exfiltration |
+| Primary C2 | `83.142.209[.]194` | Payload download, stage retrieval, exfiltration |
 | Payload URL | `hxxps://83.142.209[.]194/transformers.pyz` | Second-stage PyPI payload |
 | Stage Retrieval | `hxxps://83.142.209[.]194/v1/models` | Config/model retrieval endpoint |
 | Exfiltration | `hxxps://83.142.209[.]194/v1/weights` | Credential upload endpoint |
@@ -375,18 +375,19 @@ level: critical
 
 ### Sigma: GitHub API DNS Query from Bun/Python Process
 
-Detects DNS resolution of `api.github.com` from Bun or Python processes, which may indicate the stealer's exfiltration or dead-man switch polling activity. Scope to non-CI development machines to reduce false positives from legitimate developer tools.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader than other rules — api.github.com is queried legitimately by dev tools. Value is in correlation with other Hades indicators, not standalone. FP: any Python/Bun tool using GitHub API. -->
+Detects DNS resolution of `api.github.com` from Bun or Python processes, which may indicate the stealer's exfiltration or dead-man switch polling activity. High FP in development environments; use as a hunt/correlation signal alongside other Hades indicators, not standalone.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader than other rules — api.github.com is queried legitimately by dev tools. Confidence downgraded from medium to low per review: any Python/Bun developer querying GitHub API trips this; effectively behavioral/TTP altitude, not specific. Value is in correlation with other Hades indicators, not standalone. FP: any Python/Bun tool using GitHub API. -->
 
 ```yaml
-title: Hades Cluster GitHub Exfiltration via GraphQL createCommitOnBranch
+title: GitHub API DNS Query from Bun or Python Process
 id: 6a8d2e4f-3b1c-4f7a-9d5e-2c0b8a6f1d3e
 status: experimental
 description: >
-    Detects DNS queries to api.github.com from processes associated with the Bun runtime
-    or Python, which the Hades Cluster stealer uses for credential exfiltration via
-    GitHub GraphQL createCommitOnBranch mutations to dead-drop repositories.
+    Detects DNS queries to api.github.com from Bun or Python processes.
+    The Hades Cluster stealer polls this endpoint for dead-man switch checks
+    and exfiltrates credentials via GraphQL mutations, but any developer
+    tool using the GitHub API will also trigger this rule.
 references:
     - https://securityonline.info/pypi-supply-chain-attack/
     - https://www.hendryadrian.com/shai-hulud-descends-to-hades-miasma-worm-campaign-spreads-with-new-pypi-wave/
@@ -409,7 +410,8 @@ detection:
 falsepositives:
     - Legitimate developer tools querying GitHub API
     - CI/CD pipelines interacting with GitHub
-level: medium
+    - Any Python or Bun application using GitHub REST or GraphQL API
+level: low
 ```
 
 ### Snort: Hades Cluster C2 Communication
@@ -426,9 +428,9 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Hades Clus
 
 ### Suricata: Hades Cluster C2 and Exfiltration
 
-Detects C2 communication to `83.142.209.194` (including `/v1/models` stage retrieval and `/v1/weights` exfiltration endpoints) and DNS queries to the Session/Oxen exfiltration domain `getsession.org`.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. sid 2200001 keys on dest IP. sid 2200002-2200003 key on URI path + host for specific C2 endpoints. sid 2200004 keys on DNS query to getsession.org exfil domain. FP: getsession.org is a legitimate messaging service — rule is most useful in environments where Session is not expected. -->
+Detects C2 communication to `83.142.209.194` (including `/v1/models` stage retrieval and `/v1/weights` exfiltration endpoints) and DNS queries to the Session/Oxen exfiltration domain `getsession.org`. Note: sid 2200004 (`getsession.org`) is confidence medium -- getsession.org is a legitimate messaging service; whitelist if Session is sanctioned in your environment.
+**Status:** compile ✅ compiles · confidence: high (sid 2200001-2200003), medium (sid 2200004)
+<!-- audit: suricata -T exit 0. sid 2200001 keys on dest IP. sid 2200002-2200003 key on URI path + host for specific C2 endpoints. sid 2200004 keys on DNS query to getsession.org exfil domain. Confidence for 2200004 broken out as medium per review: getsession.org is a legitimate messaging service (Session by Oxen); rule will FP in orgs that use Session. Requires environment-specific tuning — whitelist if Session is sanctioned. -->
 
 ```suricata
 alert ip $HOME_NET any -> 83.142.209.194 any (msg:"Actioner - Hades Cluster C2 Communication to Known IP 83.142.209.194"; flow:to_server; classtype:trojan-activity; reference:url,research.jfrog.com/post/shai-hulud-here-we-go-again/; metadata:author Actioner, created_at 2026-06-07; sid:2200001; rev:1;)
@@ -541,5 +543,7 @@ rule Supply_Chain_HadesCluster_PTH_Startup_Hook
 - [Socket.dev — Mini Shai-Hulud](https://socket.dev/supply-chain-attacks/mini-shai-hulud) — campaign overview and package tracking
 - [StepSecurity — litellm: Credential Stealer Hidden in PyPI Wheel](https://www.stepsecurity.io/blog/litellm-credential-stealer-hidden-in-pypi-wheel) — .pth mechanism analysis
 
+<!-- revision: (1) fixed defanging: C2 table 83.142.209.194 → 83.142.209[.]194; (2) Sigma DNS rule: title mismatch fixed (was "Hades Cluster GitHub Exfiltration via GraphQL createCommitOnBranch", now "GitHub API DNS Query from Bun or Python Process" — rule only detects DNS, not GraphQL); confidence medium→low; added FP caveat for dev envs; (3) Suricata sid 2200004 getsession.org: confidence broken out as medium (not high); added caveat re legitimate Session messaging service; (4) T1546.016 verified — exists in ATT&CK as "Installer Packages", closest fit for .pth hook mechanism. -->
+
 ---
-*Report generated by Actioner — DRAFT*
+*Report generated by Actioner*

@@ -169,7 +169,7 @@ These detections target the specific exploitation artifacts of the CVE-2026-3490
 
 Detects HTTP requests combining the auth-exempt `/api/auth/validate-sso/` prefix with percent-encoded traversal sequences, the distinctive bypass pattern for CVE-2026-34908/34909.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on raw URI containing both the SSO prefix and encoded traversal — legitimate validate-sso requests never carry these patterns. FP risk minimal: encoded traversal in a validate-sso path has no benign use case. Evasion: double-encoding or alternative traversal encodings may bypass; rule covers the published PoC patterns. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on cs-uri-stem (path) containing both the SSO prefix and encoded traversal — cs-uri-query→cs-uri-stem fix applied per critic (traversal is in the URI path, not the query string). Legitimate validate-sso requests never carry these patterns. FP risk minimal: encoded traversal in a validate-sso path has no benign use case. Evasion: double-encoding or alternative traversal encodings may bypass; rule covers the published PoC patterns. -->
 ```yaml
 title: UniFi OS Authentication Gateway Bypass via Path Traversal in validate-sso
 id: 8f3a7c1e-4d2b-4e9a-b6f5-1c8d9e0a2b3f
@@ -190,9 +190,9 @@ logsource:
     category: webserver
 detection:
     selection_path:
-        cs-uri-query|contains: '/api/auth/validate-sso/'
+        cs-uri-stem|contains: '/api/auth/validate-sso/'
     selection_traversal:
-        cs-uri-query|contains:
+        cs-uri-stem|contains:
             - '..%2f'
             - '..%2F'
             - '%2e%2e'
@@ -207,9 +207,9 @@ level: critical
 
 ### Sigma: UniFi OS Command Injection via Package Update Endpoint
 
-Detects requests to the `/ucs/update/latest_package` endpoint with shell metacharacters, the injection vector for CVE-2026-34910.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on the specific package-update endpoint combined with shell metacharacters in the URI. FP: semicolons may appear in legitimate query strings — scope to UniFi OS web logs to reduce. Evasion: URL-encoding of the metacharacters themselves; rule assumes raw log capture. -->
+Detects requests to the `/ucs/update/latest_package` endpoint with shell metacharacters, the injection vector for CVE-2026-34910. Semicolons and `&` can appear in legitimate URIs; scope to UniFi OS web logs to reduce noise.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on the specific package-update endpoint combined with shell metacharacters in the URI stem. Confidence medium (not high): semicolons and ampersands appear in legitimate query strings/URIs, so benign overlap exists even with the endpoint anchor. Evasion: URL-encoding of the metacharacters themselves; rule assumes raw log capture. cs-uri-query→cs-uri-stem fix applied per critic (traversal/injection patterns are in the path, not the query string). -->
 ```yaml
 title: UniFi OS Command Injection via Package Update Endpoint
 id: 2e5b8d4a-7f1c-4a3e-9c6d-3b0f1e2d4a5c
@@ -231,9 +231,9 @@ logsource:
     category: webserver
 detection:
     selection_endpoint:
-        cs-uri-query|contains: '/ucs/update/latest_package'
+        cs-uri-stem|contains: '/ucs/update/latest_package'
     selection_injection:
-        cs-uri-query|contains:
+        cs-uri-stem|contains:
             - ';'
             - '|'
             - '$('
@@ -241,8 +241,9 @@ detection:
             - '&&'
     condition: selection_endpoint and selection_injection
 falsepositives:
-    - Legitimate package update requests do not contain shell metacharacters
-level: critical
+    - Legitimate URIs containing semicolons or ampersands as query-string delimiters
+    - Monitoring or automation tools issuing requests to the package-update endpoint
+level: high
 ```
 
 ### Suricata: UniFi OS Auth Bypass via validate-sso Path Traversal
@@ -275,8 +276,8 @@ alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Auth Bypass
 ### Snort: UniFi OS Command Injection via Package Update Endpoint
 
 Detects HTTP requests to the package-update endpoint with shell metacharacters in the URI, targeting CVE-2026-34910.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. PCRE with /U flag for http_uri buffer matching. Character class matches ; | ` $ &. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: snort -T exit 0. PCRE with /U flag for http_uri buffer matching. Character class matches ; | ` $ &. Confidence medium: metacharacter scope is broad — semicolons and ampersands appear in benign URIs. -->
 ```snort
 alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Command Injection via Package Update Endpoint (CVE-2026-34910)"; flow:established,to_server; content:"/ucs/update/latest_package"; http_uri; fast_pattern; pcre:"/latest_package.*[;|`$&]/U"; sid:2100002; rev:1; classtype:web-application-attack; reference:cve,2026-34910; reference:url,bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis;)
 ```
@@ -284,6 +285,8 @@ alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"Actioner - UniFi OS Command Inj
 ### YARA: N/A
 
 No file-level indicators suitable for YARA detection in this topic. The exploitation chain is entirely network-based (HTTP request manipulation) with no dropped malware artifacts or distinctive file signatures published.
+
+<!-- revision: (1) Sigma auth-bypass + cmd-injection rules: cs-uri-query→cs-uri-stem — traversal patterns are in the URI path, not query string; cs-uri-query would produce zero matches. (2) Sigma cmd-injection confidence high→medium; falsepositives updated to acknowledge semicolons/ampersands in legitimate URIs. (3) Snort cmd-injection confidence high→medium (metacharacter scope concern). Snort auth-bypass, Suricata auth-bypass, Suricata cmd-injection: kept at high. -->
 
 ## Lessons Learned
 

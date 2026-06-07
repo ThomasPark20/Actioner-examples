@@ -1,0 +1,66 @@
+title: UniFi OS Authentication Gateway Bypass via Path Traversal in validate-sso
+id: 8f3a7c1e-4d2b-4e9a-b6f5-1c8d9e0a2b3f
+status: experimental
+description: >
+    Detects HTTP requests to UniFi OS that combine the auth-exempt /api/auth/validate-sso/
+    prefix with percent-encoded path traversal sequences, indicating exploitation of
+    CVE-2026-34908/CVE-2026-34909 authentication gateway bypass.
+references:
+    - https://bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis
+    - https://community.ui.com/releases/Security-Advisory-Bulletin-064-064/84811c09-4cf4-42ab-bd61-cc994445963b
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-34908
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_path:
+        cs-uri-stem|contains: '/api/auth/validate-sso/'
+    selection_traversal:
+        cs-uri-stem|contains:
+            - '..%2f'
+            - '..%2F'
+            - '%2e%2e'
+            - '%2E%2E'
+            - '..%2e'
+            - '..%2E'
+    condition: selection_path and selection_traversal
+falsepositives:
+    - Legitimate SSO validation requests would not contain encoded traversal sequences
+level: critical
+---
+title: UniFi OS Command Injection via Package Update Endpoint
+id: 2e5b8d4a-7f1c-4a3e-9c6d-3b0f1e2d4a5c
+status: experimental
+description: >
+    Detects HTTP requests targeting the UniFi OS package-update backend endpoint
+    /ucs/update/latest_package with shell metacharacters in the URI, indicating
+    exploitation of CVE-2026-34910 command injection.
+references:
+    - https://bishopfox.com/blog/popping-root-on-unifi-os-server-unauthenticated-rce-chain-detection-analysis
+    - https://community.ui.com/releases/Security-Advisory-Bulletin-064-064/84811c09-4cf4-42ab-bd61-cc994445963b
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-34910
+author: Actioner
+date: 2026/06/07
+tags:
+    - attack.t1059
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_endpoint:
+        cs-uri-stem|contains: '/ucs/update/latest_package'
+    selection_injection:
+        cs-uri-stem|contains:
+            - ';'
+            - '|'
+            - '$('
+            - '`'
+            - '&&'
+    condition: selection_endpoint and selection_injection
+falsepositives:
+    - Legitimate URIs containing semicolons or ampersands as query-string delimiters
+    - Monitoring or automation tools issuing requests to the package-update endpoint
+level: high

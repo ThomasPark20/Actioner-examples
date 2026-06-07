@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-07
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -226,7 +226,7 @@ These detections target PHANTOMPULSE RAT artifacts at the PoC/advisory-specific 
 
 Detects PowerShell or cmd.exe spawned by Obsidian.exe with command-line arguments consistent with the REF6598 PHANTOMPULSE delivery chain.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on ParentImage Obsidian.exe + child powershell/cmd with syncobs/script1/tt.ps1/-ExecutionPolicy Bypass. FP: legitimate Shell Commands plugin users — low volume, easy to triage. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on ParentImage Obsidian.exe + child powershell/cmd with syncobs/script1/tt.ps1. Removed -ExecutionPolicy Bypass (too broad — any Shell Commands user with PS bypass trips it). FP: legitimate Shell Commands plugin users running these exact scripts — low volume, easy to triage. -->
 ```yaml
 title: PHANTOMPULSE RAT Loader Execution via Obsidian Plugin Abuse
 id: 8c3f2e1a-7b4d-4a9e-b6c5-d1e2f3a4b5c6
@@ -257,7 +257,6 @@ detection:
             - 'syncobs'
             - 'script1.ps1'
             - 'tt.ps1'
-            - '-ExecutionPolicy Bypass'
     condition: selection_parent and selection_child
 falsepositives:
     - Legitimate Obsidian Shell Commands plugin usage by developers
@@ -331,40 +330,9 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: PHANTOMPULSE Blockchain C2 Resolution via Blockscout
+### Sigma: PHANTOMPULSE Blockchain C2 Resolution via Blockscout — DROPPED
 
-Detects DNS queries to Blockscout blockchain explorer domains used by PHANTOMPULSE for decentralized C2 address resolution. Scope to non-developer endpoints to reduce false positives from legitimate blockchain researchers.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Blockscout domains are legitimate services; FP from blockchain developers/researchers. Medium confidence due to benign overlap — pair with other PHANTOMPULSE indicators for higher fidelity. -->
-```yaml
-title: PHANTOMPULSE Blockchain C2 Resolution via Blockscout API
-id: 3e4d5c6b-7a8f-9e0d-1c2b-a3b4c5d6e7f8
-status: experimental
-description: >
-    Detects DNS queries to Blockscout blockchain explorer domains used by PHANTOMPULSE
-    for decentralized C2 resolution across Ethereum, Base, and Optimism chains.
-references:
-    - https://www.elastic.co/security-labs/phantom-in-the-vault
-    - https://www.elastic.co/security-labs/blockchain-c2-phantompulse-rat-sinkhole
-author: Actioner
-date: 2026/06/07
-tags:
-    - attack.t1102
-    - attack.t1071.001
-logsource:
-    category: dns_query
-detection:
-    selection:
-        QueryName:
-            - 'eth.blockscout.com'
-            - 'base.blockscout.com'
-            - 'optimism.blockscout.com'
-    condition: selection
-falsepositives:
-    - Legitimate blockchain developers and researchers using Blockscout APIs
-    - Cryptocurrency portfolio tracking applications
-level: medium
-```
+Dropped: Blockscout is a legitimate, widely-used blockchain explorer; a DNS-query rule on these domains fires broadly and is a TTP/behavioral detection mislabeled as specific at strict leniency.
 
 ### Sigma: PHANTOMPULSE Known C2 Domain
 
@@ -401,26 +369,26 @@ level: critical
 
 Detects outbound HTTP POST to the PHANTOMPULSE C2 telemetry report endpoint (`/v1/telemetry/report`), task fetch (`/v1/telemetry/tasks/`), and keylog upload (`/v1/telemetry/keylog/`).
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c snort.conf -R pp.rules -T exit 0 (Snort 2.9.20). Three rules covering telemetry beacon, task fetch, and keylog upload. URI paths are campaign-specific. -->
+<!-- audit: snort -c snort.conf -R pp.rules -T exit 0. Three rules covering telemetry beacon, task fetch, and keylog upload. Anchored to fefea22134.net via Host header to avoid firing on generic /v1/telemetry/* paths. rev:2. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Telemetry Report Beacon"; flow:established,to_server; content:"/v1/telemetry/report"; http_uri; fast_pattern; content:"application/json"; http_header; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Telemetry Report Beacon"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"/v1/telemetry/report"; http_uri; fast_pattern; content:"application/json"; http_header; sid:2100001; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Task Fetch"; flow:established,to_server; content:"GET"; http_method; content:"/v1/telemetry/tasks/"; http_uri; fast_pattern; sid:2100002; rev:1; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Task Fetch"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"GET"; http_method; content:"/v1/telemetry/tasks/"; http_uri; fast_pattern; sid:2100002; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Keylog Upload"; flow:established,to_server; content:"/v1/telemetry/keylog/"; http_uri; fast_pattern; content:"text/plain"; http_header; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PHANTOMPULSE C2 Keylog Upload"; flow:established,to_server; content:"fefea22134.net"; http_header; content:"/v1/telemetry/keylog/"; http_uri; fast_pattern; content:"text/plain"; http_header; sid:2100003; rev:2; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault;)
 ```
 
 ### Suricata: PHANTOMPULSE C2 HTTP and DNS
 
 Detects PHANTOMPULSE C2 traffic patterns: HTTP POST to telemetry endpoints, GET for task fetch, keylog uploads, and DNS resolution of the known C2 domain `fefea22134.net`.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S phantompulse-suricata.rules -l /tmp/actioner exit 0 (Suricata 7.0.3). Four rules: telemetry beacon, task fetch, keylog upload, C2 domain DNS. dot-notation buffers throughout. -->
+<!-- audit: suricata -T -S phantompulse-suricata.rules -l /tmp/actioner exit 0. Four rules: telemetry beacon, task fetch, keylog upload, C2 domain DNS. HTTP rules anchored to fefea22134.net via http.host to avoid firing on generic /v1/telemetry/* paths. rev:2 on sids 2200001-2200003. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Telemetry Report Beacon"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/v1/telemetry/report"; fast_pattern; http.content_type; content:"application/json"; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200001; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Telemetry Report Beacon"; flow:established,to_server; http.host; content:"fefea22134.net"; http.method; content:"POST"; http.uri; content:"/v1/telemetry/report"; fast_pattern; http.content_type; content:"application/json"; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200001; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Task Fetch"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/v1/telemetry/tasks/"; fast_pattern; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Task Fetch"; flow:established,to_server; http.host; content:"fefea22134.net"; http.method; content:"GET"; http.uri; content:"/v1/telemetry/tasks/"; fast_pattern; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200002; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Keylog Upload"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/v1/telemetry/keylog/"; fast_pattern; http.content_type; content:"text/plain"; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PHANTOMPULSE C2 Keylog Upload"; flow:established,to_server; http.host; content:"fefea22134.net"; http.method; content:"POST"; http.uri; content:"/v1/telemetry/keylog/"; fast_pattern; http.content_type; content:"text/plain"; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200003; rev:2;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - PHANTOMPULSE Known C2 Domain fefea22134.net"; dns.query; content:"fefea22134.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.elastic.co/security-labs/phantom-in-the-vault; metadata:author Actioner, created_at 2026-06-07; sid:2200004; rev:1;)
 ```
@@ -428,8 +396,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - PHANTOMPULSE Known C2 Domain
 ### YARA: PHANTOMPULSE RAT Debug Strings
 
 Detects PHANTOMPULSE RAT PE binaries via characteristic AI-generated debug strings including injection method identifiers, uninstall step markers, and module names. Published strings sourced from Elastic Security Labs analysis.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos.txt matched Malware_PHANTOMPULSE_RAT_Strings; neg.txt silent. Strings from Elastic's published analysis and YARA rule (eaaa34fb). 3-of-8 threshold balances coverage across variants while maintaining specificity. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. yara pos.txt matched Malware_PHANTOMPULSE_RAT_Strings; neg.txt silent. sample: constructed — tested against synthetic file containing published debug strings, not a real malware binary. Strings from Elastic's published analysis and YARA rule (eaaa34fb). 3-of-8 threshold balances coverage across variants while maintaining specificity. -->
 ```yara
 rule Malware_PHANTOMPULSE_RAT_Strings
 {
@@ -504,6 +472,8 @@ rule Malware_PHANTOMPULSE_Loader_SyncObs
 - [The Hacker News — Obsidian Plugin Abuse Delivers PHANTOMPULSE RAT](https://thehackernews.com/2026/04/obsidian-plugin-abuse-delivers.html) — news coverage of the campaign
 - [SecurityOnline — PHANTOMPULSE Malware Analysis](https://securityonline.info/obsidian-phantompulse-malware-blockchain-c2-ref6598/) — supplementary analysis of blockchain C2 and evasion techniques
 - [CybersecurityNews — PHANTOMPULSE RAT Uses Process Injection and UAC Bypass](https://cybersecuritynews.com/phantompulse-rat-uses-process-injection-and-uac-bypass/) — coverage of injection and privilege escalation techniques
+
+<!-- revision: v1.0 — (1) Sigma Obsidian Loader: removed -ExecutionPolicy Bypass from CommandLine|contains (too broad). (2) Sigma Blockscout DNS: DROPPED (legitimate service, TTP mislabeled as specific). (3) Snort 2100001-2100003: added content:"fefea22134.net"; http_header; anchor, rev:2. (4) Suricata 2200001-2200003: added http.host; content:"fefea22134.net"; anchor, rev:2. (5) YARA RAT Strings: relabeled sample: fired to sample: constructed (synthetic test file, not real binary). All changed rules re-validated. -->
 
 ---
 *Report generated by Actioner*
