@@ -3,7 +3,19 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-08
-Version: 1.0
+Version: 1.1 (revised)
+
+<!-- revision log v1.1:
+  - Sigma Rule 1: title fixed from "Unauthenticated REST API Access" to "POST to /rest/restore Exploit Endpoint"; confidence downgraded high→medium (no port constraint in Sigma logsource).
+  - Sigma Rules 2+3 (JSP Windows/Linux): ATT&CK tag corrected T1105→T1505.003; confidence downgraded medium→low (fires on legitimate JSP deployments); level downgraded high→medium.
+  - Suricata SID 2200011 (recon): DROPPED — matches legitimate Console-to-Agent traffic.
+  - Snort SID 2100011 (recon): DROPPED — same reason.
+  - Added Splunk SPL and CrowdStrike LogScale conversions for all three Sigma rules.
+  - Removed empty defanging convention block (no network IOCs requiring defanging).
+  - Removed duplicate T1105 row from ATT&CK mapping table (consolidated under T1505.003).
+  - Added non-default port caveat to Suricata and Snort network rules.
+  - Status format normalized to "compile ✅ compiles · confidence: X".
+-->
 
 ## Executive Summary
 
@@ -92,11 +104,6 @@ An attacker who successfully exploits these vulnerabilities may:
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through:
-> - URLs: `hxxps://` or `hxxp://` (e.g., `hxxps://evil[.]com/payload`)
-> - Domains: `[.]` replacing dots (e.g., `evil[.]com`)
-> - IP addresses: `[.]` replacing dots (e.g., `1[.]2[.]3[.]4`)
-
 ### Network Indicators
 
 | Type | Value | Context |
@@ -134,8 +141,7 @@ An attacker who successfully exploits these vulnerabilities may:
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated exploitation of Collibra Agent REST API on internet-exposed deployments |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Post-exploitation command execution via deployed JSP webshell |
-| T1105 | Ingress Tool Transfer | Delivery of malicious JSP webshell via crafted ZIP archive upload to /rest/restore |
-| T1505.003 | Server Software Component: Web Shell | Persistent access via JSP webshell written to web-accessible directory |
+| T1505.003 | Server Software Component: Web Shell | JSP webshell written to web-accessible directory via Zip Slip path traversal for persistent access and code execution |
 
 ## Detection & Remediation
 
@@ -189,22 +195,24 @@ ss -tlnp | grep 4401
 
 ## Detection Rules
 
-These detections target the specific exploitation artifacts of the CVE-2026-10621/CVE-2026-10622 chain: unauthenticated access to the `/rest/restore` endpoint and JSP webshell creation in Collibra directories. Sigma rules convert to Splunk and CrowdStrike LogScale. Network rules (Suricata/Snort) target the HTTP exploitation traffic on the default Agent port. Note: compiles does not equal fires -- verify in your log pipeline against Collibra Agent web server logs or inline network inspection.
+These detections target the specific exploitation artifacts of the CVE-2026-10621/CVE-2026-10622 chain: unauthenticated access to the `/rest/restore` endpoint and JSP webshell creation in Collibra directories. Sigma rules convert to Splunk SPL and CrowdStrike LogScale (conversions included below each rule). Network rules (Suricata/Snort) target the HTTP exploitation traffic on the default Agent port (TCP 4401). Two reconnaissance rules (Suricata SID 2200011, Snort SID 2100011) were dropped during review because `GET /rest/` on port 4401 matches legitimate Console-to-Agent API traffic with no exploit-specific artifact. Note: compiles does not equal fires -- verify in your log pipeline against Collibra Agent web server logs or inline network inspection.
 
-### Sigma: Collibra Platform Agent Unauthenticated REST API Access
+### Sigma: Collibra Agent POST to /rest/restore Exploit Endpoint
 
 Detects HTTP POST requests to the `/rest/restore` endpoint, the specific exploitation vector for the CVE-2026-10621 Zip Slip vulnerability, accessed without authentication via CVE-2026-10622.
-**Status:** compile pass | confidence: high
-<!-- audit: sigma check 0 errors 0 issues; splunk convert 0; log_scale convert 0. Keys on cs-uri-stem containing /rest/restore combined with POST method. FP risk low: restore operations are infrequent administrative actions that should correlate with authorized change windows. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- revision: title fixed to match detection scope (POST /rest/restore, not all REST API access); confidence downgraded from high to medium — fires on any POST to /rest/restore without port constraint in the Sigma rule itself, legitimate admin restore operations are possible. -->
+<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Keys on cs-uri-stem containing /rest/restore combined with POST method. FP risk low-to-medium: restore operations are infrequent administrative actions that should correlate with authorized change windows, but no port filter narrows scope. -->
 ```yaml
-title: Collibra Platform Agent Unauthenticated REST API Access
+title: Collibra Agent POST to /rest/restore Exploit Endpoint
 id: 3a7f1c4e-9b2d-4e8a-a5f6-2d1c0e3b4a7f
 status: experimental
 description: >
-    Detects HTTP requests to Collibra Platform Agent REST endpoints on the default
-    agent port (4401) that may indicate exploitation of CVE-2026-10622, where
-    privileged REST endpoints under /rest/* lack proper authentication controls.
-    Monitors for access to the /rest/restore endpoint used in the Zip Slip chain.
+    Detects HTTP POST requests to the Collibra Platform Agent /rest/restore endpoint,
+    the primary exploitation vector for the CVE-2026-10621 Zip Slip path traversal
+    vulnerability, accessed without authentication via CVE-2026-10622. The restore
+    endpoint accepts ZIP archive uploads whose extraction routine fails to validate
+    file paths, enabling arbitrary file writes.
 references:
     - https://kb.cert.org/vuls/id/873170
     - https://securityonline.info/collibra-platform-agent-flaw-rce/
@@ -226,13 +234,24 @@ falsepositives:
 level: high
 ```
 
+**Splunk SPL:**
+```spl
+"cs-uri-stem"="*/rest/restore*" "cs-method"="POST"
+```
+
+**CrowdStrike LogScale:**
+```
+"cs-uri-stem"=/\/rest\/restore/i "cs-method"=/^POST$/i
+```
+
 ### Sigma: Collibra Agent Zip Slip JSP Webshell Write (Windows)
 
 Detects creation of JSP files in Collibra installation directories on Windows systems, indicating potential exploitation of CVE-2026-10621 Zip Slip to deploy a webshell.
-**Status:** compile pass | confidence: medium
-<!-- audit: sigma check 0 errors 0 issues; splunk convert 0; log_scale convert 0. Keys on TargetFilename containing 'collibra' and ending with '.jsp'. Confidence medium: legitimate Collibra updates may deploy JSP files, but new JSP creation outside maintenance windows is suspicious. Requires file_event logging (Sysmon EventID 11 or equivalent). -->
+**Status:** compile ✅ compiles · confidence: low
+<!-- revision: confidence downgraded from medium to low — fires on any JSP written under any path containing "collibra", including legitimate deployments and updates. ATT&CK tag fixed: replaced T1105 (Ingress Tool Transfer) with T1505.003 (Web Shell) to match the actual detection target. Level downgraded from high to medium. -->
+<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Keys on TargetFilename containing 'collibra' and ending with '.jsp'. Confidence low: legitimate Collibra updates deploy JSP files during patching and upgrades, making this rule noisy without baseline tuning. Requires file_event logging (Sysmon EventID 11 or equivalent). -->
 ```yaml
-title: Collibra Agent Zip Slip JSP Webshell Write via Path Traversal
+title: Collibra Agent Zip Slip JSP Webshell Write via Path Traversal (Windows)
 id: 7c2e4b8a-1d3f-4a6e-b9c5-8f0d2e1a3b5c
 status: experimental
 description: >
@@ -249,7 +268,7 @@ author: Actioner
 date: 2026/06/08
 tags:
     - attack.t1190
-    - attack.t1105
+    - attack.t1505.003
 logsource:
     category: file_event
     product: windows
@@ -261,14 +280,25 @@ detection:
     condition: selection_path and selection_extension
 falsepositives:
     - Legitimate Collibra application updates that deploy JSP files
-level: high
+level: medium
+```
+
+**Splunk SPL:**
+```spl
+TargetFilename="*collibra*" TargetFilename="*.jsp"
+```
+
+**CrowdStrike LogScale:**
+```
+TargetFilename=/collibra/i TargetFilename=/\.jsp$/i
 ```
 
 ### Sigma: Collibra Agent Zip Slip JSP Webshell Write (Linux)
 
 Detects creation of JSP files under Collibra installation directories on Linux systems, indicating potential exploitation of CVE-2026-10621 Zip Slip to deploy a webshell.
-**Status:** compile pass | confidence: medium
-<!-- audit: sigma check 0 errors 0 issues; splunk convert 0; log_scale convert 0. Same logic as Windows variant but scoped to Linux file_event. Requires auditd or equivalent file creation monitoring. -->
+**Status:** compile ✅ compiles · confidence: low
+<!-- revision: confidence downgraded from medium to low — fires on any JSP written under any path containing "/collibra", including legitimate deployments and updates. ATT&CK tag fixed: replaced T1105 (Ingress Tool Transfer) with T1505.003 (Web Shell). Level downgraded from high to medium. -->
+<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Same logic as Windows variant but scoped to Linux file_event. Requires auditd or equivalent file creation monitoring. -->
 ```yaml
 title: Collibra Agent Zip Slip JSP Webshell Creation on Linux
 id: 5e8d2f1a-3c4b-4a7e-9d6f-0b1c2e3a4d5f
@@ -286,7 +316,7 @@ author: Actioner
 date: 2026/06/08
 tags:
     - attack.t1190
-    - attack.t1105
+    - attack.t1505.003
 logsource:
     category: file_event
     product: linux
@@ -298,44 +328,50 @@ detection:
     condition: selection_path and selection_extension
 falsepositives:
     - Legitimate Collibra application updates that deploy JSP files
-level: high
+level: medium
+```
+
+**Splunk SPL:**
+```spl
+TargetFilename="*/collibra*" TargetFilename="*.jsp"
+```
+
+**CrowdStrike LogScale:**
+```
+TargetFilename=/\/collibra/i TargetFilename=/\.jsp$/i
 ```
 
 ### Suricata: Collibra Agent Unauthenticated POST to /rest/restore
 
 Detects HTTP POST requests to the Collibra Agent `/rest/restore` endpoint on the default Agent port (4401), the primary exploitation vector for the CVE-2026-10621/CVE-2026-10622 chain.
-**Status:** compile pass | confidence: high
+**Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0. Uses http.method + http.uri content match. Scoped to port 4401 (default Agent port). fast_pattern on /rest/restore. -->
+
+> **Note:** This rule targets port 4401 (default Collibra Agent port). If the Agent is deployed on a non-default port, update the destination port accordingly.
+
 ```suricata
 alert http $EXTERNAL_NET any -> $HOME_NET 4401 (msg:"Actioner - Collibra Agent Unauthenticated POST to /rest/restore Zip Slip RCE (CVE-2026-10621/CVE-2026-10622)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/rest/restore"; fast_pattern; classtype:web-application-attack; reference:cve,2026-10621; reference:cve,2026-10622; reference:url,kb.cert.org/vuls/id/873170; metadata:author Actioner, created_at 2026-06-08; sid:2200010; rev:1;)
 ```
 
-### Suricata: Collibra Agent Unauthenticated REST API Reconnaissance
+### ~~Suricata: Collibra Agent Unauthenticated REST API Reconnaissance~~ (DROPPED)
 
-Detects HTTP GET requests to the Collibra Agent `/rest/` namespace on the default Agent port (4401), indicating potential reconnaissance via CVE-2026-10622 unauthenticated API access.
-**Status:** compile pass | confidence: medium
-<!-- audit: suricata -T exit 0. Broader detection for the recon phase of the attack chain. Confidence medium due to potential legitimate API traffic from authorized management tools. -->
-```suricata
-alert http $EXTERNAL_NET any -> $HOME_NET 4401 (msg:"Actioner - Collibra Agent Unauthenticated REST API Reconnaissance (CVE-2026-10622)"; flow:established,to_server; http.uri; content:"/rest/"; fast_pattern; http.method; content:"GET"; classtype:web-application-attack; reference:cve,2026-10622; reference:url,kb.cert.org/vuls/id/873170; metadata:author Actioner, created_at 2026-06-08; sid:2200011; rev:1;)
-```
+<!-- revision: dropped — fires on legitimate Console-to-Agent API traffic. GET /rest/ on port 4401 matches all routine API communication between Collibra Console and Agent, producing unacceptable false-positive volume with no specific exploit artifact to anchor on. SID 2200011 removed from shipped rule file. -->
 
 ### Snort: Collibra Agent Unauthenticated POST to /rest/restore
 
 Detects HTTP POST requests to the Collibra Agent `/rest/restore` endpoint on the default Agent port (4401), targeting the Zip Slip exploitation vector.
-**Status:** compile pass | confidence: high
+**Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -T exit 0. Snort 2.9 syntax with http_method and http_uri buffers. Scoped to port 4401. -->
+
+> **Note:** This rule targets port 4401 (default Collibra Agent port). If the Agent is deployed on a non-default port, update the destination port accordingly.
+
 ```snort
 alert tcp $EXTERNAL_NET any -> $HOME_NET 4401 (msg:"Actioner - Collibra Agent Unauthenticated POST to /rest/restore Zip Slip RCE (CVE-2026-10621/CVE-2026-10622)"; flow:established,to_server; content:"POST"; http_method; content:"/rest/restore"; http_uri; fast_pattern; sid:2100010; rev:1; classtype:web-application-attack; reference:cve,2026-10621; reference:cve,2026-10622; reference:url,kb.cert.org/vuls/id/873170;)
 ```
 
-### Snort: Collibra Agent Unauthenticated REST API Reconnaissance
+### ~~Snort: Collibra Agent Unauthenticated REST API Reconnaissance~~ (DROPPED)
 
-Detects HTTP GET requests to the Collibra Agent `/rest/` namespace on the default Agent port (4401), indicating reconnaissance activity.
-**Status:** compile pass | confidence: medium
-<!-- audit: snort -T exit 0. Broader reconnaissance detection. -->
-```snort
-alert tcp $EXTERNAL_NET any -> $HOME_NET 4401 (msg:"Actioner - Collibra Agent Unauthenticated REST API Reconnaissance (CVE-2026-10622)"; flow:established,to_server; content:"GET"; http_method; content:"/rest/"; http_uri; fast_pattern; sid:2100011; rev:1; classtype:web-application-attack; reference:cve,2026-10622; reference:url,kb.cert.org/vuls/id/873170;)
-```
+<!-- revision: dropped — fires on legitimate Console-to-Agent API traffic. GET /rest/ on port 4401 matches all routine API communication between Collibra Console and Agent, producing unacceptable false-positive volume with no specific exploit artifact to anchor on. SID 2100011 removed from shipped rule file. -->
 
 ### YARA: N/A
 

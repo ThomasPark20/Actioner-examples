@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-08
-Version: 1.0 DRAFT
+Version: 1.1 REVISED
 
 ## Executive Summary
 
@@ -101,7 +101,7 @@ The Galera replication layer introduces a unique attack surface: cluster peers e
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | CVE-2026-49261: Exploitation of MariaDB Galera cluster communication to inject commands via malicious node metadata. CVE-2026-48163: Exploitation of SST mechanism via malicious joiner node. |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | All three Galera CVEs result in shell command execution via injection into shell command construction or shell script parameters. |
-| T1548.003 | Abuse Elevation Control Mechanism: Sudo and Sudo Caching | CVE-2026-48165: Authenticated user with SUPER privilege escalates to OS-level command execution as the mariadbd process UID. |
+| T1611 | Escape to Host | CVE-2026-48165: Authenticated user with SUPER privilege escapes the database layer to achieve OS-level command execution as the mariadbd process UID. |
 | T1070 | Indicator Removal | CVE-2026-3494: Attacker bypasses MariaDB audit plugin logging by prefixing SQL statements with comment characters. |
 
 ## Detection & Remediation
@@ -153,7 +153,7 @@ grep -iE "wsrep_notify|wsrep_sst" /var/log/mysql/error.log | grep -E '[$`|;&><]'
 - Deploy MariaDB Galera Cluster behind network segmentation with strict firewall rules limiting cluster communication to known node IPs.
 - Use TLS for all Galera intra-cluster communication (`wsrep_provider_options="socket.ssl=true"`).
 - Implement process monitoring on database servers to detect unexpected child processes spawned by `mariadbd`.
-- Consider using `wsrep_sst_method=mariabackup` instead of `rsync` as it may have a smaller attack surface for parameter injection.
+- Evaluate the security posture of your chosen SST method (`rsync`, `mariabackup`, etc.) and ensure all SST-related scripts are updated to the patched versions.
 - Rotate all cluster credentials if exploitation is suspected.
 
 ## Detection Rules
@@ -165,7 +165,8 @@ These detections target the specific behavioral patterns from CVE-2026-49261, CV
 Detects child processes spawned by mariadbd/mysqld related to wsrep notification commands containing shell injection metacharacters, indicating potential exploitation of the wsrep_node_name / wsrep_node_incoming_address parameter injection vulnerability.
 
 **Status:** compile pass | confidence: medium
-<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Logsource category:process_creation product:linux requires Sysmon for Linux, auditd with execve logging, or EDR process telemetry. FP risk: legitimate wsrep_notify scripts that use pipes or redirects in their own logic may trigger. The three-way AND condition (parent + notify keyword + metacharacter) constrains FP surface. -->
+<!-- revision: v1.1 — removed --status (too generic), narrowed metacharacters to $( ` && only (removed | ; > < which match legitimate shell operations), added wsrep-notify and wsrep-specific flags --members/--index. sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. -->
+<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Logsource category:process_creation product:linux requires Sysmon for Linux, auditd with execve logging, or EDR process telemetry. FP risk: reduced after narrowing metacharacters to injection-specific patterns only. The three-way AND condition (parent + notify keyword + metacharacter) constrains FP surface. -->
 
 ```yaml
 title: MariaDB Galera wsrep_notify_cmd Parameter Injection via Malicious Node Name (CVE-2026-49261)
@@ -196,31 +197,28 @@ detection:
     selection_notify_script:
         CommandLine|contains:
             - 'wsrep_notify'
-            - '--status'
+            - 'wsrep-notify'
+            - '--members'
+            - '--index'
     selection_injection_indicators:
         CommandLine|contains:
             - '$('
             - '`'
-            - '|'
             - '&&'
-            - ';'
-            - '>'
-            - '<'
     condition: selection_parent and selection_notify_script and selection_injection_indicators
 falsepositives:
-    - Legitimate wsrep notification scripts that pipe output or use shell features in their arguments
-    - Custom monitoring scripts called by wsrep_notify_cmd
+    - Custom wsrep notification scripts that use subshell expansion or command chaining in their arguments
 level: high
 ```
 
 **Splunk SPL:**
 ```spl
-ParentImage IN ("*/mariadbd", "*/mysqld") CommandLine IN ("*wsrep_notify*", "*--status*") CommandLine IN ("*$(*", "*`*", "*|*", "*&&*", "*;*", "*>*", "*<*")
+(ParentImage="*/mariadbd" OR ParentImage="*/mysqld") (CommandLine="*wsrep_notify*" OR CommandLine="*wsrep-notify*" OR CommandLine="*--members*" OR CommandLine="*--index*") (CommandLine="*$(*" OR CommandLine="*`*" OR CommandLine="*&&*")
 ```
 
 **CrowdStrike LogScale:**
 ```
-ParentImage=/\/mariadbd$/i or ParentImage=/\/mysqld$/i CommandLine=/wsrep_notify/i or CommandLine=/--status/i CommandLine=/\$\(/i or CommandLine=/`/i or CommandLine=/\|/i or CommandLine=/&&/i or CommandLine=/;/i or CommandLine=/>/i or CommandLine=/</i
+(ParentImage=/\/mariadbd$/i or ParentImage=/\/mysqld$/i) (CommandLine=/wsrep_notify/i or CommandLine=/wsrep-notify/i or CommandLine=/--members/i or CommandLine=/--index/i) (CommandLine=/\$\(/i or CommandLine=/`/i or CommandLine=/&&/i)
 ```
 
 ---
