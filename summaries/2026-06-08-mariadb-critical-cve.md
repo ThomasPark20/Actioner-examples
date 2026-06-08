@@ -225,10 +225,11 @@ level: high
 
 ### Sigma: MariaDB Galera SST rsync Parameter Injection (CVE-2026-48163)
 
-Detects SST-related processes spawned by mariadbd with shell injection metacharacters in their command lines, indicating potential exploitation of the wsrep_sst_rsync parameter injection via malicious joiner-supplied credential values.
+Detects SST-related processes spawned by mariadbd with shell injection metacharacters in their command lines, indicating potential exploitation of the wsrep_sst_rsync parameter injection via malicious joiner-supplied credential values. Detection is narrowed to `wsrep_sst_rsync` specifically as that is the affected SST method.
 
-**Status:** compile pass | confidence: medium
-<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Same logsource requirements as above. FP risk: legitimate SST operations do not normally include shell metacharacters in credential parameters. -->
+**Status:** compile pass | confidence: low
+<!-- revision: v1.1 — narrowed detection from wsrep_sst_* (all SST methods) to wsrep_sst_rsync only, narrowed metacharacters to $( ` && (removed | ; which match legitimate shell operations), downgraded confidence to low (behavioral/TTP detection, not CVE-specific artifact), downgraded level to medium. sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. -->
+<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Same logsource requirements as Rule 1. FP risk: legitimate SST operations do not normally include shell metacharacters in credential parameters but this is a behavioral pattern, not a CVE-specific artifact. -->
 
 ```yaml
 title: MariaDB Galera SST rsync Parameter Injection via Joiner-Supplied Credentials (CVE-2026-48163)
@@ -238,7 +239,8 @@ description: |
     Detects potential exploitation of CVE-2026-48163 (MDEV-39648) where a malicious Galera cluster
     joiner injects shell metacharacters through WSREP_SST_OPT_REMOTE_USER or
     WSREP_SST_OPT_REMOTE_PSWD values that are interpolated unsanitized into the donor-side
-    stunnel.conf or rsync magic file during State Snapshot Transfer operations.
+    stunnel.conf or rsync magic file during State Snapshot Transfer operations. Detection is
+    narrowed to wsrep_sst_rsync specifically as that is the affected SST method.
 references:
     - https://securityonline.info/mariadb-security-flaw-cvss-10/
     - https://mariadb.com/docs/release-notes/community-server/10.6/10.6.27
@@ -257,29 +259,26 @@ detection:
             - '/mariadbd'
             - '/mysqld'
     selection_sst_process:
-        CommandLine|contains:
-            - 'wsrep_sst_rsync'
-            - 'wsrep_sst_'
+        CommandLine|contains: 'wsrep_sst_rsync'
     selection_injection:
         CommandLine|contains:
             - '$('
             - '`'
-            - '|'
-            - ';'
+            - '&&'
     condition: selection_parent and selection_sst_process and selection_injection
 falsepositives:
     - Legitimate SST operations with unusual but benign parameter values
-level: high
+level: medium
 ```
 
 **Splunk SPL:**
 ```spl
-ParentImage IN ("*/mariadbd", "*/mysqld") CommandLine IN ("*wsrep_sst_rsync*", "*wsrep_sst_*") CommandLine IN ("*$(*", "*`*", "*|*", "*;*")
+(ParentImage="*/mariadbd" OR ParentImage="*/mysqld") CommandLine="*wsrep_sst_rsync*" (CommandLine="*$(*" OR CommandLine="*`*" OR CommandLine="*&&*")
 ```
 
 **CrowdStrike LogScale:**
 ```
-ParentImage=/\/mariadbd$/i or ParentImage=/\/mysqld$/i CommandLine=/wsrep_sst_rsync/i or CommandLine=/wsrep_sst_/i CommandLine=/\$\(/i or CommandLine=/`/i or CommandLine=/\|/i or CommandLine=/;/i
+(ParentImage=/\/mariadbd$/i or ParentImage=/\/mysqld$/i) CommandLine=/wsrep_sst_rsync/i (CommandLine=/\$\(/i or CommandLine=/`/i or CommandLine=/&&/i)
 ```
 
 ---
