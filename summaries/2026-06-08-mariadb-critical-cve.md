@@ -77,7 +77,7 @@ The Galera replication layer introduces a unique attack surface: cluster peers e
 
 ### Behavioral Indicators (CVE-2026-49261)
 
-- Child processes spawned by `mariadbd`/`mysqld` with command lines containing `wsrep_notify` AND shell metacharacters (`$(`, `` ` ``, `|`, `&&`, `;`)
+- Child processes spawned by `mariadbd`/`mysqld` with command lines containing `wsrep_notify` AND shell injection metacharacters (`$(`, `` ` ``, `&&`)
 - Galera cluster nodes with `wsrep_node_name` or `wsrep_node_incoming_address` values containing shell metacharacters
 - Unexpected processes running as the `mysql` user on Galera cluster nodes
 
@@ -287,8 +287,9 @@ level: medium
 
 Detects SET GLOBAL statements targeting wsrep_sst_donor or wsrep_sst_receive_address with values containing shell metacharacters in MariaDB query/audit logs, indicating potential exploitation by a privileged user to achieve OS-level command execution.
 
-**Status:** compile pass | confidence: medium-high
-<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Logsource product:mysql category:application requires MariaDB general query log, audit plugin, or proxy-based query logging. FP risk: low — legitimate wsrep_sst_donor values are hostname/IP strings and should never contain shell metacharacters. -->
+**Status:** compile pass | confidence: medium
+<!-- revision: v1.1 — renamed filter_injection to selection_injection (Sigma convention: filter_* is for negation/exclusion, not positive selection), removed T1548.003 (Sudo — incorrect mapping, this is not sudo abuse), kept T1059.004 only, normalized confidence from "medium-high" to "medium" (standard value), narrowed metacharacters to $( ` && only (removed | ; which match legitimate multi-statement SQL), downgraded level from critical to medium, added log source requirement documentation. sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. -->
+<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. Logsource product:mysql category:application requires MariaDB general query log (general_log=ON), audit plugin (server_audit_events=QUERY), or proxy-based query logging (ProxySQL, MaxScale). The 'query' field must contain the full SQL statement text. FP risk: low — legitimate wsrep_sst_donor values are hostname/IP strings and should never contain shell metacharacters. -->
 
 ```yaml
 title: MariaDB Galera Shell Command Execution via wsrep_sst_donor or wsrep_sst_receive_address Modification (CVE-2026-48165)
@@ -300,6 +301,11 @@ description: |
     at runtime to inject shell commands that execute as the mariadbd process UID. This rule monitors
     MariaDB logs or query audit logs for SET GLOBAL statements targeting these variables with
     suspicious payloads containing shell metacharacters.
+
+    Log source requirement: This rule requires the MariaDB general query log (general_log=ON),
+    the MariaDB audit plugin (server_audit_events=QUERY), or an external SQL query proxy
+    (e.g., ProxySQL, MaxScale) that logs full query text. The 'query' field must contain
+    the full SQL statement text.
 references:
     - https://securityonline.info/mariadb-security-flaw-cvss-10/
     - https://mariadb.com/docs/release-notes/community-server/10.6/10.6.27
@@ -308,7 +314,6 @@ author: Actioner
 date: 2026/06/08
 tags:
     - attack.t1059.004
-    - attack.t1548.003
 logsource:
     product: mysql
     category: application
@@ -320,27 +325,25 @@ detection:
         query|contains:
             - 'wsrep_sst_donor'
             - 'wsrep_sst_receive_address'
-    filter_injection:
+    selection_injection:
         query|contains:
             - '$('
             - '`'
-            - '|'
-            - ';'
             - '&&'
-    condition: selection_set_global and filter_injection
+    condition: selection_set_global and selection_injection
 falsepositives:
     - Database administrators setting SST donor with values that coincidentally contain shell metacharacters
-level: critical
+level: medium
 ```
 
 **Splunk SPL:**
 ```spl
-query="*SET*" query="*GLOBAL*" query IN ("*wsrep_sst_donor*", "*wsrep_sst_receive_address*") query IN ("*$(*", "*`*", "*|*", "*;*", "*&&*")
+query="*SET*" query="*GLOBAL*" (query="*wsrep_sst_donor*" OR query="*wsrep_sst_receive_address*") (query="*$(*" OR query="*`*" OR query="*&&*")
 ```
 
 **CrowdStrike LogScale:**
 ```
-query=/SET/i query=/GLOBAL/i query=/wsrep_sst_donor/i or query=/wsrep_sst_receive_address/i query=/\$\(/i or query=/`/i or query=/\|/i or query=/;/i or query=/&&/i
+query=/SET/i query=/GLOBAL/i (query=/wsrep_sst_donor/i or query=/wsrep_sst_receive_address/i) (query=/\$\(/i or query=/`/i or query=/&&/i)
 ```
 
 ---
@@ -349,8 +352,11 @@ query=/SET/i query=/GLOBAL/i query=/wsrep_sst_donor/i or query=/wsrep_sst_receiv
 
 Detects SQL queries that begin with comment prefixes (`--` or `#`) followed by sensitive DDL/DCL/DML operations, which exploit the audit plugin comment handling bypass to evade query logging.
 
-**Status:** compile pass | confidence: medium
-<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. This rule must be deployed on a query proxy or network tap that captures raw SQL — the MariaDB audit plugin itself will NOT log these queries due to the bypass. FP risk: moderate — some ORMs and migration tools prepend comments to queries. The regex anchoring (^) constrains to queries that START with comments. -->
+> **LOG SOURCE PARADOX:** CVE-2026-3494 bypasses the MariaDB audit plugin itself. Queries exploiting this vulnerability will **NOT** appear in MariaDB audit plugin logs (`server_audit_events`). This rule **MUST** be deployed against an external query capture source: a SQL proxy (ProxySQL, MaxScale), a network tap with MySQL protocol parsing, or the MariaDB general query log (`general_log=ON`). Deploying this rule against audit plugin output alone will produce zero detections for the attack it targets.
+
+**Status:** compile pass | confidence: low
+<!-- revision: v1.1 — added prominent log source paradox caveat (audit plugin bypass = events won't appear in audit logs), downgraded confidence to low (behavioral detection, regex also matches legitimate ORM/migration comments from Django, Rails, Flyway), expanded false positives to list specific ORM examples, retained level at medium. sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. -->
+<!-- audit: sigma check 0 errors; sigma convert splunk OK; sigma convert log_scale OK. This rule must be deployed on a query proxy, network tap, or general query log — NOT the audit plugin itself. FP risk: moderate — ORMs (Django, Rails) and migration tools (Flyway) prepend comments to queries. The regex anchoring (^) constrains to queries that START with comments. -->
 
 ```yaml
 title: MariaDB Audit Plugin Bypass via SQL Comment Prefix (CVE-2026-3494)
@@ -362,6 +368,13 @@ description: |
     logging when server_audit_events is configured with QUERY_DCL, QUERY_DDL, or QUERY_DML filtering.
     This rule looks for suspicious SQL queries in application or proxy logs that begin with comment
     characters followed by sensitive DDL/DCL/DML operations.
+
+    IMPORTANT LOG SOURCE CAVEAT: Because CVE-2026-3494 bypasses the MariaDB audit plugin itself,
+    the malicious queries will NOT appear in MariaDB audit plugin logs. This rule MUST be deployed
+    against an external query capture source such as a SQL proxy (ProxySQL, MaxScale), a network
+    tap with MySQL protocol parsing, or the MariaDB general query log (general_log=ON). Deploying
+    this rule against audit plugin output alone will produce zero detections for the attack it
+    targets.
 references:
     - https://securityonline.info/mariadb-security-flaw-cvss-10/
     - https://mariadb.com/docs/release-notes/community-server/10.6/10.6.27
@@ -378,7 +391,7 @@ detection:
         query|re: '^(--|#)\s*(DROP|ALTER|CREATE|GRANT|REVOKE|INSERT|UPDATE|DELETE|TRUNCATE)'
     condition: selection_comment_prefix
 falsepositives:
-    - SQL scripts or ORMs that prepend comments to queries for tracing purposes
+    - SQL scripts or ORMs that prepend comments to queries for tracing purposes (e.g., Django, Rails, Flyway migration comments)
     - Database migration tools that use comments before DDL statements
 level: medium
 ```
