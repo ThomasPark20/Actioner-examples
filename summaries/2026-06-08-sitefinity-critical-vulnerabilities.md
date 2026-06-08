@@ -11,7 +11,7 @@
 
 On June 2, 2026, Progress Software disclosed five security vulnerabilities affecting Progress Sitefinity CMS, a widely-deployed .NET-based web content management system. The most critical, CVE-2026-7312, carries a maximum CVSS score of 10.0 and allows unauthenticated remote attackers to extract plain-text credentials for the Sitefinity Insight analytics service through exposed OData web service endpoints. A second critical vulnerability, CVE-2026-7198 (CVSS 9.8), permits unauthenticated access to restricted content via improper access controls. Three additional high-severity vulnerabilities address authorization bypass (CVE-2026-7201), input validation flaws (CVE-2026-7195), and a secondary credential exposure issue (CVE-2026-7313). Patches are available for all supported branches. No public exploit code or active exploitation has been confirmed as of this writing.
 
-**No production-ready, high-confidence detection rules are possible at this time.** The advisory and related sources provide no specific exploit payloads, endpoint paths, HTTP request patterns, or file-level indicators. One advisory-based Sigma rule is included at medium confidence for situational awareness monitoring.
+**No production-ready detection.** The advisory and related sources provide no specific exploit payloads, endpoint paths, HTTP request patterns, or file-level indicators. Patching is the only reliable mitigation. Re-run if a PoC or IOC list is published.
 
 ---
 
@@ -100,7 +100,7 @@ The May 2026 security advisory addresses a cluster of five vulnerabilities, seve
 | Unsecured Credentials: Credentials In Files | T1552.001 | Credentials retrievable in plain text from web service responses |
 | Exploit Public-Facing Application | T1190 | CVE-2026-7312, CVE-2026-7198 — unauthenticated remote exploitation of web services |
 | Valid Accounts | T1078 | Post-exploitation use of stolen Insight service credentials |
-| Access Token Manipulation | T1134 | CVE-2026-7201 — IDOR to escalate privileges via user-controlled key manipulation |
+| Valid Accounts | T1078 | CVE-2026-7201 — IDOR via user-controlled key to take over other accounts (no precise ATT&CK sub-technique for web-layer IDOR) |
 
 ---
 
@@ -124,7 +124,7 @@ The May 2026 security advisory addresses a cluster of five vulnerabilities, seve
 
 1. **WAF Rules:** Block unauthenticated external access to `/Sitefinity/Services/` endpoints.
 2. **Configuration Review:** If Sitefinity Insight integration is not required, disable it to eliminate the attack surface for CVE-2026-7312 and CVE-2026-7313.
-3. **Revert to Default Configuration:** If using non-default configurations that expose vulnerable web services, consider reverting to default until patches are applied.
+3. **Review Insight Configuration:** If using a non-default Sitefinity Insight configuration, review the Progress KB for the specific settings that expose credential-bearing OData endpoints and disable them until patches are applied.
 4. **Network Segmentation:** Restrict access to Sitefinity backend and administrative services to trusted networks only.
 5. **Credential Rotation:** If Sitefinity Insight was configured on a vulnerable instance, rotate all Insight API keys and service account credentials immediately.
 
@@ -142,76 +142,9 @@ One advisory-based Sigma rule is provided below for situational awareness. It sh
 
 ## Detection Rules
 
-### Sigma Rule: Potential Sitefinity OData Web Services Credential Leak Exploitation (CVE-2026-7312)
+**No production-ready detection.** The source describes the issue but provides no concrete, distinctive artifacts (generic advisory — no PoC, no exploit payloads, no specific endpoint paths beyond broad `/Sitefinity/Services/` prefix). Generating a rule here would fire on all normal Sitefinity API traffic and be false-positive-prone. Re-run if a PoC or IOC list is published.
 
-- **Compile Status:** PASSED
-- **Confidence:** Low (advisory-based, no exploit-specific indicators)
-- **Splunk Conversion:** PASSED
-- **LogScale (CrowdStrike) Conversion:** PASSED
-- **Note:** This rule detects access to general Sitefinity web service paths. It will produce false positives in environments with legitimate Sitefinity API usage. Intended for threat hunting and situational awareness only.
-
-```yaml
-title: Potential Sitefinity OData Web Services Credential Leak Exploitation (CVE-2026-7312)
-id: 73ab04e2-c894-4b28-a4cf-7050e23c1649
-status: experimental
-description: >
-    Detects HTTP requests targeting Progress Sitefinity OData web service endpoints
-    that may indicate exploitation of CVE-2026-7312 (CVSS 10.0) or CVE-2026-7198
-    (CVSS 9.8). CVE-2026-7312 allows unauthenticated credential extraction from the
-    Sitefinity Insight service via OData endpoints. This is an advisory-based rule
-    with limited specificity due to the absence of public exploit details.
-references:
-    - https://securityonline.info/sitefinity-critical-vulnerabilities/
-    - https://community.progress.com/s/article/Sitefinity-Security-Advisory-for-Addressing-Security-Vulnerabilities-CVE-2026-7312-CVE-2026-7198-CVE-2026-7195-CVE-2026-7201-CVE-2026-7313-May-2026
-    - https://nvd.nist.gov/vuln/detail/CVE-2026-7198
-    - https://cve.threatint.eu/CVE/CVE-2026-7312
-author: Actioner
-date: 2026/06/08
-tags:
-    - attack.t1552
-    - attack.t1552.001
-logsource:
-    category: webserver
-detection:
-    selection_path:
-        cs-uri-stem|contains:
-            - '/Sitefinity/Services/'
-            - '/sf/system/'
-            - '/api/default/'
-    selection_method:
-        cs-method:
-            - 'GET'
-            - 'POST'
-    filter_authenticated:
-        cs-uri-stem|contains:
-            - '/Sitefinity/Services/Security/'
-            - '/Sitefinity/Authenticate/'
-    condition: selection_path and selection_method and not filter_authenticated
-falsepositives:
-    - Legitimate Sitefinity administrative access to web service endpoints
-    - Authorized API integrations using Sitefinity OData services
-    - Internal monitoring and health check systems
-level: medium
-```
-
-**Splunk Conversion:**
-```spl
-"cs-uri-stem" IN ("*/Sitefinity/Services/*", "*/sf/system/*", "*/api/default/*") "cs-method" IN ("GET", "POST") NOT ("cs-uri-stem" IN ("*/Sitefinity/Services/Security/*", "*/Sitefinity/Authenticate/*"))
-```
-
-**CrowdStrike LogScale Conversion:**
-```
-"cs-uri-stem"=/\/Sitefinity\/Services\//i or "cs-uri-stem"=/\/sf\/system\//i or "cs-uri-stem"=/\/api\/default\//i "cs-method"=/^GET$/i or "cs-method"=/^POST$/i not ("cs-uri-stem"=/\/Sitefinity\/Services\/Security\//i or "cs-uri-stem"=/\/Sitefinity\/Authenticate\//i)
-```
-
-### Rules Not Generated
-
-| Rule Type | Reason |
-|-----------|--------|
-| Snort | No specific network-level payloads, signatures, or packet patterns disclosed |
-| Suricata | No specific network-level payloads, signatures, or packet patterns disclosed |
-| YARA | No file-level indicators (hashes, byte patterns, strings) disclosed |
-| Additional Sigma | No specific exploit behavioral chains available for individual CVEs |
+Hunt lead: monitor unauthenticated requests to `/Sitefinity/Services/` from external IPs in web server logs, but treat as noise without further tuning.
 
 ---
 
