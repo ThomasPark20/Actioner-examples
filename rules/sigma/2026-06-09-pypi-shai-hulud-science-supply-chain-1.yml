@@ -1,0 +1,37 @@
+title: Shai-Hulud Science Wave GitHub Dead-Drop Exfiltration to felixEvora Repositories
+id: 3b8e1c5a-9d2f-4a7b-e6c4-1f0d5b8a2e9c
+status: experimental
+description: >
+    Detects command-line references to the felixEvora GitHub account or
+    Hades-themed dead-drop repository naming patterns (e.g. lethean-tartarus,
+    abyssal-acheron) used for credential exfiltration in the June 2026
+    Shai-Hulud bioinformatics package wave. NOTE: This rule uses the
+    process_creation logsource and fires only when campaign strings appear in
+    command-line arguments (e.g. git CLI invocations). The actual exfiltration
+    uses JavaScript fetch()/GraphQL from the Bun runtime, so these strings are
+    more likely to appear in HTTP/DNS traffic than in process command lines.
+    Pair with the Snort/Suricata DNS and HTTP rules for broader coverage.
+references:
+    - https://www.endorlabs.com/learn/shai-hulud-hades-wave-hits-six-pypi-bioinformatics-packages
+    - https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/
+author: Actioner
+date: 2026/06/09
+tags:
+    - attack.t1567.001
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_felixevora:
+        CommandLine|contains: 'felixEvora'
+    selection_hades_repos:
+        CommandLine|contains:
+            - 'lethean-tartarus'
+            - 'abyssal-acheron'
+            - 'Hades - The End for the Damned'
+    condition: selection_felixevora or selection_hades_repos
+falsepositives:
+    - Unlikely - felixEvora account name and Hades-themed repository names are campaign-specific
+    - This rule fires only if the attacker uses git CLI or campaign strings appear in command-line arguments; JavaScript-based exfiltration via Bun fetch()/GraphQL will not trigger this rule
+level: high
