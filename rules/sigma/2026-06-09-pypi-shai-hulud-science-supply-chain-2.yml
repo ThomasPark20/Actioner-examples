@@ -1,0 +1,29 @@
+title: Shai-Hulud Science Wave Bun User-Agent in HTTP Traffic
+id: 7a1d4e9c-2b5f-4c8a-d3e6-5f0b8c2a1d7e
+status: experimental
+description: >
+    Detects HTTP traffic with User-Agent string Bun/1.3.13 originating from Python
+    processes or site-packages directories. The June 2026 Shai-Hulud wave used the
+    Bun JavaScript runtime for all malicious uploads and C2 communications, which is
+    atypical for Python-based scientific computing environments. Bun 1.3.13 is a
+    current, publicly released JavaScript runtime, so this rule should be scoped to
+    non-JavaScript-development network segments (e.g. scientific computing, HPC,
+    research lab subnets) to reduce false positives.
+references:
+    - https://www.endorlabs.com/learn/shai-hulud-hades-wave-hits-six-pypi-bioinformatics-packages
+    - https://www.bleepingcomputer.com/news/security/new-shai-hulud-attack-trojanizes-19-science-focused-pypi-packages/
+author: Actioner
+date: 2026/06/09
+tags:
+    - attack.t1071.001
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-useragent|contains: 'Bun/1.3.13'
+    condition: selection
+falsepositives:
+    - Legitimate use of Bun JavaScript runtime version 1.3.13 in proxy logs
+    - JavaScript developers using Bun as their runtime — scope this rule to non-JS-development network segments to reduce noise
+level: medium
