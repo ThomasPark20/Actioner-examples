@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -185,9 +185,10 @@ These detections target the specific ASN.1 structural anomaly (empty `digestAlgo
 
 ### Sigma: Vulnerable OpenSSL Version Detected via Process Execution
 
-Detects `openssl version` execution revealing a vulnerable OpenSSL version string; useful for asset inventory and patch verification, not exploit detection.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Version-enumeration rule — detects openssl binary invocations with version output matching vulnerable ranges. Broad match on 3.0.x/1.1.1/1.0.2 since enumerating every point release is impractical; will match patched 3.0.21 as well (FP). Best used as hunt/inventory query, not alert. No pipeline conversion tested (linux process_creation has no standard Sigma pipeline). -->
+Detects `openssl version` execution revealing a vulnerable OpenSSL version string; useful for asset inventory and patch verification, not exploit detection. Note: `process_creation` + `product: linux` has no standard Sigma pipeline for Splunk or CrowdStrike Falcon — deploy as a hunt/inventory query and map fields to your SIEM manually.
+**Status:** compile ✅ compiles · confidence: low
+<!-- revision: lowered confidence medium→low (broad version ranges match patched releases); replaced attack.t1190 with attack.t1518.001 (Software Discovery — version inventory, not exploit); added explicit FP note for patched versions; disclosed lack of standard pipeline for linux process_creation. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Version-enumeration rule — detects openssl binary invocations with version output matching vulnerable ranges. Broad match on 3.0.x/1.1.1/1.0.2 since enumerating every point release is impractical; will match patched 3.0.21 as well (FP). Best used as hunt/inventory query, not alert. -->
 ```yaml
 title: Vulnerable OpenSSL Version Detected via Process Execution (CVE-2026-45447)
 id: 7c3e8a1d-4b2f-4e9c-a5d6-1f0e2b3c4d5a
@@ -204,7 +205,8 @@ references:
 author: Actioner
 date: 2026/06/10
 tags:
-    - attack.t1190
+    - attack.discovery
+    - attack.t1518.001
 logsource:
     category: process_creation
     product: linux
@@ -238,13 +240,15 @@ detection:
 falsepositives:
     - Legitimate version checking scripts during patching operations
     - Configuration management tools auditing OpenSSL versions
-level: medium
+    - 'Patched versions within broad ranges: 3.0.21 matches 3.0.x, 1.1.1zh matches 1.1.1, 1.0.2zq matches 1.0.2 — verify actual point release before confirming vulnerability'
+level: low
 ```
 
 ### Snort: PKCS#7 SignedData with Empty DigestAlgorithms SET
 
-Detects PKCS#7 SignedData content bearing an empty `digestAlgorithms` SET (`31 00`) immediately following the SignedData OID, the exact trigger for CVE-2026-45447.
-**Status:** compile ⚠️ uncompiled (Snort not installed)
+Detects PKCS#7 SignedData content bearing an empty `digestAlgorithms` SET (`31 00`) immediately following the SignedData OID, the exact trigger for CVE-2026-45447. **Uncompiled — validate with your Snort build before deployment.** The 2-byte `31 00` content match may generate noise in high-volume environments if the `fast_pattern` on the OID does not sufficiently anchor matches; monitor hit rate and tune `within` if needed.
+**Status:** compile ⚠️ uncompiled (Snort not installed) · confidence: low
+<!-- revision: promoted uncompiled caveat to visible prose; lowered confidence to low (never compiled/validated); added 2-byte pattern caveat for high-volume environments. -->
 <!-- audit: snort binary not available in environment; structural check only. Rule uses raw tcp with content hex matches for PKCS#7 SignedData OID + empty SET within 256 bytes. distance:0 anchors the empty SET search after the OID match. FP risk: minimal — empty digestAlgorithms SET in PKCS#7 is semantically invalid and should not appear in legitimate traffic. Evasion: fragmentation across the OID/SET boundary could evade; flow:established mitigates reassembly-based evasion in most deployments. -->
 ```snort
 alert tcp any any -> $HOME_NET any (msg:"Actioner - PKCS7 SignedData with Empty DigestAlgorithms SET (CVE-2026-45447)"; flow:established,to_server; content:"|06 09 2A 86 48 86 F7 0D 01 07 02|"; fast_pattern; content:"|31 00|"; distance:0; within:256; classtype:attempted-admin; reference:cve,2026-45447; reference:url,securityonline.info/openssl-security-patches-rce/; metadata:author Actioner, created 2026-06-10; sid:2100001; rev:1;)
@@ -252,8 +256,9 @@ alert tcp any any -> $HOME_NET any (msg:"Actioner - PKCS7 SignedData with Empty 
 
 ### Suricata: PKCS#7 SignedData with Empty DigestAlgorithms SET
 
-Detects PKCS#7 SignedData content bearing an empty `digestAlgorithms` SET (`31 00`) following the SignedData OID in TCP traffic, the trigger for CVE-2026-45447.
+Detects PKCS#7 SignedData content bearing an empty `digestAlgorithms` SET (`31 00`) following the SignedData OID in TCP traffic, the trigger for CVE-2026-45447. The `within:256` window accounts for ASN.1 wrapper overhead (outer SEQUENCE, version INTEGER, and content-type fields) between the OID and the `digestAlgorithms` field.
 **Status:** compile ✅ compiles · confidence: medium
+<!-- revision: added one-sentence caveat explaining the 256-byte window rationale. Kept at medium per verdict. -->
 <!-- audit: suricata -T exit 0 (Suricata 7.0.3). Rule uses raw tcp (not app-layer) because PKCS#7 payloads can arrive over any TCP-based protocol (SMTP, HTTP uploads, custom protocols). content hex matches PKCS#7 SignedData OID (1.2.840.113549.1.7.2) then empty SET (31 00) within 256 bytes. FP risk: low — legitimate PKCS#7 never has empty digestAlgorithms. Evasion: TCP segmentation across OID/SET boundary is handled by Suricata's stream reassembly. Does not cover UDP or non-TCP transports (unlikely for PKCS#7). -->
 ```suricata
 alert tcp any any -> $HOME_NET any (msg:"Actioner - PKCS7 SignedData with Empty DigestAlgorithms SET (CVE-2026-45447)"; flow:established,to_server; content:"|06 09 2A 86 48 86 F7 0D 01 07 02|"; fast_pattern; content:"|31 00|"; distance:0; within:256; classtype:attempted-admin; reference:cve,2026-45447; reference:url,securityonline.info/openssl-security-patches-rce/; metadata:author Actioner, created_at 2026-06-10; sid:2200001; rev:1;)
@@ -262,8 +267,9 @@ alert tcp any any -> $HOME_NET any (msg:"Actioner - PKCS7 SignedData with Empty 
 ### YARA: PKCS#7 SignedData with Empty DigestAlgorithms SET
 
 Detects files containing a PKCS#7 SignedData structure with an empty `digestAlgorithms` SET, the trigger for CVE-2026-45447; scan S/MIME attachments, uploaded PKCS#7 blobs, and mail spool directories.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0 (warning: $empty_set may slow scanning — expected for short hex pattern, acceptable for targeted scans). yara fired on constructed positive (PKCS#7 OID + 31 00), quiet on negative (PKCS#7 OID + 31 0f with SHA-256 AlgorithmIdentifier). Positive constructed from the advisory's published trigger condition (empty digestAlgorithms SET), not invented. FP: a file containing both the PKCS#7 OID and an unrelated 31 00 byte pair could false-positive; the position constraint (empty_set after OID) and filesize cap reduce this. For high-volume scanning, consider adding depth constraints or content-type pre-filtering. -->
+**Status:** compile ✅ compiles · confidence: high · sample: fired ✓ (positive), silent ✓ (negative: non-empty SET), silent ✓ (negative: `31 00` beyond 256 bytes)
+<!-- revision: tightened positional constraint from unbounded (@empty_set > @pkcs7_signed_data_oid) to bounded (@empty_set - @pkcs7_signed_data_oid < 256) mirroring the network rules' within:256 window; re-validated with yarac and three sample tests (positive, negative-nonempty, negative-far). -->
+<!-- audit: yarac exit 0 (warning: $empty_set may slow scanning — expected for short hex pattern, acceptable for targeted scans). yara fired on constructed positive (PKCS#7 OID + 31 00 within 256 bytes), quiet on negative (PKCS#7 OID + 31 0f with SHA-256 AlgorithmIdentifier), quiet on negative (PKCS#7 OID + 31 00 separated by >256 bytes). Positive constructed from the advisory's published trigger condition (empty digestAlgorithms SET), not invented. FP: a file containing both the PKCS#7 OID and an unrelated 31 00 byte pair within 256 bytes could false-positive; the bounded position constraint and filesize cap reduce this. For high-volume scanning, consider adding depth constraints or content-type pre-filtering. -->
 ```yara
 rule Exploit_CVE_2026_45447_PKCS7_Empty_DigestAlgorithms
 {
@@ -286,9 +292,12 @@ rule Exploit_CVE_2026_45447_PKCS7_Empty_DigestAlgorithms
     condition:
         $pkcs7_signed_data_oid and
         $empty_set and
-        // Empty SET must appear after the OID (within the SignedData structure)
+        // Empty SET must appear within 256 bytes after the OID (within the SignedData structure)
         for any i in (1..#empty_set) : (
-            @empty_set[i] > @pkcs7_signed_data_oid
+            for any j in (1..#pkcs7_signed_data_oid) : (
+                @empty_set[i] > @pkcs7_signed_data_oid[j] and
+                @empty_set[i] - @pkcs7_signed_data_oid[j] < 256
+            )
         ) and
         filesize < 10MB
 }

@@ -1,0 +1,6 @@
+# Actioner - CVE-2026-45447: OpenSSL PKCS#7 Use-After-Free RCE
+# Detects PKCS#7 SignedData with empty digestAlgorithms SET (31 00),
+# the exact trigger for the use-after-free in PKCS7_verify().
+# The within:256 window accounts for ASN.1 wrapper overhead between
+# the OID and the digestAlgorithms field.
+alert tcp any any -> $HOME_NET any (msg:"Actioner - PKCS7 SignedData with Empty DigestAlgorithms SET (CVE-2026-45447)"; flow:established,to_server; content:"|06 09 2A 86 48 86 F7 0D 01 07 02|"; fast_pattern; content:"|31 00|"; distance:0; within:256; classtype:attempted-admin; reference:cve,2026-45447; reference:url,securityonline.info/openssl-security-patches-rce/; metadata:author Actioner, created_at 2026-06-10; sid:2200001; rev:1;)

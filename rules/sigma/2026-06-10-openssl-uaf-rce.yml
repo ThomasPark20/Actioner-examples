@@ -1,0 +1,52 @@
+title: Vulnerable OpenSSL Version Detected via Process Execution (CVE-2026-45447)
+id: 7c3e8a1d-4b2f-4e9c-a5d6-1f0e2b3c4d5a
+status: experimental
+description: >
+    Detects execution of applications linked against OpenSSL versions vulnerable to
+    CVE-2026-45447 (PKCS#7 use-after-free in PKCS7_verify). Vulnerable versions include
+    OpenSSL 4.0.0, 3.6.0-3.6.2, 3.5.0-3.5.6, 3.4.0-3.4.5, 3.0.0-3.0.20, 1.1.1-1.1.1zg,
+    and 1.0.2-1.0.2zp. Version strings may appear in process command-line output or
+    library loading events.
+references:
+    - https://securityonline.info/openssl-security-patches-rce/
+    - https://www.securityweek.com/openssl-patches-high-severity-vulnerability-found-with-ai/
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.discovery
+    - attack.t1518.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_openssl_binary:
+        Image|endswith: '/openssl'
+        CommandLine|contains: 'version'
+    selection_vulnerable_version:
+        CommandLine|contains:
+            - 'OpenSSL 4.0.0 '
+            - 'OpenSSL 3.6.0 '
+            - 'OpenSSL 3.6.1 '
+            - 'OpenSSL 3.6.2 '
+            - 'OpenSSL 3.5.0 '
+            - 'OpenSSL 3.5.1 '
+            - 'OpenSSL 3.5.2 '
+            - 'OpenSSL 3.5.3 '
+            - 'OpenSSL 3.5.4 '
+            - 'OpenSSL 3.5.5 '
+            - 'OpenSSL 3.5.6 '
+            - 'OpenSSL 3.4.0 '
+            - 'OpenSSL 3.4.1 '
+            - 'OpenSSL 3.4.2 '
+            - 'OpenSSL 3.4.3 '
+            - 'OpenSSL 3.4.4 '
+            - 'OpenSSL 3.4.5 '
+            - 'OpenSSL 3.0.'
+            - 'OpenSSL 1.1.1'
+            - 'OpenSSL 1.0.2'
+    condition: selection_openssl_binary and selection_vulnerable_version
+falsepositives:
+    - Legitimate version checking scripts during patching operations
+    - Configuration management tools auditing OpenSSL versions
+    - 'Patched versions within broad ranges: 3.0.21 matches 3.0.x, 1.1.1zh matches 1.1.1, 1.0.2zq matches 1.0.2 — verify actual point release before confirming vulnerability'
+level: low
