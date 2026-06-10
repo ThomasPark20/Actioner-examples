@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -141,11 +141,10 @@ The end result is a spawned command prompt running as `NT AUTHORITY\SYSTEM`.
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
+<!-- revision: removed T1547.009 (Shortcut Modification) — junction/symlink abuse is NOT Shortcut Modification. Removed T1134 (Access Token Manipulation) — exploit achieves SYSTEM via file write redirection, not token manipulation. -->
 | T1068 | Exploitation for Privilege Escalation | TOCTOU race condition in Defender exploited for SYSTEM privileges |
-| T1547.009 | Boot or Logon Autostart Execution: Shortcut Modification | Symlink/junction manipulation to redirect privileged file writes |
 | T1204.002 | User Execution: Malicious File | VHD/VHDX file mounting triggers Defender scan as entry point |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Redirected Defender writes place attacker binary in System32 for service execution |
-| T1134 | Access Token Manipulation | SYSTEM token obtained post-exploitation |
 | T1087 | Account Discovery | Post-exploitation reconnaissance (`whoami /priv`, `net group`) |
 | T1555 | Credentials from Password Stores | SAM database extraction via redirected Defender reads (BlueHammer) |
 | T1021.001 | Remote Services: RDP | Lateral movement observed in Huntress intrusion |
@@ -159,7 +158,7 @@ The end result is a spawned command prompt running as `NT AUTHORITY\SYSTEM`.
 
 **Stealth:** The race condition nature makes exploitation non-deterministic (variable success rates across hardware), which paradoxically aids evasion -- failed attempts may not generate clear forensic artifacts. The transient VHD mounting and junction creation leave minimal persistent evidence.
 
-**Active Exploitation:** Huntress documented real-world intrusions using Nightmare Eclipse tooling as early as April 15, 2026. The BeigeBurrow C2 agent was observed with connections to `staybud.dpdns.org:443`. CISA added the related CVE-2026-33825 and CVE-2026-41091 to the Known Exploited Vulnerabilities catalog.
+**Active Exploitation:** Huntress documented real-world intrusions using Nightmare Eclipse tooling as early as April 15, 2026. The BeigeBurrow C2 agent was observed with connections to `staybud[.]dpdns[.]org:443`. CISA added the related CVE-2026-33825 and CVE-2026-41091 to the Known Exploited Vulnerabilities catalog.
 
 ## Detection & Remediation
 
@@ -193,7 +192,8 @@ Get-NetTCPConnection | Where-Object { $_.RemotePort -eq 443 } | ForEach-Object {
 
 1. **Immediate:** Deploy application allowlisting (ThreatLocker or similar) to prevent unknown executables from running -- this blocks the PoC from executing
 2. **Immediate:** Monitor and alert on Defender detection `Exploit:Win32/DfndrPEBluHmr.BZ`
-3. **Short-term:** Block known C2 domain `staybud.dpdns.org` and IPs `78.29.48.29`, `212.232.23.69`, `179.43.140.214` at the network perimeter
+<!-- revision: defanged IOCs in remediation section per TLP conventions -->
+3. **Short-term:** Block known C2 domain `staybud[.]dpdns[.]org` and IPs `78[.]29[.]48[.]29`, `212[.]232[.]23[.]69`, `179[.]43[.]140[.]214` at the network perimeter
 4. **Short-term:** Hunt for BeigeBurrow agent (SHA256: `a2b6c7a9c4490df70de3cdbfa5fc801a3e1cf6a872749259487e354de2876b7c`)
 5. **Pending patch:** Apply Microsoft Defender platform update as soon as a patch is released for RoguePlanet
 6. **If compromised:** Rotate all local account passwords; check for SYSTEM-level persistence (services, scheduled tasks, WMI subscriptions); review VPN authentication logs for geographic anomalies
@@ -213,17 +213,18 @@ These detections target the RoguePlanet exploit chain and related Nightmare Ecli
 
 ### Sigma: Non-Defender Process Accessing Defender Definition Files
 Detects non-Defender processes creating or modifying files in the Defender Definition Updates directory, targeting the core TOCTOU redirection in the RoguePlanet exploit chain.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0; splunk_windows pipeline 0. Targets file_event on Windows; filter covers MsMpEng.exe, MpCmdRun.exe, NisSrv.exe, MpSigStub.exe. Values use real paths (not defanged). FP: third-party AV management tools accessing Defender paths (rare). Evasion: renaming exploit binary to match filter — mitigated by filtering on Defender-signed binaries in production. -->
+<!-- revision: fixed YAML title to match section heading; downgraded level from high to medium and confidence from high to medium (enterprise FP surface: SCCM, backup tools, EDR agents routinely touch Defender files); added SCCM, backup software, and EDR agents to falsepositives; removed T1547.009 tag (junction/symlink abuse is not Shortcut Modification). -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk 0; log_scale 0; splunk_windows pipeline 0. Targets file_event on Windows; filter covers MsMpEng.exe, MpCmdRun.exe, NisSrv.exe, MpSigStub.exe. Values use real paths (not defanged). FP: SCCM agents, backup software, EDR agents accessing Defender paths. Evasion: renaming exploit binary to match filter — mitigated by filtering on Defender-signed binaries in production. -->
 ```yaml
-title: Microsoft Defender RoguePlanet Race Condition - Suspicious VHD Mount and Defender File Manipulation
+title: Non-Defender Process Accessing Defender Definition Files
 id: 7c3a8f1e-9d2b-4e6a-b5c4-1f0e8d7a6b3c
 status: experimental
 description: >
-    Detects a process creating or mounting VHD/VHDX virtual disk files followed by
-    suspicious file operations in the Windows Defender Definition Updates directory,
-    consistent with the RoguePlanet TOCTOU race condition exploit that redirects
-    Defender file operations via junctions/symlinks to achieve SYSTEM privilege escalation.
+    Detects non-Defender processes creating or modifying files in the Windows Defender
+    Definition Updates directory, consistent with the RoguePlanet TOCTOU race condition
+    exploit that redirects Defender file operations via junctions/symlinks to achieve
+    SYSTEM privilege escalation.
 references:
     - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
     - https://thehackernews.com/2026/06/microsoft-defender-rogueplanet-zero-day.html
@@ -232,7 +233,6 @@ author: Actioner
 date: 2026/06/10
 tags:
     - attack.t1068
-    - attack.t1547.009
 logsource:
     category: file_event
     product: windows
@@ -253,13 +253,17 @@ detection:
 falsepositives:
     - Third-party security tools that interact with Defender definition files
     - Legitimate Defender update mechanisms not covered by the filter
-level: high
+    - SCCM agents (CcmExec.exe, ContentTransferManager.exe) managing Defender definitions
+    - Enterprise backup software scanning or backing up Defender definition directories
+    - EDR agents that inspect or monitor Defender definition file integrity
+level: medium
 ```
 
 ### Sigma: Suspicious VHD/ISO Mount via Scripting Engine
 Detects VHD/VHDX/ISO mounting via scripting engines or the RoguePlanet binary, which serves as the initial trigger for the Defender race condition.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader than the anchor rule — VHD mounts by cmd/PowerShell are legitimate in some admin workflows. Scoped to scripting engines + the known exploit binary to reduce FP. -->
+<!-- revision: removed \RoguePlanet.exe from Image filter (Rule 3 already covers it); added Hyper-V management, SCCM OSD, and disk imaging tools to falsepositives. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader than the anchor rule — VHD mounts by cmd/PowerShell are legitimate in some admin workflows. Scoped to scripting engines to reduce FP. -->
 ```yaml
 title: Suspicious VHD/VHDX Mount by Non-Admin User Followed by Defender Activity
 id: 2e9f4d8a-6b1c-4a3e-8c7d-5f0a9e2b1d4c
@@ -288,7 +292,6 @@ detection:
             - '.vhdx'
             - '.iso'
         Image|endswith:
-            - '\RoguePlanet.exe'
             - '\powershell.exe'
             - '\pwsh.exe'
             - '\cmd.exe'
@@ -298,7 +301,9 @@ detection:
     condition: selection_vhd_mount
 falsepositives:
     - Legitimate administrative VHD management scripts
-    - Hyper-V management operations via PowerShell
+    - Hyper-V management operations via PowerShell (e.g., New-VHD, Mount-VHD cmdlets)
+    - SCCM Operating System Deployment (OSD) task sequences mounting WIM/VHD images
+    - Disk imaging and backup tools (e.g., Veeam, Acronis, Macrium) managing VHD files
 level: medium
 ```
 
@@ -346,8 +351,12 @@ level: critical
 
 ### Sigma: NTFS Junction Creation Targeting System32
 Detects junction point creation from user-writable directories to System32, the path redirection step that converts Defender's SYSTEM-level write into attacker-controlled code placement.
+
+> **Limitation:** The actual RoguePlanet PoC creates NTFS junctions programmatically via NT Native APIs (`NtSetInformationFile` with `FileRenameInformation` / `IO_REPARSE_TAG_MOUNT_POINT`), not via `mklink /J` or PowerShell `New-Item`. This rule detects manual/script-based copycats and modified exploit variants that use command-line junction creation, but will NOT detect the unmodified PoC binary's native API junction creation. Pair with the YARA rule and Rule 1 (definition file access) for coverage of the native PoC.
+
+<!-- revision: added critical caveat about NT API junction creation not being caught by this rule; removed T1547.009 tag; expanded falsepositives to include development tools and Windows servicing. -->
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Matches mklink /J and PowerShell New-Item -ItemType Junction targeting System32. Benign junction creation to System32 is rare in normal operations. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Matches mklink /J and PowerShell New-Item -ItemType Junction targeting System32. Benign junction creation to System32 is rare in normal operations. Does NOT catch programmatic junction creation via NT Native APIs (see caveat above). -->
 ```yaml
 title: NTFS Junction Creation Targeting System32 from User-Writable Directory
 id: 9e5d2a7b-4c8f-4a1e-b3d6-6f0c1e9a8b5d
@@ -357,6 +366,8 @@ description: >
     directories targeting C:\Windows\System32, a core technique in the RoguePlanet
     and RedSun exploit chains where Defender's privileged file operations are
     redirected to write attacker-controlled content into protected system directories.
+    NOTE: The actual RoguePlanet PoC creates junctions via NT Native APIs, not via
+    mklink or PowerShell. This rule catches manual/script-based copycats only.
 references:
     - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
     - https://www.huntress.com/blog/nightmare-eclipse-intrusion
@@ -365,7 +376,6 @@ author: Actioner
 date: 2026/06/10
 tags:
     - attack.t1068
-    - attack.t1547.009
 logsource:
     category: process_creation
     product: windows
@@ -392,6 +402,8 @@ detection:
     condition: selection_mklink or selection_powershell_junction
 falsepositives:
     - Legitimate system administration scripts creating junctions for software deployment
+    - Development tools creating directory junctions for build environments
+    - Windows servicing and component store operations (TiWorker.exe, DISM)
 level: high
 ```
 

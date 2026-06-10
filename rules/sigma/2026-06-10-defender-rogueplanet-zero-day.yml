@@ -1,0 +1,165 @@
+title: Non-Defender Process Accessing Defender Definition Files
+id: 7c3a8f1e-9d2b-4e6a-b5c4-1f0e8d7a6b3c
+status: experimental
+description: >
+    Detects non-Defender processes creating or modifying files in the Windows Defender
+    Definition Updates directory, consistent with the RoguePlanet TOCTOU race condition
+    exploit that redirects Defender file operations via junctions/symlinks to achieve
+    SYSTEM privilege escalation.
+references:
+    - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
+    - https://thehackernews.com/2026/06/microsoft-defender-rogueplanet-zero-day.html
+    - https://github.com/MSNightmare/RoguePlanet
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_defender_path:
+        TargetFilename|contains:
+            - '\Microsoft\Windows Defender\Definition Updates'
+            - '\mpasbase.vdm'
+            - '\mpavbase.vdm'
+            - '\mpavbase.lkg'
+    filter_defender_process:
+        Image|endswith:
+            - '\MsMpEng.exe'
+            - '\MpCmdRun.exe'
+            - '\NisSrv.exe'
+            - '\MpSigStub.exe'
+    condition: selection_defender_path and not filter_defender_process
+falsepositives:
+    - Third-party security tools that interact with Defender definition files
+    - Legitimate Defender update mechanisms not covered by the filter
+    - SCCM agents (CcmExec.exe, ContentTransferManager.exe) managing Defender definitions
+    - Enterprise backup software scanning or backing up Defender definition directories
+    - EDR agents that inspect or monitor Defender definition file integrity
+level: medium
+---
+title: Suspicious VHD/VHDX Mount by Non-Admin User Followed by Defender Activity
+id: 2e9f4d8a-6b1c-4a3e-8c7d-5f0a9e2b1d4c
+status: experimental
+description: >
+    Detects mounting of VHD or VHDX virtual disk images via processes other than
+    Windows Explorer or Hyper-V, which is a prerequisite step in the RoguePlanet
+    exploit chain. The exploit requires mounting a crafted VHD/VHDX to trigger
+    Defender scanning on attacker-controlled content within a race condition window.
+references:
+    - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
+    - https://thehackernews.com/2026/06/microsoft-defender-rogueplanet-zero-day.html
+    - https://github.com/MSNightmare/RoguePlanet
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1068
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_vhd_mount:
+        CommandLine|contains:
+            - '.vhd'
+            - '.vhdx'
+            - '.iso'
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\cmd.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\mshta.exe'
+    condition: selection_vhd_mount
+falsepositives:
+    - Legitimate administrative VHD management scripts
+    - Hyper-V management operations via PowerShell (e.g., New-VHD, Mount-VHD cmdlets)
+    - SCCM Operating System Deployment (OSD) task sequences mounting WIM/VHD images
+    - Disk imaging and backup tools (e.g., Veeam, Acronis, Macrium) managing VHD files
+level: medium
+---
+title: RoguePlanet Exploit Binary Execution
+id: 4a1b7c3e-8d9f-4e2a-b6c5-3f1d0e8a7b4c
+status: experimental
+description: >
+    Detects execution of the RoguePlanet exploit binary or processes matching
+    the known Defender exploit detection signature Exploit:Win32/DfndrPEBluHmr.BZ.
+    This rule targets the specific PoC artifacts from the Nightmare Eclipse
+    researcher's public release.
+references:
+    - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/RoguePlanet
+    - https://www.huntress.com/blog/nightmare-eclipse-intrusion
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary_name:
+        Image|endswith:
+            - '\RoguePlanet.exe'
+    selection_related_binaries:
+        Image|endswith:
+            - '\BlueHammer.exe'
+            - '\RedSun.exe'
+            - '\undef.exe'
+            - '\GreenPlasma.exe'
+            - '\MiniPlasma.exe'
+            - '\YellowKey.exe'
+    condition: selection_binary_name or selection_related_binaries
+falsepositives:
+    - Unlikely - these are known exploit tool names from the Nightmare Eclipse campaign
+level: critical
+---
+title: NTFS Junction Creation Targeting System32 from User-Writable Directory
+id: 9e5d2a7b-4c8f-4a1e-b3d6-6f0c1e9a8b5d
+status: experimental
+description: >
+    Detects creation of NTFS junction points or symbolic links from user-writable
+    directories targeting C:\Windows\System32, a core technique in the RoguePlanet
+    and RedSun exploit chains where Defender's privileged file operations are
+    redirected to write attacker-controlled content into protected system directories.
+    NOTE: The actual RoguePlanet PoC creates junctions via NT Native APIs, not via
+    mklink or PowerShell. This rule catches manual/script-based copycats only.
+references:
+    - https://www.bleepingcomputer.com/news/microsoft/microsoft-defender-rogueplanet-zero-day-grants-system-privileges/
+    - https://www.huntress.com/blog/nightmare-eclipse-intrusion
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-41091
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mklink:
+        Image|endswith:
+            - '\cmd.exe'
+        CommandLine|contains|all:
+            - 'mklink'
+            - '/J'
+        CommandLine|contains:
+            - '\Windows\System32'
+            - '\Windows\system32'
+    selection_powershell_junction:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'New-Item'
+            - 'Junction'
+        CommandLine|contains:
+            - '\Windows\System32'
+            - '\Windows\system32'
+    condition: selection_mklink or selection_powershell_junction
+falsepositives:
+    - Legitimate system administration scripts creating junctions for software deployment
+    - Development tools creating directory junctions for build environments
+    - Windows servicing and component store operations (TiWorker.exe, DISM)
+level: high
