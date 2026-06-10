@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -112,8 +112,7 @@ Ivanti's fix hardcodes the `message` parameter instead of accepting user input, 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Exploitation of unauthenticated MICS API endpoint for RCE |
-| T1059 | Command and Scripting Interpreter | OS commands injected via the handleMessage endpoint executed by the system shell |
-| T1068 | Exploitation for Privilege Escalation | Commands execute as root on the Sentry appliance |
+| T1059.004 | Command and Scripting Interpreter: Unix Shell | OS commands injected via the handleMessage endpoint executed by the system shell as root |
 
 ## Impact Assessment
 
@@ -165,8 +164,8 @@ These detections target the specific exploit path for CVE-2026-10520 — HTTP PO
 
 ### Sigma: Ivanti Sentry Pre-Auth RCE via handleMessage Endpoint (CVE-2026-10520)
 Detects HTTP POST requests to the vulnerable `/mics/api/v2/sentry/mics-config/handleMessage` endpoint characteristic of CVE-2026-10520 exploitation.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk exit 0; log_scale exit 0. Keys on the specific vulnerable endpoint path — distinctive to Ivanti Sentry MICS API, minimal benign overlap outside authorized management consoles. No pipeline conversion attempted (webserver category has no standard pipeline). -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk exit 0; log_scale exit 0. Keys on the specific vulnerable endpoint path — distinctive to Ivanti Sentry MICS API, but URI-only match has inherent FP surface from legitimate management traffic. No pipeline conversion attempted (webserver category has no standard pipeline). -->
 ```yaml
 title: Ivanti Sentry Pre-Auth RCE via handleMessage Endpoint (CVE-2026-10520)
 id: 7c3e8a1f-4d2b-4e9a-b6f1-2a8c5d0e3f7b
@@ -184,7 +183,7 @@ author: Actioner
 date: 2026-06-10
 tags:
     - attack.t1190
-    - attack.t1059
+    - attack.t1059.004
 logsource:
     category: webserver
 detection:
@@ -195,7 +194,7 @@ detection:
     condition: selection_method and selection_uri
 falsepositives:
     - Legitimate Ivanti Sentry MICS configuration management traffic from authorized management consoles
-level: high
+level: medium
 ```
 
 ### Snort: Ivanti Sentry Pre-Auth RCE handleMessage Endpoint (CVE-2026-10520)
@@ -209,9 +208,9 @@ alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Ivanti Se
 ### Suricata: Ivanti Sentry Pre-Auth RCE handleMessage Endpoint Access (CVE-2026-10520)
 Detects HTTP POST requests to the vulnerable handleMessage API endpoint on Ivanti Sentry.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. SID 2200001. Keys on the specific endpoint path in http.uri — highly distinctive to Ivanti Sentry MICS. Low FP risk unless legitimate management traffic reaches the sensor. -->
+<!-- audit: suricata -T exit 0. SID 2200001. Keys on the specific endpoint path in http.uri plus commandexec in request body — narrows FP from legitimate management traffic. rev:2 adds http.request_body content match per revision. -->
 ```suricata
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Ivanti Sentry Pre-Auth RCE handleMessage Endpoint Access (CVE-2026-10520)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/mics/api/v2/sentry/mics-config/handleMessage"; fast_pattern; classtype:web-application-attack; reference:url,labs.watchtowr.com/more-evidence-that-words-dont-mean-what-we-thought-they-meant-ivanti-sentry-pre-auth-os-command-injection-cve-2026-10520/; reference:cve,2026-10520; metadata:author Actioner, created_at 2026-06-10; sid:2200001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Ivanti Sentry Pre-Auth RCE handleMessage Endpoint Access (CVE-2026-10520)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/mics/api/v2/sentry/mics-config/handleMessage"; fast_pattern; http.request_body; content:"commandexec"; classtype:web-application-attack; reference:url,labs.watchtowr.com/more-evidence-that-words-dont-mean-what-we-thought-they-meant-ivanti-sentry-pre-auth-os-command-injection-cve-2026-10520/; reference:cve,2026-10520; metadata:author Actioner, created_at 2026-06-10; sid:2200001; rev:2;)
 ```
 
 ### Suricata: Ivanti Sentry RCE commandexec Payload in POST Body (CVE-2026-10520)
@@ -262,6 +261,8 @@ This vulnerability highlights a recurring pattern in Ivanti products: unauthenti
 - [Security Online Report](https://securityonline.info/ivanti-sentry-rce-poc-disclosed/) — additional reporting with PoC disclosure details
 - [NVD - CVE-2026-10520](https://nvd.nist.gov/vuln/detail/CVE-2026-10520) — NIST vulnerability entry (CVSS 10.0, CWE-78, awaiting enrichment)
 - [Ivanti Security Advisory](https://hub.ivanti.com/s/article/Security-Advisory-Ivanti-Sentry-CVE-2026-10520-CVE-2026-10523?language=en_US) — vendor advisory with affected/fixed versions
+
+<!-- revision: v1.1 2026-06-10 — Sigma confidence lowered high→medium (URI-only FP surface); Sigma tags updated attack.t1059→attack.t1059.004, removed attack.t1068; Suricata SID 2200001 rev:2 added http.request_body content:"commandexec" to narrow FP and retain high confidence; MITRE ATT&CK table removed T1068, replaced T1059 with T1059.004 (Unix Shell). -->
 
 ---
 *Report generated by Actioner*
