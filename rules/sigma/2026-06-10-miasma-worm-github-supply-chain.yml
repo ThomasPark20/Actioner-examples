@@ -1,0 +1,194 @@
+title: Miasma Worm AI Coding Agent Config File Creation
+id: 8f3a1c47-d9e2-4b56-a01f-5e6c7d8b9a23
+status: experimental
+description: >
+    Detects co-creation of the .github/setup.js dropper with AI coding agent
+    configuration files used by the Miasma worm. The worm plants
+    .claude/settings.json, .gemini/settings.json, .cursor/rules/setup.mdc,
+    and .vscode/tasks.json files that trigger execution of .github/setup.js.
+    Note: file_event telemetry cannot inspect file content — manual review of
+    the configuration file contents is required for confirmation.
+references:
+    - https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents
+    - https://safedep.io/miasma-worm-ai-coding-agent-config-injection/
+    - https://thehackernews.com/2026/06/miasma-worm-hits-73-microsoft-github.html
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_claude:
+        TargetFilename|endswith: '/.claude/settings.json'
+    selection_gemini:
+        TargetFilename|endswith: '/.gemini/settings.json'
+    selection_cursor:
+        TargetFilename|endswith: '/.cursor/rules/setup.mdc'
+    selection_vscode:
+        TargetFilename|endswith: '/.vscode/tasks.json'
+    selection_payload:
+        TargetFilename|endswith: '/.github/setup.js'
+    condition: selection_payload and (selection_claude or selection_gemini or selection_cursor or selection_vscode)
+falsepositives:
+    - Legitimate project configuration file creation by developers
+    - CI/CD pipelines that scaffold project templates
+level: low
+---
+title: Miasma Worm Bun Runtime Payload Execution from Temp Directory
+id: 2d4e6f81-a3b5-4c97-8d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects the Miasma worm execution chain where Node.js spawns a shell that
+    downloads and executes Bun runtime from a temporary directory to run an
+    obfuscated JavaScript payload. The worm writes payloads to /tmp/p*.js and
+    downloads Bun to /tmp/b-*/bun to evade Node.js-focused monitoring.
+references:
+    - https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents
+    - https://www.endorlabs.com/learn/malicious-payload-in-ai-sdk-ollama-npm-package
+    - https://www.microsoft.com/en-us/security/blog/2026/06/02/preinstall-persistence-inside-red-hat-npm-miasma-credential-stealing-campaign/
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1059.007
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_bun_tmp:
+        Image|re: '/tmp/b-[^/]+/bun$'
+    selection_bun_payload:
+        Image|endswith: '/bun'
+        CommandLine|re: '/tmp/p[^/]*\.js'
+    condition: selection_bun_tmp or selection_bun_payload
+falsepositives:
+    - Developers legitimately testing Bun runtime from temporary directories
+level: high
+---
+title: Miasma Worm Dead-Man Switch Persistence Installation
+id: 7c9b0a12-3e4d-5f6a-8b7c-9d0e1f2a3b4c
+status: experimental
+description: >
+    Detects the Miasma worm installing its dead-man switch persistence mechanism
+    which monitors a GitHub PAT and executes rm -rf ~/ if the token is revoked.
+    The worm stores the token in ~/.config/gh-token-monitor/token and installs a
+    systemd user service or cron job for continuous polling.
+references:
+    - https://safedep.io/inside-the-miasma-supply-chain-attack-toolkit/
+    - https://www.microsoft.com/en-us/security/blog/2026/06/02/preinstall-persistence-inside-red-hat-npm-miasma-credential-stealing-campaign/
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1485
+    - attack.t1053.005
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_token_store:
+        TargetFilename|contains: '/.config/gh-token-monitor/token'
+    selection_monitor_script:
+        TargetFilename|endswith:
+            - '/DEADMAN_SWITCH.sh'
+            - '/.local/share/updater/update.py'
+    selection_state_file:
+        TargetFilename: '/var/tmp/.gh_update_state'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate GitHub token monitoring tools (unlikely to use these exact paths)
+level: critical
+---
+title: Miasma Worm GitHub Actions Runner Memory Scraping
+id: 4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d
+status: experimental
+description: >
+    Detects the Miasma worm scraping GitHub Actions runner process memory to
+    extract secrets. The worm discovers Runner.Worker PIDs via /proc scanning
+    and uses tr/grep to extract isSecret JSON patterns from process memory,
+    bypassing standard secret masking.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/02/preinstall-persistence-inside-red-hat-npm-miasma-credential-stealing-campaign/
+    - https://safedep.io/inside-the-miasma-supply-chain-attack-toolkit/
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1003
+    - attack.t1057
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_proc_scan:
+        CommandLine|contains|all:
+            - '/proc'
+            - 'Runner.Worker'
+    selection_secret_extract:
+        CommandLine|contains|all:
+            - 'isSecret'
+            - 'true'
+            - 'grep'
+    condition: all of selection_*
+falsepositives:
+    - Security scanning tools auditing CI/CD runner configurations
+level: critical
+---
+title: Miasma Worm C2 Domain Communication
+id: 1e2f3a4b-5c6d-7e8f-9a0b-1c2d3e4f5a6b
+status: experimental
+description: >
+    Detects DNS queries or network connections to the Miasma worm C2 domains
+    check.git-service.com (primary C2) and t.m-kosche.com (TeamPCP secondary C2).
+    Domain git-service.com was registered via NameSilo on May 16, 2026.
+references:
+    - https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents
+    - https://safedep.io/miasma-worm-ai-coding-agent-config-injection/
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'git-service.com'
+            - 'm-kosche.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of domains containing these strings (unlikely given specificity)
+level: critical
+---
+title: Miasma Worm GitHub C2 Commit Search Strings in Proxy Logs
+id: 3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c
+status: experimental
+description: >
+    Detects proxy log evidence of GitHub API requests containing the Miasma
+    worm C2 commit search strings DontRevokeOrItGoesBoom (PAT exfiltration),
+    TheBeautifulSandsOfTime (JS command delivery), firedalazer (Python monitor
+    URL delivery), and thebeautifulmarchoftime (backup C2 domain rotation).
+references:
+    - https://safedep.io/inside-the-miasma-supply-chain-attack-toolkit/
+    - https://www.theregister.com/cyber-crime/2026/06/09/miasma-supply-chain-attack-toolkit-goes-public-on-github/5253074
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1567.001
+logsource:
+    category: proxy
+detection:
+    selection_api:
+        cs-host: 'api.github.com'
+        cs-method: 'POST'
+    selection_exfil_strings:
+        cs-uri-query|contains:
+            - 'DontRevokeOrItGoesBoom'
+            - 'TheBeautifulSandsOfTime'
+            - 'firedalazer'
+            - 'thebeautifulmarchoftime'
+    condition: selection_api and selection_exfil_strings
+falsepositives:
+    - Security researchers investigating the Miasma worm campaign
+level: critical

@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: REVISE pass applied 2026-06-10. Fixes: (1) Config File Creation condition tightened + level/confidence downgraded; (2) Exfil Repo Patterns renamed to match proxy-log detection logic; (3) Runner Memory Scraping condition changed OR->AND; (4) metadata IPs annotated as non-C2. -->
 
 ## Executive Summary
 
@@ -204,8 +205,8 @@ The payload targets 90+ credential sources:
 | URL Pattern | `hxxps://api[.]github[.]com/search/commits?q=TheBeautifulSandsOfTime` | C2 Channel 2 — JavaScript command delivery |
 | URL Pattern | `hxxps://api[.]github[.]com/search/commits?q=firedalazer` | C2 Channel 3 — Python monitor URL delivery |
 | URL Pattern | `hxxps://github[.]com/oven-sh/bun/releases/download/bun-v1.3.13/bun-*[.]zip` | Bun runtime download |
-| IP | `169[.]254[.]169[.]254` | Cloud instance metadata (AWS/Azure/GCP IMDS) |
-| IP | `169[.]254[.]170[.]2` | AWS ECS metadata endpoint |
+| IP | `169[.]254[.]169[.]254` | Standard cloud metadata endpoint (AWS/Azure/GCP IMDS) — target of credential harvesting, **not a C2 indicator** |
+| IP | `169[.]254[.]170[.]2` | Standard AWS ECS metadata endpoint — target of credential harvesting, **not a C2 indicator** |
 
 ### Behavioral
 
@@ -306,19 +307,21 @@ find ~ -name ".git" -type d -execdir git log -100 --oneline \; 2>/dev/null | gre
 These detections target the Miasma worm's concrete artifacts: AI coding agent config injection, Bun-from-tmp execution, C2 domain/search-string communication, dead-man switch persistence, and runner memory scraping. All rules are PoC/advisory-specific (default altitude, strict leniency); compiles does not equal fires — verify in your pipeline.
 
 ### Sigma: Miasma Worm AI Coding Agent Config File Creation
-Detects creation of `.claude/settings.json`, `.gemini/settings.json`, `.cursor/rules/setup.mdc`, `.vscode/tasks.json`, or `.github/setup.js` files characteristic of Miasma worm IDE config injection.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Medium confidence because these file paths may appear in legitimate project scaffolding — the combination with setup.js content is the strong signal but file_event category alone does not inspect content. -->
+Detects creation of the `.github/setup.js` dropper alongside AI coding agent configuration files (`.claude/settings.json`, `.gemini/settings.json`, `.cursor/rules/setup.mdc`, `.vscode/tasks.json`) characteristic of Miasma worm IDE config injection. Note: file_event telemetry cannot inspect file content; manual content review is required to confirm malicious hook/task entries referencing `setup.js`.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Low confidence: file_event cannot inspect content, so the dropper co-occurrence is the only signal; content inspection needed for confirmation. -->
+<!-- revision: REVISE — changed condition from "1 of selection_*" to "selection_payload and 1 of (selection_claude, selection_gemini, selection_cursor, selection_vscode)" to require the .github/setup.js dropper alongside a config file, reducing FP rate. Downgraded level to low and confidence to low. Added content-inspection caveat. -->
 ```yaml
 title: Miasma Worm AI Coding Agent Config File Creation
 id: 8f3a1c47-d9e2-4b56-a01f-5e6c7d8b9a23
 status: experimental
 description: >
-    Detects creation of malicious AI coding agent configuration files used by the
-    Miasma worm to achieve automatic code execution when a developer opens a
-    compromised repository in Claude Code, Gemini CLI, Cursor, or VS Code. The
-    worm plants .claude/settings.json, .gemini/settings.json, .cursor/rules/setup.mdc,
+    Detects co-creation of the .github/setup.js dropper with AI coding agent
+    configuration files used by the Miasma worm. The worm plants
+    .claude/settings.json, .gemini/settings.json, .cursor/rules/setup.mdc,
     and .vscode/tasks.json files that trigger execution of .github/setup.js.
+    Note: file_event telemetry cannot inspect file content — manual review of
+    the configuration file contents is required for confirmation.
 references:
     - https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents
     - https://safedep.io/miasma-worm-ai-coding-agent-config-injection/
@@ -342,11 +345,11 @@ detection:
         TargetFilename|endswith: '/.vscode/tasks.json'
     selection_payload:
         TargetFilename|endswith: '/.github/setup.js'
-    condition: 1 of selection_*
+    condition: selection_payload and (selection_claude or selection_gemini or selection_cursor or selection_vscode)
 falsepositives:
     - Legitimate project configuration file creation by developers
     - CI/CD pipelines that scaffold project templates
-level: medium
+level: low
 ```
 
 ### Sigma: Miasma Worm Bun Runtime Payload Execution from Temp Directory
@@ -426,9 +429,10 @@ level: critical
 ```
 
 ### Sigma: Miasma Worm GitHub Actions Runner Memory Scraping
-Detects `/proc` scanning for `Runner.Worker` or `grep` extraction of `isSecret` JSON patterns from process memory — the worm's secret-masking bypass technique.
+Detects `/proc` scanning for `Runner.Worker` combined with `grep` extraction of `isSecret` JSON patterns from process memory — the worm's secret-masking bypass technique.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. High confidence: scanning /proc for Runner.Worker combined with isSecret extraction is a highly specific attack pattern with minimal legitimate use. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. High confidence: both /proc Runner.Worker scan AND isSecret extraction required together — highly specific attack pattern with minimal legitimate use. -->
+<!-- revision: REVISE — changed condition from "1 of selection_*" (OR) to "all of selection_*" (AND) to require both proc scan and secret extraction together, reducing FP from either alone. -->
 ```yaml
 title: Miasma Worm GitHub Actions Runner Memory Scraping
 id: 4a5b6c7d-8e9f-0a1b-2c3d-4e5f6a7b8c9d
@@ -459,7 +463,7 @@ detection:
             - 'isSecret'
             - 'true'
             - 'grep'
-    condition: 1 of selection_*
+    condition: all of selection_*
 falsepositives:
     - Security scanning tools auditing CI/CD runner configurations
 level: critical
@@ -497,20 +501,20 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Miasma Worm GitHub Exfiltration Repository Patterns
+### Sigma: Miasma Worm GitHub C2 Commit Search Strings in Proxy Logs
 Detects proxy log evidence of GitHub API calls containing the worm's C2 commit search strings (`DontRevokeOrItGoesBoom`, `TheBeautifulSandsOfTime`, `firedalazer`, `thebeautifulmarchoftime`).
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0; splunk 0; log_scale 0. High confidence: these are unique, distinctive strings hardcoded in the Miasma toolkit source; false positives from security researchers are the only plausible benign scenario. -->
+<!-- revision: REVISE — renamed title/description from "Exfiltration Repository Patterns" to "C2 Commit Search Strings in Proxy Logs" to match actual detection logic (proxy log URI query matching, not repo creation). -->
 ```yaml
-title: Miasma Worm GitHub Exfiltration Repository Patterns
+title: Miasma Worm GitHub C2 Commit Search Strings in Proxy Logs
 id: 3f4a5b6c-7d8e-9f0a-1b2c-3d4e5f6a7b8c
 status: experimental
 description: >
-    Detects proxy or web server log patterns indicating creation of GitHub
-    repositories with descriptions matching known Miasma worm exfiltration
-    patterns including "Miasma" and "Shai-Hulud" naming conventions, or
-    commits containing the C2 search strings DontRevokeOrItGoesBoom,
-    TheBeautifulSandsOfTime, or firedalazer.
+    Detects proxy log evidence of GitHub API requests containing the Miasma
+    worm C2 commit search strings DontRevokeOrItGoesBoom (PAT exfiltration),
+    TheBeautifulSandsOfTime (JS command delivery), firedalazer (Python monitor
+    URL delivery), and thebeautifulmarchoftime (backup C2 domain rotation).
 references:
     - https://safedep.io/inside-the-miasma-supply-chain-attack-toolkit/
     - https://www.theregister.com/cyber-crime/2026/06/09/miasma-supply-chain-attack-toolkit-goes-public-on-github/5253074
