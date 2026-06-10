@@ -1,0 +1,5 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Miasma Worm GitHub C2 Search DontRevokeOrItGoesBoom"; flow:established, to_server; http_uri; content:"DontRevokeOrItGoesBoom", fast_pattern; classtype:trojan-activity; reference:url,safedep.io/inside-the-miasma-supply-chain-attack-toolkit/; metadata:author Actioner, created 2026-06-10; sid:2100001; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Miasma Worm GitHub C2 Search TheBeautifulSandsOfTime"; flow:established, to_server; http_uri; content:"TheBeautifulSandsOfTime", fast_pattern; classtype:trojan-activity; reference:url,safedep.io/inside-the-miasma-supply-chain-attack-toolkit/; metadata:author Actioner, created 2026-06-10; sid:2100002; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Miasma Worm GitHub C2 Search firedalazer"; flow:established, to_server; http_uri; content:"firedalazer", fast_pattern; classtype:trojan-activity; reference:url,safedep.io/inside-the-miasma-supply-chain-attack-toolkit/; metadata:author Actioner, created 2026-06-10; sid:2100003; rev:1;)
