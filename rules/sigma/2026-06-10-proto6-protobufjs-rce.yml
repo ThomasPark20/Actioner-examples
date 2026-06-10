@@ -1,0 +1,103 @@
+title: Suspicious protobufjs CLI Execution with Injection Indicators
+id: 8e4a1c3f-6b2d-4f7e-9a5c-1d3e8f0b2c7a
+status: experimental
+description: >
+    Detects execution of protobufjs CLI tools (pbjs, pbts) with command-line
+    indicators of shell metacharacter injection or untrusted schema paths.
+    Targets CVE-2026-44295 (code injection via crafted schema names) and
+    CVE-2026-42290 (command injection via crafted filenames). Best deployed
+    as a hunt query on CI/CD runners and build servers.
+references:
+    - https://thehackernews.com/2026/06/six-proto6-vulnerabilities-in.html
+    - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-6r35-46g8-jcw9
+    - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-f84p-cvgm-xgjj
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_node:
+        Image|endswith:
+            - '/node'
+            - '/nodejs'
+    selection_cli:
+        CommandLine|contains:
+            - 'pbjs'
+            - 'pbts'
+            - 'protobufjs-cli'
+    filter_injection_indicators:
+        CommandLine|contains:
+            - '$('
+            - '`'
+            - '$(('
+            - '&&'
+            - '||'
+            - ';'
+            - 'require('
+            - 'eval('
+            - 'child_process'
+            - '__proto__'
+    filter_untrusted_paths:
+        CommandLine|contains:
+            - '/tmp/'
+            - '/var/tmp/'
+            - 'http://'
+            - 'https://'
+    condition: selection_node and selection_cli and (filter_injection_indicators or filter_untrusted_paths)
+falsepositives:
+    - Development workflows using shell metacharacters in build scripts
+    - CI/CD pipelines fetching schemas from trusted HTTPS registries
+level: medium
+---
+title: Node.js Application Loading Protobuf Schema from Untrusted Source
+id: 2f7b9e4d-8a1c-4e3f-b6d5-0c9a7f2e1b8d
+status: experimental
+description: >
+    Detects Node.js processes with command-line evidence of loading protobuf
+    definitions from temporary directories or remote URLs, which may indicate
+    exploitation of Proto6 reflection API vulnerabilities (CVE-2026-44291,
+    CVE-2026-44290, CVE-2026-44293). Coverage limitation: only CLI-style
+    invocations are visible; programmatic Root.load()/Root.fromJSON() calls
+    within application code are not captured by process_creation logs.
+references:
+    - https://thehackernews.com/2026/06/six-proto6-vulnerabilities-in.html
+    - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-75px-5xx7-5xc7
+    - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-jvwf-75h9-cwgg
+author: Actioner
+date: 2026/06/10
+tags:
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_node:
+        Image|endswith:
+            - '/node'
+            - '/nodejs'
+    selection_protobuf_keyword:
+        CommandLine|contains:
+            - 'protobuf'
+            - 'protobufjs'
+    selection_proto_file:
+        CommandLine|contains:
+            - '.proto '
+            - '.proto"'
+            - ".proto'"
+    selection_proto_end:
+        CommandLine|endswith:
+            - '.proto'
+    selection_untrusted_path:
+        CommandLine|contains:
+            - '/tmp/'
+            - '/var/tmp/'
+            - 'http://'
+            - 'https://'
+    condition: selection_node and (selection_protobuf_keyword or selection_proto_file or selection_proto_end) and selection_untrusted_path
+falsepositives:
+    - Development workflows loading schemas from temporary build directories
+    - Legitimate tools referencing .proto files from temp paths (e.g., git diff)
+level: low

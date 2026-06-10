@@ -3,11 +3,14 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
+<!-- revision: clarified CVE-2026-44289 status — assigned in batch but details not yet published at time of analysis -->
 Six vulnerabilities collectively dubbed "Proto6" were disclosed in protobuf.js (npm `protobufjs` and `protobufjs-cli`), the widely used JavaScript library for compiling and processing Protocol Buffer definitions. The flaws range from denial-of-service (stack exhaustion, process-wide constructor corruption) to remote code execution via prototype pollution gadget chains and code injection in generated JavaScript. The most critical — CVE-2026-44291 (CVSS 8.1) and CVE-2026-44295 (CVSS 8.7) — allow arbitrary JavaScript execution when applications accept untrusted protobuf schemas or JSON descriptors. Affected versions span protobufjs <=7.5.5 and 8.0.0-8.0.1 (runtime) and protobufjs-cli <=1.2.0 and 2.0.0-2.0.1 (CLI tools). Patches are available in protobufjs 7.5.6/8.0.2 and protobufjs-cli 1.2.1/2.0.2.
+
+> **Note:** CVE-2026-44289 was assigned as part of the Proto6 batch disclosure but its advisory details had not been published at the time of this analysis. This report covers the six CVEs with published advisories (CVE-2026-44290 through -44295) plus the related CVE-2026-42290 (pbts command injection), CVE-2026-48712, and CVE-2026-45740.
 
 ## Background: protobuf.js
 
@@ -18,7 +21,7 @@ protobuf.js is the dominant JavaScript/TypeScript implementation of Google Proto
 | Timestamp | Event |
 |-----------|-------|
 | 2026-04-16 | CVE-2026-41242 (precursor GHSA-xq3m-2v4x-88gg) disclosed — code execution via type names in reflection APIs (patched in 7.5.5/8.0.1) |
-| 2026-05-12 | Proto6 batch disclosed: CVE-2026-44289, -44290, -44291, -44292, -44293, -44294, -44295, plus CVE-2026-42290 (pbts command injection) |
+| 2026-05-12 | Proto6 batch disclosed: CVE-2026-44289 (details pending NVD publication), -44290, -44291, -44292, -44293, -44294, -44295, plus CVE-2026-42290 (pbts command injection) |
 | 2026-05-13 | NVD publishes CVE-2026-44291 entry |
 | 2026-06-10 | The Hacker News publishes consolidated Proto6 analysis |
 
@@ -82,11 +85,11 @@ Unbounded recursion during `toObject()` or JSON conversion of deeply nested `goo
 
 Deeply nested `nested` namespace objects in JSON descriptors cause call stack exhaustion during `Root.fromJSON()` and `Namespace.addJSON()` processing.
 
-### 3. C2 Infrastructure
+### C2 Infrastructure
 
 Not applicable — these are vulnerability exploitation chains, not malware campaigns. There is no associated C2 infrastructure.
 
-### 4. Platform-Specific Behavior
+### Platform-Specific Behavior
 
 #### Node.js (All Platforms)
 
@@ -96,31 +99,28 @@ All Proto6 vulnerabilities target the Node.js runtime environment. The exploitat
 - Constructs protobuf message objects from untrusted JSON (e.g., API inputs parsed via `JSON.parse()`)
 - Uses protobufjs encode/decode in processes where prototype pollution exists
 
-### 5. Anti-Forensics / Evasion Techniques
+### Anti-Forensics / Evasion Techniques
 
 The code injection payloads execute within the Node.js process context, leaving minimal filesystem or network artifacts unless the injected code explicitly performs such actions. Exploitation via prototype pollution (CVE-2026-44291) is particularly stealthy because the malicious code runs inside dynamically generated `Function()` constructors that are part of normal protobufjs operation.
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through.
+<!-- revision: removed vacuous defanging notice — no network IOCs to defang -->
 
 ### Package / Software Level
 
-| Package / Component | Vulnerable Version | Description |
-|---------------------|-------------------|-------------|
-| protobufjs (npm) | <=7.5.5, 8.0.0-8.0.1 | Core runtime — code injection, prototype pollution, DoS |
-| protobufjs-cli (npm) | <=1.2.0, 2.0.0-2.0.1 | CLI tools — code injection in pbjs, command injection in pbts |
+| Package / Component | Vulnerable Version | Fixed Version | Description |
+|---------------------|-------------------|---------------|-------------|
+| protobufjs (npm) | <=7.5.5, 8.0.0-8.0.1 | 7.5.6 / 8.0.2 | Core runtime — code injection, prototype pollution, DoS |
+| protobufjs-cli (npm) | <=1.2.0, 2.0.0-2.0.1 | 1.2.1 / 2.0.2 | CLI tools — code injection in pbjs, command injection in pbts |
 
-### File System
+### File-Level Detection
 
-| Platform | Path | Hash (SHA256) | Description |
-|----------|------|---------------|-------------|
-| Any | `*.proto` files with embedded JS | N/A | Crafted schemas with code injection payloads in names, options, or defaults |
-| Any | JSON descriptor files | N/A | Crafted JSON with `__proto__`, nested namespaces, or bytes field injection |
+No hash-based IOCs apply — exploitation payloads are embedded in crafted `.proto` schemas and JSON descriptors that vary per target. Use the YARA rules below for content-based detection of injection patterns in schema files.
 
 ### Network
 
-No specific network IOCs — exploitation is application-level via schema/payload manipulation.
+No network IOCs — exploitation occurs at the application layer via schema/payload manipulation within established connections.
 
 ### Behavioral
 
@@ -135,7 +135,7 @@ No specific network IOCs — exploitation is application-level via schema/payloa
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Code injection via protobufjs generates and executes arbitrary JavaScript through `Function()` constructor |
-| T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Malicious `.proto` schemas injected into CI/CD pipelines exploit pbjs code generation |
+| T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Applicable only if attacker submits crafted `.proto` files upstream (e.g., via pull request) that are auto-compiled by CI/CD; this is a plausible but not directly demonstrated attack path |
 | T1190 | Exploit Public-Facing Application | Applications accepting untrusted protobuf schemas/payloads are directly exploitable |
 | T1499.004 | Endpoint Denial of Service: Application or System Exploitation | Stack exhaustion via unbounded recursion or constructor corruption causes process crashes |
 
@@ -183,20 +183,23 @@ npm audit 2>/dev/null | grep -i protobuf
 
 These detections target the distinctive artifacts of Proto6 exploitation: malicious protobuf schema files containing code injection payloads, and process-level indicators of protobufjs CLI tools processing untrusted schemas. The YARA rules are file-level and scan for injection patterns in `.proto` and JSON descriptor files; the Sigma rules detect suspicious `pbjs`/`pbts` execution and schema loading from untrusted paths. Compiles != fires — verify in your environment.
 
-### Sigma: Suspicious protobufjs CLI Execution on Untrusted Schema
+### Sigma: Suspicious protobufjs CLI Execution with Injection Indicators
 
-Detects execution of `pbjs` or `pbts` CLI tools, which are vulnerable to code injection (CVE-2026-44295) and command injection (CVE-2026-42290) when processing untrusted schemas. Scope to CI/CD runners or build servers for best signal-to-noise.
-**Status:** compile ✅ compiles · confidence: low
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Broad — any pbjs/pbts invocation fires. Precision depends on environment scoping. No pipeline-mapped conversion (no standard Linux process_creation pipeline in sigma list). FP risk: legitimate development use of pbjs/pbts is common. Best as hunt rule in CI/CD environments processing external schemas. -->
+<!-- revision: narrowed from any pbjs/pbts invocation to require injection indicators or untrusted paths; removed T1195.001 tag; acknowledged linux-only limitation -->
+
+Detects execution of `pbjs` or `pbts` CLI tools with command-line indicators of shell metacharacter injection or schemas loaded from untrusted paths. Targets CVE-2026-44295 (code injection) and CVE-2026-42290 (command injection). Best deployed as a hunt query on CI/CD runners and build servers. **Limitation:** `product: linux` — Windows CI environments require a separate rule with `Image|endswith: '\node.exe'`.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Narrowed from draft — now requires pbjs/pbts AND (injection metacharacters OR untrusted paths). Still a hunt query; precision depends on environment. No pipeline-mapped conversion. -->
 ```yaml
-title: Suspicious protobufjs CLI Execution on Untrusted Schema
+title: Suspicious protobufjs CLI Execution with Injection Indicators
 id: 8e4a1c3f-6b2d-4f7e-9a5c-1d3e8f0b2c7a
 status: experimental
 description: >
-    Detects execution of protobufjs CLI tools (pbjs, pbts) which are vulnerable to
-    code injection via crafted schema names (CVE-2026-44295) and command injection
-    via crafted filenames (CVE-2026-42290). Suspicious when run in CI/CD pipelines
-    or on schemas from untrusted sources.
+    Detects execution of protobufjs CLI tools (pbjs, pbts) with command-line
+    indicators of shell metacharacter injection or untrusted schema paths.
+    Targets CVE-2026-44295 (code injection via crafted schema names) and
+    CVE-2026-42290 (command injection via crafted filenames). Best deployed
+    as a hunt query on CI/CD runners and build servers.
 references:
     - https://thehackernews.com/2026/06/six-proto6-vulnerabilities-in.html
     - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-6r35-46g8-jcw9
@@ -205,7 +208,6 @@ author: Actioner
 date: 2026/06/10
 tags:
     - attack.t1059.007
-    - attack.t1195.001
 logsource:
     category: process_creation
     product: linux
@@ -219,28 +221,49 @@ detection:
             - 'pbjs'
             - 'pbts'
             - 'protobufjs-cli'
-    condition: selection_node and selection_cli
+    filter_injection_indicators:
+        CommandLine|contains:
+            - '$('
+            - '`'
+            - '$(('
+            - '&&'
+            - '||'
+            - ';'
+            - 'require('
+            - 'eval('
+            - 'child_process'
+            - '__proto__'
+    filter_untrusted_paths:
+        CommandLine|contains:
+            - '/tmp/'
+            - '/var/tmp/'
+            - 'http://'
+            - 'https://'
+    condition: selection_node and selection_cli and (filter_injection_indicators or filter_untrusted_paths)
 falsepositives:
-    - Legitimate protobuf schema compilation during development
-    - CI/CD build pipelines using trusted schemas
-level: low
+    - Development workflows using shell metacharacters in build scripts
+    - CI/CD pipelines fetching schemas from trusted HTTPS registries
+level: medium
 ```
 
 ### Sigma: Node.js Loading Protobuf Schema from Untrusted Source
 
-Detects Node.js processes loading protobuf definitions from temporary directories or remote URLs, which may indicate exploitation of Proto6 reflection API vulnerabilities (CVE-2026-44291, CVE-2026-44290, CVE-2026-44293).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Requires process_creation with CommandLine visibility. Relies on schema path appearing in CommandLine args, which may not always be the case (programmatic loading won't appear). No pipeline-mapped conversion. FP: dev workflows loading from /tmp build dirs. -->
+<!-- revision: lowered confidence to low; tightened .proto matching to avoid bare substring FP; added CLI-only coverage caveat; split proto extension into boundary-aware selections -->
+
+Detects Node.js processes with command-line evidence of loading protobuf definitions from temporary directories or remote URLs, which may indicate exploitation of Proto6 reflection API vulnerabilities (CVE-2026-44291, CVE-2026-44290, CVE-2026-44293). **Coverage limitation:** This rule only captures CLI-style invocations where schema paths appear in process arguments. The primary exploitation vector — programmatic `Root.load()`/`Root.fromJSON()` calls within application code — is invisible to process_creation telemetry and requires application-level instrumentation to detect.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check 0; splunk 0; log_scale 0. CLI-only coverage — programmatic loading not visible. Tightened .proto matching with boundary patterns. FP: dev workflows loading from /tmp build dirs, git operations on .proto files in temp paths. -->
 ```yaml
 title: Node.js Application Loading Protobuf Schema from Untrusted Source
 id: 2f7b9e4d-8a1c-4e3f-b6d5-0c9a7f2e1b8d
 status: experimental
 description: >
-    Detects Node.js processes loading protobuf definitions via reflection APIs
-    (Root.load, Root.loadSync, Root.fromJSON, parse) from network or temp paths,
-    which may enable Proto6 exploitation including prototype pollution to RCE
-    (CVE-2026-44291), option path traversal DoS (CVE-2026-44290), and code injection
-    via bytes defaults (CVE-2026-44293).
+    Detects Node.js processes with command-line evidence of loading protobuf
+    definitions from temporary directories or remote URLs, which may indicate
+    exploitation of Proto6 reflection API vulnerabilities (CVE-2026-44291,
+    CVE-2026-44290, CVE-2026-44293). Coverage limitation: only CLI-style
+    invocations are visible; programmatic Root.load()/Root.fromJSON() calls
+    within application code are not captured by process_creation logs.
 references:
     - https://thehackernews.com/2026/06/six-proto6-vulnerabilities-in.html
     - https://github.com/protobufjs/protobuf.js/security/advisories/GHSA-75px-5xx7-5xc7
@@ -257,10 +280,17 @@ detection:
         Image|endswith:
             - '/node'
             - '/nodejs'
-    selection_protobuf_load:
+    selection_protobuf_keyword:
         CommandLine|contains:
             - 'protobuf'
             - 'protobufjs'
+    selection_proto_file:
+        CommandLine|contains:
+            - '.proto '
+            - '.proto"'
+            - ".proto'"
+    selection_proto_end:
+        CommandLine|endswith:
             - '.proto'
     selection_untrusted_path:
         CommandLine|contains:
@@ -268,10 +298,11 @@ detection:
             - '/var/tmp/'
             - 'http://'
             - 'https://'
-    condition: selection_node and selection_protobuf_load and selection_untrusted_path
+    condition: selection_node and (selection_protobuf_keyword or selection_proto_file or selection_proto_end) and selection_untrusted_path
 falsepositives:
     - Development workflows loading schemas from temporary build directories
-level: medium
+    - Legitimate tools referencing .proto files from temp paths (e.g., git diff)
+level: low
 ```
 
 ### Snort: N/A
@@ -284,9 +315,11 @@ No network-level indicators suitable for Suricata detection — same rationale a
 
 ### YARA: Malicious Protobuf Schema with Code Injection Payloads
 
-Detects `.proto` files and JSON descriptors containing JavaScript code injection payloads targeting Proto6 vulnerabilities — identifies files with protobuf schema markers combined with injection strings (`require()`, `eval()`, `child_process`, `__proto__`, etc.). Scope to source code repositories and schema directories.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive: JSON descriptor with require('child_process').execSync in bytes default matched both rules. Negative: benign JSON descriptor with string/int32 fields did not match. Strings sourced from advisory-described exploitation mechanisms (Function() compilation, child_process require, __proto__ injection). FP risk: low for schema files; legitimate protobuf schemas do not contain require(), eval(), or child_process strings. The $inject9 "prototype" string could appear in comments of legitimate schemas but requires 2-of condition with another inject string. -->
+<!-- revision: tightened $inject9 from bare "prototype" to ".prototype." with dot delimiters; tightened $proto_msg from "message" to "message " (trailing space) to reduce FP on prose; re-validated against malicious and benign samples -->
+
+Detects `.proto` files and JSON descriptors containing JavaScript code injection payloads targeting Proto6 vulnerabilities — identifies files with protobuf schema markers combined with injection strings (`require()`, `eval()`, `child_process`, `__proto__`, `.prototype.`, etc.). Scope to source code repositories and schema directories.
+**Status:** compile ✅ compiles · confidence: high · sample: fired ✓ (malicious .proto and JSON) · negative: ✓ (benign .proto and JSON clean)
+<!-- audit: yarac exit 0. Positive: JSON descriptor with require('child_process').execSync in bytes default matched both rules; .proto with __proto__ + .prototype. matched rule 1. Negative: benign JSON descriptor with string/int32 fields did not match; benign .proto with "prototype" as field name did not match. $inject9 tightened from "prototype" to ".prototype." — eliminates FP on legitimate proto files that reference "prototype" without dot-accessor context. $proto_msg tightened from "message" to "message " to require proto syntax spacing. -->
 ```yara
 rule Proto6_Malicious_Protobuf_Schema_Code_Injection
 {
@@ -309,11 +342,11 @@ rule Proto6_Malicious_Protobuf_Schema_Code_Injection
         $inject6 = "process.exit" ascii
         $inject7 = "constructor[" ascii
         $inject8 = "__proto__" ascii
-        $inject9 = "prototype" ascii
+        $inject9 = ".prototype." ascii
 
-        // Protobuf schema markers
+        // Protobuf schema markers — trailing space ensures proto syntax context
         $proto_syntax = "syntax" ascii
-        $proto_msg = "message" ascii
+        $proto_msg = "message " ascii
         $proto_pkg = "package" ascii
         $proto_svc = "service" ascii
         $proto_enum = "enum" ascii
