@@ -1,0 +1,79 @@
+# GreatXML BitLocker Bypass - Sigma Detection Rules
+# Report: summaries/2026-06-11-greatxml-bitlocker-bypass.md
+# Generated: 2026-06-11 v1.1 FINAL
+
+---
+title: Suspicious Unattend.xml or Recovery Directory Creation on Non-System Partition
+id: 3f8e7a2d-1c9b-4d6e-a5f3-8b0c2e1d9a4f
+status: experimental
+description: >
+    Detects creation of unattend.xml files or Recovery\WindowsRE directory structures
+    outside of normal Windows installation paths, consistent with the GreatXML
+    BitLocker bypass exploit. The exploit plants a crafted unattend.xml and a Recovery
+    directory on the recovery partition; when the system reboots into WinRE, a SYSTEM
+    shell spawns with unrestricted access to the BitLocker-protected volume. This rule
+    targets file creation events where unattend.xml appears at a drive root or alongside
+    a Recovery\WindowsRE directory structure outside the Windows directory. Note:
+    legitimate OSD/MDT/SCCM deployments routinely create unattend.xml at drive roots;
+    treat hits as hunt leads requiring manual triage, not actionable alerts.
+references:
+    - https://securityonline.info/greatxml-bitlocker-bypass-poc/
+    - https://www.securityweek.com/greatxml-zero-day-exploit-bypasses-bitlocker/
+    - https://github.com/MSNightmare/GreatXML
+author: Actioner
+date: 2026/06/11
+tags:
+    - attack.t1542.003
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_unattend_root:
+        TargetFilename|re: '^[A-Z]:\\unattend\.xml$'
+    selection_recovery_winre:
+        TargetFilename|contains: '\Recovery\WindowsRE\'
+    filter_windows_dir:
+        TargetFilename|contains:
+            - '\Windows\Panther\'
+            - '\Windows\Setup\'
+            - '\$WINDOWS.~BT\'
+    condition: (selection_unattend_root or selection_recovery_winre) and not filter_windows_dir
+falsepositives:
+    - Legitimate Windows deployment tools using unattend.xml for automated setup (MDT, SCCM, ConfigMgr)
+    - System administrators configuring Windows Recovery Environment
+    - OEM factory imaging processes
+level: low
+
+---
+title: Nightmare Eclipse GreatXML Exploit Tool Execution
+id: a7d1e4b9-3c2f-4e8a-9b6d-5f0a1c8e7d3b
+status: experimental
+description: >
+    Detects execution of the GreatXML exploit tool or related Nightmare Eclipse
+    BitLocker bypass tooling by process name or original filename. GreatXML abuses
+    Microsoft Defender offline scan artifacts to bypass BitLocker encryption and
+    spawn a SYSTEM shell when rebooting into Windows Recovery Environment.
+references:
+    - https://securityonline.info/greatxml-bitlocker-bypass-poc/
+    - https://www.securityweek.com/greatxml-zero-day-exploit-bypasses-bitlocker/
+    - https://github.com/MSNightmare/GreatXML
+author: Actioner
+date: 2026/06/11
+tags:
+    - attack.t1068
+    - attack.t1542.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith:
+            - '\GreatXML.exe'
+            - '\YellowKey.exe'
+    selection_originalfilename:
+        OriginalFileName|contains:
+            - 'GreatXML'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - these are known exploit tool names from the Nightmare Eclipse campaign
+level: critical
