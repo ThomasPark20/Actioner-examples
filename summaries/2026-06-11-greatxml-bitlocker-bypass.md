@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-11
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.0 DRAFT -> v1.1 FINAL per critic review. Changes: cut Sigma #3 (Defender Offline Scan — altitude violation, detects legitimate admin action); downgraded Sigma #1 to level:low and confidence:low (OSD/MDT/SCCM FP surface); fixed YARA #1 operator precedence (parenthesized outer condition); added PoC-specific anchor strings to YARA #2 and downgraded to low/hunt-only; removed T1553.006 (not accurate for this exploit); removed T1068 from Sigma #1 tags (only applies to PoC tool rule); fixed relative link in Sources for RoguePlanet reference; added note in YARA meta that PoC is deliberately incomplete. -->
 
 ## Executive Summary
 
@@ -114,12 +115,12 @@ No network IOCs -- this is a local/physical access exploit with no C2 component.
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: removed T1553.006 (Subvert Trust Controls: Code Signing Policy Modification) — WinRE processing unattend.xml is not a code-signing policy bypass. Removed T1068 from this table; it is only referenced in Sigma #2 (PoC tool execution) which is a direct exploit tool, not a general report-level mapping. -->
+
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1542.003 | Pre-OS Boot: Bootkit | Planting crafted files on recovery partition to execute code during WinRE pre-OS boot, bypassing BitLocker |
-| T1068 | Exploitation for Privilege Escalation | Abusing Defender offline scan residual configuration to achieve SYSTEM shell access |
 | T1006 | Direct Volume Access | Writing directly to recovery partition (hidden volume) to stage exploit files |
-| T1553.006 | Subvert Trust Controls: Code Signing Policy Modification | Abusing WinRE's trust in unattend.xml answer files to execute unsigned commands |
 
 ## Impact Assessment
 
@@ -191,8 +192,9 @@ These detections target the GreatXML exploit chain and related Nightmare Eclipse
 
 ### Sigma: Suspicious Unattend.xml or Recovery Directory Creation on Non-System Partition
 Detects creation of unattend.xml at a drive root or Recovery\WindowsRE directory structures outside normal Windows installation paths, targeting the file-staging phase of the GreatXML exploit.
-<!-- audit: sigma check 0 errors, 0 issues; splunk convert 0; log_scale convert 0. Targets file_event on Windows. Filter excludes known legitimate paths (Windows\Panther, Windows\Setup, $WINDOWS.~BT). Regex anchored to drive-root unattend.xml. Values use real paths (not defanged). FP surface: OSD/MDT deployments, admin WinRE customization. Evasion: staging via direct disk write (bypasses file event logging). -->
-**Status:** compile ✅ compiles · confidence: medium
+<!-- revision: downgraded level from high to low and confidence from medium to low. OSD/MDT/SCCM deployments routinely create unattend.xml at drive roots, producing constant FPs in enterprise imaging environments. Removed T1068 tag (only appropriate for direct PoC tool execution rule). Added explicit hunt-only guidance to description. -->
+<!-- audit: sigma check 0 errors, 0 issues; splunk convert 0; log_scale convert 0. Targets file_event on Windows. Filter excludes known legitimate paths (Windows\Panther, Windows\Setup, $WINDOWS.~BT). Regex anchored to drive-root unattend.xml. Values use real paths (not defanged). FP surface: OSD/MDT/SCCM deployments, admin WinRE customization. Evasion: staging via direct disk write (bypasses file event logging). -->
+**Status:** compile ✅ compiles · confidence: low
 ```yaml
 title: Suspicious Unattend.xml or Recovery Directory Creation on Non-System Partition
 id: 3f8e7a2d-1c9b-4d6e-a5f3-8b0c2e1d9a4f
@@ -204,7 +206,9 @@ description: >
     directory on the recovery partition; when the system reboots into WinRE, a SYSTEM
     shell spawns with unrestricted access to the BitLocker-protected volume. This rule
     targets file creation events where unattend.xml appears at a drive root or alongside
-    a Recovery\WindowsRE directory structure outside the Windows directory.
+    a Recovery\WindowsRE directory structure outside the Windows directory. Note:
+    legitimate OSD/MDT/SCCM deployments routinely create unattend.xml at drive roots;
+    treat hits as hunt leads requiring manual triage, not actionable alerts.
 references:
     - https://securityonline.info/greatxml-bitlocker-bypass-poc/
     - https://www.securityweek.com/greatxml-zero-day-exploit-bypasses-bitlocker/
@@ -213,7 +217,6 @@ author: Actioner
 date: 2026/06/11
 tags:
     - attack.t1542.003
-    - attack.t1068
 logsource:
     category: file_event
     product: windows
@@ -229,10 +232,10 @@ detection:
             - '\$WINDOWS.~BT\'
     condition: (selection_unattend_root or selection_recovery_winre) and not filter_windows_dir
 falsepositives:
-    - Legitimate Windows deployment tools using unattend.xml for automated setup
+    - Legitimate Windows deployment tools using unattend.xml for automated setup (MDT, SCCM, ConfigMgr)
     - System administrators configuring Windows Recovery Environment
-    - MDT or SCCM task sequences writing unattend.xml for OS deployment
-level: high
+    - OEM factory imaging processes
+level: low
 ```
 
 ### Sigma: Nightmare Eclipse GreatXML Exploit Tool Execution
@@ -274,56 +277,13 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Windows Defender Offline Scan Initiation via Command Line
-Detects initiation of Defender Offline Scan via MpCmdRun.exe or PowerShell, which creates the prerequisite condition that makes a system vulnerable to GreatXML.
-<!-- audit: sigma check 0 errors, 0 issues; splunk convert 0; log_scale convert 0. Informational/medium rule — offline scan initiation is legitimate but expands the GreatXML attack surface. High FP in environments that regularly run offline scans. Not a direct detection of exploitation. -->
-**Status:** compile ✅ compiles · confidence: low
-```yaml
-title: Windows Defender Offline Scan Initiation via Command Line
-id: b5c2d8e1-4f7a-3e9b-a6d0-2c1f8e0d5a3b
-status: experimental
-description: >
-    Detects initiation of Microsoft Defender Offline Scan via MpCmdRun.exe or
-    PowerShell, which is a prerequisite condition for the GreatXML BitLocker
-    bypass exploit. Once an offline scan has been initiated at least once, the
-    system becomes vulnerable to GreatXML. Monitoring offline scan initiation
-    provides visibility into the expanding attack surface.
-references:
-    - https://securityonline.info/greatxml-bitlocker-bypass-poc/
-    - https://www.securityweek.com/greatxml-zero-day-exploit-bypasses-bitlocker/
-    - https://github.com/MSNightmare/GreatXML
-author: Actioner
-date: 2026/06/11
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_mpcmdrun:
-        Image|endswith: '\MpCmdRun.exe'
-        CommandLine|contains|all:
-            - '-Scan'
-            - '-ScanType'
-            - '3'
-    selection_powershell:
-        Image|endswith:
-            - '\powershell.exe'
-            - '\pwsh.exe'
-        CommandLine|contains:
-            - 'Start-MpWDOScan'
-    condition: 1 of selection_*
-falsepositives:
-    - Legitimate administrator-initiated Defender offline scans
-    - Scheduled Defender maintenance tasks
-    - Enterprise security tools triggering offline scans for remediation
-level: medium
-```
+<!-- revision: CUT Sigma #3 (Windows Defender Offline Scan Initiation via Command Line). Reason: detects a legitimate admin action (initiating Defender Offline Scan), not an exploit artifact. Altitude violation — this is operational telemetry, not a threat detection. T1068 mapping was incorrect (initiating a scan is not privilege escalation). High FP rate in any environment that regularly runs offline scans. -->
 
 ### YARA: GreatXML Exploit Tool Binary Detection
 Detects PE files or scripts containing strings characteristic of the GreatXML exploit tool, including the tool name, author attribution, and the combination of unattend.xml/WinRE/Defender references.
-<!-- audit: yarac exit 0. Condition requires filesize<5MB plus (GreatXML name + XML/recovery references) OR (author strings + XML + Defender) OR (name + Defender + BitLocker). FP: extremely unlikely outside of security research tools referencing GreatXML by name. -->
-**Status:** compile ✅ compiles · confidence: high
+<!-- revision: fixed operator precedence bug in condition — wrapped all three OR branches inside outer parentheses after filesize<5MB so the size constraint applies uniformly. Added meta note that public PoC is deliberately incomplete. Confidence downgraded from high to medium pending validation against broader corpus. -->
+<!-- audit: yarac exit 0. Condition requires filesize<5MB AND ( (GreatXML name + XML/recovery references) OR (author strings + XML + Defender) OR (name + Defender + BitLocker) ). FP: extremely unlikely outside of security research tools referencing GreatXML by name. -->
+**Status:** compile ✅ compiles · confidence: medium
 ```yara
 rule Exploit_GreatXML_BitLocker_Bypass
 {
@@ -334,6 +294,7 @@ rule Exploit_GreatXML_BitLocker_Bypass
         reference = "https://github.com/MSNightmare/GreatXML"
         severity = "critical"
         tlp = "WHITE"
+        note = "Public PoC is deliberately incomplete; final exploit component withheld by researcher"
 
     strings:
         $name1 = "GreatXML" ascii wide
@@ -361,35 +322,36 @@ rule Exploit_GreatXML_BitLocker_Bypass
         $bitlocker2 = "FVE" ascii wide
 
     condition:
-        filesize < 5MB and
-        (
-            ($name1 or $name2) and (1 of ($xml*) or 1 of ($recov*))
-        ) or
-        (
-            filesize < 5MB and
-            2 of ($author*) and (1 of ($xml*) or 1 of ($recov*)) and 1 of ($defender*)
-        ) or
-        (
-            filesize < 5MB and
-            1 of ($name*) and 1 of ($defender*) and 1 of ($bitlocker*)
+        filesize < 5MB and (
+            (
+                ($name1 or $name2) and (1 of ($xml*) or 1 of ($recov*))
+            ) or
+            (
+                2 of ($author*) and (1 of ($xml*) or 1 of ($recov*)) and 1 of ($defender*)
+            ) or
+            (
+                1 of ($name*) and 1 of ($defender*) and 1 of ($bitlocker*)
+            )
         )
 }
 ```
 
 ### YARA: GreatXML Crafted Unattend.xml Payload
-Detects XML answer files containing the combination of unattend namespace, WinRE settings pass, and command execution directives consistent with a weaponized unattend.xml payload.
-<!-- audit: yarac exit 0. Targets the actual planted XML payload rather than the exploit tool binary. Condition: XML file < 500KB with unattend namespace + settings/WinRE pass + command execution element. FP: legitimate answer files that include both recovery passes and RunSynchronous commands — review context. -->
-**Status:** compile ✅ compiles · confidence: medium
+Detects XML answer files containing the combination of unattend namespace, WinRE settings pass, and command execution directives consistent with a weaponized unattend.xml payload. This is a hunt-only rule due to the overlap with legitimate enterprise imaging answer files.
+<!-- revision: added PoC-specific anchor strings ($poc_anchor1-5: GreatXML, MSNightmare, Nightmare, BitLocker, Recovery\WindowsRE) to discriminate from routine enterprise unattend.xml files. Removed overly generic $cmd3 ("command") and $winre3 ("oobeSystem"), $shell3/$shell4 (redundant with $shell1). Downgraded confidence from medium to low. Added hunt-only caveat and incomplete-PoC note in meta. -->
+<!-- audit: yarac exit 0. Targets the actual planted XML payload rather than the exploit tool binary. Condition: XML file < 500KB with unattend namespace + settings/WinRE pass + command execution element + at least one PoC-specific anchor. FP: legitimate answer files are unlikely to contain GreatXML/MSNightmare/BitLocker strings alongside RunSynchronous commands. -->
+**Status:** compile ✅ compiles · confidence: low
 ```yara
 rule Exploit_GreatXML_Unattend_XML_Payload
 {
     meta:
-        description = "Detects crafted unattend.xml files consistent with GreatXML exploit payload that targets WinRE to bypass BitLocker and spawn SYSTEM shell"
+        description = "Detects crafted unattend.xml files consistent with GreatXML exploit payload that targets WinRE to bypass BitLocker and spawn SYSTEM shell. Requires PoC-specific anchor strings to reduce false positives from legitimate enterprise imaging answer files."
         author = "Actioner"
         date = "2026-06-11"
         reference = "https://github.com/MSNightmare/GreatXML"
         severity = "high"
         tlp = "WHITE"
+        note = "Hunt-only rule (low confidence). Legitimate enterprise unattend.xml files with RunSynchronous+cmd/powershell are common. Manual triage required. Public PoC is deliberately incomplete."
 
     strings:
         $xml_header = "<?xml" ascii wide nocase
@@ -398,16 +360,18 @@ rule Exploit_GreatXML_Unattend_XML_Payload
 
         $cmd1 = "cmd.exe" ascii wide nocase
         $cmd2 = "powershell" ascii wide nocase
-        $cmd3 = "command" ascii wide nocase
 
         $winre1 = "windowsPE" ascii wide nocase
         $winre2 = "offlineServicing" ascii wide nocase
-        $winre3 = "oobeSystem" ascii wide nocase
 
         $shell1 = "RunSynchronous" ascii wide nocase
-        $shell2 = "FirstLogonCommands" ascii wide nocase
-        $shell3 = "RunSynchronousCommand" ascii wide nocase
-        $shell4 = "LogonCommands" ascii wide nocase
+        $shell2 = "RunSynchronousCommand" ascii wide nocase
+
+        $poc_anchor1 = "GreatXML" ascii wide nocase
+        $poc_anchor2 = "MSNightmare" ascii wide nocase
+        $poc_anchor3 = "Nightmare" ascii wide
+        $poc_anchor4 = "BitLocker" ascii wide nocase
+        $poc_anchor5 = "Recovery\\WindowsRE" ascii wide
 
     condition:
         filesize < 500KB and
@@ -415,7 +379,8 @@ rule Exploit_GreatXML_Unattend_XML_Payload
         $unattend_ns and
         1 of ($settings, $winre*) and
         1 of ($cmd*) and
-        1 of ($shell*)
+        1 of ($shell*) and
+        1 of ($poc_anchor*)
 }
 ```
 
@@ -440,7 +405,8 @@ No network detection rules are generated. GreatXML is a local/physical access ex
 - [Nightmare Eclipse Blog - GreatXML Announcement](https://deadeclipse666.blogspot.com/2026/06/greatxml-bitlocker-that-seems-to-only.html) -- researcher's original blog post announcing the exploit
 - [BleepingComputer - Windows BitLocker Zero-Day Gives Access to Protected Drives](https://www.bleepingcomputer.com/news/security/windows-bitlocker-zero-day-gives-access-to-protected-drives-poc-released/) -- coverage of related YellowKey exploit and Nightmare Eclipse campaign context
 - [Cybernews - BitLocker Bypass and Privilege Escalation Exploit Released](https://cybernews.com/security/researcher-releases-bitlocker-bypass-and-privilege-escalation-exploit/) -- campaign context and researcher motivation analysis
-- [Actioner - RoguePlanet Zero-Day Report (2026-06-10)](2026-06-10-defender-rogueplanet-zero-day.md) -- prior Actioner analysis of related Nightmare Eclipse exploit
+<!-- revision: fixed relative link — was bare filename "2026-06-10-defender-rogueplanet-zero-day.md", now absolute path within summaries directory -->
+- [Actioner - RoguePlanet Zero-Day Report (2026-06-10)](./2026-06-10-defender-rogueplanet-zero-day.md) -- prior Actioner analysis of related Nightmare Eclipse exploit
 
 ---
 *Report generated by Actioner*
