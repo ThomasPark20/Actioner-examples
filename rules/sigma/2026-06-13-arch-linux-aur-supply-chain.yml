@@ -1,0 +1,105 @@
+title: Atomic Arch - Malicious npm Install via PKGBUILD
+id: a1c3e5f7-9b2d-4f6a-8e0c-2d4f6a8b0c1e
+status: experimental
+description: >
+    Detects npm or bun installing the known-malicious packages atomic-lockfile
+    or js-digest, as observed in the Atomic Arch AUR supply-chain campaign
+    (Sonatype-2026-003775).
+references:
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_npm:
+        Image|endswith:
+            - '/npm'
+            - '/npx'
+            - '/bun'
+        CommandLine|contains:
+            - 'atomic-lockfile'
+            - 'js-digest'
+            - 'lockfile-js'
+    selection_shell:
+        Image|endswith:
+            - '/bash'
+            - '/sh'
+            - '/zsh'
+        CommandLine|contains|all:
+            - 'npm install'
+            - 'atomic-lockfile'
+    condition: selection_npm or selection_shell
+falsepositives:
+    - Legitimate use of an unrelated package coincidentally named atomic-lockfile is extremely unlikely
+level: critical
+---
+title: Atomic Arch - eBPF Rootkit BPF Map Pinning
+id: b2d4f6a8-0c1e-3f5a-7b9d-4e6f8a0b2c3d
+status: experimental
+description: >
+    Detects creation of BPF map files associated with the Atomic Arch eBPF
+    rootkit (hidden_pids, hidden_names, hidden_inodes) pinned under /sys/fs/bpf/.
+    Note: this rule requires Sysmon-for-Linux generating file_event telemetry;
+    BPF map pinning may not produce a file_event in all audit configurations.
+references:
+    - https://thecybersecguru.com/news/atomic-arch-aur-supply-chain-attack-ebpf-rootkit/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1014
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/sys/fs/bpf/'
+        TargetFilename|endswith:
+            - '/hidden_pids'
+            - '/hidden_names'
+            - '/hidden_inodes'
+    condition: selection
+falsepositives:
+    - Custom security tooling or research projects using identically named BPF maps
+level: critical
+---
+title: Atomic Arch - Systemd Service File Creation in Persistence Paths
+id: c3e5f7a9-1d2f-4b6c-8e0a-3f5d7b9c1e2f
+status: experimental
+description: >
+    Detects systemd service file creation in paths used by the Atomic Arch
+    malware for persistence. This is a generic TTP corroborator that fires
+    on any .service file creation in systemd paths outside package manager
+    control; correlate with other Atomic Arch indicators for campaign
+    attribution.
+references:
+    - https://thecybersecguru.com/news/atomic-arch-aur-supply-chain-attack-ebpf-rootkit/
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_path:
+        TargetFilename|endswith: '.service'
+        TargetFilename|contains:
+            - '/etc/systemd/system/'
+            - '/.config/systemd/user/'
+    filter_known:
+        Image|startswith:
+            - '/usr/lib/systemd/'
+            - '/usr/bin/systemctl'
+    condition: selection_path and not filter_known
+falsepositives:
+    - Legitimate software installation creating systemd units outside of package manager control
+    - Container runtimes, configuration management tools, and CI/CD agents creating service units
+level: low

@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-13
-Version: 1.0 DRAFT
+Version: 1.2 FINAL
 
 ## Executive Summary
 
@@ -180,7 +180,7 @@ The binary contains the string `/usr/bin/monero-wallet-gui`, suggesting a second
 
 - SOCKS5 proxy listener on `127.0.0.1` with runtime-selected port
 - systemd services with `Restart=always` and `RestartSec=30` for binaries under `/var/lib/` or user config directories
-- Queries to `api.github.com/user`, `registry.npmjs.org/-/whoami`, and `discord.com/api/v9/users/@me` from unexpected processes
+- Queries to `api[.]github[.]com/user`, `registry[.]npmjs[.]org/-/whoami`, and `discord[.]com/api/v9/users/@me` from unexpected processes (note: these domains are legitimate services; alert only in correlation with other Atomic Arch indicators)
 - eBPF maps pinned under `/sys/fs/bpf/hidden_*`
 - Processes masquerading as kernel threads to evade `ps`/`htop`
 
@@ -193,12 +193,11 @@ The binary contains the string `/usr/bin/monero-wallet-gui`, suggesting a second
 | T1204.002 | Malicious File | Users build and execute compromised AUR packages via yay/paru |
 | T1543.002 | Systemd Service | Persistence via systemd service units with Restart=always in both system and user directories |
 | T1014 | Rootkit | eBPF rootkit hides processes, files, and network connections from userspace tools |
-| T1564.001 | Hidden Files and Directories | BPF maps pinned under /sys/fs/bpf/ to hide malware artifacts |
 | T1555.003 | Credentials from Web Browsers | Harvests cookies, tokens, and local storage from 20+ Chromium-family browsers |
 | T1552.001 | Credentials In Files | Steals SSH keys, Vault tokens, shell histories, VPN profiles |
 | T1071.001 | Web Protocols | C2 communication via HTTP POST to /api/agent |
 | T1090.003 | Multi-hop Proxy | C2 traffic routed through Tor onion service via local SOCKS5 proxy |
-| T1041 | Exfiltration Over C2 Channel | Data uploaded via POST /upload to temp.sh |
+| T1567.002 | Exfiltration to Cloud Storage | Data uploaded via POST /upload to temp.sh (a file-sharing service, not the C2 channel) |
 | T1036 | Masquerading | Git commit metadata forged to impersonate trusted maintainer; processes disguised as kernel threads |
 | T1562.001 | Disable or Modify Tools | eBPF rootkit prevents debugger attachment via PTRACE interception |
 | T1082 | System Information Discovery | Reads /etc/machine-id and checks CapEff for privilege assessment |
@@ -279,7 +278,7 @@ find / -type f -size 3040376c 2>/dev/null | xargs sha256sum 2>/dev/null | grep -
 
 ## Detection Rules
 
-These rules target the distinctive artifacts of the Atomic Arch campaign: malicious package installation commands, eBPF rootkit map creation, systemd persistence, C2 callback patterns, and payload file characteristics. The primary caveat is that the systemd persistence rule (medium confidence) may generate false positives from legitimate software installers creating service units outside the package manager.
+These rules target the distinctive artifacts of the Atomic Arch campaign: malicious package installation commands, eBPF rootkit map creation, systemd persistence, C2 callback patterns, and payload file characteristics. Key caveats: (1) the systemd persistence rule is a generic TTP corroborator (low confidence) that fires on any .service file creation outside package manager control; (2) network rules for /api/agent and /bin/linux URIs are medium confidence due to generic paths; (3) C2 traffic routes through a Tor onion service, so cleartext HTTP IDS rules catch only non-Tor fallback scenarios; (4) the npm registry DNS rule (SID:2100104) was dropped for zero signal.
 
 ### Sigma: Malicious npm Install via PKGBUILD
 
@@ -335,7 +334,7 @@ level: critical
 
 ### Sigma: eBPF Rootkit BPF Map Pinning
 
-Detects creation of BPF map files named `hidden_pids`, `hidden_names`, or `hidden_inodes` under `/sys/fs/bpf/`, the hallmark of the Atomic Arch eBPF rootkit.
+Detects creation of BPF map files named `hidden_pids`, `hidden_names`, or `hidden_inodes` under `/sys/fs/bpf/`, the hallmark of the Atomic Arch eBPF rootkit. Caveat: this rule requires Sysmon-for-Linux generating file_event telemetry; BPF map pinning may not produce a file_event in all audit configurations.
 
 - **Compile:** ✅ compiles (sigma check + splunk/logscale convert pass)
 - **Confidence:** high
@@ -347,6 +346,8 @@ status: experimental
 description: >
     Detects creation of BPF map files associated with the Atomic Arch eBPF
     rootkit (hidden_pids, hidden_names, hidden_inodes) pinned under /sys/fs/bpf/.
+    Note: this rule requires Sysmon-for-Linux generating file_event telemetry;
+    BPF map pinning may not produce a file_event in all audit configurations.
 references:
     - https://thecybersecguru.com/news/atomic-arch-aur-supply-chain-attack-ebpf-rootkit/
     - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
@@ -354,7 +355,6 @@ author: Actioner
 date: 2026-06-13
 tags:
     - attack.t1014
-    - attack.t1564.001
 logsource:
     category: file_event
     product: linux
@@ -372,22 +372,25 @@ level: critical
 ```
 
 <!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. TargetFilename matches Sysmon-for-Linux file_event schema. -->
+<!-- revision: v1.2 — removed T1564.001 tag (BPF map pinning is rootkit behavior, not hidden files; T1014 already covers it); added Sysmon-for-Linux dependency caveat to description. -->
 
-### Sigma: Suspicious Systemd Service Persistence
+### Sigma: Systemd Service File Creation in Persistence Paths (Generic TTP Corroborator)
 
-Detects systemd service file creation in persistence paths used by the Atomic Arch malware. Caveat: may fire on legitimate software creating systemd units outside package manager control.
+Detects systemd service file creation in persistence paths outside package manager control. This is a generic TTP corroborator -- it does not key on campaign-specific artifacts and will fire on any .service file creation in systemd paths. Correlate with other Atomic Arch indicators for campaign attribution. Note: file_event telemetry cannot inspect file content, so Restart=always / RestartSec=30 directives are not selectable at this layer.
 
 - **Compile:** ✅ compiles (sigma check + splunk/logscale convert pass)
-- **Confidence:** medium
+- **Confidence:** low
 
 ```yaml
-title: Atomic Arch - Suspicious Systemd Service with Restart Always
+title: Atomic Arch - Systemd Service File Creation in Persistence Paths
 id: c3e5f7a9-1d2f-4b6c-8e0a-3f5d7b9c1e2f
 status: experimental
 description: >
     Detects systemd service file creation in paths used by the Atomic Arch
-    malware for persistence, combined with Restart=always and RestartSec=30
-    directives.
+    malware for persistence. This is a generic TTP corroborator that fires
+    on any .service file creation in systemd paths outside package manager
+    control; correlate with other Atomic Arch indicators for campaign
+    attribution.
 references:
     - https://thecybersecguru.com/news/atomic-arch-aur-supply-chain-attack-ebpf-rootkit/
     - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
@@ -411,10 +414,12 @@ detection:
     condition: selection_path and not filter_known
 falsepositives:
     - Legitimate software installation creating systemd units outside of package manager control
-level: medium
+    - Container runtimes, configuration management tools, and CI/CD agents creating service units
+level: low
 ```
 
-<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. Medium confidence due to generic systemd service creation pattern; combine with other Atomic Arch indicators for high-confidence triage. -->
+<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. Low confidence due to generic systemd service creation pattern; combine with other Atomic Arch indicators for high-confidence triage. -->
+<!-- revision: v1.2 — relabeled as generic TTP corroborator; downgraded from medium to low; removed Restart=always/RestartSec=30 claim from description (file_event cannot check file content); added container/CI false positive entry. -->
 
 ### YARA: Atomic Arch Infostealer Payload
 
@@ -431,7 +436,8 @@ rule Malware_AtomicArch_Infostealer_Deps
         author = "Actioner"
         date = "2026-06-13"
         reference = "https://ioctl.fail/preliminary-analysis-of-aur-malware/"
-        hash = "6144d433f8a0316869877b5f834c801251bbb936e5f1577c5680878c7443c98b"
+        hash1 = "6144d433f8a0316869877b5f834c801251bbb936e5f1577c5680878c7443c98b"
+        hash2 = "7883bda1ff15425f2dbe622c45a3ae105ddfa6175009bbf0b0cad9bf5c79b316"
         tlp = "WHITE"
         severity = "critical"
 
@@ -458,9 +464,10 @@ rule Malware_AtomicArch_Infostealer_Deps
         (
             (2 of ($bpf*)) or
             (2 of ($socks*) and 1 of ($c2*)) or
-            (2 of ($c2*) and 1 of ($cred*)) or
+            ($c2_4 and 2 of ($c2*) and 1 of ($cred*)) or
             (3 of ($socks*)) or
-            ($cap1 and 2 of ($c2*))
+            ($cap1 and 3 of ($c2*)) or
+            ($cap1 and 2 of ($c2*) and 1 of ($socks*))
         )
 }
 
@@ -471,7 +478,8 @@ rule Malware_AtomicArch_ScalesBPF
         author = "Actioner"
         date = "2026-06-13"
         reference = "https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency"
-        hash = "6144d433f8a0316869877b5f834c801251bbb936e5f1577c5680878c7443c98b"
+        hash1 = "6144d433f8a0316869877b5f834c801251bbb936e5f1577c5680878c7443c98b"
+        hash2 = "7883bda1ff15425f2dbe622c45a3ae105ddfa6175009bbf0b0cad9bf5c79b316"
         tlp = "WHITE"
         severity = "critical"
 
@@ -490,43 +498,44 @@ rule Malware_AtomicArch_ScalesBPF
 }
 ```
 
-<!-- audit: yarac exit 0. Both rules gate on ELF magic (0x7F454C46 little-endian = 0x464C457F). String combinations require multiple campaign-specific artifacts to reduce FP risk. Hash of known Wave 1 sample included in meta. -->
+<!-- audit: yarac exit 0. Both rules gate on ELF magic (0x7F454C46 little-endian = 0x464C457F). String combinations require multiple campaign-specific artifacts to reduce FP risk. Hashes for both Wave 1 and Wave 2 samples included in meta. -->
+<!-- revision: v1.2 — tightened Infostealer_Deps condition: (2 of ($c2*) and 1 of ($cred*)) now requires $c2_4 as mandatory anchor since /bin/linux and /api/agent are individually common; ($cap1 and 2 of ($c2*)) tightened to require 3 of ($c2*) or fallback with $socks* anchor; added hash2 (Wave 2: 7883bda1...) to both rule metas. -->
 
 ### Suricata: Atomic Arch C2 and Exfiltration
 
-Four rules covering C2 callback to `/api/agent`, data exfiltration via `temp.sh`, secondary payload staging, and credential validation DNS queries.
+Three rules covering C2 callback to `/api/agent`, data exfiltration via `temp.sh`, and secondary payload staging. SID:2100104 (npm registry DNS) was dropped -- alerting on DNS for registry.npmjs.org fires on every legitimate npm install with zero signal. Fundamental detection gap: the actual C2 is a Tor onion service routed via local SOCKS5 proxy, so cleartext HTTP patterns will not match on-wire C2 traffic; these rules catch only non-Tor fallback or misconfigured infections.
 
 - **Compile:** ✅ compiles (suricata -T exit 0)
-- **Confidence:** high (rules 1-3), low (rule 4 -- npm registry DNS is high-volume)
+- **Confidence:** high (SID:2100102 temp.sh exfil), medium (SID:2100101 /api/agent -- too generic without host constraint), medium (SID:2100103 /bin/linux -- too generic)
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/agent"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch; sid:2100101; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent [medium confidence]"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/agent"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100101; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; fast_pattern; http.uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch; sid:2100102; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; fast_pattern; http.uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence high; sid:2100102; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging Request /bin/linux"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/bin/linux"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch; sid:2100103; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - Atomic Arch npm Registry Credential Probe via whoami"; dns.query; content:"registry.npmjs.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch; sid:2100104; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging Request /bin/linux [medium confidence]"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/bin/linux"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100103; rev:2;)
 ```
 
-<!-- audit: suricata -T -S exit 0. Rules use dot-notation sticky buffers (http.method, http.uri, http.host, dns.query). SID 2100104 (npm registry DNS) is low-confidence because legitimate npm operations also resolve this domain; useful only as a correlating signal with other Atomic Arch indicators. SIDs 2100101-2100103 are high-confidence for C2/exfil patterns. All values are real (not defanged). -->
+<!-- audit: suricata -T -S exit 0. Rules use dot-notation sticky buffers (http.method, http.uri, http.host). SID 2100104 (npm registry DNS) DROPPED — fires on every legitimate npm install, zero signal. SID:2100101 and SID:2100103 downgraded to medium confidence due to generic URI patterns. All values are real (not defanged). -->
+<!-- revision: v1.2 — dropped SID:2100104 (npm DNS, zero signal); downgraded SID:2100101/2100103 to medium confidence; added Tor encryption caveat noting fundamental detection gap for onion-routed C2; bumped rev on modified SIDs. -->
 
 ### Snort 3: Atomic Arch C2 and Exfiltration
 
-Three rules covering the same C2 and exfiltration patterns using Snort 3 underscore-notation sticky buffers. Caveat: Snort 3 is not installed in this environment; rules are structurally validated only.
+Three rules covering the same C2 and exfiltration patterns using Snort 3 underscore-notation sticky buffers. Same Tor detection gap caveat applies. Snort 3 is not installed in this environment; rules are structurally validated only.
 
 - **Compile:** ⚠️ uncompiled (Snort 3 not available for validation)
-- **Confidence:** medium
+- **Confidence:** medium (SID:2100201 /api/agent -- generic), medium (SID:2100202 temp.sh exfil), medium (SID:2100203 /bin/linux -- generic)
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/api/agent", fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent [medium confidence]"; flow:established,to_server; http_method; content:"POST"; http_uri; content:"/api/agent",fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100201; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established, to_server; http_method; content:"POST"; http_header; content:"temp.sh", fast_pattern; http_uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch; sid:2100202; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established,to_server; http_method; content:"POST"; http_header; content:"Host: temp.sh",fast_pattern; http_uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100202; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging /bin/linux"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/bin/linux", fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch; sid:2100203; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging /bin/linux [medium confidence]"; flow:established,to_server; http_method; content:"GET"; http_uri; content:"/bin/linux",fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100203; rev:2;)
 ```
 
 <!-- audit: Structural check only; Snort 3 not installed. Rules use underscore-notation sticky buffers (http_method, http_uri, http_header). Comma-separated content modifiers per Snort 3 convention. SIDs in 2100200 range to avoid collision with Suricata rules. -->
+<!-- revision: v1.2 — fixed flow option spacing (removed space after comma in all rules); SID:2100202 now uses content:"Host: temp.sh" for precise Host header matching; downgraded all to medium confidence; bumped rev on modified SIDs. -->
 
 ## Lessons Learned
 
