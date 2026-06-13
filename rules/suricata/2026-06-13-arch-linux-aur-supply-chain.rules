@@ -1,0 +1,11 @@
+# Atomic Arch AUR Supply-Chain Campaign - Suricata Rules
+# SID:2100101 - C2 callback (medium confidence: /api/agent is generic; C2 uses Tor onion service so cleartext HTTP is unlikely on monitored links)
+# SID:2100102 - Data exfil via temp.sh (high confidence)
+# SID:2100103 - Payload staging (medium confidence: /bin/linux path is generic)
+# SID:2100104 - DROPPED: npm registry DNS alerting fires on every legitimate npm install; zero signal
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent [medium confidence]"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/agent"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100101; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; fast_pattern; http.uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence high; sid:2100102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging Request /bin/linux [medium confidence]"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/bin/linux"; fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100103; rev:2;)
