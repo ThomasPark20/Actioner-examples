@@ -49,16 +49,16 @@ The `deps` binary is a Rust-compiled, stripped, dynamically linked ELF64 (x86-64
 **Browsers (20+ Chromium variants):** Chrome, Edge, Brave, Vivaldi, Opera, Yandex, Epic, Iridium, plus Flatpak variants. Targets `Local Storage/leveldb`, `Network/Cookies`, `Cookies`, `Default/Cookies` with encrypted cookie decryption capability.
 
 **Developer credentials:**
-- GitHub tokens (queries `api.github.com /user` and `/user/repos`)
-- npm registry tokens (queries `registry.npmjs.org /-/whoami` and `/-/v1/search`)
+- GitHub tokens (queries `api[.]github[.]com /user` and `/user/repos`)
+- npm registry tokens (queries `registry[.]npmjs[.]org /-/whoami` and `/-/v1/search`)
 - SSH keys and `known_hosts` from `~/.ssh`
 - HashiCorp Vault tokens from `~/.vault-token` and `~/.vault/token`
 - Docker/Podman authentication credentials
-- OpenAI/ChatGPT bearer tokens (queries `api.openai.com`)
+- OpenAI/ChatGPT bearer tokens (queries `api[.]openai[.]com`)
 
 **Collaboration platforms:**
 - Slack cookies/sessions (`.config/Slack`, Flatpak, Snap paths)
-- Microsoft Teams (queries `authsvc.teams.microsoft.com`, `teams.microsoft.com`)
+- Microsoft Teams (queries `authsvc[.]teams[.]microsoft[.]com`, `teams[.]microsoft[.]com`)
 - Discord (including PTB, Canary, Vesktop, Legcord, WebCord, Vencord variants; queries `/api/v9/users/@me`)
 - Telegram data stores
 
@@ -503,7 +503,7 @@ rule Malware_AtomicArch_ScalesBPF
 
 ### Suricata: Atomic Arch C2 and Exfiltration
 
-Three rules covering C2 callback to `/api/agent`, data exfiltration via `temp.sh`, and secondary payload staging. SID:2100104 (npm registry DNS) was dropped -- alerting on DNS for registry.npmjs.org fires on every legitimate npm install with zero signal. Fundamental detection gap: the actual C2 is a Tor onion service routed via local SOCKS5 proxy, so cleartext HTTP patterns will not match on-wire C2 traffic; these rules catch only non-Tor fallback or misconfigured infections.
+Three rules covering C2 callback to `/api/agent`, data exfiltration via `temp.sh`, and secondary payload staging. SID:2100104 (npm registry DNS) was dropped -- alerting on DNS for registry[.]npmjs[.]org fires on every legitimate npm install with zero signal. Fundamental detection gap: the actual C2 is a Tor onion service routed via local SOCKS5 proxy, so cleartext HTTP patterns will not match on-wire C2 traffic; these rules catch only non-Tor fallback or misconfigured infections.
 
 - **Compile:** ✅ compiles (suricata -T exit 0)
 - **Confidence:** high (SID:2100102 temp.sh exfil), medium (SID:2100101 /api/agent -- too generic without host constraint), medium (SID:2100103 /bin/linux -- too generic)
