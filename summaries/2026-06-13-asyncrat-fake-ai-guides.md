@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-13
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -165,10 +165,10 @@ FortiGuard Labs identified signs of AI-assisted malware development:
 | T1562.001 | Impair Defenses: Disable or Modify Tools | Entire C:\ drive and powershell.exe excluded from Defender |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Three scheduled tasks for persistence at logon, startup, and daily |
 | T1055.012 | Process Injection: Process Hollowing | Payloads injected into .NET Framework executables |
-| T1071.001 | Application Layer Protocol: Web Protocols | AsyncRAT C2 communication over HTTP/HTTPS |
+| T1071.004 | Application Layer Protocol: DNS | AsyncRAT C2 domains resolved via DNS for command and control |
 | T1082 | System Information Discovery | RAT collects processor, OS, CPU, security appliance data |
-| T1218.011 | System Binary Proxy Execution: Rundll32 | Abuse of wscript.exe for VBS execution |
-| T1105 | Ingress Tool Transfer | Payload retrieval from embedded containers |
+| T1059.005 | Command and Scripting Interpreter: Visual Basic | wscript.exe executing ResetRealtekAudioSettings64.vbs for persistence |
+<!-- revision: removed T1105 (Ingress Tool Transfer) — payload extraction from embedded containers is T1140, already mapped -->
 
 ## Impact Assessment
 
@@ -219,7 +219,8 @@ handle.exe -a IDG5FUAM3PSONBSInGIGSWSD
 
 Detection rules cover the full kill chain: initial findstr-based extraction from PDF containers, Defender exclusion tampering, AutoHotkey masquerading as Realtek binaries, persistence via scheduled tasks, staging directory file creation, and network-level C2 domain/IP detection. All rules use real (non-defanged) values for matching and have been validated against their respective compilers.
 
-<!-- Validation audit: All Sigma rules passed sigma check + sigma convert (splunk, log_scale). YARA rules passed yarac compilation. Suricata rules passed suricata -T. Snort rules are structurally validated only (snort not installed). The Sigma Defender exclusion rule triggers InvalidATTACKTagIssue for attack.t1562.001 — this is a pySigma validator data limitation, not a rule error; the ATT&CK ID is correct. -->
+<!-- Validation audit (v1.1): All Sigma rules passed sigma check + sigma convert (splunk, log_scale). YARA rules passed yarac compilation. Suricata rules passed suricata -T. Snort rules are structurally validated only (snort not installed). The Sigma Defender exclusion rule triggers InvalidATTACKTagIssue for attack.t1562.001 — this is a pySigma validator data limitation, not a rule error; the ATT&CK ID is correct. -->
+<!-- revision: v1.1 — fixed YARA LNK rule operator precedence (critical), fixed Snort DNS label-length bytes (critical, all 3 rules), corrected ATT&CK tags (T1071.001→T1071.004, T1218.011→T1059.005, removed T1105), added PS1 stager FP caveat -->
 
 ### Sigma: Findstr Extraction of Data from PDF Files via LNK
 
@@ -392,7 +393,7 @@ references:
 author: Actioner
 date: 2026-06-13
 tags:
-    - attack.t1071.001
+    - attack.t1071.004
 logsource:
     category: dns_query
 detection:
@@ -452,7 +453,7 @@ level: high
 
 ### YARA: AsyncRAT Fake AI Guide Campaign (4 rules)
 
-Four YARA rules covering: malicious LNK files, AutoHotkey loader scripts, PowerShell stagers, and clay_Client .NET payloads. Caveat: LNK rule may need tuning on the PGP marker condition if legitimate LNK files contain similar strings.
+Four YARA rules covering: malicious LNK files, AutoHotkey loader scripts, PowerShell stagers, and clay_Client .NET payloads. Caveat: LNK rule may need tuning on the PGP marker condition if legitimate LNK files contain similar strings. The PS1 stager rule's `2 of ($ps*)` branch (matching Add-MpPreference + ExclusionPath) may fire on legitimate Defender management scripts; consider pairing with SIEM context or tuning the threshold if false positives arise in environments with heavy Defender policy automation.
 
 **compile: pass | confidence: high**
 
@@ -477,8 +478,8 @@ rule Malware_AsyncRAT_FakeAIGuide_LNK : asyncrat lnk
     condition:
         $lnk_header at 0 and
         filesize < 50KB and
-        ($s1 and ($s2 or $s3)) or
-        ($s4 and $s5)
+        (($s1 and ($s2 or $s3)) or
+        ($s4 and $s5))
 }
 
 rule Malware_AsyncRAT_FakeAIGuide_AHK_Loader : asyncrat autohotkey
@@ -592,14 +593,14 @@ alert ip $HOME_NET any -> 107.172.10.190 any (msg:"Actioner - Outbound Connectio
 
 Four rules for DNS label-encoded domain matching and C2 IP detection. Caveat: Snort 3 lacks DNS sticky buffers so domain matching uses raw payload content with DNS wire format.
 
-**compile: structural pass (snort not installed) | confidence: medium**
+**compile: structural pass (snort not installed) | confidence: high**
 
 ```
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampobiskworld.nl"; flow:to_server; content:"|10|shampobiskworld|02|nl|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100201; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampobiskworld.nl"; flow:to_server; content:"|0f|shampobiskworld|02|nl|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100201; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampoolagtto.com"; flow:to_server; content:"|0e|shampoolagtto|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100202; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampoolagtto.com"; flow:to_server; content:"|0d|shampoolagtto|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100202; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shamppocosmaticso.com"; flow:to_server; content:"|12|shamppocosmaticso|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100203; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shamppocosmaticso.com"; flow:to_server; content:"|11|shamppocosmaticso|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100203; rev:1;)
 
 alert ip $HOME_NET any -> 107.172.10.190 any (msg:"Actioner - Outbound Connection to AsyncRAT C2 IP 107.172.10.190"; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created 2026-06-13; sid:2100204; rev:1;)
 ```

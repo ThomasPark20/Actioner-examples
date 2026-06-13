@@ -1,0 +1,7 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampobiskworld.nl"; flow:to_server; dns.query; content:"shampobiskworld.nl"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created_at 2026-06-13; sid:2100101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shampoolagtto.com"; flow:to_server; dns.query; content:"shampoolagtto.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created_at 2026-06-13; sid:2100102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to AsyncRAT C2 Domain shamppocosmaticso.com"; flow:to_server; dns.query; content:"shamppocosmaticso.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created_at 2026-06-13; sid:2100103; rev:1;)
+
+alert ip $HOME_NET any -> 107.172.10.190 any (msg:"Actioner - Outbound Connection to AsyncRAT C2 IP 107.172.10.190"; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat; metadata:author Actioner, created_at 2026-06-13; sid:2100104; rev:1;)
