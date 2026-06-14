@@ -1,0 +1,35 @@
+title: Atomic Arch Malicious npm Preinstall Hook Execution
+id: c5d8f1a3-6b2e-49c7-a0d4-3e9f7b1c5a8d
+status: experimental
+description: >
+    Detects execution of the malicious preinstall hook binary (deps) from the
+    atomic-lockfile or js-digest npm packages used in the Atomic Arch AUR
+    supply chain attack.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+author: Actioner
+date: 2026/06/14
+tags:
+    - attack.t1059.004
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_path:
+        Image|endswith: '/src/hooks/deps'
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '/npm'
+            - '/npx'
+            - '/bun'
+        CommandLine|contains:
+            - 'atomic-lockfile'
+            - 'js-digest'
+            - 'lockfile-js'
+    condition: selection_path or selection_parent
+falsepositives:
+    - Legitimate npm packages named atomic-lockfile (none known)
+level: critical

@@ -1,0 +1,44 @@
+title: LangGraph Unsafe Msgpack Deserialization — Shell Spawn from Python
+id: a2c4e6f8-1b3d-5a7c-9e0f-d8b6c4a2e0f1
+status: experimental
+description: >
+    Detects indicators of CVE-2026-28277 exploitation where a crafted msgpack
+    payload triggers unsafe object reconstruction through the ext_hook in
+    LangGraph checkpoint deserialization, potentially importing dangerous
+    modules such as os, subprocess, or builtins to achieve RCE.
+references:
+    - https://research.checkpoint.com/2026/from-sqli-to-rce-exploiting-langgraphs-checkpointer/
+    - https://github.com/advisories/GHSA-g48c-2wqr-h844
+    - https://thehackernews.com/2026/06/langgraph-flaw-chain-exposes-self.html
+author: Actioner
+date: 2026/06/14
+tags:
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/python3'
+            - '/python'
+            - '/uvicorn'
+            - '/gunicorn'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+        CommandLine|contains:
+            - '/tmp/pwned'
+            - 'curl '
+            - 'wget '
+            - 'nc '
+            - 'ncat '
+            - '/dev/tcp/'
+            - 'base64 -d'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Python web applications spawning shell commands
+    - DevOps automation using curl/wget from Python-based deployment tools
+level: high

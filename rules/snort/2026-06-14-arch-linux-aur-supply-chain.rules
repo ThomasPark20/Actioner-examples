@@ -1,0 +1,15 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"Actioner - Atomic Arch Exfiltration POST to temp.sh [Supporting Indicator]";
+    flow:established, to_server;
+    http_method;
+    content:"POST";
+    http_uri;
+    content:"/upload", fast_pattern;
+    http_header;
+    content:"temp.sh";
+    classtype:trojan-activity;
+    reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/;
+    metadata:author Actioner, created 2026-06-14;
+    sid:2100001;
+    rev:2;
+)
