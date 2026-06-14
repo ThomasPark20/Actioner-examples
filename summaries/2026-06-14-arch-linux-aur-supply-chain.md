@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-14
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -225,9 +225,9 @@ Uses libbpf API calls: `bpf_object__load`, `bpf_program__attach`, `bpf_map__pin`
 | T1552.001 | Credentials In Files | Harvests GitHub tokens, npm tokens, Vault tokens, Docker/Podman creds |
 | T1041 | Exfiltration Over C2 Channel | Data sent to Tor onion C2 via SOCKS proxy |
 | T1048.002 | Exfiltration Over Asymmetric Encrypted Non-C2 Protocol | Fallback exfil via HTTPS POST to temp[.]sh |
-| T1497.001 | System Checks | Reads CapEff to gate rootkit; checks geteuid for root |
+| T1082 | System Information Discovery | Reads CapEff from /proc/self/status and geteuid() to determine privilege level for rootkit deployment |
 | T1562.001 | Disable or Modify Tools | Kills debugger attachment via PTRACE interception |
-| T1027.002 | Software Packing | XOR-encrypted C2 onion address with 32-byte key |
+| T1027 | Obfuscated Files or Information | XOR-encrypted C2 onion address with 32-byte repeating key (string obfuscation, not packing) |
 
 ## Impact Assessment
 
@@ -300,7 +300,7 @@ find / -type f -size 3040376c -exec sha256sum {} \; 2>/dev/null | grep -i "6144d
 
 ## Detection Rules
 
-These detections target the Atomic Arch campaign's distinctive artifacts: eBPF rootkit map names, npm preinstall hook execution paths, systemd persistence patterns, file-level signatures of the Rust ELF payload, and network exfiltration to temp[.]sh. All rules are PoC/advisory-specific (default altitude, strict). Compiles does not equal fires -- verify in your telemetry pipeline before promoting to production.
+These detections target the Atomic Arch campaign's distinctive artifacts: eBPF rootkit map names, npm preinstall hook execution paths, file-level signatures of the Rust ELF payload, and network exfiltration to temp[.]sh. All rules are PoC/advisory-specific (default altitude, strict). The generic systemd persistence rule and temp.sh DNS query rule were dropped during review (no campaign-specific discriminating power). Network rules for temp.sh are supporting indicators only — pair with host-level IOCs. Compiles does not equal fires -- verify in your telemetry pipeline before promoting to production.
 
 ### Sigma: Atomic Arch eBPF Rootkit Pinned BPF Maps
 
@@ -338,47 +338,9 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Atomic Arch Systemd Persistence Unit Creation
-
-Detects creation of systemd service unit files outside of package manager context, matching the persistence mechanism used by Atomic Arch in both root (`/etc/systemd/system/`) and non-root (`~/.config/systemd/user/`) paths.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader than the eBPF rule — any non-pacman systemd unit creation fires. Filter on Image covers systemctl/pacman but legitimate software installers (e.g., pip-installed services) may trip it. Confidence medium due to benign overlap. -->
-```yaml
-title: Atomic Arch Systemd Persistence with Restart Always
-id: a4b7e9c2-3d1f-48a6-9e5c-7f2d0b8a6c3e
-status: experimental
-description: >
-    Detects creation of systemd unit files in persistence paths used by the
-    Atomic Arch malware, which installs services with Restart=always and
-    RestartSec=30 for both root and non-root execution contexts.
-references:
-    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
-    - https://safedep.io/ti/campaigns/atomic-arch/
-author: Actioner
-date: 2026/06/14
-tags:
-    - attack.t1543.002
-logsource:
-    category: file_event
-    product: linux
-detection:
-    selection_system:
-        TargetFilename|startswith: '/etc/systemd/system/'
-        TargetFilename|endswith: '.service'
-    selection_user:
-        TargetFilename|contains: '/.config/systemd/user/'
-        TargetFilename|endswith: '.service'
-    filter_known:
-        Image|startswith:
-            - '/usr/lib/systemd/'
-            - '/usr/bin/systemctl'
-            - '/usr/bin/pacman'
-    condition: (selection_system or selection_user) and not filter_known
-falsepositives:
-    - Legitimate software installations creating systemd units outside package managers
-    - User-created systemd units for personal services
-level: medium
-```
+### Sigma: Atomic Arch Systemd Persistence Unit Creation — DROPPED
+<!-- revision: dropped per critic — TTP rule mislabeled as specific. No campaign artifact (no specific service name, binary path, or hash). Fires on Docker, Tailscale, pip-installed daemons, etc. Thousands of benign fires per fleet per day. -->
+Rule removed: generic systemd unit creation detection had no campaign-specific artifact and would produce excessive false positives in production environments.
 
 ### Sigma: Atomic Arch Malicious npm Preinstall Hook Execution
 
@@ -425,12 +387,13 @@ level: critical
 
 ### Snort: Atomic Arch Exfiltration POST to temp.sh
 
-Detects HTTP POST to `/upload` on `temp.sh`, the fallback exfiltration channel used by the Atomic Arch payload.
-**Status:** compile ⚠️ uncompiled (Snort not installed) · confidence: medium
-<!-- audit: structural check only — Snort 3 not on PATH. Rule uses http service, http_method + http_uri + http_header sticky buffers. temp.sh is a legitimate file-sharing service, so this may fire on benign uploads; confidence medium. -->
+Detects HTTP POST to `/upload` on `temp.sh`, the fallback exfiltration channel used by the Atomic Arch payload. Supporting indicator only — temp.sh is a legitimate file-sharing service; pair with host-level IOCs (eBPF maps, YARA hit, npm hook) for actionable alerting.
+**Status:** compile ⚠️ uncompiled (Snort not installed, structural check only) · confidence: low
+<!-- audit: structural check only — Snort 3 not on PATH. Rule uses http service, http_method + http_uri + http_header sticky buffers. temp.sh is a legitimate file-sharing service widely used by Linux devs and CI pipelines; downgraded from medium to low per critic review. Must be paired with host-level IOCs for any actionable response. -->
+<!-- revision: downgraded confidence medium→low; added supporting-indicator caveat per critic verdict. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (
-    msg:"Actioner - Atomic Arch Exfiltration POST to temp.sh";
+    msg:"Actioner - Atomic Arch Exfiltration POST to temp.sh [Supporting Indicator]";
     flow:established, to_server;
     http_method;
     content:"POST";
@@ -442,20 +405,23 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
     reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/;
     metadata:author Actioner, created 2026-06-14;
     sid:2100001;
-    rev:1;
+    rev:2;
 )
 ```
 
 ### Suricata: Atomic Arch Exfiltration to temp.sh
 
-Detects HTTP POST to `/upload` on `temp.sh` used for data exfiltration by the Atomic Arch payload.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Uses http protocol with dot-notation buffers. temp.sh is a legitimate file-sharing service; confidence medium due to benign-upload overlap. Pair with host-level IOCs for high-fidelity alerting. -->
+Detects HTTP POST to `/upload` on `temp.sh` used for data exfiltration by the Atomic Arch payload. Supporting indicator only — temp.sh is a legitimate file-sharing service; pair with host-level IOCs for actionable alerting.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: suricata -T exit 0. Uses http protocol with dot-notation buffers. temp.sh is a legitimate file-sharing service widely used by Linux devs and CI pipelines; downgraded from medium to low per critic review. Must be paired with host-level IOCs. -->
+<!-- revision: downgraded confidence medium→low; added supporting-indicator caveat; dropped DNS query rule (sid:2200002) — DNS query for legitimate public service has zero discriminating power. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Exfiltration to temp.sh"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; http.uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-14; sid:2200001; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - Atomic Arch DNS Query for temp.sh Exfil Host"; flow:to_server; dns.query; content:"temp.sh"; nocase; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-14; sid:2200002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Exfiltration to temp.sh [Supporting Indicator]"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; http.uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created_at 2026-06-14; sid:2200001; rev:2;)
 ```
+
+### Suricata: Atomic Arch DNS Query for temp.sh — DROPPED
+<!-- revision: dropped per critic — DNS query for temp.sh, a legitimate public file-sharing service, has zero discriminating power. -->
+Rule removed: DNS lookup for a legitimate public service provides no discriminating signal.
 
 ### YARA: Atomic Arch deps ELF Payload
 
