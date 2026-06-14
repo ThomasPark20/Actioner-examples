@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-14
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -131,8 +131,8 @@ No specific C2 domains, IPs, or URLs are associated with this vulnerability. Exp
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | SQL injection via `get_state_history()` filter parameter on self-hosted LangGraph endpoints |
 | T1059.006 | Command and Scripting Interpreter: Python | Arbitrary Python code execution via msgpack `ext_hook` importing `os.system` / `subprocess` |
-| T1203 | Exploitation for Client Execution | Deserialization of crafted msgpack checkpoint triggers code execution in the application context |
-| T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Vulnerable package versions in the dependency chain |
+
+<!-- revision: removed T1203 (Client Execution) — this is server-side exploitation, not client-side. Removed T1195.002 (Supply Chain Compromise) — these are known CVEs in direct dependencies, not supply-chain tampering. -->
 
 ## Impact Assessment
 
@@ -162,7 +162,7 @@ No specific C2 domains, IPs, or URLs are associated with this vulnerability. Exp
 ### Remediation
 
 1. **Patch immediately:** Upgrade to langgraph-checkpoint-sqlite >= 3.0.1, langgraph >= 1.0.10, @langchain/langgraph-checkpoint-redis >= 1.0.2
-2. **Enable strict deserialization:** Set `LANGGRAPH_STRICT_MSGPACK=1` environment variable
+2. **Enable strict deserialization:** Set `LANGGRAPH_STRICT_MSGPACK=1` environment variable — note that this is defense-in-depth and may break legitimate checkpoint deserialization of custom types; test in staging before production deployment
 3. **Rotate secrets:** Rotate all LLM API keys, database credentials, and service account tokens accessible from the agent process
 4. **Audit checkpoint databases:** Search for anomalous checkpoint entries containing references to `os`, `subprocess`, `builtins`, or other dangerous modules
 5. **Implement authentication:** Add strong authentication to all LangGraph API endpoints; do not expose `get_state_history()` to unauthenticated users
@@ -178,13 +178,15 @@ No specific C2 domains, IPs, or URLs are associated with this vulnerability. Exp
 
 ## Detection Rules
 
-These detections target the LangGraph CVE-2025-67644 SQLi-to-RCE exploit chain at multiple points: application-layer SQL injection patterns (Sigma, Suricata), post-exploitation shell spawns from Python processes (Sigma), vulnerable package installation (Sigma), and exploit script file content (YARA). All rules are PoC/advisory-specific; compiles does not equal fires -- verify in your pipeline.
+These detections target the LangGraph CVE-2025-67644 SQLi-to-RCE exploit chain at multiple points: application-layer SQL injection patterns (Sigma, Suricata), post-exploitation shell spawns from Python processes (Sigma), and exploit script file content (YARA). All rules are PoC/advisory-specific; compiles does not equal fires -- verify in your pipeline.
+
+<!-- revision: dropped "Sigma: Vulnerable LangGraph Checkpoint Package Installed" — fires on patched versions too (no version discrimination in process command line); not production-ready. Removed T1203 tag from shell-spawn rule (server-side, not client execution). Downgraded msgpack shell-spawn Sigma and msgpack YARA confidence from high to medium per critic. Added "checkpoint" narrowing keyword to Suricata SQLi rule. Tightened YARA msgpack condition to require 2 of ($hook*) or (LangGraph-specific $hook1/$hook2 + deserialization indicator). -->
 
 ### Sigma: LangGraph SQLite Checkpoint SQL Injection via Metadata Filter
 
-Detects UNION SELECT injection patterns targeting the `json_extract(CAST(metadata AS TEXT))` construct in LangGraph checkpoint queries, as seen in CVE-2025-67644 exploitation.
+Detects UNION SELECT injection patterns targeting the `json_extract(CAST(metadata AS TEXT))` construct in LangGraph checkpoint queries, as seen in CVE-2025-67644 exploitation. Requires a custom Sigma pipeline for `product: python` — no standard pipeline maps this logsource.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keyed on application-log keyword co-occurrence (json_extract + metadata + UNION + SELECT). Requires Python application logging at a level that captures SQL queries or error messages containing the injection payload. Medium confidence because detection depends on log verbosity — silent exploitation (no error logging) will not trigger. No pipeline mapping (generic application/python logsource). -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Keyed on application-log keyword co-occurrence (json_extract + metadata + UNION + SELECT). product: python is non-standard — requires a custom pipeline to map field names; --without-pipeline proves syntax only. Medium confidence because detection depends on log verbosity — silent exploitation (no error logging) will not trigger. -->
 ```yaml
 title: LangGraph SQLite Checkpoint SQL Injection via Metadata Filter
 id: 7b3e9c1a-4f2d-4e8a-b6c5-d9f0e1a2b3c4
@@ -220,9 +222,9 @@ level: high
 
 ### Sigma: LangGraph Unsafe Msgpack Deserialization — Shell Spawn from Python
 
-Detects shell processes spawned from Python web server parents with suspicious command lines indicative of post-exploitation RCE via CVE-2026-28277 msgpack deserialization.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keyed on parent-child process chain (python/uvicorn/gunicorn -> sh/bash/dash) with command-line indicators of exploitation (curl, wget, nc, /dev/tcp, base64 -d, /tmp/pwned). High confidence because this parent-child + command-line combination is highly distinctive for post-deserialization RCE in web contexts. Requires Sysmon-for-Linux or auditd process creation logging. -->
+Detects shell processes spawned from Python web server parents with suspicious command lines indicative of post-exploitation RCE via CVE-2026-28277 msgpack deserialization. This is a TTP-adjacent pattern — DevOps tools using curl/wget from Python parents may false-positive.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Keyed on parent-child process chain (python/uvicorn/gunicorn -> sh/bash/dash) with command-line indicators (curl, wget, nc, /dev/tcp, base64 -d, /tmp/pwned). Confidence downgraded from high to medium per critic: this is a TTP-adjacent pattern mislabeled as specific. DevOps curl/wget from Python parents is a known FP source. Requires Sysmon-for-Linux or auditd process creation logging. Removed attack.t1203 tag — server-side exploitation, not client execution. -->
 ```yaml
 title: LangGraph Unsafe Msgpack Deserialization — Shell Spawn from Python
 id: a2c4e6f8-1b3d-5a7c-9e0f-d8b6c4a2e0f1
@@ -240,7 +242,6 @@ author: Actioner
 date: 2026/06/14
 tags:
     - attack.t1059.006
-    - attack.t1203
 logsource:
     category: process_creation
     product: linux
@@ -267,56 +268,21 @@ detection:
     condition: selection_parent and selection_child
 falsepositives:
     - Legitimate Python web applications spawning shell commands
+    - DevOps automation using curl/wget from Python-based deployment tools
 level: high
 ```
 
-### Sigma: Vulnerable LangGraph Checkpoint Package Installed
+### Sigma: Vulnerable LangGraph Checkpoint Package Installed — DROPPED
 
-Detects pip installation of vulnerable langgraph-checkpoint-sqlite or langgraph-checkpoint-redis packages affected by CVE-2025-67644 and CVE-2026-27022.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Detects package name in pip install command line, but cannot distinguish vulnerable vs patched versions from the command line alone. Medium confidence — catches installation activity, not confirmed vulnerability. Useful for asset inventory and proactive patching. -->
-```yaml
-title: Vulnerable LangGraph Checkpoint Package Installed
-id: c3d5e7f9-2a4b-6c8e-0f1d-a9b7c5d3e1f2
-status: experimental
-description: >
-    Detects pip install or presence of vulnerable versions of
-    langgraph-checkpoint-sqlite (<3.0.1) or langgraph (<1.0.10) packages
-    affected by CVE-2025-67644 and CVE-2026-28277.
-references:
-    - https://github.com/langchain-ai/langgraph/security/advisories/GHSA-9rwj-6rc7-p77c
-    - https://github.com/advisories/GHSA-g48c-2wqr-h844
-    - https://thehackernews.com/2026/06/langgraph-flaw-chain-exposes-self.html
-author: Actioner
-date: 2026/06/14
-tags:
-    - attack.t1195.002
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_pip:
-        Image|endswith:
-            - '/pip'
-            - '/pip3'
-        CommandLine|contains: 'install'
-    selection_pkg:
-        CommandLine|contains:
-            - 'langgraph-checkpoint-sqlite'
-            - 'langgraph-checkpoint-redis'
-    condition: selection_pip and selection_pkg
-falsepositives:
-    - Legitimate installation of patched versions of these packages
-level: medium
-```
+<!-- revision: dropped — fires on patched versions too; pip install command line does not carry version information, so the rule cannot distinguish vulnerable from patched packages. Not production-ready. -->
 
 ### Suricata: LangGraph SQLi Exploit via HTTP Request Body (CVE-2025-67644)
 
-Detects HTTP POST requests containing UNION SELECT combined with json_extract and metadata keywords, targeting the LangGraph checkpoint filter SQL injection.
+Detects HTTP POST requests containing UNION SELECT combined with json_extract, metadata, and checkpoint keywords, targeting the LangGraph checkpoint filter SQL injection.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Matches UNION + SELECT + json_extract + metadata in HTTP request body. Medium confidence because the pattern may occur in legitimate SQL debugging traffic or other SQLite-based applications. Positioned on the inbound (to_server) path to catch exploitation of self-hosted endpoints. -->
+<!-- audit: suricata -T exit 0. Added "checkpoint" content keyword to narrow from generic SQLi to LangGraph-specific traffic. rev bumped to 2. Medium confidence: pattern may still appear in legitimate SQL debugging or other checkpoint-using applications, but the additional keyword reduces generic FP. -->
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - LangGraph SQLi Exploit via get_state_history Filter (CVE-2025-67644)"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"UNION"; nocase; content:"SELECT"; nocase; distance:0; within:20; content:"json_extract"; nocase; content:"metadata"; nocase; classtype:web-application-attack; reference:url,research.checkpoint.com/2026/from-sqli-to-rce-exploiting-langgraphs-checkpointer/; reference:cve,2025-67644; metadata:author Actioner, created_at 2026-06-14; sid:2200001; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - LangGraph SQLi Exploit via get_state_history Filter (CVE-2025-67644)"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"UNION"; nocase; content:"SELECT"; nocase; distance:0; within:20; content:"json_extract"; nocase; content:"metadata"; nocase; content:"checkpoint"; nocase; classtype:web-application-attack; reference:url,research.checkpoint.com/2026/from-sqli-to-rce-exploiting-langgraphs-checkpointer/; reference:cve,2025-67644; metadata:author Actioner, created_at 2026-06-14; sid:2200001; rev:2;)
 ```
 
 ### Suricata: LangGraph Checkpoint SQLi Filter Key Injection Attempt (CVE-2025-67644)
@@ -374,8 +340,8 @@ rule Exploit_CVE_2025_67644_LangGraph_SQLi_PoC
 ### YARA: LangGraph Msgpack Deserialization RCE Exploit (CVE-2026-28277)
 
 Detects exploit scripts targeting CVE-2026-28277, keyed on the `_msgpack_ext_hook` / `EXT_CONSTRUCTOR_SINGLE_ARG` deserialization mechanism combined with dangerous module imports and LangGraph context.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive: constructed PoC file with published strings (_msgpack_ext_hook, EXT_CONSTRUCTOR_SINGLE_ARG, ormsgpack.unpackb, importlib.import_module, os.system, langgraph, checkpoint, loads_typed). Negative: benign msgpack usage script — no match. High confidence: requires co-occurrence of LangGraph deserialization internals + dangerous module + LangGraph context strings. -->
+**Status:** compile ✅ compiles · confidence: medium · sample: fired ✓
+<!-- audit: yarac exit 0. Condition tightened per critic: now requires 2 of ($hook*) — or at least one LangGraph-specific hook ($hook1/$hook2) plus a deserialization indicator ($deser*) — preventing $hook3="ext_hook" alone from satisfying the hook clause. Positive: constructed PoC file with published strings (_msgpack_ext_hook, EXT_CONSTRUCTOR_SINGLE_ARG, ormsgpack.unpackb, importlib.import_module, os.system, langgraph, checkpoint, loads_typed) — fired. Negative: benign msgpack script — no match. Confidence downgraded from high to medium: "ext_hook" and "checkpoint" are generic enough that the rule may fire on non-exploit security research or tooling. severity meta field lowered from critical to high. -->
 ```yara
 rule Exploit_CVE_2026_28277_LangGraph_Msgpack_RCE
 {
@@ -384,7 +350,7 @@ rule Exploit_CVE_2026_28277_LangGraph_Msgpack_RCE
         author = "Actioner"
         date = "2026-06-14"
         reference = "https://research.checkpoint.com/2026/from-sqli-to-rce-exploiting-langgraphs-checkpointer/"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $hook1 = "_msgpack_ext_hook" ascii
@@ -405,7 +371,7 @@ rule Exploit_CVE_2026_28277_LangGraph_Msgpack_RCE
 
     condition:
         filesize < 1MB and
-        (1 of ($hook*) or 1 of ($deser*)) and
+        (2 of ($hook*) or (1 of ($hook1, $hook2) and 1 of ($deser*))) and
         (1 of ($rce*)) and
         (1 of ($ctx*))
 }
