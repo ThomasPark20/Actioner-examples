@@ -1,0 +1,28 @@
+title: Atomic Arch eBPF Rootkit Pinned BPF Maps
+id: 8f3a2c1d-4e7b-4a9f-b5d6-2c8e1f0a3d7b
+status: experimental
+description: >
+    Detects creation of pinned BPF maps used by the Atomic Arch eBPF rootkit
+    to hide processes, process names, and socket inodes from system tools.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://safedep.io/ti/campaigns/atomic-arch/
+author: Actioner
+date: 2026/06/14
+tags:
+    - attack.t1014
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/sys/fs/bpf/'
+        TargetFilename|endswith:
+            - '/hidden_pids'
+            - '/hidden_names'
+            - '/hidden_inodes'
+    condition: selection
+falsepositives:
+    - Legitimate eBPF-based security or observability tools using identically named maps (unlikely)
+level: critical

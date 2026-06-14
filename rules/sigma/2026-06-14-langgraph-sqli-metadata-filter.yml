@@ -1,0 +1,30 @@
+title: LangGraph SQLite Checkpoint SQL Injection via Metadata Filter
+id: 7b3e9c1a-4f2d-4e8a-b6c5-d9f0e1a2b3c4
+status: experimental
+description: >
+    Detects exploitation of CVE-2025-67644 in langgraph-checkpoint-sqlite where
+    an attacker injects SQL via unsanitized metadata filter keys in the
+    get_state_history() or list() methods, targeting the _metadata_predicate
+    function's f-string interpolation of json_extract queries.
+references:
+    - https://research.checkpoint.com/2026/from-sqli-to-rce-exploiting-langgraphs-checkpointer/
+    - https://github.com/langchain-ai/langgraph/security/advisories/GHSA-9rwj-6rc7-p77c
+    - https://thehackernews.com/2026/06/langgraph-flaw-chain-exposes-self.html
+author: Actioner
+date: 2026/06/14
+tags:
+    - attack.t1190
+logsource:
+    category: application
+    product: python
+detection:
+    selection_sqli_keywords:
+        log_message|contains|all:
+            - 'json_extract'
+            - 'metadata'
+            - 'UNION'
+            - 'SELECT'
+    condition: selection_sqli_keywords
+falsepositives:
+    - Legitimate SQL debugging logs containing these keywords in combination
+level: high
