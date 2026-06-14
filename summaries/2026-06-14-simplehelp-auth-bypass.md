@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-14
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
+<!-- revision: applied critic verdict NEEDS-REVISION — fixed Rule 1 level/filter, added T1556 rationale, un-defanged remediation URL -->
 
 ## Executive Summary
 
@@ -96,7 +97,7 @@ Defenders should audit these log entries against known authorized technician ema
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1078 | Valid Accounts | Attacker obtains a fully authenticated technician session via forged OIDC token, effectively using a "valid" account created through the bypass |
-| T1556 | Modify Authentication Process | The attack exploits the absence of token signature verification in the OIDC authentication flow, subverting the intended authentication process |
+| T1556 | Modify Authentication Process | The attack exploits the absence of token signature verification in the OIDC authentication flow, subverting the intended authentication process. Rationale: the server's broken verification is treated as a subverted authentication mechanism — the OIDC flow itself becomes the modified process, accepting unsigned tokens as if they were legitimate. |
 | T1219 | Remote Access Software | Post-exploitation leverages SimpleHelp's built-in remote access capabilities to control managed endpoints |
 | T1059 | Command and Scripting Interpreter | Post-exploitation includes execution of scripts on managed endpoints via the compromised technician session |
 
@@ -121,7 +122,7 @@ Defenders should audit these log entries against known authorized technician ema
 
 ### Remediation
 
-1. **Patch immediately**: Update to SimpleHelp 5.5.16 (for 5.5.x users) or 6.0 RC2 (for 6.0 pre-release users). Update URL: `hxxps://simple-help[.]com/releases/5.5.16_202605`
+1. **Patch immediately**: Update to SimpleHelp 5.5.16 (for 5.5.x users) or 6.0 RC2 (for 6.0 pre-release users). Update URL: https://simple-help.com/releases/5.5.16_202605
 2. **Revoke unauthorized sessions**: Terminate any unrecognized technician sessions and remove unauthorized technician accounts.
 3. **Rotate credentials**: If exploitation is confirmed, rotate all credentials accessible through the SimpleHelp instance, including technician credentials and any credentials stored for managed endpoints.
 4. **Review managed endpoints**: Investigate all endpoints managed by a compromised SimpleHelp instance for evidence of unauthorized access or script execution.
@@ -143,6 +144,7 @@ Two Sigma rules target the distinctive log entries documented by Horizon3.ai as 
 Detects the `"Registering technician login for"` log entry in SimpleHelp server logs, indicating a new technician session was created --- potentially via a forged OIDC token (CVE-2026-48558). Scope the `filter_known_admins` exclusion to your organization's legitimate technician email addresses.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check 0; splunk 0; log_scale 0. No matching pipeline for SimpleHelp (custom app log). logsource product:simplehelp / category:application is a custom mapping — the user must configure their SIEM to route SimpleHelp server.log entries to this source. Confidence medium (not high) because the log string also fires on legitimate first-time OIDC logins; the filter must be tuned to known admins per-environment. FP risk: any legitimate new OIDC technician registration. Evasion: attacker could potentially modify logs post-compromise if they gain OS-level access. -->
+<!-- revision: level high→medium (matches confidence medium); removed placeholder email from filter_known_admins, added YAML comment instructing deployer to populate it -->
 ```yaml
 title: SimpleHelp OIDC Authentication Bypass - Unauthorized Technician Registration (CVE-2026-48558)
 id: 7c3a1e9f-4d2b-4f8e-a6c1-9e5d3b7f2a08
@@ -166,14 +168,15 @@ logsource:
 detection:
     selection:
         message|contains: 'Registering technician login for'
-    filter_known_admins:
-        message|contains:
-            - 'known-admin@example.com'
-    condition: selection and not filter_known_admins
+    # filter_known_admins:
+    #     message|contains:
+    #         - 'admin@yourorg.com'       # REPLACE with your authorized technician emails
+    #         - 'tech-team@yourorg.com'   # Add one entry per legitimate technician
+    condition: selection  # Uncomment and use: selection and not filter_known_admins
 falsepositives:
     - Legitimate first-time OIDC technician logins from authorized identity providers
     - Initial setup of OIDC authentication with valid technicians
-level: high
+level: medium
 ```
 
 ### Sigma: SimpleHelp Forged Technician Configuration Save (CVE-2026-48558)
