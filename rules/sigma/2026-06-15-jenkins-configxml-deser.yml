@@ -1,0 +1,33 @@
+title: Jenkins Suspicious config.xml POST Requests Indicating CVE-2026-53435 Exploitation
+id: 7a3c5e91-4b2d-4f8a-b6e1-9d0c3f7a2e5b
+status: experimental
+description: >
+    Detects HTTP POST requests to Jenkins config.xml API endpoints that may indicate exploitation
+    of CVE-2026-53435, a deserialization vulnerability allowing arbitrary type instantiation via
+    malicious config.xml submissions. Attackers with Overall/Read and Item/Configure permissions
+    can submit crafted XML to achieve RCE via Script Console access.
+references:
+    - https://www.jenkins.io/security/advisory/2026-06-10/#SECURITY-3707
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-53435
+    - https://securityonline.info/jenkins-rce-vulnerability-cve-2026-53435/
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains:
+            - '/config.xml'
+            - '/createItem'
+            - '/configSubmit'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate Jenkins configuration management via API
+    - Jenkins job creation through automation pipelines
+    - Configuration-as-code plugin operations
+level: medium

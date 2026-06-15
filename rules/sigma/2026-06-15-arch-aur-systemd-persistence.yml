@@ -1,0 +1,32 @@
+title: Atomic Arch - Systemd Service Creation with Restart Always from Var Lib
+id: 446af0a8-26ac-42e3-b9a6-0e4a3c0236e6
+status: experimental
+description: >
+    Detects creation of systemd service unit files that reference binaries under /var/lib/,
+    consistent with the Atomic Arch malware persistence mechanism which copies itself to
+    /var/lib/<generated_name> and installs a service with Restart=always.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_path:
+        TargetFilename|startswith:
+            - '/etc/systemd/system/'
+        TargetFilename|endswith: '.service'
+    filter_known:
+        Image|startswith:
+            - '/usr/lib/systemd/'
+            - '/usr/bin/systemctl'
+    condition: selection_path and not filter_known
+falsepositives:
+    - Legitimate software installation creating systemd services outside of package managers
+    - Configuration management tools (Ansible, Puppet, Chef) deploying services
+level: medium

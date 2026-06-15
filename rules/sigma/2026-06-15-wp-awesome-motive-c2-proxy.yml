@@ -1,0 +1,33 @@
+title: Awesome Motive CDN Supply Chain - C2 Exfiltration to tidio.cc
+id: 8e3f1a7b-4c2d-4e9f-b6a1-3d5c8f0e2a7b
+status: experimental
+description: >
+    Detects outbound web proxy traffic to the tidio.cc C2 domain used in the
+    Awesome Motive CDN supply chain attack. The attacker registered this domain
+    to mimic the legitimate tidio.com and used /cdn-cgi/* paths for exfiltration
+    and payload generation.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+    - https://securityaffairs.com/193616/malware/supply-chain-attack-hits-popular-wordpress-plugins-through-awesome-motive-cdn.html
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1071.001
+    - attack.t1567
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains: 'tidio.cc'
+    selection_path:
+        c-uri|contains:
+            - '/cdn-cgi/p'
+            - '/cdn-cgi/b'
+            - '/cdn-cgi/l'
+            - '/cdn-cgi/pe-p'
+            - '/cdn-cgi/pe-b'
+            - '/cdn-cgi/pe-l'
+    condition: selection_domain and selection_path
+falsepositives:
+    - None expected; tidio.cc is a known malicious lookalike domain
+level: high

@@ -1,0 +1,45 @@
+title: Suspicious Child Process Spawned by Jenkins Java Process
+id: 4d9e2a7f-1b5c-48d3-c6a0-3f8e5d7b1a9c
+status: experimental
+description: >
+    Detects suspicious child processes spawned by the Jenkins Java process, which may indicate
+    post-exploitation code execution via the Groovy Script Console following CVE-2026-53435
+    exploitation. Attackers achieving RCE through deserialization can execute system commands.
+references:
+    - https://www.jenkins.io/security/advisory/2026-06-10/#SECURITY-3707
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-53435
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1059.004
+    - attack.t1059
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/java'
+            - '\java.exe'
+        ParentCommandLine|contains:
+            - 'jenkins.war'
+            - 'jenkins.model.Jenkins'
+    selection_child:
+        Image|endswith:
+            - '/bash'
+            - '/sh'
+            - '/curl'
+            - '/wget'
+            - '/python'
+            - '/python3'
+            - '/perl'
+            - '/nc'
+            - '/ncat'
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\certutil.exe'
+            - '\bitsadmin.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Jenkins pipeline steps that legitimately execute shell commands
+    - Jenkins build scripts using approved system commands
+level: medium

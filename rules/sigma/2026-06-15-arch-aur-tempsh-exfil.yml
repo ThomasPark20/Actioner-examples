@@ -1,0 +1,26 @@
+title: Atomic Arch - Data Exfiltration via temp.sh Upload Service
+id: 1470466c-e5f7-4ea4-aa4d-74c7678b3ddd
+status: experimental
+description: >
+    Detects HTTP connections to temp.sh, a public file-sharing service used by the
+    Atomic Arch credential stealer to exfiltrate harvested secrets via multipart POST upload.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+    - https://labs.cloudsecurityalliance.org/research/csa-research-note-aur-supply-chain-ebpf-rootkit-20260614-csa/
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1567.002
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains: 'temp.sh'
+    selection_method:
+        cs-method: 'POST'
+    condition: selection and selection_method
+falsepositives:
+    - Legitimate developer use of temp.sh for file sharing
+level: medium

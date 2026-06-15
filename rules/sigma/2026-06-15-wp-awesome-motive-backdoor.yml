@@ -1,0 +1,31 @@
+title: Awesome Motive CDN Supply Chain - Backdoor Plugin Access via Web Server Logs
+id: a1b2c3d4-5e6f-7a8b-9c0d-e1f2a3b4c5d6
+status: experimental
+description: >
+    Detects HTTP requests to the unauthenticated backdoor entry points installed
+    by the Awesome Motive CDN supply chain attack. The hidden plugins expose a
+    file manager shell via developer_api1_fm and a PHP eval endpoint via
+    developer_api1_eval query parameters.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+    - https://securityaffairs.com/193616/malware/supply-chain-attack-hits-popular-wordpress-plugins-through-awesome-motive-cdn.html
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1505.003
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_shell:
+        cs-uri-query|contains: 'developer_api1_fm'
+    selection_eval:
+        cs-uri-query|contains: 'developer_api1_eval'
+    selection_plugin_path:
+        cs-uri-stem|contains:
+            - '/content-delivery-helper/'
+            - '/database-optimizer/'
+    condition: selection_shell or selection_eval or selection_plugin_path
+falsepositives:
+    - Legitimate plugins named content-delivery-helper or database-optimizer are not known to exist
+level: high

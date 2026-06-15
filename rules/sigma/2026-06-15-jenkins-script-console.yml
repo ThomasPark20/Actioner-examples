@@ -1,0 +1,29 @@
+title: Jenkins Script Console Access Indicating Post-Exploitation Activity
+id: 2f8b1d4e-6c3a-49e7-a5d0-8e1f7b2c9d3a
+status: experimental
+description: >
+    Detects HTTP POST requests to the Jenkins Script Console endpoint, which allows execution
+    of arbitrary Groovy code on the controller. Post-exploitation of CVE-2026-53435 enables
+    attackers to impersonate users and reach the Script Console for arbitrary code execution.
+references:
+    - https://www.jenkins.io/security/advisory/2026-06-10/#SECURITY-3707
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-53435
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1059.004
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains:
+            - '/script'
+            - '/scriptText'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate administrative use of Jenkins Script Console
+    - Jenkins pipeline scripts invoking Groovy endpoints
+level: medium

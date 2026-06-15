@@ -1,0 +1,25 @@
+title: Awesome Motive CDN Supply Chain - DNS Query to C2 Domain tidio.cc
+id: f7e8d9c0-1a2b-3c4d-5e6f-7a8b9c0d1e2f
+status: experimental
+description: >
+    Detects DNS resolution requests for tidio.cc, the C2 domain used in the
+    Awesome Motive CDN supply chain attack. This domain mimics the legitimate
+    tidio.com chat service and was registered on 2026-04-28 specifically for
+    this campaign.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+    - https://securityaffairs.com/193616/malware/supply-chain-attack-hits-popular-wordpress-plugins-through-awesome-motive-cdn.html
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1071.001
+    - attack.t1583.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'tidio.cc'
+    condition: selection
+falsepositives:
+    - None expected; tidio.cc is a known malicious domain registered for this attack
+level: high
