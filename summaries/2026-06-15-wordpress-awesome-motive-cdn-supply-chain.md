@@ -233,7 +233,7 @@ Note: File hashes are not available because the C2 generates fresh ZIPs per requ
 | T1136.001 | Create Account: Local Account | Rogue admin accounts `developer_api1` and `dev_xxxxxx` created |
 | T1505.003 | Server Software Component: Web Shell | "WPM File Manager & Shell" with arbitrary command execution |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | `system($_POST['cmd'])` for OS command execution |
-| T1059.005 | Command and Scripting Interpreter: Visual Basic | `eval(base64_decode(...))` for arbitrary PHP execution |
+| T1059 | Command and Scripting Interpreter | `eval(base64_decode(...))` for arbitrary PHP execution via backdoor plugin |
 | T1564 | Hide Artifacts | Backdoor plugin hidden from admin UI, REST API, and update checks |
 | T1556 | Modify Authentication Process | Authentication token harvesting from REST API nonces |
 | T1027 | Obfuscated Files or Information | XOR encryption of exfiltrated data; polymorphic ZIP generation |

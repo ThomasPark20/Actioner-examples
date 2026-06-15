@@ -33,4 +33,4 @@ detection:
     condition: (selection_npm or selection_bun) and selection_packages
 falsepositives:
     - Legitimate use of identically named private packages in internal registries (unlikely)
-level: critical
+level: high
