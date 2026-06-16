@@ -1,0 +1,107 @@
+title: Awesome Motive Supply Chain - Tidio.cc C2 Communication
+id: 8a3f1c72-5d4e-4b91-a6e0-7c2d8f9b0e13
+status: experimental
+description: Detects HTTP requests to the tidio.cc command-and-control domain used in the Awesome Motive CDN supply chain attack. The attacker exfiltrates credentials and retrieves backdoor payloads via paths under /cdn-cgi/.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+    - https://securityaffairs.com/193616/malware/supply-chain-attack-hits-popular-wordpress-plugins-through-awesome-motive-cdn.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.exfiltration
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains: 'tidio.cc'
+    selection_paths:
+        c-uri|contains:
+            - '/cdn-cgi/p'
+            - '/cdn-cgi/b'
+            - '/cdn-cgi/l'
+            - '/cdn-cgi/pe-p'
+            - '/cdn-cgi/pe-b'
+            - '/cdn-cgi/pe-l'
+    condition: selection_domain and selection_paths
+falsepositives:
+    - Legitimate traffic to tidio.cc is unlikely as the domain is attacker-controlled and distinct from tidio.com
+level: high
+---
+title: Awesome Motive Supply Chain - Backdoor Admin Account Creation
+id: 2b7e9d45-8c1a-4f63-b502-3e6a7d8c9f14
+status: experimental
+description: Detects WordPress HTTP POST requests associated with the creation of backdoor administrator accounts by the Awesome Motive supply chain malware. The malware uses multiple fallback methods to create rogue admin users.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.persistence
+    - attack.t1136.001
+    - attack.t1078.003
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_user_creation:
+        c-uri|contains:
+            - '/wp-admin/user-new.php'
+            - '/wp-admin/admin-ajax.php'
+            - '/wp-json/wp/v2/users'
+    selection_username:
+        cs-body|contains:
+            - 'developer_api1'
+            - 'customer1usx'
+    condition: selection_method and selection_user_creation and selection_username
+falsepositives:
+    - Legitimate administrator creating a user with a matching name (extremely unlikely)
+level: critical
+---
+title: Awesome Motive Supply Chain - Backdoor Plugin Web Shell Access
+id: 4c8f2e67-1d3b-4a95-c704-5f9b0e1d2a36
+status: experimental
+description: Detects HTTP requests to the backdoor web shell and code execution endpoints installed by the Awesome Motive supply chain attack malware. The attacker accesses these via query parameters containing developer_api1_fm (file manager) and developer_api1_eval (PHP eval).
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.persistence
+    - attack.t1505.003
+    - attack.execution
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection:
+        c-uri|contains:
+            - 'developer_api1_fm'
+            - 'developer_api1_eval'
+    condition: selection
+falsepositives:
+    - None expected; these are attacker-specific parameter names
+level: critical
+---
+title: Awesome Motive Supply Chain - DNS Query to Tidio.cc C2 Domain
+id: 6e1a3b89-2f5c-4d07-e916-8a4c7b0d3e58
+status: experimental
+description: Detects DNS queries resolving the attacker-controlled domain tidio.cc, used as the command-and-control server in the Awesome Motive CDN supply chain attack.
+references:
+    - https://sansec.io/research/optinmonster-supply-chain-attack
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.t1071.004
+logsource:
+    category: dns
+detection:
+    selection:
+        query|endswith:
+            - 'tidio.cc'
+    condition: selection
+falsepositives:
+    - Legitimate tidio.cc traffic is unlikely as this is an attacker-registered domain mimicking tidio.com
+level: high

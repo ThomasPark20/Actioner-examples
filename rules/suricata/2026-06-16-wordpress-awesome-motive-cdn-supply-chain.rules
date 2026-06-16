@@ -1,0 +1,20 @@
+# Awesome Motive CDN Supply Chain Attack (2026-06-16)
+# Reference: https://sansec.io/research/optinmonster-supply-chain-attack
+# SID range: 2026061601-2026061605
+
+# Detect DNS query to tidio.cc C2 domain
+alert dns $HOME_NET any -> any any (msg:"MALWARE Awesome Motive Supply Chain - DNS Query to tidio.cc C2"; dns.query; content:"tidio.cc"; nocase; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061601; rev:1;)
+
+# Detect HTTP traffic to tidio.cc C2 exfiltration endpoint
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Awesome Motive Supply Chain - HTTP Request to tidio.cc C2 Exfil Path"; flow:established,to_server; http.host; content:"tidio.cc"; http.uri; content:"/cdn-cgi/"; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061602; rev:1;)
+
+# Detect HTTP traffic to tidio.cc C2 payload generation endpoint
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Awesome Motive Supply Chain - HTTP Request to tidio.cc Payload Delivery"; flow:established,to_server; http.host; content:"tidio.cc"; http.uri; content:"/cdn-cgi/l"; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061603; rev:1;)
+
+# Detect direct connection to known C2 IP
+alert ip $HOME_NET any -> 84.201.6.54 any (msg:"MALWARE Awesome Motive Supply Chain - Connection to C2 IP 84.201.6.54"; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061604; rev:1;)
+
+# Detect XOR key in HTTP payload (credential exfiltration) - MEDIUM confidence
+# Note: The XOR key is used client-side for encryption; the cleartext key is unlikely to appear in POST bodies.
+# Retained as defense-in-depth for unencrypted test payloads or future variants.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Awesome Motive Supply Chain - XOR Key in HTTP Body"; flow:established,to_server; http.request_body; content:"jX9kM2nP4qR6sT8v"; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061605; rev:1;)

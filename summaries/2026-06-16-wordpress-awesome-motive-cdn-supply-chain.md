@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-16
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ---
 
@@ -220,7 +220,7 @@ Stolen credentials and site metadata are exfiltrated to `tidio[.]cc` using:
 | **T1059.007** | Command and Scripting Interpreter: JavaScript | Malicious JavaScript payload performs all client-side attack stages |
 | **T1059.004** | Command and Scripting Interpreter: Unix Shell | Backdoor plugin provides `system()` command execution |
 | **T1136.001** | Create Account: Local Account | Rogue administrator accounts created via multiple WordPress API methods |
-| **T1078.001** | Valid Accounts: Default Accounts | Attacker uses newly created admin accounts to maintain access |
+| **T1078.003** | Valid Accounts: Local Accounts | Attacker uses newly created local admin accounts to maintain access |
 | **T1505.003** | Server Software Component: Web Shell | "WPM File Manager & Shell" backdoor with file upload and command execution |
 | **T1071.001** | Application Layer Protocol: Web Protocols | C2 communication via HTTPS to tidio[.]cc |
 | **T1071.004** | Application Layer Protocol: DNS | DNS resolution of C2 domain |
@@ -346,7 +346,7 @@ Detects WordPress HTTP POST requests to user creation endpoints containing the a
 
 **Compile status:** PASS (sigma check + splunk + log_scale) | **Confidence:** HIGH
 
-<!-- audit: sigma check 0 errors/0 issues; splunk convert OK; log_scale convert OK; attempt 2/3 (fixed ATT&CK tag); note: requires cs-body logging which may not be enabled in all web servers -->
+<!-- audit: sigma check 0 errors/0 issues; splunk convert OK; log_scale convert OK; attempt 3/3 (fixed ATT&CK tag T1078.001→T1078.003 per REVISE); note: requires cs-body logging which may not be enabled in all web servers -->
 
 ```yaml
 title: Awesome Motive Supply Chain - Backdoor Admin Account Creation
@@ -360,7 +360,7 @@ date: 2026-06-16
 tags:
     - attack.persistence
     - attack.t1136.001
-    - attack.t1078.001
+    - attack.t1078.003
 logsource:
     category: webserver
 detection:
@@ -424,7 +424,7 @@ Detects DNS resolution requests for the attacker-registered domain `tidio[.]cc`,
 
 **Compile status:** PASS (sigma check + splunk + log_scale) | **Confidence:** HIGH
 
-<!-- audit: sigma check 0 errors/0 issues; splunk convert OK; log_scale convert OK; attempt 2/3 (fixed ATT&CK tag) -->
+<!-- audit: sigma check 0 errors/0 issues; splunk convert OK; log_scale convert OK; attempt 3/3 (simplified redundant AND logic per REVISE: removed query|contains, kept query|endswith:'tidio.cc' to match apex and subdomains) -->
 
 ```yaml
 title: Awesome Motive Supply Chain - DNS Query to Tidio.cc C2 Domain
@@ -442,8 +442,6 @@ logsource:
 detection:
     selection:
         query|endswith:
-            - '.tidio.cc'
-        query|contains:
             - 'tidio.cc'
     condition: selection
 falsepositives:
@@ -535,9 +533,9 @@ rule AwesomeMotive_SupplyChain_MaliciousJS
 
 Five Suricata rules covering DNS resolution of the C2 domain, HTTP requests to exfiltration endpoints, payload delivery paths, direct connection to the C2 IP, and XOR key presence in HTTP request bodies.
 
-**Compile status:** UNCOMPILED (structural check only) | **Confidence:** HIGH
+**Compile status:** UNCOMPILED (structural check only) | **Confidence:** HIGH (SIDs 2026061601-2026061604), MEDIUM (SID 2026061605)
 
-<!-- audit: suricata not installed; structural review pass; SID range 2026061601-2026061605; standard http/dns keywords used -->
+<!-- audit: suricata not installed; structural review pass; SID range 2026061601-2026061605; standard http/dns keywords used; SID 2026061605 downgraded to MEDIUM: XOR key is used client-side for encryption before exfiltration so the cleartext key will not appear in POST bodies -->
 
 ```
 # Detect DNS query to tidio.cc C2 domain
@@ -556,7 +554,7 @@ alert ip $HOME_NET any -> 84.201.6.54 any (msg:"MALWARE Awesome Motive Supply Ch
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Awesome Motive Supply Chain - XOR Key in HTTP Body"; flow:established,to_server; http.request_body; content:"jX9kM2nP4qR6sT8v"; reference:url,sansec.io/research/optinmonster-supply-chain-attack; classtype:trojan-activity; sid:2026061605; rev:1;)
 ```
 
-Caveat: The XOR key rule (SID 2026061605) may not trigger if the key is only used programmatically within the JavaScript and not transmitted in plaintext in HTTP bodies. The DNS and HTTP host/URI rules are the most reliable network indicators.
+Caveat (MEDIUM confidence): The XOR key rule (SID 2026061605) is unlikely to fire in practice. The key `jX9kM2nP4qR6sT8v` is used client-side within the injected JavaScript to XOR-encrypt credentials before Base64-encoding and transmitting them; the cleartext key string itself is not included in the exfiltration POST body. This rule is retained as a defense-in-depth measure to catch unencrypted test payloads or future variants that transmit the key, but the DNS (SID 2026061601) and HTTP host/URI rules (SIDs 2026061602-2026061603) are the primary and most reliable network detection points.
 
 ---
 
