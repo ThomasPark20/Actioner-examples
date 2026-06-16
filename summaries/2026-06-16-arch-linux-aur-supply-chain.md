@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-16
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -242,7 +242,7 @@ src/hooks/deps
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Hijacking orphaned AUR packages to inject malicious dependencies |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | PKGBUILD script execution during package build |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | npm/Bun preinstall hook execution |
-| T1547.004 | Boot or Logon Autostart Execution: Systemd Service | Persistence via dynamically generated systemd units |
+| T1543.002 | Create or Modify System Process: Systemd Service | Persistence via dynamically generated systemd units |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Harvesting browser cookies, tokens, saved credentials |
 | T1539 | Steal Web Session Cookie | Theft of Slack `d` cookies, Discord tokens, Teams sessions |
 | T1552.001 | Unsecured Credentials: Credentials in Files | SSH keys, Vault tokens, Docker config, shell histories |
@@ -318,63 +318,62 @@ find / -type f -size 3040376c -exec sha256sum {} \; 2>/dev/null
 
 ## Detection Rules
 
-### Sigma Rules
+**8 detection rules** across 3 formats. All Sigma rules validated with `sigma check` (0 errors) and test-converted to Splunk (`sigma convert --without-pipeline -t splunk`).
 
-All Sigma rules are provided in `/tmp/actioner/` and have been validated with `sigma check` and converted to Splunk and LogScale backends.
+### Sigma Rules (4)
 
-#### 1. Atomic Arch PKGBUILD Injection Detection
+#### 1. Atomic Arch PKGBUILD Injection Detection (Critical)
 Detects malicious npm/bun install commands in AUR package build processes.
 
-**File**: `/tmp/actioner/sigma_atomic_arch_pkgbuild_injection.yml`
+**File**: `rules/sigma/2026-06-16-arch-linux-aur-supply-chain.yml` (rule 1 of 4)
 
-#### 2. Atomic Arch Systemd Persistence Detection
-Detects creation of systemd service units with characteristics matching the Atomic Arch persistence mechanism.
+#### 2. Atomic Arch Systemd Persistence Detection (High)
+Detects creation of systemd service unit files by processes running from /var/lib/ or ~/.config/ paths consistent with Atomic Arch persistence. Revised to use ATT&CK T1543.002 (Systemd Service) and require the creating process to originate from campaign-specific persistence directories, reducing false positives in standard environments.
 
-**File**: `/tmp/actioner/sigma_atomic_arch_systemd_persistence.yml`
+**File**: `rules/sigma/2026-06-16-arch-linux-aur-supply-chain.yml` (rule 2 of 4)
 
-#### 3. Atomic Arch eBPF Rootkit Map Detection
+#### 3. Atomic Arch eBPF Rootkit Map Detection (Critical)
 Detects access to or creation of pinned BPF maps used by the Atomic Arch rootkit.
 
-**File**: `/tmp/actioner/sigma_atomic_arch_ebpf_rootkit.yml`
+**File**: `rules/sigma/2026-06-16-arch-linux-aur-supply-chain.yml` (rule 3 of 4)
 
-#### 4. Atomic Arch Credential Exfiltration via temp.sh
-Detects HTTP uploads to temp[.]sh used for data exfiltration.
+#### 4. Atomic Arch Credential Exfiltration via temp.sh (High)
+Detects process creation involving temp[.]sh used for data exfiltration.
 
-**File**: `/tmp/actioner/sigma_atomic_arch_exfil_tempsh.yml`
+**Detection gap note**: The Atomic Arch payload uses an internal Rust HTTP client for uploads, not curl/wget. This Sigma rule (process_creation category) will only fire if the malware shells out to external tools. For network-level coverage, pair with the Suricata rule below. DNS/proxy log monitoring for `temp.sh` provides an additional detection layer.
 
-#### 5. Atomic Arch Tor C2 Loopback Proxy Detection
-Detects process creation patterns consistent with Tor-based C2 via local loopback.
+**File**: `rules/sigma/2026-06-16-arch-linux-aur-supply-chain.yml` (rule 4 of 4)
 
-**File**: `/tmp/actioner/sigma_atomic_arch_tor_c2.yml`
+### YARA Rules (3)
 
-### YARA Rules
+#### 5. Atomic Arch deps ELF Infostealer (High confidence)
+Detects the Rust-based `deps` ELF binary by hash and characteristic strings.
 
-#### 6. Atomic Arch deps ELF Infostealer
-Detects the Rust-based `deps` ELF binary by hash and string patterns.
+**File**: `rules/yara/2026-06-16-arch-linux-aur-supply-chain.yar` (rule 1 of 3)
 
-**File**: `/tmp/actioner/yara_atomic_arch_deps.yar`
-
-#### 7. Atomic Arch eBPF Rootkit Component
+#### 6. Atomic Arch eBPF Rootkit Component (High confidence)
 Detects eBPF rootkit artifacts by characteristic strings.
 
-**File**: `/tmp/actioner/yara_atomic_arch_ebpf_rootkit.yar`
+**File**: `rules/yara/2026-06-16-arch-linux-aur-supply-chain.yar` (rule 2 of 3)
 
-#### 8. Atomic Arch Malicious PKGBUILD
+#### 7. Atomic Arch Malicious PKGBUILD (High confidence)
 Detects AUR PKGBUILD files containing malicious injection commands.
 
-**File**: `/tmp/actioner/yara_atomic_arch_pkgbuild.yar`
+**File**: `rules/yara/2026-06-16-arch-linux-aur-supply-chain.yar` (rule 3 of 3)
 
-### Snort/Suricata Rules
+### Suricata Rules (1)
 
-#### 9. Atomic Arch C2 Beacon
-Detects HTTP POST to `/api/agent` endpoint characteristic of Atomic Arch C2.
-
-**File**: `/tmp/actioner/suricata_atomic_arch_c2.rules`
-
-#### 10. Atomic Arch temp.sh Exfiltration
+#### 8. Atomic Arch temp.sh Exfiltration (Medium confidence)
 Detects HTTP POST to temp[.]sh `/upload` endpoint.
 
-**File**: `/tmp/actioner/suricata_atomic_arch_exfil.rules`
+**File**: `rules/suricata/2026-06-16-arch-linux-aur-supply-chain.rules`
+
+### Dropped Rules (Review)
+
+The following rules from the draft were removed during review:
+
+- **Tor SOCKS Proxy Detection** (draft Rule 5): Dropped. Generic Tor/SOCKS proxy detection on ports 9050/9150 with no campaign-specific artifacts. Altitude violation -- this pattern detects any Tor usage, not specifically Atomic Arch activity.
+- **C2 Beacon POST /api/agent** (draft Rule 9): Dropped. Three fatal issues: (1) `http.header` content match on `HTTP/1.0` is incorrect -- the protocol version is in the request line, not a header; (2) `/api/agent` is a generic URI with high false positive risk; (3) C2 traffic routes through Tor to an onion service, making it unobservable on the wire to network IDS.
 
 ## Lessons Learned
 

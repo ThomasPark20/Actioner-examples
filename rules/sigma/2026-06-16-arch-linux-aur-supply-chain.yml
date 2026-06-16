@@ -1,0 +1,152 @@
+title: Atomic Arch PKGBUILD Malicious Dependency Injection
+id: d3d91d05-8d29-401d-bf35-b93815d1024a
+status: experimental
+description: |
+    Detects process creation events where npm or bun is invoked to install
+    malicious packages (atomic-lockfile, js-digest, lockfile-js) associated
+    with the Atomic Arch AUR supply chain attack (Sonatype-2026-003775).
+references:
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.execution
+    - attack.t1059.007
+    - attack.initial-access
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_npm:
+        Image|endswith: '/npm'
+        CommandLine|contains:
+            - 'atomic-lockfile'
+            - 'js-digest'
+            - 'lockfile-js'
+    selection_bun:
+        Image|endswith: '/bun'
+        CommandLine|contains:
+            - 'atomic-lockfile'
+            - 'js-digest'
+            - 'lockfile-js'
+    selection_preinstall_hook:
+        Image|endswith: '/deps'
+        CurrentDirectory|contains: 'src/hooks'
+    condition: selection_npm or selection_bun or selection_preinstall_hook
+falsepositives:
+    - Legitimate packages named atomic-lockfile (unlikely - npm package was removed)
+level: critical
+---
+title: Atomic Arch Systemd Service Persistence
+id: e9ed6312-748f-4057-810f-44ac086fd67c
+status: experimental
+description: |
+    Detects creation of systemd service unit files by processes running from
+    paths consistent with Atomic Arch persistence locations. The malware drops
+    its binary under /var/lib/ (root) or ~/.config/ (non-root) and then creates
+    a systemd service unit to maintain persistence. This rule fires when a
+    process executing from /var/lib/ or a user .config directory writes a
+    .service file to standard systemd unit directories.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+author: Actioner
+date: 2026-06-16
+modified: 2026-06-16
+tags:
+    - attack.persistence
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_system_service:
+        TargetFilename|startswith: '/etc/systemd/system/'
+        TargetFilename|endswith: '.service'
+    selection_user_service:
+        TargetFilename|contains: '/.config/systemd/user/'
+        TargetFilename|endswith: '.service'
+    selection_suspicious_image_varlib:
+        Image|startswith: '/var/lib/'
+    selection_suspicious_image_userconfig:
+        Image|contains: '/.config/'
+    filter_known_packages:
+        Image|startswith:
+            - '/usr/bin/'
+            - '/usr/lib/systemd/'
+            - '/usr/lib/'
+    condition: >
+        (selection_system_service or selection_user_service)
+        and (selection_suspicious_image_varlib or selection_suspicious_image_userconfig)
+        and not filter_known_packages
+falsepositives:
+    - Legitimate software installed under /var/lib/ that creates systemd services
+    - Development tools or CI runners in user .config directories
+level: high
+---
+title: Atomic Arch eBPF Rootkit Pinned Map Access
+id: ac4825eb-eb57-4cc6-9e61-41e6430e89a0
+status: experimental
+description: |
+    Detects file access or creation of BPF pinned maps at /sys/fs/bpf/hidden_*
+    which are characteristic of the Atomic Arch eBPF rootkit component. The rootkit
+    pins maps named hidden_pids, hidden_names, and hidden_inodes to persist its
+    hiding configuration.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://corgea.com/research/atomic-arch-aur-atomic-lockfile-js-digest-ebpf-rootkit
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.defense_evasion
+    - attack.t1014
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/sys/fs/bpf/hidden_'
+    condition: selection
+falsepositives:
+    - Custom eBPF programs using the prefix hidden_ in map names (uncommon)
+level: critical
+---
+title: Atomic Arch Data Exfiltration via temp.sh
+id: 45d7b946-ecff-4ea6-aba8-71ffff8a5cd4
+status: experimental
+description: |
+    Detects network connections or process creation involving temp.sh, a file
+    sharing service used by the Atomic Arch malware for credential exfiltration.
+    The malware uploads stolen data via HTTP POST to temp.sh/upload.
+    DETECTION GAP: The Atomic Arch payload uses an internal Rust HTTP client
+    (not curl/wget) for uploads, so process_creation detection will only catch
+    cases where the malware shells out or where defenders search for the
+    domain in DNS/proxy logs. Pair with the Suricata HTTP rule for network-level
+    coverage of the temp.sh upload pattern.
+references:
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_curl:
+        Image|endswith:
+            - '/curl'
+            - '/wget'
+        CommandLine|contains: 'temp.sh'
+    selection_generic:
+        CommandLine|contains: 'temp.sh/upload'
+    condition: selection_curl or selection_generic
+falsepositives:
+    - Legitimate use of temp.sh file sharing service by developers
+level: high
