@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-16
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -174,7 +174,7 @@ UNC6508 demonstrated sophisticated operational security:
 |--------|----|-----------|-----------------|
 | Initial Access | T1190 | Exploit Public-Facing Application | Exploitation of vulnerable REDCap servers |
 | Persistence | T1505.003 | Server Software Component: Web Shell | help.php web shell and INFINITERED backdoor deployment |
-| Persistence | T1554 | Compromise Client Software Binary | REDCap upgrade process hijacking for cross-version persistence |
+| Persistence | T1554 | Compromise Host Software Binary | REDCap upgrade process hijacking for cross-version persistence |
 | Defense Evasion | T1027 | Obfuscated Files or Information | Base64 encoding of malicious payloads in PHP files |
 | Defense Evasion | T1090.003 | Proxy: Multi-hop Proxy | OBF network routing through compromised ASUS routers and VPS |
 | Defense Evasion | T1689 | Downgrade Attack | Exploitation of legacy REDCap versions running alongside current |
@@ -395,7 +395,7 @@ eventName IN ("CREATE_GMAIL_SETTING", "CHANGE_GMAIL_SETTING") settingName IN ("*
 ### Sigma Rule: Suspicious BCC Forwarding to External Gmail
 
 > **Compile status:** COMPILED (sigma check -- 0 errors, 0 issues; converts to Splunk and LogScale)
-> **Confidence:** HIGH -- detects the specific exfiltration pattern (compliance rule + BCC + external Gmail)
+> **Confidence:** MEDIUM -- detects compliance rule + BCC + external Gmail pattern; may trigger on legitimate compliance routing to Gmail accounts
 
 ```yaml
 title: UNC6508 Suspicious BCC Email Forwarding to External Gmail Account
@@ -425,8 +425,6 @@ detection:
     selection_bcc:
         newValue|contains:
             - 'bcc'
-            - 'BCC'
-            - 'Bcc'
     selection_external:
         newValue|contains:
             - '@gmail.com'
@@ -435,12 +433,12 @@ detection:
 falsepositives:
     - Legitimate business forwarding rules to external Gmail accounts
     - Compliance archiving configurations
-level: high
+level: medium
 ```
 
 **Splunk conversion:**
 ```
-eventName IN ("CREATE_GMAIL_SETTING", "CHANGE_GMAIL_SETTING") newValue IN ("*bcc*", "*BCC*", "*Bcc*") newValue IN ("*@gmail.com*", "*@googlemail.com*")
+eventName IN ("CREATE_GMAIL_SETTING", "CHANGE_GMAIL_SETTING") newValue IN ("*bcc*") newValue IN ("*@gmail.com*", "*@googlemail.com*")
 ```
 
 ### Sigma Rule: Known UNC6508 C2 Infrastructure
@@ -528,7 +526,7 @@ level: medium
 ### Sigma Rule: INFINITERED Credential Storage Artifact
 
 > **Compile status:** COMPILED (sigma check -- 0 errors, 0 issues; converts to Splunk and LogScale)
-> **Confidence:** CRITICAL -- xc32038474a is a unique attacker-chosen prefix with near-zero false positive rate
+> **Confidence:** HIGH -- xc32038474a is a unique attacker-chosen prefix with near-zero false positive rate
 
 ```yaml
 title: UNC6508 INFINITERED Credential Storage Session ID Prefix
@@ -610,7 +608,7 @@ level: medium
 ### Sigma Rule: INFINITERED Known Malicious File Hashes
 
 > **Compile status:** COMPILED (sigma check -- 0 errors, 0 issues; converts to Splunk and LogScale)
-> **Confidence:** CRITICAL -- exact SHA256 hash matches for known malware samples
+> **Confidence:** HIGH -- exact SHA256 hash matches for known malware samples
 
 ```yaml
 title: UNC6508 INFINITERED Known Malicious File Hashes

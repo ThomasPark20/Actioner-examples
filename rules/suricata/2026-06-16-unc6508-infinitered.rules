@@ -1,0 +1,15 @@
+# UNC6508 INFINITERED Campaign - Suricata Detection Rules
+# Source: https://cloud.google.com/blog/topics/threat-intelligence/prc-targets-us-medical-research
+# Generated: 2026-06-16
+
+# Detect REDCAP-TOKEN cookie containing INFINITERED magic flag
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"UNC6508 INFINITERED C2 Magic Flag in Cookie"; flow:to_server,established; content:"Cookie|3a|"; http_header; content:"REDCAP-TOKEN"; http_header; content:"ej671a16i7fd8202nu6ltfg5p6x7u"; http_header; reference:url,cloud.google.com/blog/topics/threat-intelligence/prc-targets-us-medical-research; classtype:trojan-activity; sid:2026061601; rev:1;)
+
+# Detect INFINITERED GUID marker in HTTP response (backdoor beacon)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"UNC6508 INFINITERED Beacon GUID in Response"; flow:to_client,established; content:"b49e334d-9c01-463e-9bc5-00a6920fb66e"; reference:url,cloud.google.com/blog/topics/threat-intelligence/prc-targets-us-medical-research; classtype:trojan-activity; sid:2026061602; rev:1;)
+
+# Detect INFINITERED GUID marker base64-encoded in traffic
+alert http any any -> any any (msg:"UNC6508 INFINITERED Base64 GUID Marker"; flow:established; content:"YjQ5ZTMzNGQtOWMwMS00NjNlLTliYzUtMDBhNjkyMGZiNjZl"; reference:url,cloud.google.com/blog/topics/threat-intelligence/prc-targets-us-medical-research; classtype:trojan-activity; sid:2026061603; rev:1;)
+
+# Detect outbound connection to known UNC6508 OBF node
+alert ip $HOME_NET any -> 23.169.65.49 any (msg:"UNC6508 Known OBF Infrastructure Connection"; reference:url,cloud.google.com/blog/topics/threat-intelligence/prc-targets-us-medical-research; classtype:trojan-activity; sid:2026061604; rev:1;)
