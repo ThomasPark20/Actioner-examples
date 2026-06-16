@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-16
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ---
 
@@ -38,7 +38,7 @@ This campaign leverages the trust associated with Microsoft Account security not
 
 ---
 
-## Root Cause: Spear-Phishing with Weaponized LNK File (T1566.001 / T1204.002)
+## Root Cause: Spear-Phishing with Weaponized LNK File (T1566.002 / T1204.002)
 
 The initial access vector is a spear-phishing email impersonating the Microsoft Account team. The email warns of unusual one-time password activity and instructs the victim to review an attached security advisory. The attachment is a ZIP archive containing:
 
@@ -211,7 +211,6 @@ NarwhalRAT establishes a working directory at `%APPDATA%\naverwhale` with Hidden
 
 | Tactic | Technique ID | Technique Name | NarwhalRAT Usage |
 |--------|-------------|----------------|------------------|
-| Reconnaissance | T1598.002 | Phishing for Information: Spearphishing Link | MS Account-themed phishing emails |
 | Initial Access | T1566.002 | Phishing: Spearphishing Attachment | ZIP archive with malicious LNK |
 | Execution | T1204.002 | User Execution: Malicious File | Victim opens LNK file |
 | Execution | T1059.003 | Command and Scripting Interpreter: Windows Command Shell | cmd.exe /k with obfuscated batch scripts |
@@ -221,7 +220,7 @@ NarwhalRAT establishes a working directory at `%APPDATA%\naverwhale` with Hidden
 | Defense Evasion | T1564.001 | Hide Artifacts: Hidden Files and Directories | Hidden+System attributes on naverwhale directory |
 | Defense Evasion | T1036.005 | Masquerading: Match Legitimate Name or Location | userscreen.exe (renamed Pythonw.exe), naverwhale directory |
 | Persistence | T1053.005 | Scheduled Task/Job: Scheduled Task | MicrosoftUserInterfacePicturesUpdateTackMachine |
-| Collection | T1056.004 | Input Capture: Credential API Hooking / Keylogging | Keystroke logging |
+| Collection | T1056.001 | Input Capture: Keylogging | Keystroke logging |
 | Collection | T1113 | Screen Capture | Screenshot capture (including high-frequency) |
 | Collection | T1123 | Audio Capture | Ambient audio recording |
 | Collection | T1025 | Data from Removable Media | USB media harvesting |
@@ -347,10 +346,10 @@ detection:
     condition: selection_schtasks
 falsepositives:
     - None expected - highly specific task name
-level: critical
+level: high
 ```
 
-**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** CRITICAL/HIGH
+**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** HIGH
 
 ---
 
@@ -386,10 +385,10 @@ detection:
     condition: selection_userscreen or selection_config_cat
 falsepositives:
     - None expected - specific file path and binary name combination
-level: critical
+level: high
 ```
 
-**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** CRITICAL/HIGH
+**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** HIGH
 
 ---
 
@@ -414,7 +413,6 @@ tags:
     - attack.t1071.001
 logsource:
     category: proxy
-    product: windows
 detection:
     selection_pcloud:
         c-uri|contains:
@@ -425,10 +423,11 @@ detection:
     condition: selection_pcloud
 falsepositives:
     - Legitimate pCloud usage - requires tuning for environments using pCloud
+    - Generic pCloud API pattern; no campaign-specific folderid available from source reporting
 level: medium
 ```
 
-**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** MEDIUM (legitimate pCloud use possible)
+**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** LOW (generic pCloud API detection -- source reporting did not publish the specific folderid value used by this campaign; any pCloud listfolder call will match)
 
 ---
 
@@ -506,15 +505,16 @@ level: high
 
 ---
 
-#### Rule 7: CMD Environment Variable Substring Obfuscation
+#### Rule 7: NarwhalRAT Batch Script with CMD Obfuscation
 
 ```yaml
-title: ScarCruft NarwhalRAT - CMD Environment Variable Substring Obfuscation
+title: ScarCruft NarwhalRAT - Obfuscated Batch Script KHjWFcsE Execution
 id: a7d9ce48-db03-4a5f-bc27-8dbe4f6a9b3c
 status: experimental
 description: >
-  Detects heavy use of CMD environment variable substring substitution
-  technique used by NarwhalRAT batch scripts for command obfuscation.
+  Detects execution of the NarwhalRAT obfuscated batch dropper (KHjWFcsE.bat)
+  or CMD processes combining environment variable substring obfuscation with
+  campaign-specific artifacts (temp012.zip, userscreen.exe, config.cat).
 references:
     - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
     - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
@@ -528,17 +528,24 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection_cmd:
+    selection_bat:
         Image|endswith: '\cmd.exe'
-    selection_obfuscation:
+        CommandLine|contains: 'KHjWFcsE.bat'
+    selection_obfuscation_with_artifact:
+        Image|endswith: '\cmd.exe'
         CommandLine|re: '(%\w+:~\d+,\d+%){5,}'
-    condition: selection_cmd and selection_obfuscation
+        CommandLine|contains:
+            - 'temp012.zip'
+            - 'userscreen.exe'
+            - 'config.cat'
+            - 'UserInerfacePicture'
+    condition: selection_bat or selection_obfuscation_with_artifact
 falsepositives:
-    - Rare legitimate scripts using extensive environment variable substring operations
+    - None expected - combines obfuscation technique with campaign-specific filenames
 level: high
 ```
 
-**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** HIGH
+**Compile Status:** PASS (sigma check: 0 errors, 0 issues) | **Confidence:** LOW (obfuscation technique is generic TTP; confidence anchored by requiring campaign artifact co-occurrence)
 
 ---
 
@@ -579,8 +586,6 @@ rule APT37_NarwhalRAT_Python_Payload
         $dir_naverwhale = "naverwhale" ascii wide
         $mutex = "i5zJH9FL10cVd3sSW9eyWWErPJ" ascii wide
         $aes_key = "!221aeAescde##2aefseseppl^12" ascii
-        $pcloud_folderid = "folderid=" ascii
-        $pcloud_auth = "auth=" ascii
 
     condition:
         (3 of ($cmd_*)) or
@@ -652,7 +657,6 @@ rule APT37_NarwhalRAT_Config_CAT
 
     strings:
         $pyc_magic = { 6F 0D 0D 0A }
-        $code_obj = { E3 }
         $import1 = "__import__" ascii
         $import2 = "getattr" ascii
         $import3 = "__builtins__" ascii
@@ -661,15 +665,18 @@ rule APT37_NarwhalRAT_Config_CAT
         $api_virtualalloc = "VirtualAlloc" ascii
         $api_rtlmovemem = "RtlMoveMemory" ascii
         $api_createmutex = "CreateMutexW" ascii
+        $mutex = "i5zJH9FL10cVd3sSW9eyWWErPJ" ascii
+        $aes_key = "!221aeAescde##2aefseseppl^12" ascii
+        $narwhal_dir = "naverwhale" ascii
 
     condition:
-        ($pyc_magic at 0 and $code_obj and 2 of ($import*)) or
-        (3 of ($api_*) and 2 of ($import*)) or
-        ($import3 and $import4 and $import5 and 2 of ($api_*))
+        ($pyc_magic at 0 and 2 of ($import*) and ($mutex or $aes_key)) or
+        (3 of ($api_*) and 2 of ($import*) and ($mutex or $aes_key or $narwhal_dir)) or
+        ($mutex and $aes_key)
 }
 ```
 
-**Compile Status:** PASS (yarac: compiled with performance warning on $code_obj -- acceptable) | **Confidence:** MEDIUM
+**Compile Status:** PASS (yarac: compiled successfully) | **Confidence:** LOW (encrypted payload detection is inherently fragile; relies on co-occurrence of NarwhalRAT-specific strings for specificity)
 
 ---
 
@@ -696,10 +703,10 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT C2 - novel2
 #### Rule 3: pCloud Dead Drop Resolver
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT pCloud Dead Drop Resolver"; flow:established,to_server; http.host; content:"api.pcloud.com"; http.uri; content:"folderid"; http.uri; content:"auth"; classtype:trojan-activity; sid:2026061603; rev:1; metadata:created_at 2026_06_16, confidence medium;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT pCloud Dead Drop Resolver"; flow:established,to_server; http.host; content:"api.pcloud.com"; http.uri; content:"folderid"; http.uri; content:"auth"; classtype:trojan-activity; sid:2026061603; rev:1; metadata:created_at 2026_06_16, confidence low;)
 ```
 
-**Compile Status:** UNCOMPILED (structural check only) | **Confidence:** MEDIUM
+**Compile Status:** UNCOMPILED (structural check only) | **Confidence:** LOW (generic pCloud API pattern -- source reporting did not publish the specific folderid; any pCloud listfolder call will match)
 
 #### Rule 4: Known C2 IP Communication
 
@@ -735,6 +742,21 @@ alert dns $HOME_NET any -> any any (msg:"APT37 NarwhalRAT C2 DNS Lookup - fe01.c
 5. **CMD environment variable substring substitution** is an increasingly common obfuscation technique among APT groups. EDR solutions should be configured to log and alert on command lines exhibiting heavy use of the `%variable:~offset,length%` pattern.
 
 6. **Regional brand mimicry** (using "naverwhale" to mimic Naver Whale browser) demonstrates threat actors' targeting sophistication. Defense teams in targeted regions should be aware of locally popular applications that may be impersonated.
+
+---
+
+## Revision History
+
+**v1.1 (FINAL)** -- Applied critic review (NEEDS-REVISION verdict). Changes:
+
+1. **Sigma #2 and #3 confidence labels**: Changed from "CRITICAL/HIGH" to "HIGH" (valid prose confidence values: high/medium/low only). Sigma YAML `level` downgraded from `critical` to `high` for both rules.
+2. **Sigma #4 (pCloud Dead Drop)**: Removed `product: windows` from proxy logsource (proxy logs are product-agnostic). Downgraded prose confidence to LOW with note that source reporting did not publish the specific folderid value.
+3. **Sigma #7 (CMD Obfuscation)**: Rewritten to require campaign artifact co-occurrence (KHjWFcsE.bat filename, or obfuscation + campaign-specific filenames). Confidence set to LOW.
+4. **Snort/Suricata #3 (pCloud Dead Drop)**: Downgraded confidence metadata to LOW to match Sigma #4 altitude fix.
+5. **YARA #1 (Python Payload)**: Removed generic `$pcloud_folderid = "folderid="` and `$pcloud_auth = "auth="` strings from strings section and condition.
+6. **YARA #3 (Encrypted Config)**: Removed single-byte `$code_obj = { E3 }` (matched everything). Added NarwhalRAT-specific strings ($mutex, $aes_key, $narwhal_dir) to condition. Confidence downgraded from MEDIUM to LOW.
+7. **ATT&CK mapping**: Removed erroneous T1598.002 (redundant with T1566.002). Corrected T1056.004 to T1056.001 (Keylogging). Fixed section header T1566.001 to T1566.002.
+8. **No rules dropped** -- all rules retained after revision with corrected confidence levels and specificity.
 
 ---
 
