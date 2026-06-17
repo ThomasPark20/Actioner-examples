@@ -1,11 +1,11 @@
 # Pickle in the Middle: Vertex AI SDK Bucket Squatting Cross-Tenant RCE (CVE-2026-2473)
 
 **Date:** 2026-06-17
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** WHITE
 **CVE:** CVE-2026-2473
 **CVSS:** 7.7 (High) -- CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:P/VC:H/VI:H/VA:H/SC:N/SI:N/SA:N
-**CWE:** CWE-340 (Predictability Problems)
+**CWE:** CWE-340 (Predictability Problems), CWE-345 (Insufficient Verification of Data Authenticity)
 
 ---
 
@@ -140,21 +140,28 @@ The stolen OAuth token carries the broad `cloud-platform` scope, enabling:
 |--------|-----------|-----|-------------|
 | Initial Access | Supply Chain Compromise: Compromise Software Supply Chain | T1195.002 | Attacker intercepts model artifacts via bucket squatting during the software supply chain |
 | Execution | Command and Scripting Interpreter: Python | T1059.006 | Malicious pickle `__reduce__` executes Python code in the prediction container |
-| Execution | Command and Scripting Interpreter: Unix Shell | T1059.004 | Pickle payload spawns shell commands for data collection |
-| Persistence | Implant Internal Image | T1525 | Poisoned model persists across container restarts as it is served from GCS |
 | Credential Access | Unsecured Credentials: Cloud Instance Metadata API | T1552.005 | Payload queries GCE metadata server for OAuth tokens |
 | Discovery | Cloud Infrastructure Discovery | T1580 | Exfiltrated token used to enumerate BigQuery datasets, GKE clusters, Cloud Logging |
 | Lateral Movement | Use Alternate Authentication Material: Application Access Token | T1550.001 | Stolen P4SA token with cloud-platform scope enables cross-service access |
 | Collection | Data from Cloud Storage | T1530 | Cross-deployment model theft from other GCS-stored models |
 | Exfiltration | Exfiltration Over Web Service | T1567 | Credentials exfiltrated to attacker-controlled webhook |
-| Defense Evasion | Obfuscated Files or Information | T1027 | Malicious code hidden within serialized pickle byte stream |
+
+<!-- Revision notes: The following ATT&CK techniques were removed during review:
+  - T1059.004 (Unix Shell): No evidence in the PoC of shell spawning; the pickle __reduce__
+    invokes Python callables directly (os.system with Python-level commands), not /bin/sh.
+  - T1525 (Implant Internal Image): The poisoned model is stored in GCS, not as a container
+    image. T1525 applies to container/VM images, not arbitrary cloud storage objects.
+  - T1027 (Obfuscated Files or Information): Pickle serialization is a standard format, not
+    an obfuscation technique. The malicious code is inherent to pickle's __reduce__ mechanism,
+    not deliberately obfuscated.
+-->
 
 ---
 
 ## Impact
 
 - **Severity:** High (CVSS 7.7)
-- **Scope:** Any Vertex AI user running SDK versions >= 1.21.0 and < 1.133.0 (per CVE database), or specifically tested on v1.139.0 and v1.140.0 (per Unit 42)
+- **Scope:** Any Vertex AI user running vulnerable SDK versions that use deterministic bucket naming. The CVE database lists affected versions as >= 1.21.0 and < 1.133.0. Unit 42's research specifically tested and confirmed exploitation on SDK versions 1.139.0 and 1.140.0, indicating the vulnerable range extends beyond 1.133.0. The complete fix is in SDK v1.148.0; any version prior to that should be considered at risk if the `staging_bucket` parameter is not explicitly set.
 - **Affected Product:** `google-cloud-aiplatform` Python SDK
 - **Attack Prerequisites:** Attacker needs their own GCP project and knowledge of the victim's project ID (often public). The victim must not have pre-created the staging bucket and must omit the `staging_bucket` parameter.
 - **Impact:** Full RCE in prediction container, OAuth token theft with `cloud-platform` scope, cross-tenant data access (BigQuery, Cloud Logging, other model deployments)
@@ -170,14 +177,13 @@ The stolen OAuth token carries the broad `cloud-platform` scope, enabling:
 3. **Audit existing staging buckets** for unexpected ownership. Run `gsutil ls -L -b gs://{PROJECT_ID}-vertex-staging-{REGION}` and verify the bucket belongs to your project.
 4. **Review Cloud Audit Logs** for `storage.objects.create` events on `*-vertex-staging-*` buckets, checking for unusual source projects.
 5. **Review deployed models** for unexpected file size changes or modification timestamps that don't match upload times.
-6. **Rotate service account credentials** if you suspect a staging bucket may have been squatted.
+6. **Rotate application-level credentials and API keys** if you suspect a staging bucket may have been squatted. Note that the P4SA (Per-Product Service Account) is Google-managed and cannot be directly rotated by users; instead, redeploy affected model endpoints to obtain new P4SA tokens and revoke any previously issued OAuth tokens via the Google Cloud Console.
 7. **Enable VPC Service Controls** around Vertex AI and Cloud Storage to restrict cross-project bucket access.
 
 ### Detection Opportunities
 
 - Monitor GCS audit logs for object writes to buckets matching `*-vertex-staging-*` where the writer's project differs from the bucket name's project ID prefix.
 - Alert on process creation events where a Python process performing model loading (joblib/pickle) spawns shell interpreters or network tools.
-- Monitor metadata server access (`169.254.169.254` or `metadata.google.internal`) from Vertex AI prediction containers for token requests.
 - Scan model artifacts (`.pkl`, `.joblib`) with picklescan or similar tools before deployment.
 
 ---
@@ -186,24 +192,38 @@ The stolen OAuth token carries the broad `cloud-platform` scope, enabling:
 
 ### Sigma Rules
 
-**Rule 1: Suspicious Vertex AI Model Upload to Predictable GCS Staging Bucket**
-Detects GCS object creation events targeting buckets matching the predictable Vertex AI staging naming convention, combined with model artifact file patterns. **Status: PASS** (sigma check exit 0, converted to Splunk and LogScale).
+Two Sigma rules are provided (one GCS audit log rule was cut during review -- see revision notes below).
+
+**Rule 1: Vertex AI Model Upload to Predictable GCS Staging Bucket**
+Detects GCS object creation events targeting buckets matching the predictable Vertex AI staging naming convention, combined with model artifact file patterns. This is a broad visibility rule that fires on all default SDK uploads, not just attacks. Triage by correlating the uploading project identity with the bucket name prefix. Uses `|contains` instead of `|re` for broader SIEM backend compatibility. Field names omit the `data.` prefix; custom field mapping may be required depending on your GCP log ingestion pipeline. **Status: PASS** (sigma check exit 0, converted to Splunk and LogScale).
 
 **Rule 2: Pickle Deserialization Leading to Code Execution in ML Model Serving Container**
-Detects suspicious child process creation from Python processes involved in model loading or prediction serving. **Status: PASS** (sigma check exit 0, converted to Splunk and LogScale).
+Detects suspicious child process creation from Python processes involved in model loading or prediction serving. Removed `predict` from ParentCommandLine filter (too broad -- matches any prediction serving process). Consider scoping to Vertex AI container image names if telemetry supports it. **Status: PASS** (sigma check exit 0, converted to Splunk and LogScale).
 
-**Rule 3: GCE Metadata Server Access from Vertex AI Prediction Container**
-Detects command-line evidence of processes reaching the GCE metadata endpoint for token retrieval, a key post-exploitation indicator. **Status: PASS** (sigma check exit 0, converted to Splunk and LogScale).
+<!-- REVISION: Sigma Rule 3 (GCE Metadata Server Access from Vertex AI Prediction Container,
+     id: 3c5e7f9a-2b4d-6e8f-0a1c-3d5f7b9e1a2c) was CUT during review.
+     Reason: The rule title claimed "Vertex AI Prediction Container" scoping but contained
+     ZERO container-scoping filters. It would fire on any GCP workload (GCE VM, GKE pod,
+     Cloud Function, Cloud Run) accessing the metadata server, which is normal behavior
+     for credential acquisition via Application Default Credentials. Extremely high false
+     positive rate makes this rule unusable in production. Metadata access monitoring should
+     be implemented via container-aware EDR (Falco, Sysdig) or GCP-native audit logging
+     with container-level correlation, not generic process_creation rules. -->
 
 ```yaml
-title: Suspicious Vertex AI Model Upload to Predictable GCS Staging Bucket
+title: Vertex AI Model Upload to Predictable GCS Staging Bucket
 id: 8a3f1c9e-7d2b-4e5a-b6c8-9f0a1d3e5b7c
 status: experimental
 description: >
   Detects GCS API calls uploading model artifacts to buckets matching the
-  predictable Vertex AI staging bucket naming convention. Attackers exploit
-  CVE-2026-2473 by pre-creating these buckets (bucket squatting) to intercept
-  model uploads and inject malicious pickle payloads for cross-tenant RCE.
+  predictable Vertex AI staging bucket naming convention. This is a broad
+  visibility rule that will fire on all default SDK uploads (not just attacks);
+  triage by correlating the uploading project with the bucket name prefix to
+  identify cross-project ownership mismatches indicative of bucket squatting
+  per CVE-2026-2473. Note: the |re modifier has limited backend support;
+  this rule uses |contains instead for broader SIEM compatibility. Field
+  names may require custom field mapping depending on your GCP log ingestion
+  pipeline (e.g., Elastic, Splunk, or Chronicle).
 references:
   - https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
   - https://cvereports.com/reports/CVE-2026-2473
@@ -219,13 +239,13 @@ logsource:
   service: gcs
 detection:
   selection_bucket_pattern:
-    data.resource.labels.bucket_name|re: '.*-vertex-staging-.*'
+    resource.labels.bucket_name|contains: '-vertex-staging-'
   selection_method:
-    data.protoPayload.methodName:
+    protoPayload.methodName:
       - 'storage.objects.create'
       - 'storage.objects.insert'
   selection_artifact:
-    data.protoPayload.resourceName|contains:
+    protoPayload.resourceName|contains:
       - 'model.joblib'
       - 'model.pkl'
       - 'saved_model.pb'
@@ -234,6 +254,7 @@ detection:
 falsepositives:
   - Legitimate Vertex AI model uploads using default SDK staging buckets owned by the same project
   - CI/CD pipelines using older SDK versions with predictable bucket naming
+  - Any default SDK upload prior to v1.144.0 will match; cross-reference the uploading principal project against the bucket name prefix to distinguish attacks
 level: medium
 ```
 
@@ -242,10 +263,12 @@ title: Pickle Deserialization Leading to Code Execution in ML Model Serving Cont
 id: 2b4d6e8f-1a3c-5d7e-9f0b-2c4d6a8e0f1a
 status: experimental
 description: >
-  Detects process execution events originating from Python pickle or joblib
-  deserialization within ML model serving containers, indicative of malicious
-  model payloads exploiting CVE-2026-2473. Attackers craft pickle objects with
-  __reduce__ methods that execute commands upon joblib.load().
+  Detects suspicious child process creation from Python processes involved in
+  model loading within ML model serving containers. Focuses on joblib and
+  pickle deserialization contexts spawning shell interpreters or network
+  utilities, indicative of malicious model payloads exploiting CVE-2026-2473.
+  Consider scoping to Vertex AI container image names or hostnames if your
+  telemetry includes container context.
 references:
   - https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
   - https://cvereports.com/reports/CVE-2026-2473
@@ -253,8 +276,6 @@ author: Actioner CTI
 date: 2026-06-17
 tags:
   - attack.t1059.006
-  - attack.t1059.004
-  - attack.t1027
   - cve.2026-2473
 logsource:
   category: process_creation
@@ -271,7 +292,6 @@ detection:
       - 'joblib'
       - 'pickle'
       - 'model_server'
-      - 'predict'
   selection_suspicious_child:
     Image|endswith:
       - '/sh'
@@ -289,65 +309,24 @@ falsepositives:
 level: medium
 ```
 
-```yaml
-title: GCE Metadata Server Access from Vertex AI Prediction Container
-id: 3c5e7f9a-2b4d-6e8f-0a1c-3d5f7b9e1a2c
-status: experimental
-description: >
-  Detects HTTP requests to the GCE metadata server from within a Vertex AI
-  prediction container. In CVE-2026-2473, malicious pickle payloads query the
-  metadata endpoint to steal OAuth tokens with broad cloud-platform scope,
-  enabling lateral movement to BigQuery, Cloud Logging, and other tenants.
-references:
-  - https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
-  - https://cvereports.com/reports/CVE-2026-2473
-author: Actioner CTI
-date: 2026-06-17
-tags:
-  - attack.t1552.005
-  - attack.t1580
-  - cve.2026-2473
-logsource:
-  category: process_creation
-  product: linux
-detection:
-  selection_curl_metadata:
-    Image|endswith:
-      - '/curl'
-      - '/wget'
-      - '/python'
-      - '/python3'
-    CommandLine|contains:
-      - 'metadata.google.internal'
-      - '169.254.169.254'
-  selection_token_path:
-    CommandLine|contains:
-      - '/computeMetadata/v1/instance/service-accounts'
-      - 'access_token'
-      - 'Metadata-Flavor'
-  condition: selection_curl_metadata and selection_token_path
-falsepositives:
-  - Legitimate application code querying instance metadata for configuration
-  - SDK initialization routines fetching default credentials
-level: medium
-```
-
 ### YARA Rules
 
+Three YARA rules are provided, unchanged from draft (all passed review).
+
 **Rule 1: Malicious_Pickle_Reduce_Exec**
-Detects pickle files containing protocol headers combined with REDUCE opcodes and dangerous module references (os.system, subprocess, builtins.exec). **Status: PASS** (yarac exit 0, warnings about short hex string are expected and non-blocking).
+Detects pickle files containing protocol headers combined with REDUCE opcodes and dangerous module references (os.system, subprocess, builtins.exec). Generic pickle malware detector, not CVE-specific. Note: `$reduce_opcode = { 52 }` is a single-byte match that is cosmetic in the context of the full condition but may produce yarac warnings. **Status: PASS** (yarac exit 0, warnings about short hex string are expected and non-blocking).
 
 **Rule 2: Malicious_Joblib_Pickle_Payload**
-Detects joblib-serialized files containing dangerous callables combined with GCE metadata theft indicators, targeting the specific post-exploitation pattern from CVE-2026-2473. **Status: PASS** (yarac exit 0).
+Detects joblib-serialized files containing dangerous callables combined with GCE metadata theft indicators, targeting the specific post-exploitation pattern from CVE-2026-2473. Most CVE-specific rule in the set. Renamed `$numpy_marker` comment to `$numpy_array_header` for clarity. **Status: PASS** (yarac exit 0).
 
 **Rule 3: Pickle_GCE_Metadata_Token_Theft**
-Detects pickle payloads crafted specifically to steal GCE metadata service OAuth tokens, matching the exact exfiltration technique described in the Unit 42 research. **Status: PASS** (yarac exit 0, warnings about short hex string are expected and non-blocking).
+Detects pickle payloads crafted specifically to steal GCE metadata service OAuth tokens, matching the exact exfiltration technique described in the Unit 42 research. Same single-byte `$reduce` caveat as Rule 1. **Status: PASS** (yarac exit 0, warnings about short hex string are expected and non-blocking).
 
 ```yara
 rule Malicious_Pickle_Reduce_Exec
 {
     meta:
-        description = "Detects Python pickle payloads using __reduce__ to invoke os.system, subprocess, or exec for code execution. Common in model poisoning attacks like CVE-2026-2473."
+        description = "Detects Python pickle payloads using __reduce__ to invoke os.system, subprocess, or exec for code execution. Generic pickle malware detector applicable to model poisoning attacks like CVE-2026-2473. Note: $reduce_opcode is a single-byte match (0x52) which is cosmetic in combination with the other conditions but may generate warnings in some YARA implementations."
         author = "Actioner CTI"
         date = "2026-06-17"
         reference = "https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/"
@@ -359,7 +338,7 @@ rule Malicious_Pickle_Reduce_Exec
         $pickle_magic_v3 = { 80 03 }
         $pickle_magic_v4 = { 80 04 }
         $pickle_magic_v5 = { 80 05 }
-        $reduce_opcode = { 52 }
+        $reduce_opcode = { 52 }  // REDUCE opcode - single byte, cosmetic in this context
         $os_system = "os\nsystem" ascii
         $os_popen = "os\npopen" ascii
         $subprocess_call = "subprocess\ncall" ascii
@@ -392,7 +371,7 @@ rule Malicious_Joblib_Pickle_Payload
 
     strings:
         $joblib_marker = "joblib" ascii
-        $numpy_marker = { 93 4E 55 4D 50 59 }
+        $numpy_array_header = { 93 4E 55 4D 50 59 }  // NumPy array .npy magic bytes (0x93 + "NUMPY")
         $os_system = "os\nsystem" ascii
         $os_popen = "os\npopen" ascii
         $subprocess_call = "subprocess\ncall" ascii
@@ -405,7 +384,7 @@ rule Malicious_Joblib_Pickle_Payload
         $service_accounts = "service-accounts" ascii
 
     condition:
-        ($joblib_marker or $numpy_marker) and
+        ($joblib_marker or $numpy_array_header) and
         (any of ($os_system, $os_popen, $subprocess_call, $subprocess_popen,
                  $builtins_exec, $builtins_eval, $posix_system)) and
         (any of ($metadata_url, $compute_metadata, $service_accounts))
@@ -414,7 +393,7 @@ rule Malicious_Joblib_Pickle_Payload
 rule Pickle_GCE_Metadata_Token_Theft
 {
     meta:
-        description = "Detects pickle payloads specifically crafted to steal GCE metadata service OAuth tokens, a key post-exploitation step in the Vertex AI cross-tenant RCE attack chain."
+        description = "Detects pickle payloads specifically crafted to steal GCE metadata service OAuth tokens, a key post-exploitation step in the Vertex AI cross-tenant RCE attack chain. Note: $reduce is a single-byte match (0x52) which is cosmetic in combination with the other conditions but may generate warnings in some YARA implementations."
         author = "Actioner CTI"
         date = "2026-06-17"
         reference = "https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/"
@@ -430,7 +409,7 @@ rule Pickle_GCE_Metadata_Token_Theft
         $metadata2 = "169.254.169.254" ascii
         $token_path = "computeMetadata/v1/instance/service-accounts" ascii
         $header = "Metadata-Flavor" ascii
-        $reduce = { 52 }
+        $reduce = { 52 }  // REDUCE opcode - single byte, cosmetic in this context
 
     condition:
         (any of ($pickle_v*)) and
@@ -442,22 +421,70 @@ rule Pickle_GCE_Metadata_Token_Theft
 
 ### Suricata Rules
 
-**Rule 1: ETPRO EXPLOIT Vertex AI Staging Bucket Model Upload**
-Detects HTTP POST requests to `storage.googleapis.com` with URI containing `vertex-staging` and model file extensions, indicating potential bucket squatting model upload interception. **Status: PASS** (suricata -T exit 0).
+Two Suricata rules are provided (one rule was cut during review -- see revision notes below).
 
-**Rule 2: ETPRO EXPLOIT GCE Metadata Token Access from Prediction Container**
-Detects HTTP requests to the link-local metadata endpoint (169.254.169.254) requesting service account tokens with the GCE metadata header. **Status: PASS** (suricata -T exit 0).
+**Rule 1: ETPRO EXPLOIT Vertex AI Staging Bucket Model Upload**
+Detects HTTP POST requests to `storage.googleapis.com` with URI containing `vertex-staging` and model file extensions. **Prerequisite:** Requires TLS inspection (SSL/TLS decryption) to see HTTPS traffic to GCS; without it, this rule will not fire on production traffic. False positives include all legitimate SDK uploads using default bucket naming. Note: this rule does not cover bucket-subdomain style URLs (`BUCKET.storage.googleapis.com`); a companion rule may be needed. **Status: PASS** (suricata -T exit 0).
+
+<!-- REVISION: Suricata Rule 2 (GCE Metadata Token Access from Prediction Container,
+     sid:1000002) was CUT during review.
+     Reason: Same issue as Sigma Rule 3 -- the rule fired on ALL HTTP requests to
+     169.254.169.254 with Metadata-Flavor headers, which is standard behavior for
+     every GCP workload using Application Default Credentials. Suricata has no
+     container-scoping capability, making this rule unusable in production GCP
+     environments. Metadata access monitoring should use container-aware EDR or
+     GCP-native audit logging instead. -->
 
 **Rule 3: ETPRO EXPLOIT Suspected OAuth Token Exfiltration Post Pickle Deserialization**
-Detects outbound HTTP POST requests with JSON bodies containing `access_token` and `cloud-platform`, indicating exfiltration of stolen GCE OAuth tokens. **Status: PASS** (suricata -T exit 0).
+Detects outbound HTTP POST requests with JSON bodies containing `access_token` and `cloud-platform`, indicating exfiltration of stolen GCE OAuth tokens. **Prerequisite:** Requires TLS inspection to inspect HTTPS POST bodies; without it, only plaintext HTTP exfiltration will be detected. **Deployment note:** Ensure `stream.reassembly.depth` is configured adequately (default 1MB should suffice) for full POST body reassembly. **Status: PASS** (suricata -T exit 0).
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Vertex AI Staging Bucket Model Upload - Possible Bucket Squatting (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.host; content:"storage.googleapis.com"; http.uri; content:"vertex-staging"; content:"upload"; pcre:"/\.(pkl|joblib|pickle|pb)(\?|$)/"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:attempted-admin; sid:1000001; rev:1;)
+# Rule 1: Vertex AI Staging Bucket Model Upload
+# REQUIRES TLS INSPECTION. See deployment notes above.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Vertex AI Staging Bucket Model Upload - Possible Bucket Squatting (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.host; content:"storage.googleapis.com"; http.uri; content:"vertex-staging"; content:"upload"; pcre:"/\.(pkl|joblib|pickle|pb)(\?|$)/"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:attempted-admin; sid:1000001; rev:2;)
 
-alert http $HOME_NET any -> 169.254.169.254 any (msg:"ETPRO EXPLOIT GCE Metadata Token Access from Prediction Container - Possible CVE-2026-2473 Post-Exploitation"; flow:established,to_server; http.uri; content:"/computeMetadata/v1/instance/service-accounts/"; http.header; content:"Metadata-Flavor"; content:"Google"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:credential-theft; sid:1000002; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Suspected OAuth Token Exfiltration Post Pickle Deserialization (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.header; content:"Content-Type"; content:"application/json"; http.request_body; content:"access_token"; content:"cloud-platform"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:trojan-activity; sid:1000003; rev:1;)
+# Rule 3: Suspected OAuth Token Exfiltration
+# REQUIRES TLS INSPECTION. Ensure stream.reassembly.depth >= 1MB.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Suspected OAuth Token Exfiltration Post Pickle Deserialization (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.header; content:"Content-Type"; content:"application/json"; http.request_body; content:"access_token"; content:"cloud-platform"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:trojan-activity; sid:1000003; rev:2;)
 ```
+
+---
+
+## Revision Summary
+
+This report was revised from DRAFT to FINAL based on peer review feedback. The following changes were made:
+
+### Rules Cut (2)
+1. **Sigma Rule 3** (GCE Metadata Server Access from Vertex AI Prediction Container, id: `3c5e7f9a-2b4d-6e8f-0a1c-3d5f7b9e1a2c`): Cut due to zero container-scoping filters. Would fire on all GCP workloads using default credentials. Metadata monitoring should use container-aware EDR or GCP audit logs.
+2. **Suricata Rule 2** (GCE Metadata Token Access from Prediction Container, sid: `1000002`): Cut for the same reason -- Suricata cannot scope to containers, making the rule fire on all metadata access across the environment.
+
+### Rules Revised (3)
+1. **Sigma Rule 1**: Retitled from "Suspicious Vertex AI Model Upload" to "Vertex AI Model Upload to Predictable GCS Staging Bucket" to reflect broad visibility scope. Replaced `|re` with `|contains` for backend compatibility. Removed `data.` prefix from field names (was incorrect for raw GCP audit logs). Added documentation about custom field mapping requirements and FP triage guidance.
+2. **Sigma Rule 2**: Removed `predict` from `ParentCommandLine|contains` (too broad -- matches any prediction process). Removed `attack.t1027` tag (pickle is not obfuscation). Removed `attack.t1059.004` tag (no shell spawning evidence in PoC). Added note about container scoping.
+3. **Suricata Rule 1**: Added TLS inspection prerequisite documentation. Added FP note about legitimate SDK uploads. Added note about missing bucket-subdomain URL style coverage. Bumped rev to 2.
+4. **Suricata Rule 3**: Added TLS inspection prerequisite documentation. Added `stream.reassembly.depth` deployment note. Bumped rev to 2.
+
+### YARA Rules (no functional changes)
+- YARA Rule 2: Renamed `$numpy_marker` to `$numpy_array_header` for comment clarity.
+- All three rules: Added documentation in meta descriptions noting single-byte `$reduce` opcode caveats.
+
+### Report-Level Fixes
+1. **CWE**: Added CWE-345 (Insufficient Verification of Data Authenticity) alongside CWE-340, reflecting the missing bucket ownership verification.
+2. **Version scope**: Reconciled the contradiction between "< 1.133.0" (CVE database) and tested versions 1.139.0/1.140.0 (Unit 42). The Impact section now explains both data points and recommends treating all versions prior to 1.148.0 as vulnerable.
+3. **ATT&CK mapping**: Removed T1525 (Implant Internal Image -- model in GCS is not a container image), T1027 (Obfuscated Files -- pickle is not obfuscation), and T1059.004 (Unix Shell -- no evidence of shell spawning in PoC). Revision notes explain each removal.
+4. **Remediation item 6**: Clarified that P4SA is Google-managed and cannot be directly rotated by users. Updated guidance to recommend redeploying model endpoints and revoking OAuth tokens instead.
+5. **Detection Opportunities**: Removed metadata server monitoring bullet (covered by cut rules; should use container-aware tooling instead).
+6. **Status**: Changed from DRAFT to FINAL.
+
+---
+
+## Standalone Rule Files
+
+| Format | Path |
+|--------|------|
+| Sigma | `rules/sigma/2026-06-17-vertex-ai-pickle-rce.yml` |
+| YARA | `rules/yara/2026-06-17-vertex-ai-pickle-rce.yar` |
+| Suricata | `rules/suricata/2026-06-17-vertex-ai-pickle-rce.rules` |
 
 ---
 
