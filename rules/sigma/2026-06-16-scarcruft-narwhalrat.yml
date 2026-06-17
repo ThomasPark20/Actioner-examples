@@ -1,0 +1,229 @@
+# ScarCruft APT37 NarwhalRAT Campaign - Sigma Rules
+# Generated: 2026-06-16 | Version: 1.1 (FINAL)
+# Source: https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+
+---
+title: ScarCruft NarwhalRAT - Suspicious LNK Spawning PowerShell and Batch Scripts
+id: a1f3c8e2-7b4d-4a9e-b6c1-2d5e8f0a3b7c
+status: experimental
+description: >
+  Detects the initial execution chain where a malicious LNK file spawns
+  PowerShell or cmd.exe to execute obfuscated batch scripts, consistent
+  with ScarCruft APT37 NarwhalRAT delivery.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.execution
+    - attack.t1204.002
+    - attack.t1059.001
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\explorer.exe'
+    selection_child:
+        CommandLine|contains|all:
+            - 'cmd'
+            - '/k'
+        CommandLine|contains:
+            - 'KHjWFcsE.bat'
+            - '%TEMP%'
+            - 'temp012.zip'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Unlikely in legitimate environments
+level: high
+
+---
+title: ScarCruft NarwhalRAT - Persistence via Scheduled Task
+id: b2e4d9f3-8c5e-4b0a-c7d2-3e6f9a1b4c8d
+status: experimental
+description: >
+  Detects creation of scheduled task named
+  MicrosoftUserInterfacePicturesUpdateTackMachine used by NarwhalRAT
+  for persistence, executing renamed Python at one-minute intervals.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.persistence
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'MicrosoftUserInterfacePicturesUpdateTackMachine'
+    condition: selection_schtasks
+falsepositives:
+    - None expected - highly specific task name
+level: high
+
+---
+title: ScarCruft NarwhalRAT - Staging Directory and Renamed Python Execution
+id: c3f5ea04-9d6f-4c1b-d8e3-4f7a0b2c5d9e
+status: experimental
+description: >
+  Detects execution of renamed Python binary (userscreen.exe) from the
+  NarwhalRAT staging path under Public\AccountPictures, or creation
+  of files in the naverwhale AppData directory.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.execution
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_userscreen:
+        Image|endswith: '\userscreen.exe'
+        Image|contains: '\AccountPictures\UserInerfacePicture\'
+    selection_config_cat:
+        CommandLine|contains|all:
+            - 'userscreen.exe'
+            - 'config.cat'
+    condition: selection_userscreen or selection_config_cat
+falsepositives:
+    - None expected - specific file path and binary name combination
+level: high
+
+---
+title: ScarCruft NarwhalRAT - pCloud Dead Drop Resolver Communication
+id: d4a6fb15-ae70-4d2c-e9f4-5a8b1c3d6e0f
+status: experimental
+description: >
+  Detects network connections or process command lines referencing pCloud
+  API endpoints with folderid and auth parameters, consistent with
+  NarwhalRAT dead drop resolver C2 communication.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.command-and-control
+    - attack.t1102.001
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_pcloud:
+        c-uri|contains:
+            - 'api.pcloud.com'
+        c-uri|contains|all:
+            - 'folderid'
+            - 'auth'
+    condition: selection_pcloud
+falsepositives:
+    - Legitimate pCloud usage - requires tuning for environments using pCloud
+    - Generic pCloud API pattern; no campaign-specific folderid available from source reporting
+level: medium
+
+---
+title: ScarCruft NarwhalRAT - Known C2 Domain Communication
+id: e5b7ac26-bf81-4e3d-fa05-6b9c2d4e7f1a
+status: experimental
+description: >
+  Detects DNS queries or HTTP connections to known NarwhalRAT C2 relay
+  domains used by ScarCruft APT37.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.command-and-control
+    - attack.t1071.001
+logsource:
+    category: dns
+    product: windows
+detection:
+    selection_domains:
+        query|contains:
+            - 'daehoat.com'
+            - 'novel21.co.kr'
+            - 'crwellfood.com'
+            - 'fe01.co.kr'
+    condition: selection_domains
+falsepositives:
+    - Legitimate access to these Korean websites (unlikely outside Korea)
+level: high
+
+---
+title: ScarCruft NarwhalRAT - Naverwhale Working Directory Creation
+id: f6c8bd37-ca92-4f4e-ab16-7cad3e5f8a2b
+status: experimental
+description: >
+  Detects file operations in the AppData naverwhale directory used by
+  NarwhalRAT to stage harvested data, mimicking the legitimate Naver
+  Whale browser.
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.collection
+    - attack.t1074.001
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_naverwhale:
+        TargetFilename|contains: '\AppData\Roaming\naverwhale\'
+    filter_legitimate:
+        Image|contains: '\Naver\Whale\'
+    condition: selection_naverwhale and not filter_legitimate
+falsepositives:
+    - Legitimate Naver Whale browser portable installations using non-standard paths
+level: high
+
+---
+title: ScarCruft NarwhalRAT - Obfuscated Batch Script KHjWFcsE Execution
+id: a7d9ce48-db03-4a5f-bc27-8dbe4f6a9b3c
+status: experimental
+description: >
+  Detects execution of the NarwhalRAT obfuscated batch dropper (KHjWFcsE.bat)
+  or CMD processes combining environment variable substring obfuscation with
+  campaign-specific artifacts (temp012.zip, userscreen.exe, config.cat).
+references:
+    - https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+    - https://thehackernews.com/2026/06/fake-microsoft-alerts-used-to-deploy.html
+author: Actioner
+date: 2026-06-16
+tags:
+    - attack.t1027.010
+    - attack.execution
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_bat:
+        Image|endswith: '\cmd.exe'
+        CommandLine|contains: 'KHjWFcsE.bat'
+    selection_obfuscation_with_artifact:
+        Image|endswith: '\cmd.exe'
+        CommandLine|re: '(%\w+:~\d+,\d+%){5,}'
+        CommandLine|contains:
+            - 'temp012.zip'
+            - 'userscreen.exe'
+            - 'config.cat'
+            - 'UserInerfacePicture'
+    condition: selection_bat or selection_obfuscation_with_artifact
+falsepositives:
+    - None expected - combines obfuscation technique with campaign-specific filenames
+level: high

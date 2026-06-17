@@ -1,0 +1,20 @@
+# ScarCruft APT37 NarwhalRAT Campaign - Suricata Rules
+# Generated: 2026-06-16 | Version: 1.1 (FINAL)
+# Source: https://www.genians.co.kr/en/blog/threat_intelligence/narwhalrat
+# Note: Suricata is not installed in validation environment; rules are structurally validated only.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT C2 - daehoat.com relay"; flow:established,to_server; http.host; content:"daehoat.com"; http.uri; content:"/wp-content/uploads/2017/02/member.php"; classtype:trojan-activity; sid:2026061601; rev:1; metadata:created_at 2026_06_16, confidence high;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT C2 - novel21.co.kr relay"; flow:established,to_server; http.host; content:"novel21.co.kr"; http.uri; content:"/data/editor/2110/index.php"; classtype:trojan-activity; sid:2026061602; rev:1; metadata:created_at 2026_06_16, confidence high;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"APT37 NarwhalRAT pCloud Dead Drop Resolver"; flow:established,to_server; http.host; content:"api.pcloud.com"; http.uri; content:"folderid"; http.uri; content:"auth"; classtype:trojan-activity; sid:2026061603; rev:1; metadata:created_at 2026_06_16, confidence low;)
+
+alert ip $HOME_NET any -> [121.254.222.10,121.254.222.80,211.239.157.126,218.150.78.198,218.150.78.231,61.100.9.206] any (msg:"APT37 NarwhalRAT Known C2 IP Communication"; classtype:trojan-activity; sid:2026061604; rev:1; metadata:created_at 2026_06_16, confidence high;)
+
+alert dns $HOME_NET any -> any any (msg:"APT37 NarwhalRAT C2 DNS Lookup - daehoat.com"; dns.query; content:"daehoat.com"; nocase; classtype:trojan-activity; sid:2026061605; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"APT37 NarwhalRAT C2 DNS Lookup - novel21.co.kr"; dns.query; content:"novel21.co.kr"; nocase; classtype:trojan-activity; sid:2026061606; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"APT37 NarwhalRAT C2 DNS Lookup - crwellfood.com"; dns.query; content:"crwellfood.com"; nocase; classtype:trojan-activity; sid:2026061607; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"APT37 NarwhalRAT C2 DNS Lookup - fe01.co.kr"; dns.query; content:"fe01.co.kr"; nocase; classtype:trojan-activity; sid:2026061608; rev:1;)

@@ -1,0 +1,11 @@
+# Atomic Arch AUR Supply Chain Attack - Suricata Rules
+# Date: 2026-06-16
+# Reference: https://ioctl.fail/preliminary-analysis-of-aur-malware/
+# TLP: WHITE
+
+# Atomic Arch Data Exfiltration via temp.sh
+# Detects HTTP POST to temp.sh /upload endpoint used for credential exfiltration.
+# Confidence: medium | Compile status: uncompiled (structural check only)
+# Note: temp.sh is a legitimate service; correlate with other Atomic Arch indicators
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Atomic Arch Exfiltration POST to temp.sh"; flow:established,to_server; http.method; content:"POST"; http.host; content:"temp.sh"; endswith; http.uri; content:"/upload"; classtype:trojan-activity; sid:2026061602; rev:1; metadata:created_at 2026_06_16, updated_at 2026_06_16, tlp white, confidence medium;)
