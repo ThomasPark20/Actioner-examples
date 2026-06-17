@@ -444,7 +444,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE easy-day-js Stage-2 
 Detects TLS connections to the RAT C2 server using the expired wolfssl.com certificate. Compile status: PASS.
 
 ```
-alert tls $HOME_NET any -> 23.254.164.123 443 (msg:"MALWARE easy-day-js RAT Beacon to C2 23.254.164.123"; flow:established,to_server; tls.cert_subject; content:"CN=www.wolfssl.com"; classtype:trojan-activity; sid:2026061702; rev:1;)
+alert tls $HOME_NET any -> 23.254.164.123 443 (msg:"MALWARE easy-day-js RAT Beacon to C2 23.254.164.123 via wolfssl.com TLS Cert"; flow:established,to_server; tls.cert_subject; content:"CN=www.wolfssl.com"; classtype:trojan-activity; sid:2026061702; rev:1;)
 ```
 
 ### Suricata Rule 3: Dropper C2 Connection
@@ -455,28 +455,20 @@ Detects TCP connections to the dropper C2 IP on port 8000. Compile status: PASS.
 alert tcp $HOME_NET any -> 23.254.164.92 8000 (msg:"MALWARE easy-day-js Dropper C2 Connection to 23.254.164.92:8000"; flow:established,to_server; classtype:trojan-activity; sid:2026061703; rev:1;)
 ```
 
-### Suricata Rule 4: RAT C2 Connection
+### Suricata Rule 4: CUT (formerly RAT C2 Connection)
 
-Detects TCP connections to the RAT C2 IP on port 443. Compile status: PASS.
+*This rule was removed during review.* A bare IP:443 TCP match is too noisy for production deployments -- any legitimate HTTPS traffic to this IP (e.g., shared hosting) would trigger it. Rule 2 (RAT Beacon TLS Certificate) already covers this C2 with much higher fidelity by matching the distinctive expired `CN=www.wolfssl.com` TLS certificate subject.
 
-```
-alert tcp $HOME_NET any -> 23.254.164.123 443 (msg:"MALWARE easy-day-js RAT C2 Connection to 23.254.164.123:443"; flow:established,to_server; classtype:trojan-activity; sid:2026061704; rev:1;)
-```
+### Suricata Rule 5: CUT (formerly Campaign ID in HTTP URI)
 
-### Suricata Rule 5: Campaign ID in HTTP URI
+*This rule was removed during review.* The campaign identifier `/49890878` is a generic 8-digit number that would generate excessive false positives when matched alone in HTTP URIs without host or User-Agent constraints. The campaign ID is already covered as part of Rule 1's compound match (URI + host together).
 
-Detects the campaign identifier `/49890878` in HTTP URIs, which may indicate C2 communication even if the IP changes. Compile status: PASS.
+### Suricata Rule 4 (renumbered): Legacy IE8 User-Agent
 
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE easy-day-js Campaign ID in HTTP URI"; flow:established,to_server; http.uri; content:"/49890878"; classtype:trojan-activity; sid:2026061705; rev:1;)
-```
-
-### Suricata Rule 6: Legacy IE8 User-Agent
-
-Detects the anomalous Internet Explorer 8 User-Agent string used by the payload fetch mechanism. Compile status: PASS.
+Detects the anomalous Internet Explorer 8 User-Agent string used by the payload fetch mechanism. SID renumbered to 2026061704. Compile status: PASS.
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SUSPICIOUS Legacy IE8 User-Agent Potentially Used by easy-day-js Payload"; flow:established,to_server; http.user_agent; content:"mozilla/4.0 (compatible|3b| msie 8.0|3b| windows nt 5.1|3b| trident/4.0)"; classtype:trojan-activity; sid:2026061706; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SUSPICIOUS Legacy IE8 User-Agent Potentially Used by easy-day-js Payload"; flow:established,to_server; http.user_agent; content:"mozilla/4.0 (compatible|3b| msie 8.0|3b| windows nt 5.1|3b| trident/4.0)"; classtype:trojan-activity; sid:2026061704; rev:1;)
 ```
 
 ---
