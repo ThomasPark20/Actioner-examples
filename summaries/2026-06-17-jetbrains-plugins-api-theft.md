@@ -1,7 +1,19 @@
 # Malicious JetBrains Marketplace Plugins Stealing AI API Keys
 
+<!-- revision: 2026-06-17 REVISE pass — applied all critic fixes:
+     1. Sigma Rule 1: cs-uri → c-uri, cs-User-Agent → c-useragent in fields; condition tightened to AND all three selections; ATT&CK tag corrected to attack.t1552
+     2. Sigma Rule 2: level elevated to critical for consistency with Rule 3
+     3. Sigma Rule 3: T1555 → T1552, T1176 → T1554
+     4. ATT&CK table: T1555 → T1552 (Unsecured Credentials); T1176 → T1554 (Compromise Client Software Binary), kept T1176 only for PromptSnatcher
+     5. YARA Rule 1: added filesize < 50MB; first branch now requires $auth_token; removed $key_length_check (dead weight in compiled JARs); last branch uses $auth_token instead of $key_length_check
+     6. Remediation: defanged IP 39.107.60.51 → 39.107.60[.]51
+     7. Suricata note added re: live IPs in rules
+     8. Sigma tactic tags fixed to hyphenated form (attack.credential-access, attack.command-and-control)
+     Re-validation: sigma check 0 errors/0 issues; sigma convert splunk PASS; sigma convert log_scale PASS; yarac PASS; suricata -T PASS
+-->
+
 **Date:** 2026-06-17
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** CLEAR
 **Severity:** HIGH
 
@@ -123,11 +135,15 @@ Two Chrome extensions ("Smart Adblocker" and "Adblock for Browser") were disclos
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: T1555 replaced with T1552 (API keys are unsecured credentials, not password-store creds);
+     T1176 replaced with T1554 for JetBrains plugins (not browser extensions); T1176 retained only for PromptSnatcher Chrome extensions -->
+
 | Tactic | Technique | ID | Description |
 |--------|-----------|-----|-------------|
 | Resource Development | Compromise Software Supply Chain | T1195.002 | Malicious plugins published to official JetBrains Marketplace |
-| Persistence | Browser Extensions | T1176 | Plugins persist in IDE installation; Chrome extensions persist in browser |
-| Credential Access | Credentials from Password Stores | T1555 | API keys harvested from IDE plugin settings |
+| Persistence | Compromise Client Software Binary | T1554 | Malicious plugins persist in JetBrains IDE plugin directories |
+| Persistence | Browser Extensions | T1176 | PromptSnatcher Chrome extensions persist in browser (related campaign only) |
+| Credential Access | Unsecured Credentials | T1552 | API keys harvested from IDE plugin settings where they are stored without protection |
 | Credential Access | Input Capture | T1056 | Key capture via settings apply() handler |
 | Exfiltration | Exfiltration Over C2 Channel | T1041 | Stolen keys transmitted to C2 via HTTP POST |
 | Command and Control | Application Layer Protocol: Web Protocols | T1071.001 | HTTP POST to C2 endpoint |
@@ -155,12 +171,14 @@ Two Chrome extensions ("Smart Adblocker" and "Adblock for Browser") were disclos
    - Linux: `~/.local/share/JetBrains/<IDE><version>/plugins/`
 2. **Revoke and rotate API keys:** Any OpenAI, DeepSeek, or SiliconFlow API keys that were entered into affected plugins must be revoked immediately and new keys issued.
 3. **Review API usage logs:** Check for unauthorized usage of potentially compromised API keys, particularly from unfamiliar IP ranges.
-4. **Block C2 IP:** Add `39.107.60.51` to network blocklists (firewall, proxy, DNS sinkhole).
+4. **Block C2 IP:** Add `39.107.60[.]51` to network blocklists (firewall, proxy, DNS sinkhole).
 5. **Uninstall malicious plugins** and clear IDE caches.
+
+<!-- revision: defanged IP in remediation step 4 (was fanged 39.107.60.51, now 39.107.60[.]51) -->
 
 ### Detection Opportunities
 
-- Monitor proxy/firewall logs for HTTP POST connections to `39.107.60.51` or URI path `/api/software/`.
+- Monitor proxy/firewall logs for HTTP POST connections to `39.107.60[.]51` or URI path `/api/software/`.
 - Alert on JetBrains IDE processes making outbound HTTP (non-HTTPS) connections to non-JetBrains infrastructure.
 - Use file integrity monitoring to detect the presence of known malicious package IDs in plugin directories.
 - For the PromptSnatcher campaign, audit Chrome extensions for IDs `iojpcjjdfhlcbgjnpngcmaojmlokmeii` and `jcbjcocinigpbgfpnhlpagidbmlngnnn`.
@@ -171,7 +189,11 @@ Two Chrome extensions ("Smart Adblocker" and "Adblock for Browser") were disclos
 
 ### Sigma Rule 1: Proxy Log Detection of C2 Communication
 
-Detects outbound HTTP POST connections to the known C2 server and exfiltration endpoint used by the malicious plugins. **Status: PASS** (sigma check: 0 errors, 0 condition errors; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
+<!-- revision: field names corrected (cs-uri → c-uri, cs-User-Agent → c-useragent); condition tightened from
+     "selection_dest and (selection_method or selection_uri)" to "selection_dest and selection_method and selection_uri"
+     to prevent POST-to-C2-on-any-URI false positives; ATT&CK tag corrected from T1555 to T1552 -->
+
+Detects outbound HTTP POST connections to the known C2 server and exfiltration endpoint used by the malicious plugins. **Status: PASS** (sigma check: 0 errors, 0 condition errors, 0 issues; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
 
 ```yaml
 title: Suspicious JetBrains Plugin API Key Exfiltration to Known C2
@@ -188,10 +210,11 @@ references:
 author: CTI Analyst (Automated Draft)
 date: 2026-06-17
 tags:
-    - attack.credential_access
-    - attack.t1555
+    - attack.credential-access
+    - attack.t1552
     - attack.exfiltration
     - attack.t1041
+    - attack.command-and-control
     - attack.t1071.001
 logsource:
     category: proxy
@@ -201,14 +224,14 @@ detection:
     selection_method:
         cs-method: 'POST'
     selection_uri:
-        cs-uri|contains: '/api/software/'
-    condition: selection_dest and (selection_method or selection_uri)
+        c-uri|contains: '/api/software/'
+    condition: selection_dest and selection_method and selection_uri
 fields:
     - src_ip
     - dst_ip
-    - cs-uri
+    - c-uri
     - cs-method
-    - cs-User-Agent
+    - c-useragent
 falsepositives:
     - Legitimate services hosted on 39.107.60.51 (unlikely given Alibaba Cloud IP)
 level: high
@@ -216,7 +239,9 @@ level: high
 
 ### Sigma Rule 2: Endpoint Detection of JetBrains IDE to C2
 
-Detects network connections from JetBrains IDE processes to the known C2 IP, useful for Sysmon-based endpoint detection. **Status: PASS** (sigma check: 0 errors, 0 condition errors; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
+<!-- revision: level elevated from high to critical for consistency with Rule 3 (both are high-confidence IOC-based detections) -->
+
+Detects network connections from JetBrains IDE processes to the known C2 IP, useful for Sysmon-based endpoint detection. **Status: PASS** (sigma check: 0 errors, 0 condition errors, 0 issues; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
 
 ```yaml
 title: JetBrains IDE Process HTTP Connection to Suspicious Alibaba Cloud IP
@@ -234,7 +259,7 @@ date: 2026-06-17
 tags:
     - attack.exfiltration
     - attack.t1041
-    - attack.command_and_control
+    - attack.command-and-control
     - attack.t1071.001
 logsource:
     category: network_connection
@@ -270,12 +295,14 @@ fields:
     - User
 falsepositives:
     - Legitimate connections to this specific IP from JetBrains IDEs are highly unlikely
-level: high
+level: critical
 ```
 
 ### Sigma Rule 3: File-Based Detection of Malicious Plugin Package IDs
 
-Detects the presence of known malicious plugin package IDs in the filesystem, indicating installation of compromised plugins. **Status: PASS** (sigma check: 0 errors, 0 condition errors; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
+<!-- revision: ATT&CK tags corrected from T1555 → T1552, T1176 → T1554 -->
+
+Detects the presence of known malicious plugin package IDs in the filesystem, indicating installation of compromised plugins. **Status: PASS** (sigma check: 0 errors, 0 condition errors, 0 issues; sigma convert to splunk: PASS; sigma convert to log_scale: PASS).
 
 ```yaml
 title: Malicious JetBrains Plugin Package ID in Plugin Directory
@@ -290,10 +317,10 @@ references:
 author: CTI Analyst (Automated Draft)
 date: 2026-06-17
 tags:
-    - attack.credential_access
-    - attack.t1555
+    - attack.credential-access
+    - attack.t1552
     - attack.persistence
-    - attack.t1176
+    - attack.t1554
 logsource:
     category: file_event
     product: windows
@@ -327,6 +354,11 @@ level: critical
 
 ### YARA Rule: Malicious Plugin Binary Detection
 
+<!-- revision: (1) added filesize < 50MB constraint; (2) first condition branch now requires $auth_token
+     (was "$c2_ip and $c2_endpoint" alone — overly loose); (3) removed $key_length_check string
+     ("StringUtils.length(key) == 51") — Java source won't appear in compiled JARs, dead weight;
+     (4) last branch replaced $key_length_check with $auth_token -->
+
 Identifies malicious JetBrains plugin binaries by matching the C2 IP, exfiltration endpoint, and static authentication token embedded in the plugin JAR files. **Status: PASS** (yarac compile: exit code 0).
 
 ```yara
@@ -345,7 +377,7 @@ rule JetBrains_Malicious_Plugin_APIKeyTheft
         $auth_token = "F48D2AA7CF341F782C1D" ascii wide
         $header_key = "X-Api-Key" ascii wide
         $sk_prefix = "sk-" ascii
-        $key_length_check = "StringUtils.length(key) == 51" ascii
+
         $pkg_id1 = "org.sm.yms.toolkit" ascii
         $pkg_id2 = "com.json.simple.kit" ascii
         $pkg_id3 = "org.bug.find.tools" ascii
@@ -363,11 +395,13 @@ rule JetBrains_Malicious_Plugin_APIKeyTheft
         $pkg_id15 = "com.dp.git.ai.tool" ascii
 
     condition:
-        ($c2_ip and $c2_endpoint) or
-        ($auth_token and $header_key) or
-        ($c2_ip and $auth_token) or
-        (any of ($pkg_id*) and ($c2_ip or $auth_token or $c2_endpoint)) or
-        ($sk_prefix and $key_length_check and $c2_ip)
+        filesize < 50MB and (
+            ($c2_ip and $c2_endpoint and $auth_token) or
+            ($auth_token and $header_key) or
+            ($c2_ip and $auth_token) or
+            (any of ($pkg_id*) and ($c2_ip or $auth_token or $c2_endpoint)) or
+            ($sk_prefix and $c2_ip and $auth_token)
+        )
 }
 
 rule JetBrains_Plugin_C2_AuthToken
@@ -390,7 +424,9 @@ rule JetBrains_Plugin_C2_AuthToken
 
 ### Suricata Rules: Network-Based C2 Detection
 
-Detects HTTP POST traffic to the C2 endpoint with the static authentication token, covering both the known C2 IP and any rotated infrastructure using the same exfiltration pattern. **Status: PASS** (suricata -T: configuration successfully loaded, exit code 0).
+<!-- revision: note added — Suricata rules use live (non-defanged) IPs, which is correct and required for Suricata syntax -->
+
+Detects HTTP POST traffic to the C2 endpoint with the static authentication token, covering both the known C2 IP and any rotated infrastructure using the same exfiltration pattern. Note: Suricata rules use live (non-defanged) IP addresses as required by Suricata syntax. **Status: PASS** (suricata -T: configuration successfully loaded, exit code 0).
 
 ```
 alert http $HOME_NET any -> 39.107.60.51 any (msg:"MALWARE JetBrains Malicious Plugin C2 - API Key Exfiltration POST to /api/software/"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/software/"; http.header; content:"X-Api-Key"; content:"F48D2AA7CF341F782C1D"; reference:url,www.aikido.dev/blog/multiple-jetbrains-ide-plugins-caught-stealing-ai-keys; classtype:trojan-activity; sid:2026061701; rev:1;)
