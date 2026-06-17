@@ -1,0 +1,7 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Awesome Motive Supply Chain C2 Domain tidio.cc"; flow:to_server; dns.query; content:"tidio.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/optinmonster-supply-chain-attack; metadata:author Actioner, created_at 2026-06-15; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Exfiltration to Awesome Motive C2 tidio.cc cdn-cgi Path"; flow:established,to_server; http.host; content:"tidio.cc"; fast_pattern; http.uri; content:"/cdn-cgi/"; classtype:trojan-activity; reference:url,sansec.io/research/optinmonster-supply-chain-attack; metadata:author Actioner, created_at 2026-06-15; sid:2100102; rev:1;)
+
+alert http $HOME_NET any -> $HOME_NET any (msg:"Actioner - WordPress Backdoor Plugin Shell Access developer_api1_fm"; flow:established,to_server; http.uri; content:"developer_api1_fm"; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/optinmonster-supply-chain-attack; metadata:author Actioner, created_at 2026-06-15; sid:2100103; rev:1;)
+
+alert http $HOME_NET any -> $HOME_NET any (msg:"Actioner - WordPress Backdoor Plugin Eval Endpoint developer_api1_eval"; flow:established,to_server; http.uri; content:"developer_api1_eval"; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/optinmonster-supply-chain-attack; metadata:author Actioner, created_at 2026-06-15; sid:2100104; rev:1;)

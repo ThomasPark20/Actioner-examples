@@ -1,0 +1,36 @@
+title: Atomic Arch - Suspicious npm/bun Install of Malicious Packages During Build
+id: 8252dc56-b1fe-416b-9e57-e07c26bc56c2
+status: experimental
+description: >
+    Detects execution of npm or bun installing known-malicious packages associated with
+    the Atomic Arch AUR supply chain campaign (atomic-lockfile, js-digest, lockfile-js).
+    These packages are injected via modified PKGBUILD post-install scripts.
+references:
+    - https://www.bleepingcomputer.com/news/security/over-400-arch-linux-packages-compromised-to-push-rootkit-infostealer/
+    - https://thehackernews.com/2026/06/over-400-arch-linux-aur-packages.html
+    - https://ioctl.fail/preliminary-analysis-of-aur-malware/
+    - https://www.sonatype.com/blog/atomic-arch-npm-campaign-adds-malicious-dependency
+author: Actioner
+date: 2026-06-15
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_npm:
+        Image|endswith: '/npm'
+        CommandLine|contains: 'install'
+    selection_bun:
+        Image|endswith: '/bun'
+        CommandLine|contains: 'install'
+    selection_packages:
+        CommandLine|contains:
+            - 'atomic-lockfile'
+            - 'js-digest'
+            - 'lockfile-js'
+    condition: (selection_npm or selection_bun) and selection_packages
+falsepositives:
+    - Legitimate use of identically named private packages in internal registries (unlikely)
+level: high
