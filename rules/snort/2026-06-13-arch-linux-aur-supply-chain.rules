@@ -1,0 +1,11 @@
+# Atomic Arch AUR Supply-Chain Campaign - Snort 3 Rules
+# Uncompiled: Snort 3 not available in this environment; structurally validated only.
+# SID:2100201 - C2 callback (medium confidence: /api/agent is generic; C2 uses Tor onion service)
+# SID:2100202 - Data exfil via temp.sh (medium confidence)
+# SID:2100203 - Payload staging (medium confidence: /bin/linux path is generic)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch C2 Callback POST to /api/agent [medium confidence]"; flow:established,to_server; http_method; content:"POST"; http_uri; content:"/api/agent",fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100201; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Data Exfiltration via temp.sh Upload"; flow:established,to_server; http_method; content:"POST"; http_header; content:"Host: temp.sh",fast_pattern; http_uri; content:"/upload"; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100202; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Atomic Arch Secondary Payload Staging /bin/linux [medium confidence]"; flow:established,to_server; http_method; content:"GET"; http_uri; content:"/bin/linux",fast_pattern; classtype:trojan-activity; reference:url,ioctl.fail/preliminary-analysis-of-aur-malware/; metadata:author Actioner, created 2026-06-13, campaign Atomic_Arch, confidence medium; sid:2100203; rev:2;)

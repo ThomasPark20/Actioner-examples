@@ -1,0 +1,180 @@
+title: Findstr Extraction of Data from PDF Files via LNK
+id: 3523b51b-4ed1-483d-9d64-1477efb9ade6
+status: experimental
+description: >
+    Detects findstr.exe used to extract embedded data from PDF files, matching
+    the initial stage of the AsyncRAT campaign where an LNK file uses findstr
+    to read payload data from 3th.pdf and 4th.pdf hidden in the archive.
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_findstr:
+        Image|endswith: '\findstr.exe'
+    selection_pdf:
+        CommandLine|contains:
+            - '3th.pdf'
+            - '4th.pdf'
+    condition: selection_findstr and selection_pdf
+falsepositives:
+    - Scripted searches of PDF file contents using findstr are uncommon
+level: high
+---
+title: Suspicious Windows Defender Exclusion of C Drive and PowerShell
+id: 6a888990-6ba2-4bbc-92ca-613bc2f66a3d
+status: experimental
+description: >
+    Detects Add-MpPreference used to exclude the entire C:\ drive or
+    powershell.exe from Windows Defender scanning, as observed in the
+    AsyncRAT campaign delivered via fake AI guide archives (June 2026).
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+    - https://hackread.com/hackers-fake-claude-code-guide-ai-pdfs-asyncrat/
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmdlet:
+        CommandLine|contains: 'Add-MpPreference'
+    selection_exclusion:
+        CommandLine|contains:
+            - '-ExclusionPath "C:\"'
+            - "-ExclusionPath 'C:\\'"
+            - '-ExclusionPath C:\\'
+            - '-ExclusionProcess "powershell.exe"'
+            - "-ExclusionProcess 'powershell.exe'"
+            - '-ExclusionProcess powershell.exe'
+    condition: selection_cmdlet and selection_exclusion
+falsepositives:
+    - Enterprise software deployment tools that temporarily exclude broad paths
+level: high
+---
+title: AutoHotkey Binary Renamed to Realtek Audio Executable
+id: 43fa3a52-518f-4142-a90b-3f74964f3669
+status: experimental
+description: >
+    Detects execution of AutoHotkey.exe renamed to RealtekAudioEnhancements64.exe
+    or RtkNGUI64.exe, a masquerading technique used in the AsyncRAT campaign
+    targeting AI guide seekers.
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        OriginalFileName: 'AutoHotkey.exe'
+        Image|endswith:
+            - '\RealtekAudioEnhancements64.exe'
+            - '\RtkNGUI64.exe'
+    condition: selection
+falsepositives:
+    - Unlikely; legitimate Realtek binaries would not have AutoHotkey as OriginalFileName
+level: critical
+---
+title: Scheduled Task Masquerading as Realtek Audio Service
+id: fe8e8319-153d-4eff-b580-53460a975c64
+status: experimental
+description: >
+    Detects creation of scheduled tasks using Realtek audio naming conventions
+    that are not signed Realtek binaries, as seen in AsyncRAT campaign where
+    AutoHotkey.exe was renamed to RealtekAudioEnhancements64.exe and
+    persistence was established via tasks named CheckRealtekAudioVersion.
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1053.005
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: '/create'
+    selection_name:
+        CommandLine|contains:
+            - 'CheckRealtekAudioVersion'
+            - 'RealtekAudioEnhancements64'
+            - 'ResetRealtekAudioSettings64'
+    condition: selection_schtasks and selection_name
+falsepositives:
+    - Legitimate Realtek scheduled tasks installed by official driver packages
+level: high
+---
+title: DNS Query to AsyncRAT C2 Domains - Fake AI Guide Campaign
+id: b7e4c218-9a31-4f6d-a8c5-2d1e0f3b7a94
+status: experimental
+description: >
+    Detects DNS queries to known C2 domains used in the AsyncRAT campaign
+    distributed via fake AI coding guides (June 2026). Domains resolve to
+    infrastructure hosting AsyncRAT and clay_Client payloads.
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'shampobiskworld.nl'
+            - 'shampoolagtto.com'
+            - 'shamppocosmaticso.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these are not legitimate business domains
+level: critical
+---
+title: File Creation in AsyncRAT Fake Realtek Staging Directory
+id: d9f6a341-7b28-4e5c-8d13-9c4a0e2f5b76
+status: experimental
+description: >
+    Detects file creation events under the staging directory used by the
+    AsyncRAT campaign to drop payloads masquerading as Realtek audio components.
+references:
+    - https://www.fortinet.com/blog/threat-research/threat-actors-weaponize-ai-hype-to-deliver-asyncrat
+author: Actioner
+date: 2026-06-13
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Packages\Microsoft.WindowsSoundDiagnostics'
+    selection_files:
+        TargetFilename|endswith:
+            - '\RealtekAudioService64.ps1'
+            - '\RealtekAudioService64.bat'
+            - '\RealtekAudioEnhancements64.ahk'
+            - '\RealtekAudioEnhancements64.ps1'
+            - '\RtkNGUI64.ahk'
+            - '\RtkDiagService.ahk'
+            - '\RtkCplApp.ahk'
+            - '\RtkDeviceConfigure64.ahk'
+            - '\RtkLoggingManifest.man'
+            - '\ResetRealtekAudioSettings64.vbs'
+    condition: selection and selection_files
+falsepositives:
+    - Legitimate Realtek drivers would not use LocalAppData\Packages paths
+level: high
