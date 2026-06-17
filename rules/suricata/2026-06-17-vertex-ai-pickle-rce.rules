@@ -1,0 +1,39 @@
+# Suricata rules for CVE-2026-2473 - Vertex AI Pickle Deserialization RCE
+# Author: Actioner CTI
+# Date: 2026-06-17
+# Reference: https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
+
+# Rule 1: Vertex AI Staging Bucket Model Upload - Possible Bucket Squatting
+# PREREQUISITES:
+#   - TLS inspection (SSL/TLS decryption) required to inspect HTTPS traffic
+#     to storage.googleapis.com. Without TLS inspection, this rule will not
+#     fire on production GCS traffic.
+# FALSE POSITIVES:
+#   - ALL legitimate SDK uploads using the default staging bucket naming
+#     convention will match. Triage by correlating source identity.
+# LIMITATIONS:
+#   - GCS may use bucket-subdomain style URLs (BUCKET.storage.googleapis.com)
+#     which this rule does not cover. Consider adding a companion rule with
+#     http.host pcre for the subdomain pattern if needed.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Vertex AI Staging Bucket Model Upload - Possible Bucket Squatting (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.host; content:"storage.googleapis.com"; http.uri; content:"vertex-staging"; content:"upload"; pcre:"/\.(pkl|joblib|pickle|pb)(\?|$)/"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:attempted-admin; sid:1000001; rev:2;)
+
+# Rule 2 (GCE Metadata Token Access from Prediction Container) - CUT
+# RATIONALE: The original rule fired on ALL HTTP requests to 169.254.169.254
+# requesting service account tokens. Suricata has no container-scoping
+# capability, so it would match every GCP workload using default credentials
+# (every GCE VM, GKE pod, Cloud Function, etc.). Unacceptable false positive
+# rate. Metadata access monitoring should be implemented via:
+#   - GCP Cloud Audit Logs with container-level correlation
+#   - Container-aware EDR (e.g., Falco, Sysdig)
+#   - Sigma rules scoped to Vertex AI prediction container process telemetry
+
+# Rule 3: Suspected OAuth Token Exfiltration Post Pickle Deserialization
+# PREREQUISITES:
+#   - TLS inspection required to inspect HTTPS POST bodies for token content.
+#     Without TLS decryption, only plaintext HTTP exfiltration will be detected.
+# DEPLOYMENT:
+#   - Ensure stream.reassembly.depth is set high enough (default 1MB should
+#     suffice) to reassemble the full POST body for content matching.
+#   - Consider tuning stream.reassembly.depth upward if exfiltration payloads
+#     are large or chunked.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO EXPLOIT Suspected OAuth Token Exfiltration Post Pickle Deserialization (CVE-2026-2473)"; flow:established,to_server; http.method; content:"POST"; http.header; content:"Content-Type"; content:"application/json"; http.request_body; content:"access_token"; content:"cloud-platform"; reference:url,unit42.paloaltonetworks.com/hijacking-vertex-ai-model/; reference:cve,2026-2473; classtype:trojan-activity; sid:1000003; rev:2;)

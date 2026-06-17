@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-17
 **TLP:** CLEAR
-**Status:** DRAFT
+**Status:** FINAL
 **Sector:** Software Development / AI / Open Source
 
 ---
@@ -182,7 +182,7 @@ A `config.json` file is written alongside the payload storing the victim ID, C2 
 | Persistence | Create or Modify System Process: Launch Agent (macOS) | T1543.001 | LaunchAgent plist disguised as NVM |
 | Persistence | Create or Modify System Process: Systemd Service (Linux) | T1543.002 | Systemd user service disguised as NVM config |
 | Defense Evasion | Indicator Removal: File Deletion | T1070.004 | Dropper self-deletes after execution |
-| Defense Evasion | Subvert Trust Controls: Install Root Certificate | T1553.004 | TLS certificate validation disabled |
+| Defense Evasion | Impair Defenses: Disable or Modify Tools | T1562.001 | TLS certificate validation disabled programmatically via process.env |
 | Defense Evasion | Obfuscated Files or Information | T1027 | Custom Base64, array rotation, XOR encoding |
 | Credential Access | Unsecured Credentials: Credentials in Files | T1552.001 | Harvesting API keys, cloud creds, tokens from env/files |
 | Collection | Data from Local System | T1005 | Browser history, wallet extensions, system profiling |
@@ -229,7 +229,7 @@ A `config.json` file is written alongside the payload storing the victim ID, C2 
 
 ### Sigma Rule 1: easy-day-js Postinstall Dropper Execution
 
-Detects Node.js process creation patterns consistent with the easy-day-js postinstall hook executing `setup.cjs` with the `--no-warnings` flag. Compile status: PASS (sigma check: 0 errors, 0 issues; converts to Splunk and LogScale).
+Detects Node.js process creation patterns consistent with the easy-day-js postinstall hook. The `easy-day-js` package name in the command line path is required as an anchor to avoid false positives from generic filenames like `setup.cjs`. Cross-platform (no `product` restriction). Compile status: PASS (sigma check: 0 errors, 0 issues; converts to Splunk and LogScale).
 
 ```yaml
 title: Mastra NPM Supply Chain Attack - easy-day-js Postinstall Dropper Execution
@@ -239,6 +239,8 @@ description: >
     Detects execution patterns associated with the easy-day-js npm supply chain attack targeting
     the @mastra namespace. The malicious package uses a postinstall hook to execute setup.cjs,
     which disables TLS verification, downloads a second-stage RAT payload, and self-deletes.
+    This rule requires the presence of 'easy-day-js' in the command line path alongside the
+    dropper filename or npm postinstall parent process context.
 references:
     - https://thehackernews.com/2026/06/144-mastra-npm-packages-compromised-via.html
     - https://www.stepsecurity.io/blog/mastra-npm-packages-compromised-using-easy-day-js
@@ -251,7 +253,6 @@ tags:
     - attack.t1070.004
 logsource:
     category: process_creation
-    product: windows
 detection:
     selection_parent_npm:
         ParentImage|endswith:
@@ -261,21 +262,21 @@ detection:
             - 'npm'
             - 'postinstall'
     selection_dropper:
-        CommandLine|contains:
+        CommandLine|contains|all:
             - 'setup.cjs'
             - '--no-warnings'
     selection_easy_day_js_path:
         CommandLine|contains:
             - 'easy-day-js'
-    condition: selection_parent_npm and (selection_dropper or selection_easy_day_js_path)
+    condition: selection_easy_day_js_path and (selection_parent_npm or selection_dropper)
 falsepositives:
-    - Legitimate packages using setup.cjs with --no-warnings flag during postinstall
+    - Unlikely given the requirement for the distinctive easy-day-js package name in the command line
 level: high
 ```
 
 ### Sigma Rule 2: Malicious Persistence via LaunchAgent or Systemd
 
-Detects file creation at persistence paths used by the easy-day-js RAT, including the distinctive misspelling of "protocol" as "protocal." Compile status: PASS.
+Detects file creation at persistence paths used by the easy-day-js RAT across macOS (LaunchAgent), Linux (systemd), and Windows (ProgramData). The distinctive misspelling of "protocol" as "protocal" provides high-fidelity detection. Cross-platform (no `product` restriction since the rule covers all three OS families). Compile status: PASS.
 
 ```yaml
 title: Mastra NPM Supply Chain Attack - Malicious Persistence via LaunchAgent or Systemd
@@ -283,7 +284,9 @@ id: b8f4d2e5-9a3c-4f7b-ae2d-6c9f8e3b4d5e
 status: experimental
 description: >
     Detects persistence mechanisms deployed by the easy-day-js RAT payload, including
-    macOS LaunchAgent with misspelled NVM disguise or Linux systemd user service.
+    macOS LaunchAgent with misspelled NVM disguise, Linux systemd user service, or Windows
+    NodePackages directory. The misspelling of "protocol" as "protocal" is a high-fidelity
+    indicator unique to this campaign.
 references:
     - https://safedep.io/mastra-npm-scope-takeover-supply-chain-attack/
     - https://www.stepsecurity.io/blog/mastra-npm-packages-compromised-using-easy-day-js
@@ -294,7 +297,6 @@ tags:
     - attack.t1543.002
 logsource:
     category: file_event
-    product: linux
 detection:
     selection_macos_plist:
         TargetFilename|contains: 'com.nvm.protocal.plist'
@@ -312,42 +314,9 @@ falsepositives:
 level: high
 ```
 
-### Sigma Rule 3: TLS Rejection Disabled by Node.js Process
+### Sigma Rule 3: CUT
 
-Detects Node.js processes with `NODE_TLS_REJECT_UNAUTHORIZED` in the command line, used by the dropper to bypass certificate validation. Compile status: PASS.
-
-```yaml
-title: Mastra NPM Supply Chain Attack - TLS Rejection Disabled and Outbound Connection to C2
-id: c9a5e3f6-ab4d-4a8c-bf3e-7d0a9f4c5e6f
-status: experimental
-description: >
-    Detects Node.js processes setting NODE_TLS_REJECT_UNAUTHORIZED=0 environment variable,
-    which is used by the easy-day-js dropper to bypass TLS certificate validation before
-    connecting to the C2 server.
-references:
-    - https://thehackernews.com/2026/06/144-mastra-npm-packages-compromised-via.html
-    - https://safedep.io/mastra-npm-scope-takeover-supply-chain-attack/
-author: Actioner CTI
-date: 2026-06-17
-tags:
-    - attack.t1553.004
-    - attack.t1071.001
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_node:
-        Image|endswith:
-            - '\node.exe'
-            - '/node'
-    selection_tls_disable:
-        CommandLine|contains: 'NODE_TLS_REJECT_UNAUTHORIZED'
-    condition: selection_node and selection_tls_disable
-falsepositives:
-    - Development environments that intentionally disable TLS verification
-    - CI/CD pipelines with self-signed certificates
-level: medium
-```
+*This rule was removed during review.* The dropper sets `NODE_TLS_REJECT_UNAUTHORIZED` programmatically via `process.env` in JavaScript, not as a command-line argument or shell environment variable. A process_creation Sigma rule looking for this string on the command line would never fire against the actual attack. The ATT&CK mapping T1553.004 (Install Root Certificate) was also incorrect for this behavior. Detection of the TLS bypass is better handled by the network-layer Suricata rules that detect the actual C2 connections.
 
 ### YARA Rule 1: easy-day-js Stage-1 Dropper
 
@@ -393,7 +362,7 @@ rule easy_day_js_stage1_dropper {
 
 ### YARA Rule 2: easy-day-js Stage-2 RAT
 
-Detects the 41 KB obfuscated RAT payload based on C2 infrastructure strings, beacon protocol artifacts, and persistence path indicators. Compile status: PASS (yarac exit 0).
+Detects the 41 KB obfuscated RAT payload based on C2 infrastructure strings, beacon protocol artifacts, and persistence path indicators. Revised to fix operator precedence (explicit parentheses around `$beacon_type or $beacon_type2` before AND) and to require `$plist_persist`/`$nvmconf_service` in conjunction with `$node_packages` to avoid standalone false positives. Compile status: PASS (yarac exit 0).
 
 ```yara
 rule easy_day_js_stage2_rat {
@@ -428,9 +397,10 @@ rule easy_day_js_stage2_rat {
     condition:
         filesize < 500KB and (
             ($c2_ip and $campaign_id) or
-            ($plist_persist or $nvmconf_service) or
+            ($plist_persist and $node_packages) or
+            ($nvmconf_service and $node_packages) or
             ($cmd_tag and $resp_tag) or
-            ($beacon_type or $beacon_type2) and ($target_id and $common_info and $app_info and $ext_info) or
+            (($beacon_type or $beacon_type2) and ($target_id and $common_info and $app_info and $ext_info)) or
             (3 of ($protocal_cjs, $node_packages, $metamask, $phantom, $solflare, $wolfssl_cn))
         )
 }

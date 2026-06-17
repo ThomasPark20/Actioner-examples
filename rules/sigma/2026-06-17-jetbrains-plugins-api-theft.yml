@@ -1,0 +1,138 @@
+title: Suspicious JetBrains Plugin API Key Exfiltration to Known C2
+id: 8e3a7f12-c4d1-4b9e-a3f7-1d2e5c8b9a4f
+status: experimental
+description: >
+    Detects outbound HTTP POST connections from JetBrains IDE processes to the
+    known C2 server (39.107.60.51) used by malicious JetBrains Marketplace plugins
+    that steal AI API keys (DeepSeek, OpenAI, SiliconFlow). The plugins exfiltrate
+    credentials via plaintext HTTP to /api/software/ with a static X-Api-Key header.
+references:
+    - https://www.aikido.dev/blog/multiple-jetbrains-ide-plugins-caught-stealing-ai-keys
+    - https://thehackernews.com/2026/06/malicious-jetbrains-plugins-steal-ai.html
+author: CTI Analyst (Automated Draft)
+date: 2026-06-17
+tags:
+    - attack.credential-access
+    - attack.t1552
+    - attack.exfiltration
+    - attack.t1041
+    - attack.command-and-control
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_dest:
+        dst_ip: '39.107.60.51'
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        c-uri|contains: '/api/software/'
+    condition: selection_dest and selection_method and selection_uri
+fields:
+    - src_ip
+    - dst_ip
+    - c-uri
+    - cs-method
+    - c-useragent
+falsepositives:
+    - Legitimate services hosted on 39.107.60.51 (unlikely given Alibaba Cloud IP)
+level: high
+---
+title: JetBrains IDE Process HTTP Connection to Suspicious Alibaba Cloud IP
+id: 2f7b8d3e-a1c5-49f0-b6d8-3e9a7c2f1d5b
+status: experimental
+description: >
+    Detects network connections from JetBrains IDE processes (IntelliJ, PyCharm,
+    WebStorm, etc.) to the known C2 IP 39.107.60.51 associated with malicious
+    marketplace plugins stealing AI API keys.
+references:
+    - https://www.aikido.dev/blog/multiple-jetbrains-ide-plugins-caught-stealing-ai-keys
+    - https://www.bleepingcomputer.com/news/security/malicious-jetbrains-marketplace-plugins-steal-ai-api-keys-from-developers/
+author: CTI Analyst (Automated Draft)
+date: 2026-06-17
+tags:
+    - attack.exfiltration
+    - attack.t1041
+    - attack.command-and-control
+    - attack.t1071.001
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\idea64.exe'
+            - '\idea.exe'
+            - '\pycharm64.exe'
+            - '\pycharm.exe'
+            - '\webstorm64.exe'
+            - '\webstorm.exe'
+            - '\phpstorm64.exe'
+            - '\phpstorm.exe'
+            - '\goland64.exe'
+            - '\goland.exe'
+            - '\clion64.exe'
+            - '\clion.exe'
+            - '\rider64.exe'
+            - '\rider.exe'
+            - '\rubymine64.exe'
+            - '\rubymine.exe'
+            - '\datagrip64.exe'
+            - '\datagrip.exe'
+    selection_dest:
+        DestinationIp: '39.107.60.51'
+    condition: selection_process and selection_dest
+fields:
+    - Image
+    - DestinationIp
+    - DestinationPort
+    - User
+falsepositives:
+    - Legitimate connections to this specific IP from JetBrains IDEs are highly unlikely
+level: critical
+---
+title: Malicious JetBrains Plugin Package ID in Plugin Directory
+id: 4a9c1e6f-d3b2-48a7-9e5c-7f1a3b8d2c6e
+status: experimental
+description: >
+    Detects the presence of known malicious JetBrains plugin package IDs on disk,
+    indicating a compromised IDE installation with plugins that exfiltrate AI API keys.
+references:
+    - https://www.aikido.dev/blog/multiple-jetbrains-ide-plugins-caught-stealing-ai-keys
+    - https://thehackernews.com/2026/06/malicious-jetbrains-plugins-steal-ai.html
+author: CTI Analyst (Automated Draft)
+date: 2026-06-17
+tags:
+    - attack.credential-access
+    - attack.t1552
+    - attack.persistence
+    - attack.t1554
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'org.sm.yms.toolkit'
+            - 'com.json.simple.kit'
+            - 'org.bug.find.tools'
+            - 'org.translate.ai.simple'
+            - 'com.yy.test.ai.simple'
+            - 'com.dev.ai.toolkit'
+            - 'com.json.view.simple'
+            - 'com.my.git.ai.kit'
+            - 'org.check.ai.ds'
+            - 'com.review.tool.code'
+            - 'org.code.assist.dev.tool'
+            - 'com.coder.ai.dpt'
+            - 'com.my.code.tools'
+            - 'ord.cp.code.ai.kit'
+            - 'com.dp.git.ai.tool'
+    condition: selection
+fields:
+    - TargetFilename
+    - Image
+    - User
+falsepositives:
+    - None expected; these are known malicious plugin identifiers
+level: critical
