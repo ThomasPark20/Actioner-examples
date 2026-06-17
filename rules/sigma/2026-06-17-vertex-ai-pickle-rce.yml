@@ -1,0 +1,94 @@
+title: Vertex AI Model Upload to Predictable GCS Staging Bucket
+id: 8a3f1c9e-7d2b-4e5a-b6c8-9f0a1d3e5b7c
+status: experimental
+description: >
+  Detects GCS API calls uploading model artifacts to buckets matching the
+  predictable Vertex AI staging bucket naming convention. This is a broad
+  visibility rule that will fire on all default SDK uploads (not just attacks);
+  triage by correlating the uploading project with the bucket name prefix to
+  identify cross-project ownership mismatches indicative of bucket squatting
+  per CVE-2026-2473. Note: the |re modifier has limited backend support;
+  this rule uses |contains instead for broader SIEM compatibility. Field
+  names may require custom field mapping depending on your GCP log ingestion
+  pipeline (e.g., Elastic, Splunk, or Chronicle).
+references:
+  - https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
+  - https://cvereports.com/reports/CVE-2026-2473
+  - https://thehackernews.com/2026/06/google-vertex-ai-sdk-flaw-let-attackers.html
+author: Actioner CTI
+date: 2026-06-17
+tags:
+  - attack.t1195.002
+  - attack.t1059.006
+  - cve.2026-2473
+logsource:
+  product: gcp
+  service: gcs
+detection:
+  selection_bucket_pattern:
+    resource.labels.bucket_name|contains: '-vertex-staging-'
+  selection_method:
+    protoPayload.methodName:
+      - 'storage.objects.create'
+      - 'storage.objects.insert'
+  selection_artifact:
+    protoPayload.resourceName|contains:
+      - 'model.joblib'
+      - 'model.pkl'
+      - 'saved_model.pb'
+      - 'vertex_ai_auto_staging'
+  condition: selection_bucket_pattern and selection_method and selection_artifact
+falsepositives:
+  - Legitimate Vertex AI model uploads using default SDK staging buckets owned by the same project
+  - CI/CD pipelines using older SDK versions with predictable bucket naming
+  - Any default SDK upload prior to v1.144.0 will match; cross-reference the uploading principal project against the bucket name prefix to distinguish attacks
+level: medium
+---
+title: Pickle Deserialization Leading to Code Execution in ML Model Serving Container
+id: 2b4d6e8f-1a3c-5d7e-9f0b-2c4d6a8e0f1a
+status: experimental
+description: >
+  Detects suspicious child process creation from Python processes involved in
+  model loading within ML model serving containers. Focuses on joblib and
+  pickle deserialization contexts spawning shell interpreters or network
+  utilities, indicative of malicious model payloads exploiting CVE-2026-2473.
+  Consider scoping to Vertex AI container image names or hostnames if your
+  telemetry includes container context.
+references:
+  - https://unit42.paloaltonetworks.com/hijacking-vertex-ai-model/
+  - https://cvereports.com/reports/CVE-2026-2473
+author: Actioner CTI
+date: 2026-06-17
+tags:
+  - attack.t1059.006
+  - cve.2026-2473
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_parent:
+    ParentImage|endswith:
+      - '/python'
+      - '/python3'
+      - '/python3.10'
+      - '/python3.11'
+      - '/python3.12'
+    ParentCommandLine|contains:
+      - 'joblib'
+      - 'pickle'
+      - 'model_server'
+  selection_suspicious_child:
+    Image|endswith:
+      - '/sh'
+      - '/bash'
+      - '/curl'
+      - '/wget'
+      - '/nc'
+      - '/ncat'
+      - '/python'
+      - '/python3'
+  condition: selection_parent and selection_suspicious_child
+falsepositives:
+  - Model preprocessing scripts that legitimately invoke shell commands
+  - Custom prediction routines with shell-based data transformations
+level: medium

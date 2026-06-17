@@ -1,0 +1,15 @@
+# Mastra NPM Supply Chain Attack (easy-day-js) - Suricata Rules
+# Author: Actioner CTI
+# Date: 2026-06-17
+
+# Rule 1: Stage-2 Payload Download (campaign-specific URL on dropper C2)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE easy-day-js Stage-2 Payload Download from C2 23.254.164.92"; flow:established,to_server; http.uri; content:"/update/49890878"; http.host; content:"23.254.164.92"; classtype:trojan-activity; sid:2026061701; rev:1;)
+
+# Rule 2: RAT Beacon TLS Certificate (expired wolfssl.com CN on RAT C2 IP)
+alert tls $HOME_NET any -> 23.254.164.123 443 (msg:"MALWARE easy-day-js RAT Beacon to C2 23.254.164.123 via wolfssl.com TLS Cert"; flow:established,to_server; tls.cert_subject; content:"CN=www.wolfssl.com"; classtype:trojan-activity; sid:2026061702; rev:1;)
+
+# Rule 3: Dropper C2 Connection (TCP to dropper server on high port)
+alert tcp $HOME_NET any -> 23.254.164.92 8000 (msg:"MALWARE easy-day-js Dropper C2 Connection to 23.254.164.92:8000"; flow:established,to_server; classtype:trojan-activity; sid:2026061703; rev:1;)
+
+# Rule 4: Legacy IE8 User-Agent (anomalous UA used by payload fetch)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SUSPICIOUS Legacy IE8 User-Agent Potentially Used by easy-day-js Payload"; flow:established,to_server; http.user_agent; content:"mozilla/4.0 (compatible|3b| msie 8.0|3b| windows nt 5.1|3b| trident/4.0)"; classtype:trojan-activity; sid:2026061704; rev:1;)
