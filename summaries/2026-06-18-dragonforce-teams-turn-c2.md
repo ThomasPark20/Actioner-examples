@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-18
-Version: 1.0-DRAFT
+Version: 1.1-REVISED
 
 ## Executive Summary
 
@@ -425,6 +425,7 @@ Detects DNS resolution of known C2 domains used by the Backdoor.Turn downloader.
 
 compile: pass | confidence: high
 
+<!-- revision: applied critic fixes -- changed level from critical to high because these are compromised legitimate domains with pre-existing benign traffic -->
 <!-- audit: sigma check pass (0 issues); splunk convert pass; log_scale convert pass. IOC-based rule keyed on 8 specific C2 domains. Values are not defanged per logsource-encoding guidance. Will need updates as domains rotate. -->
 
 ```yaml
@@ -434,7 +435,8 @@ status: experimental
 description: >
     Detects DNS queries to known command-and-control domains used by
     DragonForce operators for the Backdoor.Turn downloader component
-    (vboxrt.dll) to retrieve payloads.
+    (vboxrt.dll) to retrieve payloads. These are compromised legitimate
+    domains, so some benign traffic is expected.
 references:
     - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
 author: Actioner
@@ -458,16 +460,17 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate access to these domains prior to their compromise
-level: critical
+level: high
 ```
 
 ### YARA: Backdoor.Turn and DragonForce File Detection
 
 Three YARA rules covering Backdoor.Turn RAT binaries (behavioral + C2 domain strings), the vboxrt.dll downloader, and the DragonForce ransomware encryptor.
 
-compile: pass | confidence: high (C2 domain match), medium (behavioral match)
+compile: pass | confidence: high (Backdoor.Turn C2 domain match), medium (Backdoor.Turn behavioral), high (Downloader), low (Ransomware)
 
-<!-- audit: yarac compile pass (exit 0). Malware_DragonForce_Backdoor_Turn matches on either embedded C2 domains (high confidence) or Go binary + TURN/QUIC + capability strings combination (medium, broader). Malware_DragonForce_Backdoor_Turn_Downloader requires PE + C2 domain + sideload indicator. Malware_DragonForce_Ransomware requires PE + ransom strings + crypto API -- medium-low standalone confidence without hash match. -->
+<!-- revision: applied critic fixes -- added PE gate (uint16(0)==0x5A4D) to C2-only branch in Malware_DragonForce_Backdoor_Turn to prevent matching threat intel docs/browser caches; fixed hash2 meta keys to duplicate hash keys in Turn and Downloader rules; tightened Malware_DragonForce_Ransomware to require $ransom1+$ransom2 together, removed standalone $ransom3 match, lowered confidence to low -->
+<!-- audit: yarac compile pass (exit 0). Malware_DragonForce_Backdoor_Turn matches on either PE with embedded C2 domains (high confidence) or Go binary + TURN/QUIC + capability strings combination (medium, broader). Malware_DragonForce_Backdoor_Turn_Downloader requires PE + C2 domain + sideload indicator. Malware_DragonForce_Ransomware requires PE + DragonForce name + .dragonforce extension + crypto API -- low confidence due to limited unique strings. -->
 
 ```yara
 rule Malware_DragonForce_Backdoor_Turn
@@ -478,7 +481,7 @@ rule Malware_DragonForce_Backdoor_Turn
         date = "2026-06-18"
         reference = "https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor"
         hash = "821da79d727351dd67ce5df7950e9a3de6647a3cf474bb3a093f67507fed92a6"
-        hash2 = "048e18416177de2ead251abdf4d89837f6807c6aba4d5b1debe49adfdecbf05c"
+        hash = "048e18416177de2ead251abdf4d89837f6807c6aba4d5b1debe49adfdecbf05c"
         tlp = "WHITE"
         severity = "critical"
 
@@ -513,7 +516,7 @@ rule Malware_DragonForce_Backdoor_Turn
     condition:
         filesize < 30MB and
         (
-            (1 of ($c2_*)) or
+            (uint16(0) == 0x5A4D and 3 of ($c2_*)) or
             (
                 all of ($go*) and
                 2 of ($turn*) and
@@ -531,7 +534,7 @@ rule Malware_DragonForce_Backdoor_Turn_Downloader
         date = "2026-06-18"
         reference = "https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor"
         hash = "f174c19902523dcf005fa044b6598403a5e5c0a5982398d1bc0dcc5ec1cd351b"
-        hash2 = "d20a3c928761fe00ac522eeb474612b5804cd9108453ea8591106d5d4428428e"
+        hash = "d20a3c928761fe00ac522eeb474612b5804cd9108453ea8591106d5d4428428e"
         tlp = "WHITE"
         severity = "high"
 
@@ -574,7 +577,6 @@ rule Malware_DragonForce_Ransomware
     strings:
         $ransom1 = "DragonForce" ascii wide nocase
         $ransom2 = ".dragonforce" ascii wide
-        $ransom3 = "DRAGON" ascii wide
         $encrypt1 = "CryptEncrypt" ascii
         $encrypt2 = "BCryptEncrypt" ascii
         $encrypt3 = "CryptGenRandom" ascii
@@ -582,7 +584,7 @@ rule Malware_DragonForce_Ransomware
     condition:
         uint16(0) == 0x5A4D and
         filesize < 10MB and
-        2 of ($ransom*) and
+        $ransom1 and $ransom2 and
         1 of ($encrypt*)
 }
 ```
@@ -593,6 +595,7 @@ Ten Suricata rules covering DNS queries to all eight known C2 domains, TCP conne
 
 compile: pass | confidence: high
 
+<!-- revision: applied critic fixes -- changed HTTP staging rule from generic .zip match to specific /TechSupV18Fix3.zip URI, bumped rev to 2 -->
 <!-- audit: suricata -T pass (exit 0, "Configuration provided was successfully loaded"). IOC-based rules. DNS rules use dns.query sticky buffer with nocase. IP rules use direct destination match. Domains and IPs will need rotation tracking. -->
 
 ```
@@ -614,7 +617,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Bac
 
 alert tcp $HOME_NET any -> 62.164.177.25 any (msg:"Actioner - TCP Connection to DragonForce Backdoor.Turn C2 IP 62.164.177.25"; flow:established,to_server; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100109; rev:1;)
 
-alert http $HOME_NET any -> 192.36.27.51 any (msg:"Actioner - HTTP Connection to DragonForce Staging IP for Malicious ZIP Download"; flow:established,to_server; http.uri; content:".zip"; endswith; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100110; rev:1;)
+alert http $HOME_NET any -> 192.36.27.51 any (msg:"Actioner - HTTP Request to DragonForce Staging IP for TechSupV18Fix3.zip"; flow:established,to_server; http.uri; content:"/TechSupV18Fix3.zip"; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100110; rev:2;)
 ```
 
 ## Lessons Learned

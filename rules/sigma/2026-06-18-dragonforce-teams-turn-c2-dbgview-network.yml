@@ -1,0 +1,27 @@
+title: Suspicious Network Connection from DbgView64 Process
+id: 285f1a4d-cd92-4491-9a5c-97229db6d1ee
+status: experimental
+description: >
+    Detects outbound network connections from DbgView64.exe, the process into
+    which Backdoor.Turn is injected during DragonForce ransomware operations.
+    DbgView64 is a Sysinternals debugging tool that should not make network
+    connections under normal usage.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+    - https://www.securityweek.com/microsoft-teams-relay-servers-abused-in-dragonforce-ransomware-attack/
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1055
+    - attack.t1071.001
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\DbgView64.exe'
+        Initiated: 'true'
+    condition: selection
+falsepositives:
+    - DbgView64 checking for updates if configured to do so
+level: high
