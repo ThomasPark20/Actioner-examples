@@ -1,0 +1,29 @@
+title: WScript Execution of JavaScript from Public Documents Subdirectory
+id: cd7fb1a2-5c6d-4e9f-da0b-1c2d3e4f5a6b
+status: experimental
+description: >
+    Detects WScript or CScript executing JavaScript files from C:\Users\Public\Documents
+    subdirectories. The CryptoBandits worm stores obfuscated JS payloads in randomly
+    named subdirectories under this path and executes them via script interpreters.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_interpreter:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_path:
+        CommandLine|contains: '\Users\Public\Documents\'
+    selection_ext:
+        CommandLine|contains: '.js'
+    condition: selection_interpreter and selection_path and selection_ext
+falsepositives:
+    - Legitimate scripts stored in Public Documents (uncommon)
+level: high

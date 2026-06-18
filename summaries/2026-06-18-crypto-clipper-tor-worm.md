@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-18
-Version: 1.0 (DRAFT)
+Version: 1.0 (FINAL)
 
 ---
 
@@ -30,7 +30,7 @@ The malware is written as an obfuscated JavaScript payload executed by Windows S
 | Timestamp | Event |
 |-----------|-------|
 | 2026-02 (est.) | Campaign begins active distribution via USB media |
-| 2026-07 (est.) | Threat actor YouTube channel created (91,000+ subscribers by discovery) |
+| 2025-07 (est.) | Threat actor YouTube channel created (91,000+ subscribers by discovery) |
 | 2026-06-17 | Microsoft Security Blog publishes technical analysis |
 | 2026-06-18 | The Hacker News covers campaign with additional distribution infrastructure details |
 
@@ -234,7 +234,7 @@ The malware targets Windows systems exclusively for its worm and stealer compone
 | T1115 | Clipboard Data | Clipboard monitored every 500ms for crypto addresses, seed phrases, and private keys |
 | T1113 | Screen Capture | 5 screenshots captured at 10-second intervals upon detecting seed phrases or keys |
 | T1090.003 | Multi-hop Proxy | C2 traffic routed through local Tor SOCKS5 proxy (ugate.exe on port 9050) |
-| T1048.002 | Exfiltration Over Asymmetric Encrypted Non-C2 Protocol | Stolen data exfiltrated via curl through Tor SOCKS5 proxy |
+| T1041 | Exfiltration Over C2 Channel | Stolen data exfiltrated via the same Tor-routed C2 endpoints (/route.php, /recvf.php) used for command retrieval |
 | T1027 | Obfuscated Files or Information | Dual-layer JavaScript encryption, PyArmor obfuscation on installer |
 | T1036.005 | Match Legitimate Name or Location | Tor binary renamed to ugate.exe; staging in Public Documents |
 | T1057 | Process Discovery | WMI query for Task Manager process as anti-analysis check |
@@ -299,7 +299,7 @@ Get-MpPreference | Select-Object -ExpandProperty ExclusionProcess
 
 ## Detection Rules
 
-Five Sigma rules, two YARA rules, and one Suricata rule cover the distinctive artifacts of this campaign: scheduled task persistence from Public Documents, curl-based Tor C2 communication, the renamed Tor binary, local SOCKS5 proxy connections, and WScript execution of JavaScript payloads from the staging directory. Note that Tor-based C2 renders traditional DNS/HTTP network rules less effective; endpoint-focused detections are the primary detection surface.
+Three Sigma rules and two YARA rules cover the distinctive artifacts of this campaign: scheduled task persistence from Public Documents, curl-based Tor C2 communication, the renamed Tor binary, and WScript execution of JavaScript payloads from the staging directory. Two rules were dropped during review -- a generic Tor SOCKS5 network connection rule (behavioral, not campaign-specific) and a Suricata SOCKS5 handshake rule (generic bytes, and the campaign proxy runs on localhost invisible to network taps). Note that Tor-based C2 renders traditional DNS/HTTP network rules less effective; endpoint-focused detections are the primary detection surface.
 
 ### Sigma: CryptoBandits Scheduled Task Creation via XML in Public Documents
 
@@ -384,7 +384,7 @@ detection:
 falsepositives:
     - Legitimate Tor-based applications using curl for onion service communication
     - Security researchers testing Tor connectivity
-level: critical
+level: high
 ```
 
 ### Sigma: Renamed Tor Binary Execution as ugate.exe
@@ -421,45 +421,9 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Network Connection to Local Tor SOCKS5 Proxy on Port 9050
+### Sigma: Generic Tor SOCKS5 Connection -- DROPPED
 
-Detects outbound network connections to localhost port 9050 (the default Tor SOCKS5 proxy port), filtering out legitimate Tor Browser usage.
-
-**Status:** compile ✅ -- confidence: medium
-
-<!-- audit: sigma check 0 errors, 0 issues; sigma convert --without-pipeline -t splunk exit 0. Port 9050 is standard Tor; filter excludes Tor Browser. Medium confidence because other Tor-using applications (OnionShare, Brave Tor mode) may also connect to this port. -->
-
-```yaml
-title: Network Connection to Local Tor SOCKS5 Proxy on Port 9050
-id: bc6ea0f1-4b5c-4d8e-cf9a-0b1c2d3e4f5a
-status: experimental
-description: >
-    Detects outbound network connections to localhost port 9050, the default Tor SOCKS5
-    proxy port. The CryptoBandits worm deploys a renamed Tor binary (ugate.exe) and
-    routes all C2 traffic through this local proxy.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
-author: Actioner
-date: 2026-06-18
-tags:
-    - attack.t1090.003
-logsource:
-    category: network_connection
-    product: windows
-detection:
-    selection:
-        DestinationPort: 9050
-        DestinationIp:
-            - '127.0.0.1'
-            - '::1'
-    filter_tor_browser:
-        Image|contains: 'Tor Browser'
-    condition: selection and not filter_tor_browser
-falsepositives:
-    - Legitimate Tor Browser usage
-    - Privacy-focused applications using Tor
-level: medium
-```
+> **Dropped by critic.** Behavioral/generic -- fires on all non-Tor-Browser localhost:9050 connections (OnionShare, Brave Tor mode, system Tor daemons, etc.). Campaign-specific coverage is provided by the ugate.exe and curl+SOCKS5+onion rules above.
 
 ### Sigma: WScript Execution of JavaScript from Public Documents Subdirectory
 
@@ -494,7 +458,7 @@ detection:
     selection_path:
         CommandLine|contains: '\Users\Public\Documents\'
     selection_ext:
-        CommandLine|endswith: '.js'
+        CommandLine|contains: '.js'
     condition: selection_interpreter and selection_path and selection_ext
 falsepositives:
     - Legitimate scripts stored in Public Documents (uncommon)
@@ -556,19 +520,19 @@ rule Malware_CryptoBandits_Worm_Strings
 }
 ```
 
-### YARA: CryptoBandits Worm Artifact and Crypto Pattern Detection
+### YARA: CryptoBandits Worm Artifacts and Crypto Pattern Detection
 
 Detects CryptoBandits worm artifacts including the `ugate.exe` filename, Public Documents staging path, backup file marker, and cryptocurrency address regex patterns used by the clipper.
 
 **Status:** compile ✅ -- confidence: medium
 
-<!-- audit: yarac exit 0. Condition requires co-occurrence of campaign-specific artifacts (ugate.exe, Public Documents path, cfile) with crypto address regex patterns. Medium confidence because individual strings (ugate, crypto regexes) could appear in unrelated crypto software; the combination requirement mitigates this. -->
+<!-- audit: yarac exit 0. Condition requires co-occurrence of campaign-specific artifacts (ugate.exe, Public Documents path, cfile) with crypto address regex patterns. Medium confidence because individual strings (ugate, crypto regexes) could appear in unrelated crypto software; the combination requirement mitigates this. Renamed from Malware_CryptoBandits_Worm_Hashes per critic (rule contains no hash-based conditions). Removed $cfile-only branch; $cfile now requires $public_docs co-occurrence. -->
 
 ```yara
-rule Malware_CryptoBandits_Worm_Hashes
+rule Malware_CryptoBandits_Worm_Artifacts
 {
     meta:
-        description = "Detects known CryptoBandits worm samples by artifact strings and cryptocurrency address regex patterns embedded in the binary"
+        description = "Detects CryptoBandits worm samples by artifact strings and cryptocurrency address regex patterns embedded in the binary"
         author = "Actioner"
         date = "2026-06-18"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/"
@@ -593,22 +557,14 @@ rule Malware_CryptoBandits_Worm_Hashes
             ($ugate and $public_docs) or
             ($ugate and 2 of ($crypto_*)) or
             ($public_docs and $cfile and 1 of ($crypto_*)) or
-            (3 of ($crypto_*) and ($ugate or $cfile))
+            (3 of ($crypto_*) and $cfile and $public_docs)
         )
 }
 ```
 
-### Suricata: CryptoBandits Tor SOCKS5 Proxy Connection
+### Suricata: Tor SOCKS5 Handshake -- DROPPED
 
-Detects SOCKS5 handshake initiation to port 9050 (local Tor proxy), matching the initial SOCKS5 greeting bytes sent by clients connecting to the CryptoBandits Tor proxy.
-
-**Status:** compile ✅ -- confidence: medium
-
-<!-- audit: suricata -T exit 0 ("Configuration provided was successfully loaded"). Matches SOCKS5 version 5 + 1 method + no-auth greeting at the start of TCP payload to port 9050. Medium confidence because any SOCKS5 client connecting to port 9050 will match; combine with endpoint telemetry for higher fidelity. -->
-
-```
-alert tcp $HOME_NET any -> any 9050 (msg:"Actioner - CryptoBandits Tor SOCKS5 Proxy Connection to localhost:9050"; flow:established,to_server; content:"|05 01 00|"; depth:3; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/; metadata:author Actioner, created_at 2026-06-18; sid:2100101; rev:1;)
-```
+> **Dropped by critic.** SOCKS5 handshake bytes (`|05 01 00|`) to port 9050 are generic (any SOCKS5 client), and the campaign's Tor proxy runs on localhost (invisible to standard network tap deployments). No Suricata rules survive for this campaign.
 
 ---
 

@@ -1,0 +1,32 @@
+title: Curl SOCKS5 Proxy Communication to Tor Onion Address
+id: 9b4c8d5e-2f3a-4b6c-ad7e-8f9a0b1c2d3e
+status: experimental
+description: >
+    Detects curl.exe using the --socks5-hostname flag with localhost:9050 to route
+    traffic through a local Tor SOCKS5 proxy to .onion domains. This is the primary
+    C2 communication method used by the CryptoBandits crypto clipper worm.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1090.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith: '\curl.exe'
+    selection_socks:
+        CommandLine|contains: '--socks5-hostname'
+    selection_tor:
+        CommandLine|contains:
+            - 'localhost:9050'
+            - '127.0.0.1:9050'
+    selection_onion:
+        CommandLine|contains: '.onion'
+    condition: selection_binary and selection_socks and selection_tor and selection_onion
+falsepositives:
+    - Legitimate Tor-based applications using curl for onion service communication
+    - Security researchers testing Tor connectivity
+level: high
