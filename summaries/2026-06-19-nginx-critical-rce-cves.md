@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-19
-Version: 1.0-DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -148,9 +148,11 @@ No specific network-level IOCs (C2 domains, IPs, URLs) are associated with these
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1190 | Exploit Public-Facing Application | Remote exploitation of NGINX vulnerabilities via crafted HTTP/3 or HTTP/2 requests |
+| T1190 | Exploit Public-Facing Application | Remote exploitation of NGINX vulnerabilities via crafted HTTP/3 or HTTP/2 requests, potentially leading to code execution on the server |
 | T1499.004 | Application or System Exploitation (Endpoint DoS) | Worker process crashes causing denial of service |
-| T1203 | Exploitation for Client Execution | Memory corruption leading to potential code execution on NGINX server |
+| T1592 | Gather Victim Host Information | Vulnerable NGINX version strings exposed in Server response headers enable attacker reconnaissance |
+
+<!-- revision: T1203 (Exploitation for Client Execution) removed — T1203 is client-side exploitation, not server-side. T1592 added for the version-detection asset-awareness rules. -->
 
 ## Impact Assessment
 
@@ -216,9 +218,9 @@ These rules detect exploitation indicators for CVE-2026-42530 and CVE-2026-42055
 
 ### Sigma: NGINX HTTP/3 Worker Process Crash (CVE-2026-42530)
 
-Detects NGINX worker process crashes with HTTP/3/QUIC/QPACK module references in error logs, indicating potential CVE-2026-42530 exploitation.
+Detects NGINX worker process crashes (signal 11) in error logs, indicating potential CVE-2026-42530 exploitation. Module-specific keywords (ngx_http_v3, quic, qpack) appear in core dump backtraces, not in the standard NGINX error log line, so this rule fires on any signal 11 crash and should be combined with core dump analysis for HTTP/3-specific attribution.
 
-compile: pass | confidence: medium
+compile: pass | confidence: low
 
 ```yaml
 title: NGINX Worker Process Crash Indicating HTTP/3 Use-After-Free Exploitation (CVE-2026-42530)
@@ -229,7 +231,10 @@ description: >
     that may indicate exploitation of CVE-2026-42530, a use-after-free
     vulnerability in the ngx_http_v3_module (HTTP/3 QUIC). Worker process
     crashes caused by memory corruption from QPACK encoder stream manipulation
-    will produce signal 11 entries in the NGINX error log.
+    will produce signal 11 entries in the NGINX error log. Module keywords
+    (ngx_http_v3, quic, qpack) appear in core dump backtraces, not in the
+    standard error log line; this rule fires on signal 11 crashes and should
+    be combined with core dump analysis for HTTP/3-specific attribution.
 references:
     - https://my.f5.com/manage/s/article/K000161616
     - https://thehackernews.com/2026/06/f5-patches-two-critical-nginx-open.html
@@ -238,31 +243,28 @@ date: 2026-06-19
 tags:
     - attack.t1190
 logsource:
-    category: webserver
+    category: application
+    product: nginx
 detection:
     selection_crash:
-        cs-uri|contains: 'signal 11'
-    selection_worker:
-        cs-uri|contains: 'worker process'
-    selection_module:
-        cs-uri|contains:
-            - 'ngx_http_v3'
-            - 'quic'
-            - 'qpack'
-    condition: selection_crash and selection_worker and selection_module
+        data|contains|all:
+            - 'worker process'
+            - 'exited on signal 11'
+    condition: selection_crash
 falsepositives:
     - Legitimate NGINX worker crashes due to bugs unrelated to exploitation
     - Memory issues caused by system resource exhaustion
-level: high
+level: medium
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. Field name cs-uri used as generic webserver log field per Sigma webserver category; actual field mapping depends on pipeline (e.g., message for raw syslog ingestion). The selection_module narrows from generic crashes to HTTP/3-specific ones, reducing false positives at the cost of missing crashes where module name is not logged in the error line. -->
+<!-- revision: Fixed logsource from category:webserver to category:application/product:nginx (error logs, not access logs). Replaced cs-uri field (W3C access log field) with data field (correct for application/error logs). Removed module-specific keyword filter (ngx_http_v3, quic, qpack) because these tokens do not appear in the standard NGINX error log format — they only appear in core dump backtraces. Lowered confidence from medium to low and level from high to medium to reflect the reduced specificity. -->
+<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. -->
 
 ### Sigma: NGINX HTTP/2 Worker Process Crash (CVE-2026-42055)
 
-Detects NGINX worker process crashes with HTTP/2 proxy or gRPC module references, indicating potential CVE-2026-42055 exploitation.
+Detects NGINX worker process crashes (signal 11) in error logs, indicating potential CVE-2026-42055 exploitation. Module-specific keywords (ngx_http_proxy, ngx_http_grpc) appear in core dump backtraces, not in the standard NGINX error log line. The "upstream" keyword was removed as it is too broad and triggers on benign upstream connectivity errors.
 
-compile: pass | confidence: medium
+compile: pass | confidence: low
 
 ```yaml
 title: NGINX Worker Process Crash Indicating HTTP/2 Buffer Overflow Exploitation (CVE-2026-42055)
@@ -272,8 +274,11 @@ description: >
     Detects NGINX worker process crashes (signal 11/SIGSEGV) in the error log
     that may indicate exploitation of CVE-2026-42055, a heap-based buffer
     overflow in ngx_http_proxy_v2_module and ngx_http_grpc_module. Crashes from
-    oversized HTTP/2 header manipulation will produce signal 11 entries with
-    references to upstream proxy or gRPC modules.
+    oversized HTTP/2 header manipulation will produce signal 11 entries. Module
+    keywords (ngx_http_proxy, ngx_http_grpc) appear in core dump backtraces,
+    not in the standard error log line; this rule fires on signal 11 crashes
+    and should be combined with core dump analysis for HTTP/2-specific
+    attribution.
 references:
     - https://my.f5.com/manage/s/article/K000161584
     - https://thehackernews.com/2026/06/f5-patches-two-critical-nginx-open.html
@@ -282,41 +287,40 @@ date: 2026-06-19
 tags:
     - attack.t1190
 logsource:
-    category: webserver
+    category: application
+    product: nginx
 detection:
     selection_crash:
-        cs-uri|contains: 'signal 11'
-    selection_worker:
-        cs-uri|contains: 'worker process'
-    selection_module:
-        cs-uri|contains:
-            - 'ngx_http_proxy'
-            - 'ngx_http_grpc'
-            - 'upstream'
-    condition: selection_crash and selection_worker and selection_module
+        data|contains|all:
+            - 'worker process'
+            - 'exited on signal 11'
+    condition: selection_crash
 falsepositives:
     - Legitimate NGINX worker crashes due to bugs unrelated to exploitation
     - Upstream connectivity issues causing worker instability
-level: high
+level: medium
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. Same field semantics note as the HTTP/3 rule. The "upstream" keyword in selection_module broadens coverage but may increase false positives from legitimate upstream errors; tune per environment. -->
+<!-- revision: Fixed logsource from category:webserver to category:application/product:nginx (error logs, not access logs). Replaced cs-uri field with data field. Removed module-specific keyword filter (ngx_http_proxy, ngx_http_grpc, upstream) — these tokens do not appear in the standard NGINX error log format, and "upstream" is too broad, matching benign upstream errors. Lowered confidence from medium to low. -->
+<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. -->
 
-### Sigma: NGINX Rapid Worker Process Crash-Restart Loop
+### Sigma: NGINX Worker Process Crash on Signal 11 (Single-Event Detector)
 
-Detects repeated NGINX worker process crash entries ("exited on signal 11") indicating active exploitation brute-forcing, applicable to both CVEs.
+Detects any NGINX worker process exit on signal 11 (SIGSEGV). This is a **single-event detector**, not a crash-loop detector -- it fires once per crash entry. Layer SIEM correlation (e.g., count >= 5 within 60 seconds) on top of this rule to detect crash-restart loops indicative of exploit brute-forcing.
 
-compile: pass | confidence: high
+compile: pass | confidence: medium
 
 ```yaml
-title: NGINX Rapid Worker Process Restarts Indicating Active Exploitation Attempt
+title: NGINX Worker Process Crash on Signal 11 (CVE-2026-42530 / CVE-2026-42055 Indicator)
 id: d9f0fb72-3b15-4125-99db-aa8d1564adb6
 status: experimental
 description: >
-    Detects repeated NGINX worker process exit and start events in error logs
-    within a short timeframe, which may indicate active exploitation attempts
-    against CVE-2026-42530 or CVE-2026-42055. Repeated crashes and restarts
-    are a hallmark of memory corruption exploit brute-forcing.
+    Detects any NGINX worker process exit on signal 11 (SIGSEGV) in the error
+    log. This is a single-event detector; layer SIEM correlation (count >= 5
+    within 60 seconds) on top of this rule to detect crash-restart loops
+    indicative of memory corruption exploit brute-forcing against
+    CVE-2026-42530 or CVE-2026-42055. A single crash is suspicious; rapid
+    repeated crashes are near-certain exploitation.
 references:
     - https://my.f5.com/manage/s/article/K000161616
     - https://my.f5.com/manage/s/article/K000161584
@@ -326,26 +330,28 @@ date: 2026-06-19
 tags:
     - attack.t1190
 logsource:
-    category: webserver
+    category: application
+    product: nginx
 detection:
     selection:
-        cs-uri|contains|all:
+        data|contains|all:
             - 'worker process'
             - 'exited on signal 11'
     condition: selection
 falsepositives:
     - NGINX under severe memory pressure from legitimate traffic
     - Configuration errors causing repeated crashes
-level: critical
+level: high
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. This is a broad crash-detection rule without module-specific filtering. SIEM correlation (count > N within timeframe) should be layered on top for crash-loop detection; the rule fires per-event. Level critical because repeated signal 11 crashes are almost always abnormal. -->
+<!-- revision: Renamed from "NGINX Rapid Worker Process Restarts" to "NGINX Worker Process Crash on Signal 11" to honestly reflect single-event logic (no temporal aggregation). Fixed logsource from category:webserver to category:application/product:nginx. Replaced cs-uri field with data field. Lowered confidence from high to medium. Changed level from critical to high — a single crash is suspicious but not certainly malicious. -->
+<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. -->
 
 ### Sigma: NGINX Vulnerable Version in Server Response Header
 
-Asset-awareness rule to identify unpatched NGINX instances by matching vulnerable version strings in Server response headers.
+Asset-awareness rule to identify unpatched NGINX instances by matching vulnerable version strings in web traffic logs. Uses fieldless keyword matching because there is no standard Sigma field for the Server response header; map to the appropriate field in your SIEM pipeline (e.g., `sc_server`, `response.server`, `http.response.header.server`). Does not cover NGINX Plus version strings (e.g., `nginx-plus-r36`).
 
-compile: pass | confidence: high
+compile: pass | confidence: medium
 
 ```yaml
 title: NGINX Vulnerable Version Detected in Server Response Header
@@ -353,9 +359,13 @@ id: f1258d34-a297-4be1-af18-69630ccdc5a0
 status: experimental
 description: >
     Detects NGINX server response headers advertising versions known to be
-    vulnerable to CVE-2026-42530 and CVE-2026-42055. Versions 1.31.0 and
-    1.31.1 are affected by both CVEs. This is an asset-awareness rule to
-    identify unpatched NGINX instances in network traffic.
+    vulnerable to CVE-2026-42530 and/or CVE-2026-42055. This is an
+    asset-awareness rule to identify unpatched NGINX instances in web traffic
+    logs. Versions 1.31.0 and 1.31.1 are affected by both CVEs. Versions
+    1.30.0 through 1.30.2 are affected by CVE-2026-42055 only. Does not
+    cover NGINX Plus version strings (e.g., "nginx-plus-r36"). Field mapping
+    is pipeline-dependent; map keywords to the Server header field in your
+    SIEM (e.g., sc_server, response.server, http.response.header.server).
 references:
     - https://my.f5.com/manage/s/article/K000161616
     - https://my.f5.com/manage/s/article/K000161584
@@ -363,77 +373,63 @@ references:
 author: Actioner
 date: 2026-06-19
 tags:
-    - attack.t1190
+    - attack.t1592
 logsource:
     category: webserver
 detection:
-    selection:
-        sc-header|contains:
-            - 'nginx/1.31.0'
-            - 'nginx/1.31.1'
-            - 'nginx/1.30.0'
-            - 'nginx/1.30.1'
-            - 'nginx/1.30.2'
-    condition: selection
+    keywords:
+        - 'nginx/1.31.0'
+        - 'nginx/1.31.1'
+        - 'nginx/1.30.0'
+        - 'nginx/1.30.1'
+        - 'nginx/1.30.2'
+    condition: keywords
 falsepositives:
     - NGINX instances with custom or spoofed Server headers
     - Testing environments running vulnerable versions intentionally
 level: medium
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. This is an asset inventory rule, not an exploit detection rule. The sc-header field targets response headers in webserver access logs; may require pipeline mapping to the actual field name (e.g., server_header, response.server). Does not detect NGINX Plus versions which use a different format. -->
+<!-- revision: Replaced sc-header field (non-standard in Sigma) with fieldless keywords matching. Changed ATT&CK tag from T1190 to T1592 (Gather Victim Host Information) — version detection is reconnaissance/asset-awareness, not exploitation. Added note about NGINX Plus version gaps. Lowered confidence from high to medium due to fieldless matching. -->
+<!-- audit: sigma check pass (0 errors, 0 issues); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. -->
 
-### Suricata: QUIC Flood to NGINX (CVE-2026-42530 Monitoring)
+<!-- revision: DROPPED — Suricata QUIC Flood rule (sid:2100010). Generic volumetric rule with no CVE-specific content. The threshold of 50 QUIC packets in 10 seconds has no exploit-specific basis and fires on normal HTTP/3 browsing. Without public PoC payloads, no meaningful content match can be constructed. -->
 
-Detects high-rate QUIC traffic bursts to NGINX ports that may indicate brute-force exploitation of the HTTP/3 use-after-free vulnerability.
+### Suricata: HTTP Oversized Header Detection (CVE-2026-42055 Hunt Lead)
+
+Detects HTTP requests with headers exceeding 64 KB. This is a low-confidence hunt lead: the actual CVE-2026-42055 trigger threshold is approximately 2 MB (`large_client_header_buffers` exceeding 2 MB), and this rule fires on all HTTP traffic, not just HTTP/2. Useful for identifying anomalously large headers that warrant investigation.
 
 compile: pass | confidence: low
 
 ```
-alert quic $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - QUIC Traffic to NGINX HTTP/3 Port - CVE-2026-42530 Monitoring"; flow:to_server; threshold:type both, track by_src, count 50, seconds 10; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161616; reference:cve,2026-42530; metadata:author Actioner, created_at 2026-06-19; sid:2100010; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - HTTP Oversized Header Potential CVE-2026-42055 Hunt Lead"; flow:established,to_server; http.header; bsize:>65535; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100011; rev:2;)
 ```
 
-<!-- audit: suricata -T pass. This is a volumetric/rate-based rule, not payload-specific. No public PoC payloads exist to build content matches. The threshold of 50 QUIC packets in 10 seconds is a heuristic; tune per deployment baseline. Low confidence because high QUIC volume may be legitimate HTTP/3 traffic. Requires Suricata QUIC protocol support (available in 7.x). -->
-
-### Suricata: HTTP/2 Oversized Header Detection (CVE-2026-42055)
-
-Detects HTTP requests with oversized headers that may be attempting to trigger the CVE-2026-42055 heap buffer overflow.
-
-compile: pass | confidence: medium
-
-```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - HTTP/2 Oversized Header Potential CVE-2026-42055 Exploitation"; flow:established,to_server; http.header; bsize:>65535; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100011; rev:1;)
-```
-
-<!-- audit: suricata -T pass. bsize:>65535 targets headers exceeding 64KB, well below the 2MB trigger threshold but catches anomalously large headers that merit investigation. Suricata's HTTP parser reassembles headers before inspection. The rule does not differentiate HTTP/1.1 vs HTTP/2 at the protocol level; Suricata's http protocol handler covers both. Medium confidence: oversized headers are unusual but can occur in legitimate applications. -->
+<!-- revision: Renamed to "Hunt Lead" and lowered confidence from medium to low. The 65535 threshold is well below the actual 2MB CVE trigger, making this a broad anomaly detector. Added clarification that it fires on all HTTP, not just HTTP/2, as Suricata's http handler covers both. -->
+<!-- audit: suricata -T pass. -->
 
 ### Suricata: NGINX Vulnerable Version in Server Response Header
 
-Identifies unpatched NGINX instances by matching vulnerable version strings in HTTP Server response headers.
+Identifies unpatched NGINX instances by matching vulnerable version strings in the HTTP Server response header. Uses `http.server` sticky buffer for precise header matching. Each vulnerable version has its own rule to avoid prefix over-matching (e.g., `nginx/1.30.` would incorrectly match patched `1.30.3`).
 
 compile: pass | confidence: high
 
 ```
-alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version in Server Header (CVE-2026-42530/CVE-2026-42055)"; flow:established,to_client; http.response_header; content:"Server"; content:"nginx/1.31.0"; classtype:policy-violation; reference:cve,2026-42530; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100012; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.31.0 in Server Header (CVE-2026-42530/CVE-2026-42055)"; flow:established,to_client; http.server; content:"nginx/1.31.0"; classtype:policy-violation; reference:cve,2026-42530; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100012; rev:2;)
 
-alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.31.1 in Server Header (CVE-2026-42530/CVE-2026-42055)"; flow:established,to_client; http.response_header; content:"Server"; content:"nginx/1.31.1"; classtype:policy-violation; reference:cve,2026-42530; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100013; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.31.1 in Server Header (CVE-2026-42530/CVE-2026-42055)"; flow:established,to_client; http.server; content:"nginx/1.31.1"; classtype:policy-violation; reference:cve,2026-42530; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100013; rev:2;)
 
-alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.30.x in Server Header (CVE-2026-42055)"; flow:established,to_client; http.response_header; content:"Server"; content:"nginx/1.30."; classtype:policy-violation; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100014; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.30.0 in Server Header (CVE-2026-42055)"; flow:established,to_client; http.server; content:"nginx/1.30.0"; classtype:policy-violation; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100014; rev:2;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.30.1 in Server Header (CVE-2026-42055)"; flow:established,to_client; http.server; content:"nginx/1.30.1"; classtype:policy-violation; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100017; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - NGINX Vulnerable Version 1.30.2 in Server Header (CVE-2026-42055)"; flow:established,to_client; http.server; content:"nginx/1.30.2"; classtype:policy-violation; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-19; sid:2100018; rev:1;)
 ```
 
-<!-- audit: suricata -T pass (all three rules). http.response_header sticky buffer with content:"Server" followed by version content. The 1.30.x rule uses prefix match "nginx/1.30." to cover 1.30.0-1.30.2. High confidence for version identification; this is an asset inventory rule, not exploit detection. Will not match if server_tokens is off or Server header is stripped. -->
+<!-- revision: Fixed 1.30.x prefix over-match: replaced single "nginx/1.30." prefix rule (sid:2100014) with three explicit version rules (1.30.0, 1.30.1, 1.30.2) to avoid matching patched 1.30.3. Switched from http.response_header with content:"Server" to http.server sticky buffer (cleaner, single-buffer match). -->
+<!-- audit: suricata -T pass (all 5 rules). -->
 
-### Snort: HTTP/2 Oversized Payload Detection (CVE-2026-42055)
-
-Detects large TCP payloads to HTTP ports containing the HTTP/2 connection preface, potentially indicating oversized header exploitation.
-
-compile: pass | confidence: low
-
-```
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - HTTP/2 Oversized Header Potential CVE-2026-42055"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:12; dsize:>65535; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; sid:2100015; rev:1;)
-```
-
-<!-- audit: snort -c /etc/snort/snort.conf -T pass (via include). Matches the HTTP/2 connection preface "PRI * HTTP/2" in the first 12 bytes combined with oversized payload. Low confidence: dsize applies to individual TCP segment payloads not reassembled HTTP headers, so large headers split across segments may not trigger. Snort 2.9 has limited HTTP/2 awareness. -->
+<!-- revision: DROPPED — Snort HTTP/2 Oversized Payload rule (sid:2100015). Fundamentally flawed: dsize:>65535 applies to individual TCP segments (typically ~1460 bytes MTU), not reassembled HTTP content. A TCP segment will never exceed 65535 bytes, so this rule can never fire. -->
 
 ### Snort: NGINX Vulnerable Version in Server Response Header
 
