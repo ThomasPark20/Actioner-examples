@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-19
-Version: 1 (DRAFT)
+Version: 2 (FINAL)
 
 ## Executive Summary
 
@@ -286,7 +286,7 @@ level: high
 
 Detects loading of specific vulnerable drivers exploited by DragonForce for defense evasion via the BYOVD technique.
 
-**compile: pass | confidence: high**
+**compile: pass | confidence: medium**
 
 ```yaml
 title: DragonForce BYOVD Vulnerable Driver Loading
@@ -303,6 +303,7 @@ author: Actioner
 date: 2026-06-19
 tags:
     - attack.t1068
+    - attack.t1562.001
 logsource:
     category: image_load
     product: windows
@@ -319,10 +320,10 @@ falsepositives:
     - Legitimate Topaz Antifraud software
     - Tower of Fantasy game installations
     - K7 Security antivirus installations
-level: high
+level: medium
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues). sigma convert --without-pipeline -t splunk pass. Driver filenames match Symantec report exactly. False positives noted for environments with legitimate installations of these products. -->
+<!-- audit: sigma check pass (0 errors, 0 condition errors; medium-severity InvalidATTACKTagIssue on attack.t1562.001 is a pySigma validator quirk, not an error — subtechnique is valid ATT&CK). sigma convert --without-pipeline -t splunk pass, -t log_scale pass. Confidence downgraded to medium: 3 of 4 drivers (K7, Topaz, Tower of Fantasy) are legitimate software components with broad install bases, creating a significant FP surface. T1562.001 tag added per review — BYOVD is used to disable security tools. -->
 
 ### Sigma: DNS Query to DragonForce Backdoor.Turn C2 Domain
 
@@ -370,7 +371,7 @@ level: critical
 
 Detects DbgView64.exe making outbound network connections, which is highly anomalous for this debugging tool and indicates process injection by Backdoor.Turn.
 
-**compile: pass | confidence: high**
+**compile: pass | confidence: medium**
 
 ```yaml
 title: Suspicious DbgView64 Process with Network Connections
@@ -398,10 +399,10 @@ detection:
     condition: selection
 falsepositives:
     - DbgView64 checking for software updates (rare)
-level: high
+level: medium
 ```
 
-<!-- audit: sigma check pass (0 errors, 0 issues). sigma convert --without-pipeline -t splunk pass. Sysmon EID 3 network_connection schema used correctly. Initiated='true' ensures only outbound connections matched. -->
+<!-- audit: sigma check pass (0 errors, 0 issues). sigma convert --without-pipeline -t splunk pass, -t log_scale pass. Confidence downgraded to medium: behavioral/TTP detection at this altitude (process name + network activity) caps at medium. DbgView64 can legitimately check for updates, though this is rare. -->
 
 ### Sigma: PowerShell Download from DragonForce Staging IP
 
@@ -445,7 +446,7 @@ level: critical
 
 ### Suricata: DNS Queries to DragonForce C2 Domains
 
-Six rules detecting DNS queries to known Backdoor.Turn C2 domains.
+Eight rules detecting DNS queries to all known Backdoor.Turn C2 domains.
 
 **compile: pass | confidence: high**
 
@@ -461,9 +462,13 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Bac
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain mysimerp.net"; flow:to_server; dns.query; content:"mysimerp.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-19; sid:2100105; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain professionalhomebasedbusiness.com"; flow:to_server; dns.query; content:"professionalhomebasedbusiness.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-19; sid:2100106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain projetosmecanicos.com.br"; flow:to_server; dns.query; content:"projetosmecanicos.com.br"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-19; sid:2100109; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain comunidadesparentais.com.br"; flow:to_server; dns.query; content:"comunidadesparentais.com.br"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-19; sid:2100110; rev:1;)
 ```
 
-<!-- audit: suricata -T -S pass (exit 0, Suricata 7.0.3). Uses dns.query dot-notation sticky buffer correctly. All required fields present (msg, sid, rev). Each domain gets its own SID for granular alerting. -->
+<!-- audit: suricata -T -S pass (exit 0, Suricata 7.0.3). Uses dns.query dot-notation sticky buffer correctly. All required fields present (msg, sid, rev). Each domain gets its own SID for granular alerting. All 8 C2 domains now covered (added projetosmecanicos.com.br SID:2100109 and comunidadesparentais.com.br SID:2100110). -->
 
 ### Suricata: Connections to DragonForce Staging and C2 IPs
 
@@ -495,17 +500,17 @@ alert tcp $HOME_NET any -> 192.36.27.51 $HTTP_PORTS (msg:"Actioner - HTTP Reques
 
 ### YARA: Backdoor.Turn Go-Based RAT Detection
 
-Two rules: (1) behavioral detection based on Go binary artifacts combined with Teams TURN relay indicators and RAT capabilities; (2) exact-match hash detection for known Backdoor.Turn samples.
+Three rules: (1) IOC-based detection matching known C2 domains and IP in PE binaries; (2) behavioral detection based on Go binary artifacts combined with Teams TURN relay-specific strings, QUIC library, and RAT capabilities; (3) exact-match hash detection for known Backdoor.Turn samples.
 
-**compile: pass | confidence: medium** (behavioral rule) / **compile: pass | confidence: high** (hash rule)
+**compile: pass | confidence: high** (IOC rule) / **compile: pass | confidence: medium** (behavioral rule) / **compile: pass | confidence: high** (hash rule)
 
 ```yara
 import "hash"
 
-rule Malware_DragonForce_Backdoor_Turn : backdoor rat
+rule Malware_DragonForce_Backdoor_Turn_IOC : backdoor rat
 {
     meta:
-        description = "Detects Backdoor.Turn Go-based RAT deployed by DragonForce ransomware operators that abuses Microsoft Teams TURN relay for C2"
+        description = "Detects Backdoor.Turn by known C2 domains and IP addresses used by DragonForce ransomware operators"
         author = "Actioner"
         date = "2026-06-19"
         reference = "https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor"
@@ -515,18 +520,6 @@ rule Malware_DragonForce_Backdoor_Turn : backdoor rat
         severity = "critical"
 
     strings:
-        // Go build artifact strings common in Go binaries
-        $go1 = "runtime.goexit" ascii
-        $go2 = "runtime.main" ascii
-
-        // Microsoft Teams TURN relay related strings
-        $turn1 = "turn" ascii nocase
-        $turn2 = "relay" ascii nocase
-        $turn3 = "visitor" ascii nocase
-        $turn4 = "token" ascii nocase
-        $turn5 = "teams" ascii nocase
-        $turn6 = "skype" ascii nocase
-
         // C2 domains
         $c2_1 = "projetosmecanicos.com.br" ascii
         $c2_2 = "socialbizsolutions.com" ascii
@@ -540,22 +533,53 @@ rule Malware_DragonForce_Backdoor_Turn : backdoor rat
         // C2 IP
         $c2_ip = "62.164.177.25" ascii
 
-        // QUIC protocol indicators in Go binary
-        $quic1 = "quic-go" ascii
-        $quic2 = "QUIC" ascii
+    condition:
+        uint16(0) == 0x5A4D and
+        filesize < 20MB and
+        any of ($c2_*)
+}
 
-        // Capability strings
-        $cap1 = "ldap" ascii nocase
+rule Malware_DragonForce_Backdoor_Turn_Behavioral : backdoor rat
+{
+    meta:
+        description = "Detects Backdoor.Turn Go-based RAT by behavioral indicators: Go binary with QUIC library, Teams/Skype TURN relay token acquisition, and LDAP/scanning capabilities"
+        author = "Actioner"
+        date = "2026-06-19"
+        reference = "https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor"
+        hash = "821da79d727351dd67ce5df7950e9a3de6647a3cf474bb3a093f67507fed92a6"
+        hash2 = "048e18416177de2ead251abdf4d89837f6807c6aba4d5b1debe49adfdecbf05c"
+        tlp = "WHITE"
+        severity = "high"
+
+    strings:
+        // Go build artifact strings
+        $go1 = "runtime.goexit" ascii
+        $go2 = "runtime.main" ascii
+
+        // QUIC library indicators (more specific than generic "QUIC")
+        $quic1 = "quic-go" ascii
+
+        // Microsoft Teams / Skype TURN relay specific strings
+        $ms_turn1 = "turn.teams.microsoft.com" ascii wide
+        $ms_turn2 = "api.flightproxy.skype.com" ascii wide
+        $ms_turn3 = "turn3.teams.microsoft.com" ascii wide
+        $ms_turn4 = "relay.teams.microsoft.com" ascii wide
+        $ms_turn5 = "TURN_RELAY" ascii
+        $ms_turn6 = "visitor_token" ascii
+        $ms_turn7 = "anonymousToken" ascii
+
+        // RAT capability strings (more specific)
+        $cap1 = "ldap://" ascii nocase
         $cap2 = "netscan" ascii nocase
+        $cap3 = "browsercredentials" ascii nocase
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 20MB and
-        (
-            (2 of ($go*) and 3 of ($turn*) and 1 of ($cap*)) or
-            (any of ($c2_*)) or
-            (2 of ($go*) and 1 of ($quic*) and 2 of ($turn*) and 1 of ($cap*))
-        )
+        all of ($go*) and
+        $quic1 and
+        2 of ($ms_turn*) and
+        1 of ($cap*)
 }
 
 rule Malware_DragonForce_Backdoor_Turn_Hash : backdoor rat
@@ -583,7 +607,7 @@ rule Malware_DragonForce_Backdoor_Turn_Hash : backdoor rat
 }
 ```
 
-<!-- audit: yarac pass (exit 0). Behavioral rule (Malware_DragonForce_Backdoor_Turn) has medium confidence — the TURN/relay/visitor/token strings are generic and may match legitimate Go binaries that use TURN infrastructure; the C2 domain branch provides high-confidence matches. Hash rule is high confidence by definition. hash module imported correctly. All strings use real values (not defanged). -->
+<!-- audit: yarac pass (exit 0). IOC rule (Malware_DragonForce_Backdoor_Turn_IOC) split from original combined rule — high confidence, matches only on known C2 domains/IP embedded in PE files. Behavioral rule (Malware_DragonForce_Backdoor_Turn_Behavioral) significantly tightened: replaced generic $turn* strings ("turn", "relay", "visitor", "token", "teams", "skype") with Microsoft-specific FQDN strings (turn.teams.microsoft.com, api.flightproxy.skype.com, etc.) and compound tokens (visitor_token, anonymousToken, TURN_RELAY); requires ALL of: Go runtime markers + quic-go library + 2 of 7 MS TURN strings + 1 RAT capability. This eliminates false positives from legitimate Go/WebRTC/TURN binaries. Hash rule unchanged — high confidence. -->
 
 ## Lessons Learned
 

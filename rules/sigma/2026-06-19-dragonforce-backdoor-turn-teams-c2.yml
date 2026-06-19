@@ -1,0 +1,165 @@
+# DragonForce Backdoor.Turn Campaign - Sigma Detection Rules
+# Report: summaries/2026-06-19-dragonforce-backdoor-turn-teams-c2.md
+# Generated: 2026-06-19
+# Total: 5 rules (3 high, 2 medium confidence)
+---
+title: Suspicious VirtualBox DLL Sideloading for Backdoor Deployment
+id: 7a3e1f4b-9c2d-4e8a-b5f6-1d0e3c7a9b2f
+status: experimental
+description: >
+    Detects DLL sideloading via legitimate VirtualBox executable loading a
+    malicious DLL, as observed in DragonForce campaigns deploying Backdoor.Turn.
+    The attackers abused VirtualBox executables to sideload malicious DLLs
+    that performed reconnaissance, established persistence, and disabled
+    security software.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1574
+    - attack.t1055
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\VBoxSVC.exe'
+            - '\VirtualBox.exe'
+            - '\VirtualBoxVM.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\whoami.exe'
+            - '\net.exe'
+            - '\nltest.exe'
+            - '\DbgView64.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate VirtualBox automation scripts
+    - VirtualBox Guest Additions installation
+level: high
+---
+title: DragonForce BYOVD Vulnerable Driver Loading
+id: 8b4f2e5c-0d3a-4f9b-c6e7-2a1f4d8b0c3e
+status: experimental
+description: >
+    Detects loading of vulnerable drivers abused by DragonForce ransomware
+    operators for defense evasion via BYOVD technique. Includes Huawei
+    HWAuidoOs2Ec.sys, Topaz wsftprm.sys, Tower of Fantasy GameDriverx64.sys,
+    and K7 Security K7RKScan.sys drivers exploited in this campaign.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1068
+    - attack.t1562.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith:
+            - '\HWAuidoOs2Ec.sys'
+            - '\wsftprm.sys'
+            - '\GameDriverx64.sys'
+            - '\K7RKScan.sys'
+    condition: selection
+falsepositives:
+    - Legitimate Huawei audio driver installations
+    - Legitimate Topaz Antifraud software
+    - Tower of Fantasy game installations
+    - K7 Security antivirus installations
+level: medium
+---
+title: DNS Query to DragonForce Backdoor.Turn C2 Domain
+id: 9c5e3f6d-1a4b-5e0c-d7f8-3b2e5a9c1d4f
+status: experimental
+description: >
+    Detects DNS queries to known command-and-control domains used by the
+    DragonForce Backdoor.Turn malware campaign. These domains served as
+    C2 endpoints for the Go-based RAT that abused Microsoft Teams TURN
+    relay infrastructure.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'projetosmecanicos.com.br'
+            - 'socialbizsolutions.com'
+            - 'professionalhomebasedbusiness.com'
+            - 'safefire.jo'
+            - 'glanz-gmbh.de'
+            - 'turnkeyaiagents.com'
+            - 'comunidadesparentais.com.br'
+            - 'mysimerp.net'
+    condition: selection
+falsepositives:
+    - Legitimate access to these compromised domains before takedown
+level: critical
+---
+title: Suspicious DbgView64 Process with Network Connections
+id: 0d6f4e7a-2b5c-6f1d-e8a9-4c3f6b0d2e5a
+status: experimental
+description: >
+    Detects DbgView64.exe making network connections, which is anomalous
+    for this debugging tool. DragonForce operators injected Backdoor.Turn
+    into the legitimate DbgView64.exe process to establish C2 communications
+    via Microsoft Teams TURN relay infrastructure.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1055
+    - attack.t1071.001
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\DbgView64.exe'
+        Initiated: 'true'
+    condition: selection
+falsepositives:
+    - DbgView64 checking for software updates (rare)
+level: medium
+---
+title: PowerShell Download of Suspicious ZIP from Known DragonForce Staging IP
+id: 1e7a5f8b-3c6d-7a2e-f9b0-5d4e7c1a3f6b
+status: experimental
+description: >
+    Detects PowerShell downloading a ZIP archive from the known staging IP
+    used by DragonForce operators. The attackers used PowerShell to download
+    a ZIP archive disguised as a tech support hotfix containing a VirtualBox
+    executable and malicious DLL for sideloading.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1105
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\powershell.exe'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - '192.36.27.51'
+            - '.zip'
+    condition: selection_process and selection_cmdline
+falsepositives:
+    - Unlikely — specific IP indicator
+level: critical

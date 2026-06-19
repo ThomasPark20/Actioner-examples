@@ -1,7 +1,7 @@
 # AutoJack: AutoGen Studio AI Agent RCE via MCP WebSocket Exploitation
 
 **Date:** 2026-06-19
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** WHITE
 **CVE:** No CVE assigned (vulnerability in development branch only; never shipped to PyPI)
 **CWE:** CWE-1385 (Missing Origin Validation in WebSockets), CWE-306 (Missing Authentication for Critical Function), CWE-78 (OS Command Injection)
@@ -105,7 +105,7 @@ The fix by Victor Dibia (PR #7362) implemented three hardening measures:
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs use defanged notation. URLs: `hxxps://`, domains: `[.]`, IPs: `[.]`, emails: `[at]`.
+> **Defanging Convention:** External IOCs use defanged notation: URLs `hxxps://`, domains `[.]`, IPs `[.]`, emails `[at]`. Localhost/loopback URLs are not defanged as they are non-routable and specific to the exploit pattern.
 
 ### Package / Software Level
 
@@ -118,8 +118,8 @@ The fix by Victor Dibia (PR #7362) implemented three hardening measures:
 
 | Type | Value | Context |
 |------|-------|---------|
-| URL Pattern | `ws://localhost:8081/api/mcp/ws/?server_params=` | Exploit WebSocket connection URL |
-| URL Pattern | `ws://localhost:8080/api/mcp/ws/?server_params=` | Alternate port exploit URL |
+| URL Pattern | `ws://localhost:8081/api/mcp/ws/?server_params=` | Exploit WebSocket connection URL (localhost not defanged — loopback only) |
+| URL Pattern | `ws://localhost:8080/api/mcp/ws/?server_params=` | Alternate port exploit URL (localhost not defanged — loopback only) |
 | Endpoint | `/api/mcp/ws/{session_id}` | Vulnerable WebSocket endpoint |
 | Endpoint | `/api/mcp/*` | Auth-skipped path prefix (pre-fix) |
 | Port | 8081 | Default AutoGen Studio port |
@@ -150,8 +150,7 @@ The fix by Victor Dibia (PR #7362) implemented three hardening measures:
 | T1059.001 | PowerShell | PoC demonstrates powershell.exe with encoding as spawnable command |
 | T1059.006 | Python | AutoGen Studio itself is Python-based; exploitation occurs through Python process |
 | T1204.001 | User Execution: Malicious Link | AI agent navigates to attacker-controlled URL containing exploit JavaScript |
-| T1557 | Adversary-in-the-Middle | Localhost trust boundary abuse -- agent acts as intermediary between attacker content and local services |
-| T1548 | Abuse Elevation Control Mechanism | Authentication bypass via middleware skip list grants unauthenticated access to critical endpoint |
+| T1190 | Exploit Public-Facing Application | Authentication bypass via middleware skip list grants unauthenticated access to MCP WebSocket endpoint |
 
 ---
 
@@ -197,13 +196,7 @@ DeviceNetworkEvents
 | sort by Timestamp desc
 ```
 
-```kql
-// Query 3: Browser automation with external navigation in agent context
-DeviceProcessEvents
-| where Timestamp > ago(30d)
-| where InitiatingProcessFileName in~ ("python.exe", "pythonw.exe", "node.exe")
-| where InitiatingProcessCommandLine has_any ("playwright", "MultimodalWebSurfer", "autogen")
-```
+<!-- revision: KQL Query 3 (Browser automation with external navigation in agent context) DROPPED — same over-broad behavioral pattern as dropped Sigma Rule 3; fires on normal MultimodalWebSurfer operation. -->
 
 ### Remediation
 
@@ -225,21 +218,25 @@ DeviceProcessEvents
 
 ## Detection Rules
 
-Three Sigma rules, two Suricata rules, and one Snort rule are provided, targeting the AutoJack exploit chain at process creation and network layers. No YARA rule is included because the vulnerability is a logic flaw exploited via network interaction, not a file-level artifact. All rules passed compilation and backend conversion.
+Two Sigma rules, two Suricata rules, and one Snort rule are provided, targeting the AutoJack exploit chain at process creation and network layers. No YARA rule is included because the vulnerability is a logic flaw exploited via network interaction, not a file-level artifact. All rules passed compilation and backend conversion.
 
-<!-- Validation audit:
-  Sigma Rule 1: sigma check exit 0, sigma convert splunk exit 0, sigma convert log_scale exit 0. No errors, no issues.
-  Sigma Rule 2: sigma check exit 0, sigma convert splunk exit 0, sigma convert log_scale exit 0. No errors, no issues.
-  Sigma Rule 3: sigma check exit 0, sigma convert splunk exit 0, sigma convert log_scale exit 0. No errors, no issues.
-  Suricata: suricata -T exit 0 ("Configuration provided was successfully loaded").
-  Snort: Appended to /etc/snort/rules/local.rules, snort -T exit 0 ("Snort successfully validated the configuration").
+<!-- Validation audit (revision pass):
+  Sigma Rule 1: sigma check exit 0, sigma convert splunk exit 0, sigma convert log_scale exit 0. Confidence downgraded to medium. FP note updated.
+  Sigma Rule 2: sigma check exit 0, sigma convert splunk exit 0, sigma convert log_scale exit 0. No changes.
+  Sigma Rule 3: DROPPED — fires on normal MultimodalWebSurfer operation. No exploit-specific artifact. Wrong altitude.
+  Suricata Rule 1: No changes. suricata -T exit 0.
+  Suricata Rule 2: Added nocase; after content:"websocket" per RFC 6455. Rev bumped to 2. suricata -T exit 0.
+  Snort: No changes. snort -T exit 0.
+  KQL Query 3: DROPPED — same over-broad behavioral pattern as Sigma Rule 3.
+  MITRE: Removed T1557 (not AiTM), T1548 (not priv-esc). Added T1190 for auth bypass.
+  IOCs: Fixed defanging convention statement to note localhost exception.
   No defanged values in rules (rules use real values per logsource-encoding spec).
 -->
 
 ### Sigma Rules
 
 **Rule 1: AutoGen Studio MCP WebSocket Suspicious Child Process Spawning**
-Detects suspicious child process creation (cmd.exe, powershell.exe, calc.exe, etc.) from processes with AutoGen Studio indicators in the parent command line, targeting the final stage of the AutoJack chain where arbitrary commands are spawned via StdioServerParams. compile: PASS | confidence: high
+Detects suspicious child process creation (cmd.exe, powershell.exe, calc.exe, etc.) from processes with AutoGen Studio indicators in the parent command line, targeting the final stage of the AutoJack chain where arbitrary commands are spawned via StdioServerParams. compile: PASS | confidence: medium
 
 ```yaml
 title: AutoGen Studio MCP WebSocket Suspicious Child Process Spawning
@@ -284,9 +281,9 @@ detection:
       - '\calc.exe'
   condition: selection_parent and selection_suspicious_child
 falsepositives:
-  - Legitimate AutoGen Studio tool invocations that spawn system utilities
+  - Legitimate AutoGen MCP servers routinely spawn cmd.exe, bash.exe, node.exe via stdio_client()
   - Developer-configured MCP servers using standard system binaries
-level: high
+level: medium
 ```
 
 **Rule 2: AutoGen Studio MCP WebSocket Connection with server_params Query String**
@@ -326,55 +323,7 @@ falsepositives:
 level: high
 ```
 
-**Rule 3: Browser Automation Process Navigating External Content in AI Agent Context**
-Detects browser automation processes (Playwright, headless Chrome/Edge/Firefox) launched by Python or Node.js with AI agent framework indicators, identifying the initial reconnaissance stage of the AutoJack chain where the agent renders attacker-controlled content. compile: PASS | confidence: medium
-
-```yaml
-title: Browser Automation Process Navigating External Content in AI Agent Context
-id: 4f8a1c3e-6d2b-5e7a-9b0c-2d4f6a8e0c1b
-status: experimental
-description: >
-  Detects browser automation processes (Playwright, Puppeteer) launched by
-  Python or Node.js processes with AI agent framework indicators in the
-  command line. This pattern identifies the initial stage of the AutoJack
-  attack chain where an AI browsing agent renders attacker-controlled content
-  that subsequently exploits localhost trust boundaries.
-references:
-  - https://www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/
-author: Actioner CTI
-date: 2026-06-19
-tags:
-  - attack.t1204.001
-  - attack.t1059.006
-logsource:
-  category: process_creation
-  product: windows
-detection:
-  selection_parent:
-    ParentImage|endswith:
-      - '\python.exe'
-      - '\pythonw.exe'
-      - '\node.exe'
-  selection_parent_cmdline:
-    ParentCommandLine|contains:
-      - 'playwright'
-      - 'MultimodalWebSurfer'
-      - 'autogen'
-  selection_browser:
-    Image|endswith:
-      - '\chrome.exe'
-      - '\chromium.exe'
-      - '\msedge.exe'
-      - '\firefox.exe'
-    CommandLine|contains:
-      - '--remote-debugging-port'
-      - '--headless'
-  condition: selection_parent and selection_parent_cmdline and selection_browser
-falsepositives:
-  - Legitimate web testing and scraping tools using browser automation
-  - CI/CD pipelines with browser-based testing
-level: medium
-```
+<!-- revision: Sigma Rule 3 (Browser Automation Process in AI Agent Context, id: 4f8a1c3e-6d2b-5e7a-9b0c-2d4f6a8e0c1b) DROPPED — fires on normal AutoGen MultimodalWebSurfer operation with no exploit-specific artifact. Too behavioral, wrong altitude. -->
 
 ### Suricata Rules
 
@@ -389,7 +338,7 @@ Detects WebSocket upgrade requests targeting the MCP endpoint, a broader variant
 alert http any any -> any any (msg:"ETPRO EXPLOIT AutoJack AutoGen Studio MCP WebSocket Command Injection via server_params"; flow:established,to_server; http.uri; content:"/api/mcp/ws/"; fast_pattern; content:"server_params="; http.method; content:"GET"; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100100; rev:1;)
 
 # Rule 2: AutoJack WebSocket Upgrade to MCP Endpoint on Localhost Ports
-alert http any any -> any any (msg:"ETPRO EXPLOIT AutoGen Studio WebSocket Upgrade Request to MCP Endpoint"; flow:established,to_server; http.uri; content:"/api/mcp/ws/"; fast_pattern; http.header; content:"Upgrade"; content:"websocket"; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100101; rev:1;)
+alert http any any -> any any (msg:"ETPRO EXPLOIT AutoGen Studio WebSocket Upgrade Request to MCP Endpoint"; flow:established,to_server; http.uri; content:"/api/mcp/ws/"; fast_pattern; http.header; content:"Upgrade"; content:"websocket"; nocase; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100101; rev:2;)
 ```
 
 ### Snort Rules

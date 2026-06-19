@@ -1,0 +1,8 @@
+# DragonForce Backdoor.Turn Campaign - Snort Detection Rules
+# Report: summaries/2026-06-19-dragonforce-backdoor-turn-teams-c2.md
+# Generated: 2026-06-19
+# Total: 2 rules (IP-based)
+
+alert ip $HOME_NET any -> 62.164.177.25 any (msg:"Actioner - Connection to DragonForce Backdoor.Turn C2 IP 62.164.177.25"; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created 2026-06-19; sid:2100201; rev:1;)
+
+alert tcp $HOME_NET any -> 192.36.27.51 $HTTP_PORTS (msg:"Actioner - HTTP Request to DragonForce Staging IP for ZIP Payload Download"; flow:established, to_server; content:".zip"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created 2026-06-19; sid:2100202; rev:1;)

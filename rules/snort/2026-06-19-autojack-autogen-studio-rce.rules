@@ -1,0 +1,12 @@
+# AutoJack: AutoGen Studio AI Agent RCE via MCP WebSocket Exploitation
+# Report: /summaries/2026-06-19-autojack-autogen-studio-rce.md
+# Generated: 2026-06-19 | Status: FINAL
+# Rules: 1 Snort
+# Validation: snort -T PASS ("Snort successfully validated the configuration")
+
+# Rule 1: AutoJack MCP WebSocket Command Injection via server_params
+# Snort 2 equivalent of Suricata Rule 1. Detects HTTP GET requests to the MCP
+# WebSocket endpoint with the server_params query string.
+# Confidence: high
+# Note: SID 2100100 shared with Suricata Rule 1 (different deployment targets)
+alert tcp any any -> any any (msg:"ETPRO EXPLOIT AutoJack AutoGen Studio MCP WebSocket Command Injection via server_params"; flow:established,to_server; content:"/api/mcp/ws/"; http_uri; content:"server_params="; http_uri; content:"GET"; http_method; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100100; rev:1;)

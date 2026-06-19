@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-19
 **TLP:** CLEAR
-**Status:** DRAFT
+**Status:** FINAL
 **Sector:** SaaS / CRM / Cybersecurity
 
 ---
@@ -141,12 +141,12 @@ Beginning June 16, 2026, Icarus sent extortion emails to victims. For Huntress, 
 | T1528 | Steal Application Access Token | Harvested OAuth tokens from Klue's infrastructure for customer integrations (Salesforce, HubSpot, etc.) |
 | T1199 | Trusted Relationship | Exploited Klue's trusted third-party integration relationship with customer Salesforce instances |
 | T1078.004 | Valid Accounts: Cloud Accounts | Used legitimate OAuth integration credentials to access customer CRM data |
-| T1087.004 | Account Discovery: Cloud Account | Enumerated Salesforce objects via `/services/data/v59.0/sobjects` endpoint |
+| T1580 | Cloud Infrastructure Discovery | Enumerated Salesforce objects via `/services/data/v59.0/sobjects` endpoint to map available data resources |
 | T1530 | Data from Cloud Storage Object | Queried and extracted CRM data (contacts, quotes, sales communications) from Salesforce |
 | T1106 | Native API | Used Salesforce REST API directly for data access and exfiltration |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS-based API communication with Salesforce REST endpoints |
 | T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Uploaded stolen data to gofile[.]io file sharing service |
-| T1657 | Financial Theft (Extortion) | Sent extortion emails threatening to publish stolen data |
+<!-- revision: T1657 (Financial Theft) row removed. T1657 covers direct financial theft (e.g., unauthorized transfers), not extortion/ransom demands. No single ATT&CK technique cleanly maps to data extortion; the exfiltration itself is covered by T1567.002 above. -->
 
 ---
 
@@ -167,7 +167,7 @@ Beginning June 16, 2026, Icarus sent extortion emails to victims. For Huntress, 
 ### Immediate Detection
 
 1. **Review Salesforce Event Monitoring logs** for the following indicators:
-   - API access from IPs: `138.226.246.94`, `212.86.125.24`, `213.111.148.90`, `94.154.32.160`
+   - API access from IPs: `138[.]226[.]246[.]94`, `212[.]86[.]125[.]24`, `213[.]111[.]148[.]90`, `94[.]154[.]32[.]160`
    - User-Agent values: `Python-urllib/3.12`, `Python-urllib/3.14`, `5238`, or blank
    - High-volume queries to `/services/data/v59.0/query/` endpoints
    - Unusual query volume from Klue Connected App tokens (if historically used)
@@ -200,7 +200,7 @@ Beginning June 16, 2026, Icarus sent extortion emails to victims. For Huntress, 
 
 ## Detection Rules
 
-Three proxy-log Sigma rules target the concrete artifacts observed in this attack: attacker User-Agent strings, known Icarus IPs querying Salesforce, and data exfiltration to gofile[.]io. A fourth rule detects the anomalous numeric/blank User-Agent pattern on the specific Salesforce query endpoint. All rules use the `proxy` logsource category for web proxy / CASB / SASE log sources. Note: organizations without web proxy visibility into Salesforce API traffic should focus on Salesforce Event Monitoring (EventLogFile) native queries instead, which are not covered by Sigma's standard logsource taxonomy.
+Three proxy-log Sigma rules target the concrete artifacts observed in this attack: attacker User-Agent strings (Python-urllib and the anomalous numeric value "5238"), and known Icarus IPs querying Salesforce. All rules use the `proxy` logsource category for web proxy / CASB / SASE log sources. Note: organizations without web proxy visibility into Salesforce API traffic should focus on Salesforce Event Monitoring (EventLogFile) native queries instead, which are not covered by Sigma's standard logsource taxonomy.
 
 ### Sigma Rule 1: Suspicious Salesforce API Access with Python-urllib User-Agent
 
@@ -246,17 +246,17 @@ level: medium
 
 ### Sigma Rule 2: Salesforce REST API Query Access with Anomalous User-Agent
 
-Detects access to the Salesforce v59.0 query endpoint with the distinctive User-Agent value "5238" or blank strings used by Icarus. Compile: PASS (0 errors; 1 LOW issue -- NumberAsStringIssue for "5238", intentional since User-Agent is a string field; converts to Splunk and LogScale). Confidence: high -- the combination of the specific query endpoint and the anomalous numeric/blank UA is highly distinctive.
+Detects access to the Salesforce REST API query endpoint with the distinctive User-Agent value "5238" used by Icarus. Compile: PASS (0 errors; 1 LOW issue -- NumberAsStringIssue for "5238", intentional since User-Agent is a string field; converts to Splunk and LogScale). Confidence: medium -- "5238" is a single 4-character string that may appear in other contexts; empty-string UA matching was removed because it is unreliable across proxy log sources (some omit the field entirely rather than logging a blank); the version-pinned path `/services/data/v59.0/` limits longevity as Salesforce API versions increment.
 
 ```yaml
-title: Salesforce REST API Query Endpoint Access with Numeric or Blank User-Agent
+title: Salesforce REST API Query Endpoint Access with Anomalous Numeric User-Agent
 id: e8b3d4f2-9a5c-6e7b-0c2d-3d8f9e4a5b6c
 status: experimental
 description: >
-    Detects access to the Salesforce REST API query endpoint with suspicious User-Agent
-    values. During the Klue OAuth supply chain attack (June 2026), the Icarus threat actor
-    used User-Agent value "5238" or blank User-Agent strings for the majority of malicious
-    API queries against /services/data/v59.0/query/ endpoints.
+    Detects access to the Salesforce REST API query endpoint with the suspicious User-Agent
+    value "5238". During the Klue OAuth supply chain attack (June 2026), the Icarus threat
+    actor used this anomalous numeric User-Agent string for the majority of malicious API
+    queries against Salesforce REST API query endpoints.
 references:
     - https://www.huntress.com/blog/klue-breach-investigation
     - https://www.securityweek.com/cybersecurity-firms-impacted-by-klue-supply-chain-attack/
@@ -269,25 +269,25 @@ logsource:
     category: proxy
 detection:
     selection_sfdc_query:
-        cs-uri-stem|contains: '/services/data/v59.0/query'
+        cs-uri-stem|contains: '/services/data/'
         r-dns|endswith:
             - '.salesforce.com'
             - '.force.com'
     selection_suspicious_ua:
-        c-useragent:
-            - '5238'
-            - ''
-    condition: selection_sfdc_query and selection_suspicious_ua
+        c-useragent: '5238'
+    selection_api_path:
+        cs-uri-stem|contains: '/query'
+    condition: selection_sfdc_query and selection_suspicious_ua and selection_api_path
 falsepositives:
-    - Misconfigured legitimate API clients sending numeric or blank User-Agent strings
-level: high
+    - Misconfigured legitimate API clients sending numeric User-Agent strings
+level: medium
 ```
 
-<!-- audit: sigma check 0 errors 1 LOW issue (NumberAsStringIssue for "5238" -- intentional, UA is string field); sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. No defanged values in detection. Empty string match requires proxy log source that captures blank UA values. -->
+<!-- audit: sigma check 0 errors 1 LOW issue (NumberAsStringIssue for "5238" -- intentional, UA is string field); sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. No defanged values in detection. Empty-string UA match removed (unreliable across log sources). Version-pinned path broadened from v59.0 to /services/data/ + /query for longevity. -->
 
 ### Sigma Rule 3: Salesforce API Access from Known Icarus Infrastructure
 
-Detects network connections to Salesforce from four IP addresses attributed to the Icarus threat actor. Compile: PASS (0 errors, 0 issues; converts to Splunk and LogScale). Confidence: high -- IOC-specific, but IPs may be rotated or reassigned over time.
+Detects network connections to Salesforce from four IP addresses attributed to the Icarus threat actor. Compile: PASS (0 errors, 0 issues; converts to Splunk and LogScale). Confidence: high -- IOC-specific, but IPs may be rotated or reassigned over time. Level downgraded from critical to high because IOC-based IP rules age out as infrastructure rotates.
 
 ```yaml
 title: Salesforce API Access from Known Icarus Threat Actor Infrastructure
@@ -321,48 +321,13 @@ detection:
             - '.force.com'
     condition: selection_src_ip and selection_sfdc
 falsepositives:
-    - Unlikely given the specificity of the IP addresses and Salesforce destination
-level: critical
+    - Unlikely given the specificity of the IP addresses and Salesforce destination; however IPs may be reassigned over time
+level: high
 ```
 
 <!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. IPs are real (not defanged) per logsource-encoding.md. IPs will age out as infrastructure rotates; useful for retroactive hunting and near-term detection. -->
 
-### Sigma Rule 4: Data Upload to gofile.io File Sharing Service
-
-Detects outbound POST requests to gofile[.]io, the file-sharing platform used by Icarus for data leak hosting. Compile: PASS (0 errors, 0 issues; converts to Splunk and LogScale). Confidence: medium -- gofile.io is a legitimate service, but POST requests to it from enterprise networks warrant investigation, especially in the context of this campaign.
-
-```yaml
-title: Data Exfiltration to gofile.io File Sharing Service
-id: c0d5f6b4-1c7e-8a9d-2e4f-5f0a1b6c7d8e
-status: experimental
-description: >
-    Detects outbound connections to gofile.io, a file sharing service used by the Icarus
-    threat actor to host stolen data from the Klue OAuth supply chain attack. The
-    attackers uploaded exfiltrated Salesforce CRM data to gofile.io with 10-day default
-    retention. While gofile.io is a legitimate service, its use for data exfiltration
-    warrants monitoring in enterprise environments.
-references:
-    - https://www.huntress.com/blog/klue-breach-investigation
-    - https://www.securityweek.com/cybersecurity-firms-impacted-by-klue-supply-chain-attack/
-author: Actioner
-date: 2026-06-19
-tags:
-    - attack.t1567.002
-logsource:
-    category: proxy
-detection:
-    selection:
-        r-dns|endswith:
-            - '.gofile.io'
-        cs-method: 'POST'
-    condition: selection
-falsepositives:
-    - Legitimate use of gofile.io by employees for file sharing
-    - Development or testing activities involving gofile.io API
-level: medium
-```
-
-<!-- audit: sigma check 0 errors 0 issues; sigma convert --without-pipeline -t splunk OK; sigma convert --without-pipeline -t log_scale OK. Domain is real (not defanged) in detection per logsource-encoding.md. Scoped to POST method to reduce noise from GET/browsing. -->
+<!-- revision: Sigma Rule 4 (Data Upload to gofile.io, id c0d5f6b4-1c7e-8a9d-2e4f-5f0a1b6c7d8e) DROPPED during review. Rationale: gofile.io is a legitimate file-sharing service; the rule had no campaign-specific anchor (no source IP filter, no Salesforce context, no time window). Detection of uploads to gofile.io belongs in a URL category blocklist or web proxy policy, not a campaign-specific detection pack. -->
 
 ---
 
@@ -387,4 +352,4 @@ level: medium
 - [GBHackers: Hackers Exploit Klue Integration to Steal Salesforce CRM Data](https://gbhackers.com/hackers-exploit-klue-integration-to-steal-salesforce-crm-data/) -- Additional coverage (content unavailable at time of access)
 
 ---
-*Report generated by Actioner -- DRAFT*
+*Report generated by Actioner -- FINAL*

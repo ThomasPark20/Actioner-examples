@@ -1,0 +1,18 @@
+# AutoJack: AutoGen Studio AI Agent RCE via MCP WebSocket Exploitation
+# Report: /summaries/2026-06-19-autojack-autogen-studio-rce.md
+# Generated: 2026-06-19 | Status: FINAL
+# Rules: 2 Suricata
+# Validation: suricata -T PASS ("Configuration provided was successfully loaded")
+
+# Rule 1: AutoJack MCP WebSocket Exploit via server_params
+# Detects HTTP requests to the AutoGen Studio MCP WebSocket endpoint containing
+# the server_params query parameter, which carries base64-encoded command execution payloads.
+# Confidence: high
+alert http any any -> any any (msg:"ETPRO EXPLOIT AutoJack AutoGen Studio MCP WebSocket Command Injection via server_params"; flow:established,to_server; http.uri; content:"/api/mcp/ws/"; fast_pattern; content:"server_params="; http.method; content:"GET"; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100100; rev:1;)
+
+# Rule 2: AutoJack WebSocket Upgrade to MCP Endpoint on Localhost Ports
+# Detects WebSocket upgrade requests targeting the MCP endpoint, a broader variant
+# that catches upgrade attempts regardless of query string content.
+# Confidence: medium
+# Note: nocase on "websocket" per RFC 6455 (header values are case-insensitive)
+alert http any any -> any any (msg:"ETPRO EXPLOIT AutoGen Studio WebSocket Upgrade Request to MCP Endpoint"; flow:established,to_server; http.uri; content:"/api/mcp/ws/"; fast_pattern; http.header; content:"Upgrade"; content:"websocket"; nocase; reference:url,www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/; classtype:web-application-attack; sid:2100101; rev:2;)
