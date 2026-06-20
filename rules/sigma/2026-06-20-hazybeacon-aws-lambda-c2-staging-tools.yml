@@ -1,0 +1,30 @@
+title: HazyBeacon - Staging Tools Dropped in ProgramData
+id: d4e5f6a7-b8c9-4d0e-a1f2-c3d4e5f6a7b8
+status: experimental
+description: >
+    Detects creation of HazyBeacon exfiltration and collection tools in the
+    C:\ProgramData staging directory. Tool names include igfx.exe (file collector),
+    GoogleGet.exe, GoogleDrive.exe, google.exe, Dropbox.exe (cloud uploaders).
+references:
+    - https://unit42.paloaltonetworks.com/windows-backdoor-for-novel-c2-communication/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|startswith: 'C:\ProgramData\'
+        TargetFilename|endswith:
+            - '\igfx.exe'
+            - '\GoogleGet.exe'
+            - '\GoogleDrive.exe'
+            - '\GoogleDriveUpload.exe'
+            - '\Dropbox.exe'
+            - '\google.exe'
+    condition: selection
+falsepositives:
+    - Legitimate Google Drive or Dropbox desktop clients installing to ProgramData (uncommon; standard paths differ)
+level: medium

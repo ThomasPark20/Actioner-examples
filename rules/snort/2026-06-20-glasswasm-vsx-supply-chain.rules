@@ -1,0 +1,16 @@
+# NOTE: All HTTP-layer rules (SIDs 2100301-2100304) require TLS inspection/decryption.
+# HTTPS traffic to dodod[.]lat and api.mainnet.solana.com will not be visible
+# without SSL interception or a TLS-terminating proxy.
+#
+# NOTE: DNS detection for dodod[.]lat is NOT included in this Snort 2.9 ruleset.
+# Snort 2.9 lacks DNS sticky buffers (dns_query), making DNS content matching
+# fragile and unreliable. Use the Suricata ruleset for DNS-layer detection.
+#
+# NOTE: SIDs 2100302-2100304 use http_header to match the Host header because
+# Snort 2.9 does not provide http_host as a sticky buffer. The content match
+# for "dodod.lat" targets the Host: header line within http_header.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - GlassWASM Solana RPC getSignaturesForAddress with Attacker Wallet"; flow:established,to_server; content:"POST"; http_method; content:"getSignaturesForAddress"; fast_pattern; http_client_body; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; http_client_body; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created 2026-06-20; sid:2100301; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - GlassWASM C2 Stage2 Download macOS Pattern"; flow:established,to_server; content:"GET"; http_method; content:"/darwin/i/_"; fast_pattern; http_uri; content:"dodod.lat"; http_header; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created 2026-06-20; sid:2100302; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - GlassWASM C2 Stage2 Download Linux Pattern"; flow:established,to_server; content:"GET"; http_method; content:"/linux/i/_"; fast_pattern; http_uri; content:"dodod.lat"; http_header; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created 2026-06-20; sid:2100303; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - GlassWASM C2 Stage2 Download Windows Pattern"; flow:established,to_server; content:"GET"; http_method; content:"/win32/i/_"; fast_pattern; http_uri; content:"dodod.lat"; http_header; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created 2026-06-20; sid:2100304; rev:1;)

@@ -1,0 +1,44 @@
+title: AutoGen Studio Python Process Spawning Suspicious Child (AutoJack)
+id: 8c241a1c-28f2-4a7e-8646-6efb14ff5219
+status: experimental
+description: >
+    Detects AutoGen Studio's Python process spawning shell interpreters or LOLBins,
+    consistent with the AutoJack zero-click RCE exploit chain where a malicious web
+    page hijacks the MCP WebSocket endpoint to execute arbitrary commands under
+    the developer's account.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/
+    - https://thehackernews.com/2026/06/autojack-attack-lets-one-web-page.html
+author: Actioner
+date: 2026/06/20
+tags:
+    - attack.t1059
+    - attack.t1203
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentCommandLine|contains:
+            - 'autogenstudio'
+            - 'autogen_studio'
+            - 'autogen-studio'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\bash.exe'
+            - '\wsl.exe'
+            - '\certutil.exe'
+            - '\mshta.exe'
+            - '\rundll32.exe'
+            - '\regsvr32.exe'
+            - '\curl.exe'
+            - '\wget.exe'
+            - '\bitsadmin.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate MCP server tools spawned by AutoGen Studio that invoke shell interpreters
+    - Developer workflow automation that chains AutoGen Studio with shell commands
+level: medium

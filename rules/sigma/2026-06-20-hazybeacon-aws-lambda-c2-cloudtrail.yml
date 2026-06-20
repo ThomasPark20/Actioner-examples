@@ -1,0 +1,25 @@
+title: HazyBeacon - AWS Lambda Function URL Creation via CloudTrail
+id: e5f6a7b8-c9d0-4e1f-a2b3-c4d5e6f7a8b9
+status: experimental
+description: >
+    Detects CloudTrail events for creating Lambda functions and enabling
+    unauthenticated Function URLs (AuthType NONE), which HazyBeacon operators
+    use to establish C2 relay infrastructure within compromised AWS accounts.
+references:
+    - https://blog.qualys.com/qualys-insights/2026/06/02/hazybeacon-aws-lambda-function-url-command-control-abuse
+    - https://unit42.paloaltonetworks.com/windows-backdoor-for-novel-c2-communication/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1648
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventName: 'CreateFunctionUrlConfig'
+        requestParameters|contains: '"AuthType":"NONE"'
+    condition: selection
+falsepositives:
+    - Developers intentionally creating public Lambda Function URLs for testing or webhooks
+level: low

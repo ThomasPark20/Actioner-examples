@@ -1,0 +1,22 @@
+title: GlassWASM - DNS Query to Known C2 Domain dodod.lat
+id: 4d6f8b0c-3e5a-7291-d1c3-6a4b8e0f2c4d
+status: experimental
+description: >
+    Detects DNS resolution of the known GlassWASM C2 domain dodod.lat, resolved
+    from Solana blockchain SPL Memo fields.
+references:
+    - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+    - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'dodod.lat'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known malicious domain
+level: critical

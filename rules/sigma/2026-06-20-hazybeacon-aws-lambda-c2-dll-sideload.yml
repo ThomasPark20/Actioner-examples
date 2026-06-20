@@ -1,0 +1,25 @@
+title: HazyBeacon - Malicious mscorsvc.dll Sideloaded by mscorsvw.exe
+id: 7c3a8e12-4b5f-4d9a-b2c1-e0f8d6a5b3c7
+status: experimental
+description: >
+    Detects the HazyBeacon backdoor DLL sideloading chain where the legitimate
+    .NET Framework binary mscorsvw.exe loads a malicious mscorsvc.dll planted
+    in C:\Windows\assembly\. Used by CL-STA-1020 targeting SE Asian governments.
+references:
+    - https://unit42.paloaltonetworks.com/windows-backdoor-for-novel-c2-communication/
+    - https://blog.qualys.com/qualys-insights/2026/06/02/hazybeacon-aws-lambda-function-url-command-control-abuse
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\mscorsvw.exe'
+        ImageLoaded|endswith: '\Windows\assembly\mscorsvc.dll'
+    condition: selection
+falsepositives:
+    - None expected; the legitimate mscorsvc.dll resides in the .NET Framework directory, not Windows\assembly
+level: high

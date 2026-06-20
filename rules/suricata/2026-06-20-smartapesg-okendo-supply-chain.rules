@@ -1,0 +1,17 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - SmartApeSG Okendo Supply Chain - DNS Query to wigetticks C2 Domain"; flow:to_server; dns.query; content:"wigetticks.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; metadata:author Actioner, created_at 2026-06-20; sid:2100301; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SmartApeSG Okendo Supply Chain - DNS Query to wizzleticks C2 Domain"; flow:to_server; dns.query; content:"wizzleticks.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; metadata:author Actioner, created_at 2026-06-20; sid:2100302; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SmartApeSG Okendo Supply Chain - DNS Query to fresicrto Fake CAPTCHA Domain"; flow:to_server; dns.query; content:"fresicrto.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; metadata:author Actioner, created_at 2026-06-20; sid:2100303; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SmartApeSG Okendo Supply Chain - DNS Query to urotypos Staging Domain"; flow:to_server; dns.query; content:"urotypos.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; metadata:author Actioner, created_at 2026-06-20; sid:2100304; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SmartApeSG Okendo Supply Chain - DNS Query to layardrama21 Fake Update Domain"; flow:to_server; dns.query; content:"layardrama21.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.malware-traffic-analysis.net/2025/03/26/index.html; metadata:author Actioner, created_at 2026-06-20; sid:2100305; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to wigetticks C2 with PHP Beacon"; flow:established,to_server; http.host; content:"wigetticks.com"; fast_pattern; http.uri; content:"private-response.php"; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; metadata:author Actioner, created_at 2026-06-20; sid:2100306; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to wizzleticks C2 with PHP Beacon"; flow:established,to_server; http.host; content:"wizzleticks.com"; fast_pattern; http.uri; content:"scope-schema.php"; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; metadata:author Actioner, created_at 2026-06-20; sid:2100307; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to urotypos Payload Staging"; flow:established,to_server; http.host; content:"urotypos.com"; fast_pattern; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; metadata:author Actioner, created_at 2026-06-20; sid:2100308; rev:1;)
+
+alert tcp $HOME_NET any -> [95.142.45.231,185.163.47.220,89.46.38.100,195.85.115.11,193.239.237.40,194.180.191.168] any (msg:"Actioner - SmartApeSG Okendo Supply Chain - TCP Connection to Known RAT C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; metadata:author Actioner, created_at 2026-06-20; sid:2100309; rev:1;)

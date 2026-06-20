@@ -1,0 +1,26 @@
+title: SmartApeSG Okendo Supply Chain - Mshta Execution of HTA Dropper
+id: 9b4f8e2c-3d5e-4f6b-ac7d-2e1f9d8b4a3c
+status: experimental
+description: >
+    Detects mshta.exe executing an HTA file from the AppData\Local directory,
+    consistent with the SmartApeSG ClickFix attack chain that drops post.hta
+    to deliver RAT payloads.
+references:
+    - https://www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack
+    - https://isc.sans.edu/diary/32826
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1218.005
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains: '\AppData\Local\post.hta'
+    condition: selection
+falsepositives:
+    - Legitimate HTA files named post.hta in AppData (very unlikely)
+level: high

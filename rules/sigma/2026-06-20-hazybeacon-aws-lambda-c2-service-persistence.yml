@@ -1,0 +1,30 @@
+title: HazyBeacon - Persistence via msdnetsvc Service Creation
+id: a1b2c3d4-5e6f-7a8b-9c0d-e1f2a3b4c5d6
+status: experimental
+description: >
+    Detects creation of the Windows service named msdnetsvc, used by HazyBeacon
+    (CL-STA-1020) for persistence to ensure the sideloaded DLL loads after reboot.
+references:
+    - https://unit42.paloaltonetworks.com/windows-backdoor-for-novel-c2-communication/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1543.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'sc.exe'
+            - 'create'
+            - 'msdnetsvc'
+    selection_img:
+        Image|endswith: '\sc.exe'
+        CommandLine|contains|all:
+            - 'create'
+            - 'msdnetsvc'
+    condition: selection_cmd or selection_img
+falsepositives:
+    - None expected; msdnetsvc is not a legitimate Windows service name
+level: high

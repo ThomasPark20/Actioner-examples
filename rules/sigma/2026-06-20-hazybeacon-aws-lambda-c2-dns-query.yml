@@ -1,0 +1,26 @@
+title: Generic Hunt - DNS Query to AWS Lambda Function URL Endpoint
+id: b9c0d1e2-f3a4-5b6c-7d8e-9f0a1b2c3d4e
+status: experimental
+description: >
+    Generic hunt rule detecting DNS queries resolving ANY AWS Lambda Function URL
+    endpoint (*.lambda-url.*.on.aws). This is NOT HazyBeacon-specific -- it matches
+    all Lambda Function URL DNS traffic. HazyBeacon is one known threat using this
+    infrastructure pattern. Legitimate Lambda Function URL usage is uncommon in
+    most enterprise environments but will trigger this rule.
+references:
+    - https://unit42.paloaltonetworks.com/windows-backdoor-for-novel-c2-communication/
+    - https://blog.qualys.com/qualys-insights/2026/06/02/hazybeacon-aws-lambda-function-url-command-control-abuse
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1102
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: '.on.aws'
+        QueryName|contains: '.lambda-url.'
+    condition: selection
+falsepositives:
+    - Legitimate use of AWS Lambda Function URLs by development or DevOps teams
+level: low

@@ -1,0 +1,31 @@
+title: GlassWASM - Node.js Child Process Spawns Curl Piped to Bash
+id: 8a1c3e5d-7f2b-4d90-a6e8-3c9b1f0d5e7a
+status: experimental
+description: >
+    Detects Node.js (VS Code extension host) spawning curl with output piped to
+    bash, consistent with GlassWASM second-stage fileless delivery on Linux/macOS.
+references:
+    - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+    - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1059.004
+    - attack.t1105
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '/node.exe'
+            - '\node.exe'
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'curl'
+            - '-fsSL'
+            - '| bash'
+    condition: selection_parent and selection_cmd
+falsepositives:
+    - Legitimate VS Code extension install scripts that fetch and execute remote scripts
+level: medium
