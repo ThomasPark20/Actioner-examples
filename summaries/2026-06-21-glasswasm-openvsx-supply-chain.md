@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-21
-Version: 1.0 (DRAFT)
+Version: 2.0 (REVISED)
 
 ## Executive Summary
 
@@ -96,7 +96,7 @@ Any VS Code fork defaulting to the Open VSX Registry is at risk:
 | Artifact | Hash (SHA256) | Description |
 |----------|---------------|-------------|
 | WASM payload (`snqpkebiwrxmoivl.wasm` / `orybbbdsuqmaapel.wasm`) | `558b4f1d9a263c13756ab0126c09dd080c85ba405b29488e1c4e6aa68b554f1f` | TinyGo-compiled WASM module (SHA1: `8ebac142e34a20c297d3ccaca7ee5d9ddd24fed4`, MD5: `4e143876eeaf5e767a9971f603b0f13c`, 824,552 bytes) |
-| `noellee-doc.flint-debug-0.1.1.vsix` | `3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a26f15992c895ba9` | Trojanized VSIX package (SHA1: `c0ed7d575fe8085e942898c9a26f15992c895ba9`, MD5: `b262b8d2ac2f0ab3c78251db44ecf3ac`) |
+| `noellee-doc.flint-debug-0.1.1.vsix` | `3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a65f9e5d58` | Trojanized VSIX package (SHA1: `c0ed7d575fe8085e942898c9a26f15992c895ba9`, MD5: `b262b8d2ac2f0ab3c78251db44ecf3ac`) |
 | `exargd.vsblack-0.0.1.vsix` | `1e283327ad048bea39f4a8501770858a20f3555e87fe3e202274f2e87f8a3c25` | Trojanized VSIX package (SHA1: `824e601b599b9ad97ee12f0b3a72efd20ba59d47`, MD5: `f595fb7867bef76b4deab53fa328e0a2`) |
 
 ### Network
@@ -177,11 +177,11 @@ grep "dodod.lat" /var/log/dns* /var/log/syslog 2>/dev/null
 
 ## Detection Rules
 
-The following rules target GlassWASM IOCs and behavioral patterns at host, file, and network layers. Sigma rules cover Node.js spawning download-execute commands, Solana RPC abuse from editor processes, C2 domain resolution, and WASM file creation in extension directories. YARA rules detect the WASM payload by known hashes, TinyGo structural indicators, and ChaCha20 signatures. Snort and Suricata rules identify C2 HTTP traffic and DNS resolution. The C2 domain rules carry high confidence as `dodod[.]lat` has no legitimate use. The behavioral rules (Node.js child process, Solana RPC, WASM file creation) carry medium confidence due to potential overlap with legitimate developer tooling.
+The following rules target GlassWASM IOCs and behavioral patterns at host, file, and network layers. Three Sigma rules cover Node.js spawning download-execute commands (IOC-anchored to C2 URL patterns), Solana RPC abuse with the watched wallet address, and C2 domain resolution. A fourth Sigma rule (WASM file creation in extension directories) was dropped due to unacceptable false positive rates -- legitimate extensions routinely bundle WASM modules. Three YARA rules detect the WASM payload by known hashes, TinyGo structural indicators, and ChaCha20 signatures. Five Snort and six Suricata rules identify C2 HTTP traffic and DNS resolution, with platform-specific URL path rules anchored to the `dodod[.]lat` domain to prevent generic matching. The C2 domain rules carry high confidence as `dodod[.]lat` has no legitimate use.
 
 ### Sigma: GlassWASM -- Node.js Spawning Suspicious Download-Execute Commands
-Detects Node.js spawning curl-pipe-bash or PowerShell download-execute commands consistent with GlassWASM stage-3 delivery.
-**compile: sigma check pass, sigma convert splunk pass, sigma convert log_scale pass** | **confidence: medium** (TTP-level; legitimate Node.js build scripts may use similar patterns)
+Detects Node.js spawning curl-pipe-bash or PowerShell download-execute commands consistent with GlassWASM stage-3 delivery. Every branch requires the C2 URL anchor (`selection_c2_url`) to avoid firing on generic curl|bash or irm|iex patterns.
+**compile: sigma check pass, sigma convert splunk pass** | **confidence: medium** (TTP-level with IOC anchor; legitimate Node.js build scripts are unlikely to hit the C2 URL patterns)
 
 ```yaml
 title: GlassWASM - Node.js Spawning Suspicious Download-Execute Commands
@@ -190,7 +190,7 @@ status: experimental
 description: >
   Detects Node.js processes spawning curl-pipe-bash or PowerShell download-execute
   commands consistent with GlassWASM malware stage-3 payload delivery from trojanized
-  Open VSX extensions.
+  Open VSX extensions. Every branch requires the C2 URL anchor to reduce false positives.
 references:
   - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
   - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
@@ -202,7 +202,6 @@ tags:
   - attack.t1105
 logsource:
   category: process_creation
-  product: windows
 detection:
   selection_parent:
     ParentImage|endswith:
@@ -223,26 +222,26 @@ detection:
       - '/linux/i/_'
       - '/win32/i/_'
       - 'dodod.lat'
-  condition: selection_parent and (selection_curl_bash or selection_powershell or selection_c2_url)
+  condition: selection_parent and selection_c2_url and (selection_curl_bash or selection_powershell)
 falsepositives:
-  - Legitimate Node.js build scripts that download and execute platform-specific installers
+  - Legitimate Node.js build scripts that download and execute platform-specific installers from domains containing the C2 URL patterns
 level: high
 ```
 
-<!-- AUDIT: TTP-level rule detecting Node.js child process spawning download-execute commands. Parent process constraint narrows scope. C2 URL patterns and domain provide IOC-anchored specificity. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass, sigma convert --without-pipeline -t log_scale pass. -->
+<!-- revision: v2.0 Sigma 1 -- removed product:windows (cross-platform rule); changed condition to require selection_c2_url in every branch to prevent unanchored curl|bash/irm|iex firing -->
+<!-- AUDIT: TTP-level rule detecting Node.js child process spawning download-execute commands. Parent process constraint narrows scope. C2 URL anchor required in every branch. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass. -->
 
 ### Sigma: GlassWASM -- Solana RPC Calls from VS Code Extension Host
-Detects Solana mainnet RPC calls from VS Code processes, indicating potential blockchain-based C2 resolution.
-**compile: sigma check pass, sigma convert splunk pass, sigma convert log_scale pass** | **confidence: low** (legitimate Solana/Web3 development extensions generate identical traffic)
+Detects Solana mainnet RPC calls containing the GlassWASM watched wallet address, indicating blockchain-based C2 dead-drop resolution.
+**compile: sigma check pass, sigma convert splunk pass** | **confidence: low** (wallet address is IOC-anchored but Solana RPC from proxy logs may have limited visibility)
 
 ```yaml
 title: GlassWASM - Solana RPC Calls from VS Code Extension Host
 id: b2e4d9f3-8e56-4c0b-9f70-2d3e4f5a6b7c
 status: experimental
 description: >
-  Detects DNS or HTTP requests to Solana mainnet RPC endpoints originating from
-  VS Code extension host processes, indicating potential GlassWASM C2 dead-drop
-  resolution via blockchain memos.
+  Detects HTTP requests to Solana mainnet RPC endpoints containing the GlassWASM
+  watched wallet address, indicating C2 dead-drop resolution via blockchain memos.
 references:
   - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
   - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
@@ -254,26 +253,21 @@ tags:
 logsource:
   category: proxy
 detection:
-  selection_process:
-    c-useragent|contains:
-      - 'node'
-      - 'electron'
   selection_solana:
-    c-uri|contains:
+    r-dns|contains:
       - 'api.mainnet-beta.solana.com'
       - 'api.mainnet.solana.com'
-  selection_methods:
+  selection_wallet:
     cs-body|contains:
-      - 'getSignaturesForAddress'
-      - 'getTransaction'
-  condition: selection_solana and (selection_process or selection_methods)
+      - '6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz'
+  condition: selection_solana and selection_wallet
 falsepositives:
-  - Legitimate Solana/Web3 development extensions
-  - Blockchain developer tooling
-level: medium
+  - Legitimate Solana applications querying the same wallet address
+level: low
 ```
 
-<!-- AUDIT: Behavioral rule. Solana RPC from editor processes is unusual outside blockchain dev but not impossible. Low confidence due to legitimate Web3 tooling overlap. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass, sigma convert --without-pipeline -t log_scale pass. -->
+<!-- revision: v2.0 Sigma 2 -- replaced non-standard c-useragent with standard r-dns for proxy category; removed overly broad selection_process and selection_methods; added wallet address IOC anchor (selection_wallet) so rule no longer fires on any Solana RPC call; aligned level:low with confidence:low -->
+<!-- AUDIT: IOC-anchored behavioral rule. Wallet address prevents generic Solana RPC matches. r-dns is Sigma-standard for proxy category. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass. -->
 
 ### Sigma: GlassWASM -- C2 Domain DNS Lookup (dodod.lat)
 Detects DNS resolution of the known GlassWASM C2 domain.
@@ -309,50 +303,13 @@ level: high
 
 <!-- AUDIT: IOC-anchored domain rule. dodod.lat has no legitimate use. High confidence. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass ("query="*dodod.lat""), sigma convert --without-pipeline -t log_scale pass (query=/dodod\.lat$/i). -->
 
-### Sigma: GlassWASM -- WASM File Created in VS Code Extension Directory
-Detects WebAssembly files appearing in VS Code extension directories, which is uncommon and may indicate a GlassWASM installation.
-**compile: sigma check pass, sigma convert splunk pass, sigma convert log_scale pass** | **confidence: low** (legitimate extensions such as language servers may bundle WASM modules)
-
-```yaml
-title: GlassWASM - WASM File Created in VS Code Extension Directory
-id: d4a6f1b5-0a78-4e2d-b192-4f5a6b7c8d9e
-status: experimental
-description: >
-  Detects creation of WebAssembly (.wasm) files in VS Code or VS Code fork
-  extension directories, which may indicate installation of a trojanized extension
-  carrying a GlassWASM payload.
-references:
-  - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
-  - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
-author: Actioner CTI
-date: 2026-06-21
-tags:
-  - attack.t1195.002
-  - attack.t1027.002
-logsource:
-  category: file_event
-  product: windows
-detection:
-  selection_path:
-    TargetFilename|contains:
-      - '\.vscode\extensions\'
-      - '\.vscode-oss\extensions\'
-      - '\.cursor\extensions\'
-      - '\.windsurf\extensions\'
-  selection_ext:
-    TargetFilename|endswith:
-      - '.wasm'
-  condition: selection_path and selection_ext
-falsepositives:
-  - Legitimate extensions that use WebAssembly modules (e.g., language servers)
-level: medium
-```
-
-<!-- AUDIT: Heuristic/behavioral rule. WASM in extension dirs is uncommon but not unique to GlassWASM. Low confidence due to legitimate WASM usage in extensions. Validated: sigma check 0 errors, sigma convert --without-pipeline -t splunk pass, sigma convert --without-pipeline -t log_scale pass. -->
+<!-- revision: v2.0 Sigma 4 DROPPED -- "WASM File Created in VS Code Extension Directory" matched ANY .wasm in ANY extension directory; legitimate extensions (language servers, tree-sitter, etc.) routinely bundle WASM modules, creating unacceptable FP rates. Altitude violation with no IOC anchor. -->
 
 ### YARA: GlassWASM WASM Payload, VSIX Package, and TinyGo Behavioral Heuristic
 Three YARA rules targeting the known WASM payload (by hash and structural indicators), the trojanized VSIX packages (by hash and embedded filenames), and a behavioral heuristic for suspicious TinyGo WASM with ChaCha20 encryption.
-**compile: yarac pass** | **confidence: high** (payload hash/structure), **high** (VSIX hash/filename), **medium** (TinyGo behavioral heuristic)
+**compile: yarac pass** | **confidence: high** (payload hash/structure), **high** (VSIX hash/filename), **low** (TinyGo behavioral heuristic)
+
+> **Note on string branches**: The report documents that the WASM payload encrypts all meaningful strings with ChaCha20 at rest. The `$solana*` and `$cp*` string branches in `GlassWASM_WASM_Payload` target unencrypted variants (e.g., debug builds, memory dumps, or future builds where encryption is disabled). The primary detection path for the encrypted production payload is the SHA256 hash match. The structural TinyGo+ChaCha20+child_process branch fires only when those strings are visible in cleartext.
 
 ```yara
 import "hash"
@@ -366,6 +323,7 @@ rule GlassWASM_WASM_Payload
         reference = "https://socket.dev/blog/glasswasm-malware-open-vsx-extensions"
         hash1 = "558b4f1d9a263c13756ab0126c09dd080c85ba405b29488e1c4e6aa68b554f1f"
         severity = "high"
+        note = "String branches ($solana*, $cp*) target unencrypted variants. The production payload encrypts these strings with ChaCha20 at rest; they become visible only during dynamic analysis or if encryption is disabled in future builds."
 
     strings:
         // WebAssembly magic bytes
@@ -379,12 +337,12 @@ rule GlassWASM_WASM_Payload
         // ChaCha20 sigma constant
         $chacha_sigma = "expand 32-byte k" ascii
 
-        // Solana-related strings (if decrypted or partially visible)
+        // Solana-related strings (visible in unencrypted variants or memory dumps)
         $solana1 = "getSignaturesForAddress" ascii
         $solana2 = "getTransaction" ascii
         $solana3 = "spl-memo" ascii
 
-        // child_process abuse indicators
+        // child_process abuse indicators (visible in unencrypted variants or memory dumps)
         $cp1 = "child_process" ascii
         $cp2 = "execSync" ascii
         $cp3 = "windowsHide" ascii
@@ -410,7 +368,7 @@ rule GlassWASM_VSIX_Package
         author = "Actioner CTI"
         date = "2026-06-21"
         reference = "https://socket.dev/blog/glasswasm-malware-open-vsx-extensions"
-        hash1 = "3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a26f15992c895ba9"
+        hash1 = "3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a65f9e5d58"
         hash2 = "1e283327ad048bea39f4a8501770858a20f3555e87fe3e202274f2e87f8a3c25"
         severity = "critical"
 
@@ -418,9 +376,9 @@ rule GlassWASM_VSIX_Package
         // VSIX is a ZIP-based format
         $pk_header = { 50 4B 03 04 }
 
-        // Extension identifiers
-        $ext1 = "vsblack" ascii nocase
-        $ext2 = "flint-debug" ascii nocase
+        // Extension identifiers (case-sensitive -- these are npm-style package names)
+        $ext1 = "vsblack" ascii
+        $ext2 = "flint-debug" ascii
 
         // WASM payload filenames
         $wasm_file1 = "snqpkebiwrxmoivl.wasm" ascii
@@ -432,7 +390,7 @@ rule GlassWASM_VSIX_Package
     condition:
         $pk_header at 0 and
         (
-            hash.sha256(0, filesize) == "3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a26f15992c895ba9" or
+            hash.sha256(0, filesize) == "3aa31999398e7f80231c03d7137ffdb554a84b83dbcffc59ce16c9a65f9e5d58" or
             hash.sha256(0, filesize) == "1e283327ad048bea39f4a8501770858a20f3555e87fe3e202274f2e87f8a3c25" or
             (1 of ($wasm_file*) and $activation) or
             (1 of ($ext*) and 1 of ($wasm_file*))
@@ -446,7 +404,8 @@ rule GlassWASM_TinyGo_WASM_Suspicious
         author = "Actioner CTI"
         date = "2026-06-21"
         reference = "https://socket.dev/blog/glasswasm-malware-open-vsx-extensions"
-        severity = "medium"
+        severity = "low"
+        note = "The ChaCha20 sigma constant alone is common in cryptographic binaries. This rule requires WASM-specific structural indicators (TinyGo imports, asyncify exports, WASI imports) to reduce false positives."
 
     strings:
         $wasm_magic = { 00 61 73 6D 01 00 00 00 }
@@ -478,43 +437,47 @@ rule GlassWASM_TinyGo_WASM_Suspicious
 }
 ```
 
-<!-- AUDIT: Three YARA rules compiled cleanly via yarac (exit 0). GlassWASM_WASM_Payload uses hash match + structural TinyGo indicators. GlassWASM_VSIX_Package uses hash match + known filenames. GlassWASM_TinyGo_WASM_Suspicious is a behavioral heuristic. All SHA256 hashes from Socket.dev report. Byte patterns for WASM magic (00 61 73 6D) and ZIP PK header (50 4B 03 04). No defanged values in YARA conditions. -->
+<!-- revision: v2.0 YARA 1 -- added meta note documenting that $solana*/$cp* string branches target unencrypted variants; production payload uses ChaCha20 encryption making those strings invisible at rest -->
+<!-- revision: v2.0 YARA 2 -- corrected SHA256 hash from 70-char malformed value to correct 64-char 3aa31999...f9e5d58 (source: socket.dev); removed nocase from $ext1/$ext2 (npm package names are case-sensitive) -->
+<!-- revision: v2.0 YARA 3 -- lowered severity from medium to low; added meta note explaining ChaCha20 sigma constant appears in any ChaCha20/Salsa20 binary; WASM structural indicators reduce but do not eliminate FP risk -->
+<!-- AUDIT: Three YARA rules compiled cleanly via yarac (exit 0). Corrected SHA256 hash verified against Socket.dev source (64 hex chars). No defanged values in YARA conditions. -->
 
 ### Snort: GlassWASM Network Detection (5 rules)
-Five Snort rules covering C2 domain in HTTP Host header, platform-specific URL patterns, and Solana RPC query with watched wallet address.
+Five Snort rules covering C2 domain in HTTP Host header, platform-specific URL patterns (domain-anchored), and Solana RPC query with watched wallet address.
 **compile: snort -T pass (rules placed in /etc/snort/rules/)** | **confidence: high** (C2 domain SID 2026062101), **high** (URL patterns SIDs 2026062102-2026062104), **high** (wallet+RPC SID 2026062105)
 
 ```
-## GlassWASM C2 Domain Detection
+# GlassWASM C2 Domain Detection
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM C2 Domain (dodod.lat) in HTTP Host Header"; flow:to_server,established; content:"Host|3A| "; http_header; content:"dodod.lat"; http_header; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062101; rev:1;)
 
-## GlassWASM Platform-Specific C2 URL Paths
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/darwin/i/_)"; flow:to_server,established; content:"/darwin/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062102; rev:1;)
+# GlassWASM Platform-Specific C2 URL Paths (domain-anchored)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/darwin/i/_)"; flow:to_server,established; content:"dodod.lat"; http_header; content:"/darwin/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062102; rev:2;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/linux/i/_)"; flow:to_server,established; content:"/linux/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062103; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/linux/i/_)"; flow:to_server,established; content:"dodod.lat"; http_header; content:"/linux/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062103; rev:2;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/win32/i/_)"; flow:to_server,established; content:"/win32/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062104; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/win32/i/_)"; flow:to_server,established; content:"/win32/i/_"; http_uri; content:"dodod.lat"; http_header; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062104; rev:2;)
 
-## GlassWASM Solana RPC getSignaturesForAddress with Watched Wallet
+# GlassWASM Solana RPC getSignaturesForAddress with Watched Wallet
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Solana RPC getSignaturesForAddress Call"; flow:to_server,established; content:"getSignaturesForAddress"; http_client_body; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; http_client_body; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062105; rev:1;)
 ```
 
+<!-- revision: v2.0 Snort SIDs 2026062102-04 -- added content:"dodod.lat"; http_header; domain anchor to each platform URL path rule (rev:1 -> rev:2); prevents firing on semi-generic URL paths without the C2 domain -->
 <!-- AUDIT: Snort 2.9.20 validated via snort -c /etc/snort/snort.conf -T after placing rules in /etc/snort/rules/glasswasm.rules. "Snort successfully validated the configuration!" observed. SIDs in custom 2026MMDDNN range. All rules use flow:to_server,established. HTTP content modifiers (http_header, http_uri, http_client_body) applied. -->
 
 ### Suricata: GlassWASM Network Detection (6 rules)
-Six Suricata rules using sticky-buffer syntax covering C2 domain HTTP and DNS, platform-specific URL patterns, and Solana RPC with watched wallet address.
+Six Suricata rules using sticky-buffer syntax covering C2 domain HTTP and DNS, platform-specific URL patterns (domain-anchored), and Solana RPC with watched wallet address.
 **compile: suricata -T pass** | **confidence: high** (C2 domain SIDs 2026062201, 2026062206), **high** (URL patterns SIDs 2026062202-2026062204), **high** (wallet+RPC SID 2026062205)
 
 ```
 # GlassWASM C2 Domain Detection
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM C2 Domain (dodod.lat)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062201; rev:1;)
 
-# GlassWASM Stage-3 URL Patterns
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/darwin/i/_)"; flow:to_server,established; http.uri; content:"/darwin/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062202; rev:1;)
+# GlassWASM Stage-3 URL Patterns (domain-anchored)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/darwin/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/darwin/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062202; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/linux/i/_)"; flow:to_server,established; http.uri; content:"/linux/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062203; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/linux/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/linux/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062203; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/win32/i/_)"; flow:to_server,established; http.uri; content:"/win32/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062204; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/win32/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/win32/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062204; rev:2;)
 
 # GlassWASM Solana RPC with Watched Wallet Address
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Solana RPC Query for Watched Wallet"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"getSignaturesForAddress"; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062205; rev:1;)
@@ -523,7 +486,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Solana RPC
 alert dns $HOME_NET any -> any any (msg:"MALWARE GlassWASM C2 DNS Query (dodod.lat)"; dns.query; content:"dodod.lat"; endswith; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062206; rev:1;)
 ```
 
-<!-- AUDIT: All 6 Suricata rules validated via suricata -T -S (v7.0.3). Configuration loaded successfully. Dot-notation sticky buffers used (http.host, http.uri, http.method, http.request_body, dns.query). Duplicate http.request_body instance fixed in rev after initial warning. SIDs in custom 2026MMDDNN range. -->
+<!-- revision: v2.0 Suricata SIDs 2026062202-04 -- added http.host; content:"dodod.lat"; endswith; domain anchor to each platform URL path rule (rev:1 -> rev:2); prevents firing on semi-generic URL paths without the C2 domain -->
+<!-- AUDIT: All 6 Suricata rules validated via suricata -T -S (v7.0.3). Configuration loaded successfully. Dot-notation sticky buffers used (http.host, http.uri, http.method, http.request_body, dns.query). SIDs in custom 2026MMDDNN range. -->
 
 ## Lessons Learned
 
@@ -543,7 +507,8 @@ alert dns $HOME_NET any -> any any (msg:"MALWARE GlassWASM C2 DNS Query (dodod.l
 - [The Hacker News -- GlassWorm Supply-Chain Attack Abuses 72 Open VSX Extensions](https://thehackernews.com/2026/03/glassworm-supply-chain-attack-abuses-72.html) -- broader GlassWorm campaign context
 - [SecurityWeek -- Dozens of Open VSX Extension Clones Linked to GlassWorm Malware](https://www.securityweek.com/dozens-of-open-vsx-extension-clones-linked-to-glassworm-malware/) -- additional campaign reporting
 
-<!-- revision: v1.0 2026-06-21 DRAFT. 4 Sigma rules, 3 YARA rules, 5 Snort rules, 6 Suricata rules. All validated except Snort which required placement in /etc/snort/rules/ due to pidfile suffix limitation. Sigma node-child-process and wasm-in-extension are TTP-level (medium/low confidence). Sigma C2 domain is IOC-anchored (high confidence). Sigma Solana RPC is behavioral (low confidence). YARA payload and VSIX rules are IOC-anchored (high confidence). YARA TinyGo heuristic is behavioral (medium confidence). All Snort and Suricata rules are IOC-anchored (high confidence). -->
+<!-- revision: v1.0 2026-06-21 DRAFT. 4 Sigma rules, 3 YARA rules, 5 Snort rules, 6 Suricata rules. -->
+<!-- revision: v2.0 2026-06-21 REVISED. Applied all critic fixes. Changes: (1) Sigma 1: removed product:windows, require selection_c2_url in all branches. (2) Sigma 2: replaced c-useragent with r-dns, added wallet address IOC anchor, aligned level:low with confidence:low. (3) Sigma 3: no changes. (4) Sigma 4 DROPPED: WASM file event matched any legitimate WASM-bundling extension. (5) YARA 1: documented ChaCha20 encryption vs plaintext string contradiction. (6) YARA 2: corrected SHA256 hash from 70-char malformed to correct 64-char value (3aa31999...f9e5d58); removed nocase from extension name strings. (7) YARA 3: lowered severity from medium to low; added WASM-structural note. (8) Snort SIDs 2026062102-04: added dodod.lat domain anchor. (9) Suricata SIDs 2026062202-04: added dodod.lat domain anchor. (10) IOC table: corrected malformed SHA256 hash. Final: 3 Sigma, 3 YARA, 5 Snort, 6 Suricata rules. All re-validated (sigma check, yarac, snort -T, suricata -T). -->
 
 ---
 *Report generated by Actioner*

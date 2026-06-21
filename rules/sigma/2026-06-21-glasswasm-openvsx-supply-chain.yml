@@ -1,0 +1,106 @@
+# GlassWASM -- WebAssembly Malware in Trojanized Open VSX Extensions
+# 3 Sigma rules (Sigma 4 dropped: WASM file in extension dir matches any legitimate WASM-bundling extension)
+# References:
+#   - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+#   - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+# Author: Actioner CTI
+# Date: 2026-06-21
+
+---
+title: GlassWASM - Node.js Spawning Suspicious Download-Execute Commands
+id: a1f3c8e2-7d45-4b9a-8e6f-1c2d3e4f5a6b
+status: experimental
+description: >
+  Detects Node.js processes spawning curl-pipe-bash or PowerShell download-execute
+  commands consistent with GlassWASM malware stage-3 payload delivery from trojanized
+  Open VSX extensions. Every branch requires the C2 URL anchor to reduce false positives.
+references:
+  - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+  - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+  - attack.t1059.004
+  - attack.t1059.001
+  - attack.t1105
+logsource:
+  category: process_creation
+detection:
+  selection_parent:
+    ParentImage|endswith:
+      - '\node.exe'
+      - '/node'
+  selection_curl_bash:
+    CommandLine|contains|all:
+      - 'curl'
+      - '-fsSL'
+      - '| bash'
+  selection_powershell:
+    CommandLine|contains|all:
+      - 'irm'
+      - '| iex'
+  selection_c2_url:
+    CommandLine|contains:
+      - '/darwin/i/_'
+      - '/linux/i/_'
+      - '/win32/i/_'
+      - 'dodod.lat'
+  condition: selection_parent and selection_c2_url and (selection_curl_bash or selection_powershell)
+falsepositives:
+  - Legitimate Node.js build scripts that download and execute platform-specific installers from domains containing the C2 URL patterns
+level: high
+---
+title: GlassWASM - Solana RPC Calls from VS Code Extension Host
+id: b2e4d9f3-8e56-4c0b-9f70-2d3e4f5a6b7c
+status: experimental
+description: >
+  Detects HTTP requests to Solana mainnet RPC endpoints containing the GlassWASM
+  watched wallet address, indicating C2 dead-drop resolution via blockchain memos.
+references:
+  - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+  - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+  - attack.t1102.001
+  - attack.t1071.001
+logsource:
+  category: proxy
+detection:
+  selection_solana:
+    r-dns|contains:
+      - 'api.mainnet-beta.solana.com'
+      - 'api.mainnet.solana.com'
+  selection_wallet:
+    cs-body|contains:
+      - '6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz'
+  condition: selection_solana and selection_wallet
+falsepositives:
+  - Legitimate Solana applications querying the same wallet address
+level: low
+---
+title: GlassWASM - C2 Domain DNS Lookup (dodod.lat)
+id: c3f5e0a4-9f67-4d1c-a081-3e4f5a6b7c8d
+status: experimental
+description: >
+  Detects DNS resolution of the GlassWASM C2 domain dodod.lat, used to serve
+  platform-specific second-stage payloads after dead-drop resolution via Solana
+  blockchain memos.
+references:
+  - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+  - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+  - attack.t1071.001
+  - attack.t1105
+logsource:
+  category: dns
+detection:
+  selection:
+    query|endswith:
+      - 'dodod.lat'
+  condition: selection
+falsepositives:
+  - Unlikely in enterprise environments
+level: high
