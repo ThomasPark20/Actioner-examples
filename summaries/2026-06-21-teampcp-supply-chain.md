@@ -1,15 +1,18 @@
 # TeamPCP Open-Source Supply Chain Attack
 
+<!-- revision: REVISE pass 2026-06-21. Sigma 4 dropped (behavioral, ~100% FP in dev/CI). Sigma 2 downgraded to medium (IP reassignment risk), 4 recon IPs excluded with rationale. Sigma 3 narrowed to full attacker paths. Sigma 5 tightened to AND logic for file markers. Sigma 6 hooks changed to endswith. Sigma 8 lowered to low (|re portability). YARA 1 added filesize<10MB, renamed reference2. YARA 3 changed to 2 of ($marker_*). YARA 4 added TeamPCP-specific strings, confidence now high-with-strings/low-without. Snort 1-6,8 anchored to Host header. Cloudflare tunnel URLs defanged. T1021.007 replaced with T1021. T1609 noted as Containers matrix, remapped to T1059. CVE-2026-45321 context added. Cloudflare tunnel IOCs noted as ephemeral. -->
+
 **Date:** 2026-06-21
-**Status:** DRAFT
+**Status:** REVISED
 **TLP:** CLEAR
-**CVE:** CVE-2026-45321 (CVSS 9.6)
 
 ---
 
 ## Executive Summary
 
 TeamPCP (also tracked as UNC6780 by Google GTIG) is a threat group that has systematically compromised over 1,000 open-source software packages across npm, PyPI, and GitHub Actions since late February 2026. The campaign has affected packages with approximately 500 million combined weekly downloads, stolen an estimated 500,000 credentials, and resulted in the exfiltration of over 300 GB of data from impacted organizations. Notable victims include GitHub (~3,800 internal repositories exfiltrated), Checkmarx, Bitwarden, LiteLLM, TanStack, Mistral AI, UiPath, SAP, Red Hat, and Microsoft DurableTask. The group's self-propagating worm, dubbed "Mini Shai-Hulud," represents a novel escalation in supply chain attack sophistication by publishing trojanized versions of every package accessible to a compromised developer account.
+
+<!-- revision: CVE-2026-45321 was referenced in the original exec summary without further context. This CVE relates to the GitHub Actions OIDC token audience bypass that enabled TeamPCP's cross-org propagation (Wave 4). Full exploitation details are covered in the Phoenix Security and Unit 42 references. -->
 
 ---
 
@@ -70,10 +73,12 @@ TeamPCP (also tracked as UNC6780 by Google GTIG) is a threat group that has syst
 | T1560.001 | Archive Collected Data: Archive via Utility | openssl + tar for encrypted payload staging |
 | T1567.001 | Exfiltration Over Web Service: Code Repository | Encrypted credential bundles pushed as results.json to public GitHub repos |
 | T1041 | Exfiltration Over C2 Channel | Data exfiltrated to attacker-controlled domains |
-| T1021.007 | Remote Services: Cloud Services | AWS SSM SendCommand for lateral propagation |
-| T1609 | Container Administration Command | kubectl exec for lateral movement into pods |
+| T1021 | Remote Services | AWS SSM SendCommand for lateral propagation |
+| T1059 | Command and Scripting Interpreter | kubectl exec for lateral movement into pods (originally mapped T1609/Containers matrix; remapped to Enterprise matrix T1059) |
 | T1485 | Data Destruction | Geofenced wiper (roulette.py) targeting he_IL/fa_IR locales |
 | T1078 | Valid Accounts | Stolen PATs and OIDC tokens used for package publishing |
+
+<!-- revision: T1021.007 does not exist as a sub-technique; replaced with T1021 (Remote Services). T1609 (Container Administration Command) is in the Containers matrix, not Enterprise; remapped to T1059 (Command and Scripting Interpreter) for Enterprise coverage. -->
 
 ---
 
@@ -94,6 +99,8 @@ TeamPCP (also tracked as UNC6780 by Google GTIG) is a threat group that has syst
 
 ### Cloudflare Tunnel URLs (Defanged)
 
+<!-- revision: These Cloudflare tunnel URLs are ephemeral and rotate frequently. They are included for historical correlation only and are not covered in network detection rules because they resolve to shared Cloudflare infrastructure where blocking would cause collateral damage. -->
+
 - championships-peoples-point-cassette[.]trycloudflare[.]com
 - create-sensitivity-grad-sequence[.]trycloudflare[.]com
 - investigation-launches-hearings-copying[.]trycloudflare[.]com
@@ -113,10 +120,10 @@ TeamPCP (also tracked as UNC6780 by Google GTIG) is a threat group that has syst
 | 195[.]5[.]171[.]242 | C2 infrastructure |
 | 209[.]34[.]235[.]18 | C2 infrastructure |
 | 212[.]71[.]124[.]188 | C2 infrastructure |
-| 209[.]159[.]147[.]239 | TruffleHog credential validation (NYC VPS) |
-| 170[.]62[.]100[.]245 | Cloud enumeration/S3 scanning (Kali Linux) |
-| 154[.]47[.]29[.]12 | Organization reconnaissance |
-| 103[.]75[.]11[.]59 | Credential re-validation (macOS ARM) |
+| 209[.]159[.]147[.]239 | TruffleHog credential validation (NYC VPS) -- excluded from detection rules (shared hosting, high reassignment risk) |
+| 170[.]62[.]100[.]245 | Cloud enumeration/S3 scanning (Kali Linux) -- excluded from detection rules (short-lived VPS) |
+| 154[.]47[.]29[.]12 | Organization reconnaissance -- excluded from detection rules (shared hosting) |
+| 103[.]75[.]11[.]59 | Credential re-validation (macOS ARM) -- excluded from detection rules (shared hosting) |
 
 ### Compromised Package Versions
 
@@ -183,9 +190,9 @@ BABA-YAGA, KOSCHEI, FIREBIRD, PTITSA, RUSALKA, MOROZKO, LESHY, DOMOVOI, VODYANOY
 
 Detects DNS queries resolving known TeamPCP command-and-control domains. IOC-based detection with no expected false positives.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-c2-domains.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 1 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - C2 Domain DNS Lookups
@@ -227,23 +234,29 @@ query IN ("*scan.aquasecurtiy.org", "*checkmarx.zone", "*models.litellm.cloud", 
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | high |
+| pass (sigma check + splunk) | high |
 
 ---
 
 #### 2. TeamPCP C2 IP Address Connections
 
-Detects outbound network connections to TeamPCP attacker infrastructure IPs. IOC-based detection; IPs may be reassigned over time.
+Detects outbound network connections to TeamPCP attacker infrastructure IPs. Four reconnaissance/validation IPs (209.159.147.239, 170.62.100.245, 154.47.29.12, 103.75.11.59) were excluded because they are shared hosting or short-lived VPS nodes with high reassignment likelihood. Confidence downgraded to medium because core C2 IPs may also be reassigned over time.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- revision: Downgraded from high to medium per critic. Excluded 4 recon IPs with documented rationale. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-c2-ips.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 2 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - C2 IP Address Connections
 id: b2c3d4e5-f6a7-8901-bcde-f12345678901
 status: experimental
-description: Detects network connections to IP addresses associated with TeamPCP supply chain attack infrastructure.
+description: >
+    Detects network connections to IP addresses associated with TeamPCP supply chain attack
+    infrastructure. Confidence is medium because IPs may be reassigned over time. Four
+    reconnaissance/validation IPs (209.159.147.239, 170.62.100.245, 154.47.29.12, 103.75.11.59)
+    were excluded because they are shared hosting or short-lived VPS nodes with high reassignment
+    likelihood and would generate excessive false positives.
 references:
     - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
     - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
@@ -267,29 +280,33 @@ detection:
             - '212.71.124.188'
     condition: selection
 falsepositives:
-    - Unlikely, these are attacker-controlled IPs
-level: high
+    - IP address reassignment after infrastructure takedown
+level: medium
 ```
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | high |
+| pass (sigma check + splunk) | medium |
 
 ---
 
 #### 3. TeamPCP Persistence via Fake PostgreSQL Service
 
-Detects creation of systemd services and scripts masquerading as PostgreSQL monitoring, used for persistence. Caveat: legitimate pgmonitor.py scripts in PostgreSQL environments may trigger false positives.
+Detects creation of systemd services masquerading as PostgreSQL monitoring and TeamPCP-specific persistence payloads at known attacker paths. The `selection_payload` uses full paths (`/usr/bin/pgmonitor.py`, etc.) and `selection_payload_user` (home-relative paths) requires co-occurrence with `selection_service` to avoid matching any arbitrary file named `pglog`.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- revision: Narrowed selection_payload to full attacker paths. User-relative paths now AND with selection_service to prevent standalone pglog false positives. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-persistence.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 3 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - Persistence via Fake PostgreSQL Service
 id: c3d4e5f6-a7b8-9012-cdef-123456789012
 status: experimental
-description: Detects the creation of systemd services masquerading as PostgreSQL monitoring, a persistence technique used by TeamPCP malware.
+description: >
+    Detects the creation of systemd services masquerading as PostgreSQL monitoring and
+    TeamPCP-specific persistence payloads. The selection_payload condition uses full attacker
+    paths to avoid matching any file arbitrarily named pglog.
 references:
     - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
     - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
@@ -306,85 +323,51 @@ detection:
             - '/pgsql-monitor.service'
             - '/sysmon.service'
     selection_payload:
+        TargetFilename:
+            - '/usr/bin/pgmonitor.py'
+            - '/usr/bin/pglog'
+            - '/usr/bin/.pg_state'
+    selection_payload_user:
         TargetFilename|endswith:
-            - '/pgmonitor.py'
-            - '/pglog'
-            - '/.pg_state'
-    condition: selection_service or selection_payload
+            - '/.local/bin/pgmonitor.py'
+            - '/.local/bin/pglog'
+            - '/.local/bin/.pg_state'
+    condition: selection_service or selection_payload or (selection_payload_user and selection_service)
 falsepositives:
-    - Legitimate PostgreSQL monitoring scripts named pgmonitor.py
+    - Legitimate PostgreSQL monitoring scripts at these exact paths (unlikely)
 level: medium
 ```
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | medium |
+| pass (sigma check + splunk) | medium |
 
 ---
 
-#### 4. TeamPCP Credential File Access by Python/Node
+#### ~~4. TeamPCP Credential File Access by Python~~ -- DROPPED
 
-Detects Python or Node processes accessing multiple cloud credential files, consistent with TeamPCP credential harvesting. Caveat: legitimate cloud SDK initialization may trigger this rule in developer environments.
-
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
-
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-credential-harvest.yml`
-
-```yaml
-title: TeamPCP Supply Chain Attack - Credential File Access by Python
-id: d4e5f6a7-b8c9-0123-defa-234567890123
-status: experimental
-description: Detects Python processes reading multiple cloud credential files in quick succession, consistent with TeamPCP credential harvesting behavior.
-references:
-    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
-    - https://ramimac.me/teampcp/
-author: Actioner CTI
-date: 2026-06-21
-tags:
-    - attack.t1552.001
-logsource:
-    category: file_access
-    product: linux
-detection:
-    selection_process:
-        Image|endswith:
-            - '/python'
-            - '/python3'
-            - '/node'
-    selection_files:
-        TargetFilename|contains:
-            - '.aws/credentials'
-            - '.kube/config'
-            - '.docker/config.json'
-            - '.npmrc'
-            - '.ssh/id_rsa'
-            - '.ssh/id_ed25519'
-    condition: selection_process and selection_files
-falsepositives:
-    - Legitimate developer tooling or configuration management scripts
-    - Cloud SDK initialization routines
-level: medium
-```
-
-| Compile | Confidence |
-|---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | medium |
+<!-- revision: DROPPED. Behavioral rule, not artifact-specific. ~100% FP rate in dev/CI environments where any Python/Node process touching credential files matches. The YAML title said "Python" but the report described "Python/Node", further indicating scope creep. -->
 
 ---
 
 #### 5. TeamPCP OpenSSL Encryption for Exfiltration
 
-Detects openssl used to generate session keys and encrypt payloads for exfiltration, matching the AES-256-CBC session key pattern used by TeamPCP. Caveat: legitimate TLS/encryption operations may trigger this in CI/CD pipelines.
+Detects openssl used with the specific session.key + payload.enc + AES-256-CBC pattern used by TeamPCP for encrypted exfiltration staging. Both file-name markers (session.key and payload.enc) are now required together via AND logic to prevent `aes-256-cbc` alone from firing.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- revision: Tightened OR to AND logic. Both session.key and payload.enc are now required together. aes-256-cbc alone no longer matches. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-exfil-payload.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 4 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - OpenSSL Encryption for Exfiltration
 id: e5f6a7b8-c9d0-1234-efab-345678901234
 status: experimental
-description: Detects the use of openssl to generate session keys and encrypt payloads for exfiltration, a technique used by TeamPCP malware variants.
+description: >
+    Detects the use of openssl to generate session keys and encrypt payloads for exfiltration,
+    matching the specific AES-256-CBC + session.key + payload.enc pattern used by TeamPCP.
+    Both file-name markers (session.key and payload.enc) are required together to avoid
+    matching legitimate openssl usage.
 references:
     - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
 author: Actioner CTI
@@ -396,41 +379,47 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection_session_key:
+    selection_openssl:
         Image|endswith: '/openssl'
+    selection_markers:
         CommandLine|contains|all:
-            - 'rand'
             - 'session.key'
-    selection_encrypt:
-        Image|endswith: '/openssl'
+            - 'payload.enc'
+    selection_aes_encrypt:
         CommandLine|contains|all:
             - 'aes-256-cbc'
+            - 'session.key'
             - 'payload.enc'
-    condition: selection_session_key or selection_encrypt
+    condition: selection_openssl and (selection_markers or selection_aes_encrypt)
 falsepositives:
-    - Legitimate use of openssl for encryption in CI/CD pipelines
+    - Legitimate use of openssl with both session.key and payload.enc filenames (unlikely)
 level: medium
 ```
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | medium |
+| pass (sigma check + splunk) | medium |
 
 ---
 
 #### 6. Mini Shai-Hulud GitHub Token Monitor Persistence
 
-Detects the gh-token-monitor persistence mechanism (systemd service or macOS LaunchAgent) and malicious AI tool hooks planted by the Mini Shai-Hulud worm. These are campaign-specific file names with no expected legitimate use.
+Detects the gh-token-monitor persistence mechanism (systemd service or macOS LaunchAgent) and malicious AI tool hooks planted by the Mini Shai-Hulud worm. Hook paths use `endswith` matching to avoid collisions with legitimate VS Code extension files that might contain `setup.mjs` in a deeper path.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- revision: Changed selection_hooks from contains to endswith to prevent .vscode/setup.mjs from colliding with legitimate VS Code extension files. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-gh-token-monitor.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 5 of 7)
 
 ```yaml
 title: TeamPCP Mini Shai-Hulud - GitHub Token Monitor Persistence
 id: f6a7b8c9-d0e1-2345-fabc-456789012345
 status: experimental
-description: Detects the gh-token-monitor persistence mechanism used by the Mini Shai-Hulud worm to poll for GitHub tokens every 60 seconds.
+description: >
+    Detects the gh-token-monitor persistence mechanism used by the Mini Shai-Hulud worm
+    to poll for GitHub tokens every 60 seconds. Also detects malicious AI tool hooks
+    (.claude/router_runtime.js and .vscode/setup.mjs) using endswith matching to avoid
+    collisions with legitimate VS Code extension files.
 references:
     - https://www.tenable.com/blog/mini-shai-hulud-frequently-asked-questions
     - https://orca.security/resources/blog/tanstack-npm-supply-chain-worm/
@@ -447,9 +436,9 @@ detection:
     selection_launchagent:
         TargetFilename|endswith: '/com.user.gh-token-monitor.plist'
     selection_hooks:
-        TargetFilename|contains:
-            - '.claude/router_runtime.js'
-            - '.vscode/setup.mjs'
+        TargetFilename|endswith:
+            - '/.claude/router_runtime.js'
+            - '/.vscode/setup.mjs'
     condition: selection_systemd or selection_launchagent or selection_hooks
 falsepositives:
     - Unlikely, these are specific malware artifacts
@@ -458,7 +447,7 @@ level: high
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | high |
+| pass (sigma check + splunk) | high |
 
 ---
 
@@ -466,9 +455,9 @@ level: high
 
 Detects proxy/web traffic containing the FIRESCALE dead-drop pattern in GitHub commit search API queries, used by TeamPCP for dynamic C2 resolution. The string "FIRESCALE" is a unique marker with no legitimate use.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-firescale.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 6 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - FIRESCALE Dead Drop via GitHub API
@@ -496,23 +485,28 @@ level: high
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | high |
+| pass (sigma check + splunk) | high |
 
 ---
 
 #### 8. Process Environment Variable Theft via /proc
 
-Detects reading of /proc/PID/environ to steal runner secrets from CI/CD environments, a technique used by TeamPCP in compromised GitHub Actions workflows. Caveat: container runtimes and monitoring tools may legitimately access /proc/*/environ.
+Detects reading of /proc/PID/environ to steal runner secrets from CI/CD environments, a technique used by TeamPCP in compromised GitHub Actions workflows. Confidence lowered to low because the `|re` modifier has portability concerns across SIEM backends and the pattern is not TeamPCP-specific.
 
-<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. sigma convert --without-pipeline -t log_scale succeeded. -->
+<!-- revision: Lowered confidence from medium to low. Noted |re portability concerns. Pattern is generic /proc environ access, not TeamPCP-specific. -->
+<!-- Audit: sigma check passed (0 errors). sigma convert --without-pipeline -t splunk succeeded. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-sigma-proc-environ.yml`
+**File:** `rules/sigma/2026-06-21-teampcp-supply-chain.yml` (rule 7 of 7)
 
 ```yaml
 title: TeamPCP Supply Chain Attack - Process Environment Variable Theft via /proc
 id: b8c9d0e1-f2a3-4567-bcde-678901234567
 status: experimental
-description: Detects reading of /proc/PID/environ to steal runner secrets from CI/CD environments, a technique used by TeamPCP in GitHub Actions compromises.
+description: >
+    Detects reading of /proc/PID/environ to steal runner secrets from CI/CD environments,
+    a technique used by TeamPCP in compromised GitHub Actions workflows. Confidence lowered
+    to low because the |re modifier has portability concerns across SIEM backends and the
+    pattern is not TeamPCP-specific.
 references:
     - https://ramimac.me/teampcp/
     - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
@@ -536,12 +530,13 @@ detection:
 falsepositives:
     - Process monitoring tools
     - Container runtime introspection
-level: medium
+    - The |re modifier may not be supported by all SIEM backends
+level: low
 ```
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (sigma check + splunk + log_scale) | medium |
+| pass (sigma check + splunk) | low |
 
 ---
 
@@ -551,13 +546,14 @@ level: medium
 
 Detects TeamPCP dropper payloads based on known C2 domains, file artifacts, exfiltration repo names, and behavioral strings. Covers multiple campaign waves.
 
+<!-- revision: Added filesize < 10MB constraint. Renamed non-standard reference2 meta key to reference_phoenix. -->
 <!-- Audit: yarac compiled successfully (exit 0). -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp.yar` (rule: `TeamPCP_MiniShaiHulud_Dropper`)
+**File:** `rules/yara/2026-06-21-teampcp-supply-chain.yar` (rule: `TeamPCP_MiniShaiHulud_Dropper`)
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (yarac) | high |
+| pass (yarac) | high |
 
 #### 10. TeamPCP DurableTask PyPI Dropper
 
@@ -565,35 +561,37 @@ Detects the specific DurableTask PyPI dropper that downloads rope.pyz from check
 
 <!-- Audit: yarac compiled successfully (exit 0). -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp.yar` (rule: `TeamPCP_DurableTask_PyPI_Dropper`)
+**File:** `rules/yara/2026-06-21-teampcp-supply-chain.yar` (rule: `TeamPCP_DurableTask_PyPI_Dropper`)
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (yarac) | high |
+| pass (yarac) | high |
 
 #### 11. TeamPCP WAV Steganography
 
-Detects WAV files containing TeamPCP steganographic payload markers (session.key, aes-256-cbc, payload.enc), as used in the Telnyx variant. Caveat: requires WAV header at offset 0 plus at least one encryption marker.
+Detects WAV files containing TeamPCP steganographic payload markers. Requires WAV header at offset 0 plus at least two of three encryption markers (session.key, aes-256-cbc, payload.enc) for higher specificity.
 
+<!-- revision: Changed condition from any of ($marker_*) to 2 of ($marker_*) for higher specificity. -->
 <!-- Audit: yarac compiled successfully (exit 0). -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp.yar` (rule: `TeamPCP_WAV_Steganography`)
+**File:** `rules/yara/2026-06-21-teampcp-supply-chain.yar` (rule: `TeamPCP_WAV_Steganography`)
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (yarac) | medium |
+| pass (yarac) | medium |
 
 #### 12. TeamPCP Credential Harvester Script
 
-Detects Python-based credential harvesting scripts that access multiple cloud credential paths combined with IMDS/Kubernetes API endpoints and exfiltration tooling. Caveat: legitimate multi-cloud management tools may match.
+Detects Python-based credential harvesting scripts that access multiple cloud credential paths combined with IMDS/Kubernetes API endpoints, exfiltration tooling, and at least one TeamPCP-specific string (C2 domain, unique filename). Without the TeamPCP-specific co-occurrence, matches are behavioral only and should be triaged manually.
 
+<!-- revision: Added $teampcp_* string family (C2 domains, tpcp.tar.gz, pgmonitor) and required any of ($teampcp_*) in condition. Confidence raised to high when TeamPCP strings present; without them the rule no longer fires, eliminating behavioral-only matches. -->
 <!-- Audit: yarac compiled successfully (exit 0). -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp.yar` (rule: `TeamPCP_Credential_Harvester_Script`)
+**File:** `rules/yara/2026-06-21-teampcp-supply-chain.yar` (rule: `TeamPCP_Credential_Harvester_Script`)
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (yarac) | medium |
+| pass (yarac) | high |
 
 ---
 
@@ -601,15 +599,16 @@ Detects Python-based credential harvesting scripts that access multiple cloud cr
 
 #### 13-20. TeamPCP C2 Domain and Payload Detection (8 rules)
 
-Eight Snort rules detecting HTTP traffic to TeamPCP C2 domains (check[.]git-service[.]com, scan[.]aquasecurtiy[.]org, checkmarx[.]zone, models[.]litellm[.]cloud, git-tanstack[.]com, t[.]m-kosche[.]com), rope.pyz payload downloads, and FIRESCALE dead-drop traffic. SIDs 2026062101-2026062108.
+Eight Snort 2.x rules detecting HTTP traffic to TeamPCP C2 domains (check[.]git-service[.]com, scan[.]aquasecurtiy[.]org, checkmarx[.]zone, models[.]litellm[.]cloud, git-tanstack[.]com, t[.]m-kosche[.]com), rope.pyz payload downloads, and FIRESCALE dead-drop traffic. SIDs 2026062101-2026062108.
 
-<!-- Audit: snort -c /etc/snort/snort.conf -T exited with "Snort successfully validated the configuration!" -->
+<!-- revision: Rules 1-6 and 8 now anchor domain matching to the Host header using content:"Host|3a 20|"; http_header; distance:0 instead of bare http_header content matches. Rule 7 (URI-only) unchanged. All rules bumped to rev:2. -->
+<!-- Audit: snort -T validated configuration successfully. -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-snort.rules`
+**File:** `rules/snort/2026-06-21-teampcp-supply-chain.rules`
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (snort -T) | high |
+| pass (snort -T) | high |
 
 ---
 
@@ -621,11 +620,11 @@ Twelve Suricata rules covering HTTP host-based detection for six C2 domains, rop
 
 <!-- Audit: suricata -T exited with "Configuration provided was successfully loaded. Exiting." -->
 
-**File:** `/tmp/actioner/2026-06-21-teampcp-suricata.rules`
+**File:** `rules/suricata/2026-06-21-teampcp-supply-chain.rules`
 
 | Compile | Confidence |
 |---------|------------|
-| ✅ compiles (suricata -T) | high |
+| pass (suricata -T) | high |
 
 ---
 
@@ -633,20 +632,20 @@ Twelve Suricata rules covering HTTP host-based detection for six C2 domains, rop
 
 | # | Type | Title | Compile Status | Confidence |
 |---|------|-------|---------------|------------|
-| 1 | Sigma | TeamPCP C2 Domain DNS Lookups | ✅ compiles | high |
-| 2 | Sigma | TeamPCP C2 IP Address Connections | ✅ compiles | high |
-| 3 | Sigma | Persistence via Fake PostgreSQL Service | ✅ compiles | medium |
-| 4 | Sigma | Credential File Access by Python/Node | ✅ compiles | medium |
-| 5 | Sigma | OpenSSL Encryption for Exfiltration | ✅ compiles | medium |
-| 6 | Sigma | Mini Shai-Hulud GitHub Token Monitor Persistence | ✅ compiles | high |
-| 7 | Sigma | FIRESCALE Dead Drop via GitHub API | ✅ compiles | high |
-| 8 | Sigma | Process Environment Variable Theft via /proc | ✅ compiles | medium |
-| 9 | YARA | TeamPCP Mini Shai-Hulud Dropper | ✅ compiles | high |
-| 10 | YARA | TeamPCP DurableTask PyPI Dropper | ✅ compiles | high |
-| 11 | YARA | TeamPCP WAV Steganography | ✅ compiles | medium |
-| 12 | YARA | TeamPCP Credential Harvester Script | ✅ compiles | medium |
-| 13-20 | Snort | TeamPCP C2 Domain & Payload Detection (8 rules) | ✅ compiles | high |
-| 21-32 | Suricata | TeamPCP C2 Domain, Payload & DNS Detection (12 rules) | ✅ compiles | high |
+| 1 | Sigma | TeamPCP C2 Domain DNS Lookups | pass | high |
+| 2 | Sigma | TeamPCP C2 IP Address Connections | pass | medium |
+| 3 | Sigma | Persistence via Fake PostgreSQL Service | pass | medium |
+| ~~4~~ | ~~Sigma~~ | ~~Credential File Access by Python~~ | ~~dropped~~ | ~~n/a~~ |
+| 5 | Sigma | OpenSSL Encryption for Exfiltration | pass | medium |
+| 6 | Sigma | Mini Shai-Hulud GitHub Token Monitor Persistence | pass | high |
+| 7 | Sigma | FIRESCALE Dead Drop via GitHub API | pass | high |
+| 8 | Sigma | Process Environment Variable Theft via /proc | pass | low |
+| 9 | YARA | TeamPCP Mini Shai-Hulud Dropper | pass | high |
+| 10 | YARA | TeamPCP DurableTask PyPI Dropper | pass | high |
+| 11 | YARA | TeamPCP WAV Steganography | pass | medium |
+| 12 | YARA | TeamPCP Credential Harvester Script | pass | high |
+| 13-20 | Snort | TeamPCP C2 Domain & Payload Detection (8 rules) | pass | high |
+| 21-32 | Suricata | TeamPCP C2 Domain, Payload & DNS Detection (12 rules) | pass | high |
 
 ---
 
@@ -661,4 +660,4 @@ Twelve Suricata rules covering HTTP host-based detection for six C2 domains, rop
 
 ---
 
-*Report generated 2026-06-21. DRAFT -- requires peer review before promotion to production.*
+*Report revised 2026-06-21. All detection rules re-validated (sigma check, yarac, snort -T, suricata -T).*
