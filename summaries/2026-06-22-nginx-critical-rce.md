@@ -205,15 +205,17 @@ These detections target the protocol-level anomalies and crash indicators specif
 
 ### Sigma: NGINX Worker Crash Indicating HTTP/3 or HTTP/2 RCE Exploitation
 
-Detects NGINX worker process crashes (SIGSEGV/SIGABRT) in webserver logs, consistent with exploitation of CVE-2026-42530 or CVE-2026-42055.
+Detects NGINX worker process crashes (SIGSEGV/SIGABRT) in syslog with CVE-specific module context, consistent with exploitation of CVE-2026-42530 or CVE-2026-42055.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. No pipeline mapping available for webserver category. Crash signals are not unique to these CVEs — medium confidence due to benign crash overlap. FP: legitimate crashes from resource exhaustion or other bugs. -->
+<!-- revision: rewrote from webserver/cs-uri (wrong field, would never fire) to linux/syslog with SyslogMessage. Added CVE-specific module names to narrow scope. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Crash signals scoped to CVE-relevant modules. Medium confidence — crashes can still have benign causes but module-name filtering reduces FPs significantly. -->
 ```yaml
 title: NGINX HTTP/3 or HTTP/2 Proxy Crash Indicating CVE-2026-42530 or CVE-2026-42055 Exploitation
 id: 7c4e1a8b-3f2d-4e9a-b5c7-1d8e6f0a2b3c
 status: experimental
 description: >
-    Detects NGINX worker process crashes (signal 11 SIGSEGV or signal 6 SIGABRT) in error logs,
+    Detects NGINX worker process crashes (signal 11 SIGSEGV or signal 6 SIGABRT) in syslog
+    with references to CVE-relevant modules (ngx_http_v3, ngx_http_proxy_v2, ngx_http_grpc),
     which may indicate exploitation of use-after-free (CVE-2026-42530) or heap buffer overflow
     (CVE-2026-42055) vulnerabilities in NGINX HTTP/3 and HTTP/2 proxy modules.
 references:
@@ -225,18 +227,24 @@ date: 2026/06/22
 tags:
     - attack.t1190
 logsource:
-    category: webserver
+    product: linux
+    service: syslog
 detection:
-    selection_process:
-        cs-uri|contains: 'worker process'
-    selection_signal:
-        cs-uri|contains:
-            - 'signal 11'
-            - 'signal 6'
-            - 'exited on signal'
-    condition: selection_process and selection_signal
+    selection_nginx:
+        SyslogMessage|contains: 'nginx'
+    selection_crash:
+        SyslogMessage|contains:
+            - 'exited on signal 11'
+            - 'exited on signal 6'
+    selection_module_context:
+        SyslogMessage|contains:
+            - 'ngx_http_v3'
+            - 'ngx_http_proxy_v2'
+            - 'ngx_http_grpc'
+            - 'ngx_quic'
+    condition: selection_nginx and selection_crash and selection_module_context
 falsepositives:
-    - Legitimate NGINX crashes from other bugs or resource exhaustion
+    - Legitimate NGINX crashes in the same modules from other bugs or resource exhaustion
     - Custom modules causing segfaults unrelated to these CVEs
 level: high
 ```
@@ -286,10 +294,11 @@ level: high
 ### Snort: HTTP/2 Oversized Header Value Potential HPACK Overflow (CVE-2026-42055)
 
 Detects HTTP/2 connection preface followed by frame data with oversized header values that could trigger the HPACK 5-byte length prefix overflow.
-**Status:** compile ✅ compiles · confidence: medium
+**Status:** compile ✅ compiles · confidence: low
+<!-- revision: SID changed from 2100001 to 9000001 (2100000 range conflicts with Emerging Threats reserved space). Confidence dropped to low — rule does not properly parse HTTP/2 frame structure; the \x00\x00 anchor is too generic in binary framing. This is a best-effort heuristic; proper HTTP/2 frame parsing is needed for high-confidence detection. -->
 <!-- audit: snort -c /etc/snort/snort.conf (via local.rules) exit 0. Snort 2.9.20. The HTTP/2 connection preface (PRI * HTTP/2) is matched at stream start, then byte_test checks for values exceeding the 2,097,278 overflow boundary. FP: legitimate oversized HTTP/2 headers (rare but possible in file upload proxies). Evasion: attacker could fragment the preface across TCP segments. -->
 ```snort
-alert tcp any any -> $HOME_NET any (msg:"Actioner - HTTP/2 Oversized Header Value Potential HPACK Overflow (CVE-2026-42055)"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:24; content:"|00 00|"; distance:0; byte_test:4,>,2097278,0,relative; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created 2026-06-22; sid:2100001; rev:1;)
+alert tcp any any -> $HOME_NET any (msg:"Actioner - HTTP/2 Oversized Header Value Potential HPACK Overflow (CVE-2026-42055)"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:24; content:"|00 00|"; distance:0; byte_test:4,>,2097278,0,relative; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created 2026-06-22; sid:9000001; rev:1;)
 ```
 
 ### Suricata: Oversized HTTP/2 Header Value Exceeding HPACK Length Prefix (CVE-2026-42055)
