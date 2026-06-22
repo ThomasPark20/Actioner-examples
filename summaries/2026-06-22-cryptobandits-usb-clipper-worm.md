@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-22
-Version: 1.0-DRAFT
+Version: 1.1-REVISED
 
 ## Executive Summary
 
@@ -184,14 +184,13 @@ This malware exclusively targets Windows systems. It relies on:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1091 | Replication Through Removable Media | Worm propagates by creating malicious LNK files on USB drives, replacing legitimate DOC/XLSX/PDF files |
-| T1059.005 | Command and Scripting Interpreter: Visual Basic | Uses WScript/CScript to execute JavaScript payloads via Windows Script Host |
-| T1059.007 | Command and Scripting Interpreter: JavaScript | JavaScript-based stealer and worm payloads |
+| T1059.007 | Command and Scripting Interpreter: JavaScript | JavaScript-based stealer and worm payloads executed via Windows Script Host |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | PowerShell used for screenshot capture |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Creates scheduled tasks with randomized names for persistence of both worm and stealer components |
 | T1115 | Clipboard Data | Monitors clipboard every ~500ms for seed phrases, private keys, and wallet addresses |
 | T1113 | Screen Capture | Captures five screenshots every ten seconds for exfiltration |
 | T1090 | Proxy | Deploys portable Tor client (ugate.exe) as local SOCKS5 proxy on port 9050 |
-| T1048.002 | Exfiltration Over Asymmetric Encrypted Non-C2 Protocol | Exfiltrates screenshots and stolen data via curl through Tor |
+| T1041 | Exfiltration Over C2 Channel | Exfiltrates screenshots and stolen data via curl through the same Tor-based C2 channel used for command retrieval |
 | T1027 | Obfuscated Files or Information | Multi-layered runtime decryption, shuffled strings, PyArmor obfuscation |
 | T1057 | Process Discovery | Queries Win32_Process WMI class to detect Task Manager (anti-analysis) |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | Creates Windows Defender scanning exclusions for staging folders |
@@ -250,12 +249,13 @@ Get-ChildItem "C:\Users\Public\Documents\" -Recurse -File | Get-FileHash -Algori
 
 ## Detection Rules
 
-These rules target distinctive CryptoBandits artifacts: the `ugate.exe` Tor proxy binary, WScript-to-curl-SOCKS5 process chains, Public Documents staging paths, scheduled task creation patterns, and localhost:9050 Tor proxy connections. Compiles does not equal fires -- verify each rule in your pipeline with representative telemetry before promoting to production.
+These rules target distinctive CryptoBandits artifacts: the `ugate.exe` Tor proxy binary, WScript-to-curl-SOCKS5 process chains, Public Documents staging paths, and scheduled task creation patterns. Rules for localhost:9050 network detection (Sigma, Snort, Suricata) were dropped during review -- see notes below. Compiles does not equal fires -- verify each rule in your pipeline with representative telemetry before promoting to production.
 
 ### Sigma: WScript/CScript Spawning Curl with Tor SOCKS5 Proxy
 
 Detects the campaign's most distinctive process chain: wscript.exe or cscript.exe launching curl.exe with `--socks5-hostname localhost:9050` arguments for Tor-proxied C2 communication.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: removed attack.t1059.005 (VBScript — malware uses JavaScript, not VBS); replaced attack.t1048.002 with attack.t1041 (exfil over C2 channel, not non-C2 protocol). -->
 <!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on parent-child + specific cmdline args. Very low FP surface — wscript spawning curl with Tor SOCKS5 args is highly anomalous. -->
 ```yaml
 title: CryptoBandits - WScript/CScript Spawning Curl with Tor SOCKS5 Proxy
@@ -271,9 +271,9 @@ references:
 author: Actioner
 date: 2026/06/22
 tags:
-    - attack.t1059.005
+    - attack.t1059.007
     - attack.t1090
-    - attack.t1048.002
+    - attack.t1041
 logsource:
     category: process_creation
     product: windows
@@ -398,64 +398,21 @@ falsepositives:
 level: medium
 ```
 
-### Sigma: Outbound Connection to Localhost SOCKS5 Proxy Port 9050
+### Sigma: Outbound Localhost SOCKS5 Connection: Dropped
+<!-- revision: dropped — generic Tor-usage detector (port 9050). Tor Browser, OnionShare, Brave Tor all trigger. No CryptoBandits-specific artifact; fails concreteness gate for specific altitude. -->
 
-Detects processes connecting to localhost on port 9050, the default Tor SOCKS5 proxy port used by CryptoBandits via `ugate.exe`. Scope to environments where Tor Browser is not authorized to reduce false positives.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Medium confidence: port 9050 is standard Tor, so legitimate Tor users will trigger. Distinctive in enterprise environments where Tor is not sanctioned. Requires Sysmon EID 3 or equivalent. -->
-```yaml
-title: CryptoBandits - Outbound Connection to Localhost SOCKS5 Proxy Port 9050
-id: d3e5f7a9-2b4c-6d8e-0f1a-3b5c7d9e1f2a
-status: experimental
-description: >
-    Detects processes connecting to localhost on port 9050, the default Tor
-    SOCKS5 proxy port. The CryptoBandits campaign deploys a portable Tor
-    client (ugate.exe) that listens on this port for proxying C2 traffic.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
-    - https://www.securityweek.com/cryptobandits-malware-doubles-as-a-backdoor-abuses-tor/
-author: Actioner
-date: 2026/06/22
-tags:
-    - attack.t1090
-logsource:
-    category: network_connection
-    product: windows
-detection:
-    selection:
-        Initiated: 'true'
-        DestinationIp: '127.0.0.1'
-        DestinationPort: 9050
-    condition: selection
-falsepositives:
-    - Tor Browser or legitimate Tor relay operators
-    - Privacy-focused applications using Tor
-level: medium
-```
+### Snort: Dropped
+<!-- revision: dropped — IDS sensors do not inspect loopback (127.0.0.1) traffic; rule would never fire. Also generic, no campaign-specific content. -->
 
-### Snort: CryptoBandits Tor SOCKS5 Proxy Connection
-
-Detects TCP connections to localhost port 9050 with SOCKS5 handshake initiation byte, indicating potential CryptoBandits Tor proxy activity.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -T exit 0 (validated via snort -c snort.conf -R cb.rules -T from /etc/snort). SOCKS5 version byte 0x05 at offset 0 is the SOCKS5 greeting. Medium confidence: any SOCKS5 client connecting to 9050 will match; distinctive in enterprise networks without sanctioned Tor. -->
-```snort
-alert tcp $HOME_NET any -> 127.0.0.1 9050 (msg:"Actioner - CryptoBandits Tor SOCKS5 Proxy Connection to localhost:9050"; flow:established, to_server; content:"|05|"; depth:1; detection_filter:track by_src, count 5, seconds 60; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/; sid:2100001; rev:1;)
-```
-
-### Suricata: CryptoBandits Tor SOCKS5 Proxy Connection
-
-Detects TCP connections to localhost port 9050 with SOCKS5 initiation, indicating potential CryptoBandits Tor proxy activity.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0 (Suricata 7.0.3). Threshold reduces noise. Medium confidence: any SOCKS5 connection to 9050 will match. -->
-```suricata
-alert tcp $HOME_NET any -> 127.0.0.1 9050 (msg:"Actioner - CryptoBandits Tor SOCKS5 Proxy Connection to localhost:9050"; flow:established,to_server; content:"|05|"; depth:1; threshold:type both, track by_src, count 5, seconds 60; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/; metadata:author Actioner, created_at 2026-06-22; sid:2200001; rev:1;)
-```
+### Suricata: Dropped
+<!-- revision: dropped — same loopback limitation as Snort; IDS sensors cannot inspect 127.0.0.1 traffic. Undeployable. -->
 
 ### YARA: CryptoBandits Clipper JS Payload Strings
 
 Detects CryptoBandits JavaScript payloads via distinctive C2 endpoint paths (`/route.php`, `/recvf.php`, `/stub.php`), action codes (`SEED`, `PKEY`, `REPL`, `EVAL`), and Tor proxy arguments (`socks5-hostname`, `localhost:9050`, `ugate.exe`).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive (published strings in pos_cb.txt) matched CryptoBandits_Clipper_JS_Strings + CryptoBandits_Clipper_Hashes; negative (benign JS) silent. Keys on published C2 endpoints and action codes — highly distinctive string combination. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- revision: status label changed from "sample: fired" to "sample: constructed" — tests used constructed string files, not real malware binaries. -->
+<!-- audit: yarac exit 0. Sample test: constructed string file matched CryptoBandits_Clipper_JS_Strings; negative (benign JS) silent. Keys on published C2 endpoints and action codes — highly distinctive string combination. -->
 ```yara
 rule CryptoBandits_Clipper_JS_Strings
 {
@@ -490,9 +447,10 @@ rule CryptoBandits_Clipper_JS_Strings
 
 ### YARA: CryptoBandits Known Sample Strings
 
-Detects CryptoBandits samples by co-occurrence of C2 endpoint strings, Tor proxy binary name, and Windows scripting object references. Published SHA-256 hashes included in meta for hash-based lookup.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on positive. Condition requires 4 of 7 strings — combination of route.php + recvf.php + ugate.exe + ActiveXObject/WScript.Shell/Win32_Process is distinctive to this campaign. Hash meta enables hash-match in platforms that support YARA meta hash lookup. -->
+Detects CryptoBandits samples by co-occurrence of C2 endpoint strings, Tor proxy binary name, and Windows scripting object references. Requires `ugate.exe` or `socks5-hostname` as mandatory anchor. Published SHA-256 hashes included in meta for hash-based lookup.
+**Status:** compile ✅ compiles · confidence: medium · sample: constructed
+<!-- revision: condition tightened from `4 of ($s*)` to `($s3 or $s4) and 3 of ($s*)` — strings like ActiveXObject, WScript.Shell, Win32_Process are ubiquitous in benign scripts. Mandatory anchor on ugate.exe or socks5-hostname ensures campaign specificity. Confidence lowered from high to medium. -->
+<!-- audit: yarac exit 0. Sample test: constructed string file matched. Hash meta enables hash-match in platforms that support YARA meta hash lookup. -->
 ```yara
 rule CryptoBandits_Clipper_Hashes
 {
@@ -529,15 +487,16 @@ rule CryptoBandits_Clipper_Hashes
         $s7 = "Win32_Process" ascii wide
 
     condition:
-        filesize < 10MB and 4 of ($s*)
+        filesize < 10MB and ($s3 or $s4) and 3 of ($s*)
 }
 ```
 
 ### YARA: CryptoBandits LNK USB Worm
 
 Detects malicious LNK shortcut files matching the CryptoBandits USB worm pattern: LNK magic bytes at offset 0, with WScript/CScript invocation referencing `\Users\Public\Documents\` and `.js` extension.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: constructed LNK with magic bytes + path pattern fired correctly; negative benign JS silent. LNK magic at offset 0 + Public\Documents + .js is a tight condition. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- revision: status label changed from "sample: fired" to "sample: constructed" — tests used constructed files, not real malware binaries. -->
+<!-- audit: yarac exit 0. Sample test: constructed LNK with magic bytes + path pattern matched correctly; negative benign JS silent. LNK magic at offset 0 + Public\Documents + .js is a tight condition. -->
 ```yara
 rule CryptoBandits_LNK_USB_Worm
 {
