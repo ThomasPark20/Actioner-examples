@@ -1,0 +1,72 @@
+title: NGINX HTTP/3 or HTTP/2 Proxy Crash Indicating CVE-2026-42530 or CVE-2026-42055 Exploitation
+id: 7c4e1a8b-3f2d-4e9a-b5c7-1d8e6f0a2b3c
+status: experimental
+description: >
+    Detects NGINX worker process crashes (signal 11 SIGSEGV or signal 6 SIGABRT) in syslog
+    with references to CVE-relevant modules (ngx_http_v3, ngx_http_proxy_v2, ngx_http_grpc),
+    which may indicate exploitation of use-after-free (CVE-2026-42530) or heap buffer overflow
+    (CVE-2026-42055) vulnerabilities in NGINX HTTP/3 and HTTP/2 proxy modules.
+references:
+    - https://nginx.org/en/security_advisories.html
+    - https://my.f5.com/manage/s/article/K000161616
+    - https://my.f5.com/manage/s/article/K000161584
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_nginx:
+        SyslogMessage|contains: 'nginx'
+    selection_crash:
+        SyslogMessage|contains:
+            - 'exited on signal 11'
+            - 'exited on signal 6'
+    selection_module_context:
+        SyslogMessage|contains:
+            - 'ngx_http_v3'
+            - 'ngx_http_proxy_v2'
+            - 'ngx_http_grpc'
+            - 'ngx_quic'
+    condition: selection_nginx and selection_crash and selection_module_context
+falsepositives:
+    - Legitimate NGINX crashes in the same modules from other bugs or resource exhaustion
+    - Custom modules causing segfaults unrelated to these CVEs
+level: high
+---
+title: NGINX Error Log Indicates HTTP/3 Use-After-Free Crash (CVE-2026-42530)
+id: a2b3c4d5-e6f7-4890-abcd-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects NGINX error log entries referencing ngx_http_v3 module crashes or QUIC stream errors
+    consistent with the use-after-free vulnerability CVE-2026-42530 in the HTTP/3 QPACK decoder.
+    The vulnerability triggers when a unidirectional QUIC stream closes and frees memory still
+    referenced by the HTTP/3 session pointer.
+references:
+    - https://nginx.org/en/security_advisories.html
+    - https://my.f5.com/manage/s/article/K000161616
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_nginx:
+        SyslogMessage|contains: 'nginx'
+    selection_crash:
+        SyslogMessage|contains|all:
+            - 'worker process'
+            - 'exited on signal'
+    selection_quic_context:
+        SyslogMessage|contains:
+            - 'ngx_http_v3'
+            - 'quic'
+            - 'ngx_quic'
+    condition: selection_nginx and selection_crash and selection_quic_context
+falsepositives:
+    - Other NGINX QUIC bugs causing crashes
+level: high

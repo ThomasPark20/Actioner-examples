@@ -143,7 +143,7 @@ No specific network IOCs (domains, IPs, URLs) have been published for exploitati
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Both CVEs target NGINX reverse proxies exposed to untrusted network traffic |
-| T1210 | Exploitation of Remote Services | RCE via protocol-level exploitation of HTTP/2 and HTTP/3 modules |
+<!-- revision: removed T1210 (Exploitation of Remote Services) — T1210 is a Lateral Movement technique for exploiting services within the network. These CVEs target internet-facing NGINX (Initial Access), correctly mapped as T1190. -->
 
 ---
 
@@ -201,7 +201,7 @@ ls -la /var/log/nginx/core.* 2>/dev/null
 
 ## Detection Rules
 
-These detections target the protocol-level anomalies and crash indicators specific to CVE-2026-42530 and CVE-2026-42055. No public PoC exists, so rules key on the distinctive technical cues from the advisories: oversized HPACK header values (>2 MB), QUIC stream anomalies, and NGINX worker crash signals. All rules compile cleanly; verify firing in your pipeline before production deployment.
+These detections target the protocol-level anomalies and crash indicators specific to CVE-2026-42530 and CVE-2026-42055. No public PoC exists, so rules key on the distinctive technical cues from the advisories: oversized HPACK header values (>2 MB), NGINX worker crash signals with CVE-relevant module context, and vulnerable binary version detection. The Suricata QUIC rule was dropped because QUIC encryption prevents meaningful content matching. All rules compile cleanly; verify firing in your pipeline before production deployment.
 
 ### Sigma: NGINX Worker Crash Indicating HTTP/3 or HTTP/2 RCE Exploitation
 
@@ -303,32 +303,29 @@ alert tcp any any -> $HOME_NET any (msg:"Actioner - HTTP/2 Oversized Header Valu
 
 ### Suricata: Oversized HTTP/2 Header Value Exceeding HPACK Length Prefix (CVE-2026-42055)
 
-Detects HTTP traffic with header values that exceed the HPACK 4-byte length prefix capacity (2,097,278 bytes), targeting the heap overflow in the proxy module.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Suricata 7.0.3. Uses http.header sticky buffer with byte_test for the overflow boundary value. FP: legitimate APIs with very large headers (uncommon). The threshold limits alerting to once per source per minute. -->
-```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - Oversized HTTP/2 Header Value Exceeding HPACK Length Prefix (CVE-2026-42055)"; flow:established,to_server; http.header; content:"|00|"; byte_test:4,>,2097278,0,relative; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-22; sid:2200001; rev:1;)
-```
-
-### Suricata: Anomalous QUIC Traffic Targeting NGINX HTTP/3 (CVE-2026-42530)
-
-Detects anomalous QUIC protocol traffic with oversized payloads directed at NGINX HTTP/3 endpoints, consistent with the QPACK use-after-free exploitation pattern.
+Detects TCP traffic containing an HTTP/2 connection preface followed by frame data with oversized header values that could trigger the HPACK 5-byte length prefix overflow.
 **Status:** compile ✅ compiles · confidence: low
-<!-- audit: suricata -T exit 0. Suricata 7.0.3. QUIC protocol matching with dsize constraint. Low confidence because QUIC is encrypted and Suricata's QUIC parser has limited depth — this is a coarse heuristic for anomalous QUIC patterns, not a precise exploit signature. FP: legitimate large QUIC transfers. -->
+<!-- revision: removed http.header sticky buffer — it provides decoded HTTP headers after HPACK decoding, making null-byte + byte_test nonsensical against decoded data. Now uses raw TCP content matching against the HTTP/2 connection preface. Confidence dropped to low; proper HTTP/2 frame-level parsing is needed for reliable detection. -->
+<!-- audit: suricata -T exit 0. Suricata 7.0.3. Raw content match on HTTP/2 preface (PRI * HTTP/2) then byte_test for the overflow boundary. FP: legitimate oversized HTTP/2 headers (rare). -->
 ```suricata
-alert quic any any -> $HOME_NET any (msg:"Actioner - Anomalous QUIC Stream Closure Followed by Session Reference (CVE-2026-42530)"; flow:to_server; content:"|00|"; dsize:>1024; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161616; reference:cve,2026-42530; metadata:author Actioner, created_at 2026-06-22; sid:2200002; rev:1;)
+alert tcp any any -> $HOME_NET any (msg:"Actioner - Oversized HTTP/2 Header Value Exceeding HPACK Length Prefix (CVE-2026-42055)"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:24; content:"|00 00|"; distance:0; byte_test:4,>,2097278,0,relative; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-22; sid:2200001; rev:2;)
 ```
+
+### Suricata: QUIC Exploitation (CVE-2026-42530): Dropped
+
+<!-- revision: rule removed — nearly all QUIC packets contain null bytes and many exceed 1024 bytes (QUIC initial packets are padded to 1200+ bytes per RFC 9000). The rule would fire on virtually all QUIC connections with no detection value. QUIC encrypts payload data, preventing meaningful content matching at the network layer. Host-level detection (Sigma rules above monitoring crash logs) is the appropriate detection layer for CVE-2026-42530. -->
 
 ### YARA: Vulnerable NGINX Binary Version Detection (CVE-2026-42530 / CVE-2026-42055)
 
-Detects NGINX binaries in the affected version range (1.13.10–1.31.1) that include the vulnerable HTTP/2 or HTTP/3 module strings. Scope to NGINX binary directories for asset inventory.
+Detects NGINX binaries in the affected version range (1.13.10–1.31.1) that include the vulnerable HTTP/2 or HTTP/3 module strings. Covers the union of both CVEs' version ranges including 1.13.12+ minor versions. Scope to NGINX binary directories for asset inventory.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: added $vuln_v13 wildcard to cover missed 1.13.12+ versions. Updated description to clarify union of both CVEs' version ranges. -->
 <!-- audit: yarac exit 0. Version string matching against published affected ranges. High confidence for identifying vulnerable binaries — this is an asset-inventory rule, not an exploit detection. FP: patched binaries that retain version strings from build metadata (unlikely for NGINX). -->
 ```yara
 rule Vuln_NGINX_CVE_2026_42530_CVE_2026_42055 : vulnerability
 {
     meta:
-        description = "Detects NGINX binaries in the version range affected by CVE-2026-42530 (HTTP/3 UAF) and CVE-2026-42055 (HTTP/2 HPACK overflow). Matches version strings for NGINX 1.13.10 through 1.31.1."
+        description = "Detects NGINX binaries in the version range affected by CVE-2026-42530 (HTTP/3 UAF, 1.31.0-1.31.1) and CVE-2026-42055 (HTTP/2 HPACK overflow, 1.13.10-1.31.1). Covers the union of both CVEs' affected version ranges."
         author = "Actioner"
         date = "2026-06-22"
         reference = "https://nginx.org/en/security_advisories.html"
@@ -360,6 +357,7 @@ rule Vuln_NGINX_CVE_2026_42530_CVE_2026_42055 : vulnerability
         $vuln_v15 = "nginx/1.15." ascii
         $vuln_v14 = "nginx/1.14." ascii
 
+        $vuln_v13 = "nginx/1.13." ascii
         $vuln_v13_10 = "nginx/1.13.10" ascii
         $vuln_v13_11 = "nginx/1.13.11" ascii
 

@@ -1,0 +1,5 @@
+# Actioner - NGINX Critical RCE Detection Rules
+# CVE-2026-42055: HTTP/2 HPACK Heap Buffer Overflow
+# Confidence: low — raw TCP content matching; proper HTTP/2 frame-level parsing is needed for reliable detection.
+# Note: The Suricata QUIC rule for CVE-2026-42530 was dropped because QUIC encryption prevents meaningful content matching.
+alert tcp any any -> $HOME_NET any (msg:"Actioner - Oversized HTTP/2 Header Value Exceeding HPACK Length Prefix (CVE-2026-42055)"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:24; content:"|00 00|"; distance:0; byte_test:4,>,2097278,0,relative; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created_at 2026-06-22; sid:2200001; rev:2;)
