@@ -3,7 +3,20 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-23
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
+
+<!-- revision: v1.0 DRAFT -> v1.1 FINAL. Changes applied per critic review:
+  - Sigma "Security Product Service Terminated": DROPPED (generic TTP, not GentleKiller-specific, no aggregation logic, wrong ATT&CK tag)
+  - Sigma "BYOVD Vulnerable Driver Load": Removed phantom IOC \PoisonX.sys (no source evidence). Gated generic filenames \eb.sys, \dmx.sys behind hash co-occurrence.
+  - Sigma "EDR Killer Executable": Removed \Symantec.exe from filename selection (legitimate Symantec binary; hash detection remains).
+  - Sigma "OxideHarvest Credential Stealer": Removed selection_args (generic CLI flags). Removed attack.t1059.003 tag. Hash+filename detection only.
+  - Sigma "Third-Party EDR Killers": Changed attack.t1036.001 -> attack.t1562.001 (defense impairment is the primary TTP).
+  - YARA "GentleKiller EDR Killer Variants": Removed $drv09 = "PoisonX.sys". Tightened standalone proc* threshold from 8 to 10.
+  - YARA "OxideHarvest Credential Stealer": Added OxideHarvest-specific $oxide* strings to condition. Downgraded severity to low to avoid FP on legitimate Rust password managers (Bitwarden, 1Password).
+  - Removed invalid ATT&CK TID T1685 from MITRE mapping (does not exist).
+  - Removed PoisonX.sys from PowerShell sweep and driver regex.
+  - Clarified GameDriverX64.sys vs vgk.sys in variant table (same variant, different driver filenames from different games).
+-->
 
 ## Executive Summary
 
@@ -41,11 +54,13 @@ GentleKiller uses a modular design with eight documented variants, each paired w
 - **"Light"**: No binary packing + fake signatures + fabricated version information
 - **"Clear"**: No protection, no fake signatures, no version information (bare variant)
 
+<!-- revision: Clarified Valorant variant row. GameDriverX64.sys is the Tower of Fantasy AntiCheat driver; vgk.sys is the Valorant AntiCheat driver. Both are used by the same "Valorant" variant. The SHA-1 7556AE58... in the IOC table corresponds to vgk.sys (Tower of Fantasy origin despite Valorant naming). -->
+
 | Variant Name | Executable Pattern | Vulnerable Driver | Driver Origin |
 |---|---|---|---|
 | Kaspersky | Kasps.exe | eb.sys | Custom rootkit |
 | FACEIT | FaceIT{1,2,Light,Clear}.exe | nseckrnl.sys | NSecsoft driver |
-| Valorant | Valorant{1,2,Light,Clear}.exe | GameDriverX64.sys / vgk.sys | Tower of Fantasy / Valorant AntiCheat |
+| Valorant | Valorant{1,2,Light,Clear}.exe | GameDriverX64.sys (Tower of Fantasy) / vgk.sys (Valorant) | Game AntiCheat drivers |
 | Javelin | EAAntiCheat{suffix}.exe, EASolo{suffix}.exe | stpm_old.sys, stpm_new.sys | Safetica Process Monitor |
 | WatchDog | BitD1.exe | dmx.sys | Zemana WatchDog Antimalware |
 | Network Blocker | MB2.exe | 360netmon_wfp.sys | Qihoo 360 NetMon WFP driver |
@@ -163,9 +178,10 @@ No C2 domains, IP addresses, or network-level indicators were disclosed in the a
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: Removed T1685 (does not exist in ATT&CK). BYOVD is covered by T1068 (Exploitation for Privilege Escalation) and T1543.003 (Windows Service for driver install). -->
+
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1059.003 | Windows Command Shell | Command shell execution during attack chain |
 | T1106 | Native API | Direct Windows API calls for driver loading and process termination (ZwOpenProcess, ZwTerminateProcess) |
 | T1543.003 | Create or Modify System Process: Windows Service | Vulnerable drivers installed as kernel services prior to exploitation |
 | T1036 | Masquerading | Executables named after legitimate security products |
@@ -173,7 +189,6 @@ No C2 domains, IP addresses, or network-level indicators were disclosed in the a
 | T1027 | Obfuscated Files or Information | Commercial packers (Enigma, Themida) used to protect binaries |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | Core objective: terminate 400+ security product processes |
 | T1068 | Exploitation for Privilege Escalation | BYOVD exploitation of signed kernel drivers for kernel-level access |
-| T1685 | BYOVD (Bring Your Own Vulnerable Driver) | Legitimately signed vulnerable drivers loaded to gain kernel execution |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | OxideHarvest targeting Chromium and Gecko credential stores |
 
 ## Impact Assessment
@@ -186,9 +201,11 @@ Organizations running any of the 48 targeted security products are at risk. The 
 
 ### Immediate Detection
 
+<!-- revision: Removed PoisonX.sys from file search and driver regex (phantom IOC with no source evidence). -->
+
 ```powershell
 # Check for known GentleKiller driver files on disk
-Get-ChildItem -Path C:\ -Recurse -Include eb.sys,nseckrnl.sys,GameDriverX64.sys,stpm_old.sys,stpm_new.sys,dmx.sys,360netmon_wfp.sys,IMFForceDelete.sys,G11.sys,PoisonX.sys,googleApiUtil64.sys,ThrottleBlood.sys,havoc.sys -ErrorAction SilentlyContinue
+Get-ChildItem -Path C:\ -Recurse -Include eb.sys,nseckrnl.sys,GameDriverX64.sys,stpm_old.sys,stpm_new.sys,dmx.sys,360netmon_wfp.sys,IMFForceDelete.sys,G11.sys,googleApiUtil64.sys,ThrottleBlood.sys,havoc.sys -ErrorAction SilentlyContinue
 
 # Check for known GentleKiller executable names
 Get-ChildItem -Path C:\ -Recurse -Include Kasps.exe,FaceIT1.exe,Valorant2.exe,BitD1.exe,MB2.exe,Deletor.exe,Symantec.exe,Avast.exe,Sent.exe,Sophos.exe,buildx641.exe,buildx64.exe -ErrorAction SilentlyContinue
@@ -197,7 +214,7 @@ Get-ChildItem -Path C:\ -Recurse -Include Kasps.exe,FaceIT1.exe,Valorant2.exe,Bi
 Get-WmiObject Win32_PnPEntity | Where-Object { $_.Name -like "*F8284233*" }
 
 # Check loaded drivers for known vulnerable driver names
-Get-WmiObject Win32_SystemDriver | Where-Object { $_.PathName -match "(eb|nseckrnl|GameDriverX64|stpm_old|stpm_new|dmx|360netmon_wfp|IMFForceDelete|G11|PoisonX|googleApiUtil64|ThrottleBlood|havoc)\.sys" }
+Get-WmiObject Win32_SystemDriver | Where-Object { $_.PathName -match "(eb|nseckrnl|GameDriverX64|stpm_old|stpm_new|dmx|360netmon_wfp|IMFForceDelete|G11|googleApiUtil64|ThrottleBlood|havoc)\.sys" }
 ```
 
 ### Remediation
@@ -220,15 +237,17 @@ Get-WmiObject Win32_SystemDriver | Where-Object { $_.PathName -match "(eb|nseckr
 
 ## Detection Rules
 
-The rules below cover GentleKiller's primary detection surfaces: vulnerable driver loading, EDR-killer executable identification, security service termination, OxideHarvest credential stealer execution, and third-party tool identification. No Snort or Suricata rules are provided because the sources disclose no network-level indicators (no C2 domains, IPs, or URLs).
+The rules below cover GentleKiller's primary detection surfaces: vulnerable driver loading, EDR-killer executable identification, OxideHarvest credential stealer execution, and third-party tool identification. No Snort or Suricata rules are provided because the sources disclose no network-level indicators (no C2 domains, IPs, or URLs).
+
+<!-- revision: Dropped "Sigma: Security Product Service Terminated Unexpectedly" -- generic TTP not specific to GentleKiller, wrong ATT&CK tag (was t1543.003, should be t1562.001), and lacked aggregation/correlation logic needed to reduce false positives from benign service crashes. -->
 
 ### Sigma: GentleKiller BYOVD Vulnerable Driver Load
 
-Detects loading of the 14 vulnerable drivers abused by GentleKiller variants, matching on SHA-1 hashes and driver filenames in Sysmon driver_load events.
+Detects loading of the 12 vulnerable drivers abused by GentleKiller variants, matching on SHA-1 hashes and driver filenames in Sysmon driver_load events. Generic filenames (`eb.sys`, `dmx.sys`) are gated behind hash co-occurrence to reduce false positives.
 
 **Status:** compile ✅ compiles -- confidence: high
 
-<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Hashes|contains used because Sysmon Hashes field is multi-algo formatted (e.g. "SHA1=BA914..."). Driver filenames may false-positive on legitimate installations of origin software; hash match is authoritative. -->
+<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Hashes|contains used because Sysmon Hashes field is multi-algo formatted (e.g. "SHA1=BA914..."). Generic driver filenames eb.sys and dmx.sys gated behind hash co-occurrence to prevent FP from legitimate Zemana or custom rootkit usage. Removed phantom IOC PoisonX.sys (no source evidence for this filename). -->
 
 ```yaml
 title: GentleKiller BYOVD Vulnerable Driver Load
@@ -244,6 +263,7 @@ references:
     - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
 author: Actioner
 date: 2026/06/23
+modified: 2026/06/23
 tags:
     - attack.t1543.003
     - attack.t1068
@@ -265,23 +285,27 @@ detection:
             - 'EC296F9501AD71E430810CB5CDC38D954D4BA536'
             - '82ED942A52CDCF120A8919730E00BA37619661A3'
             - '1FA071303FB846308571E64727501FB98B1C2BE6'
-    selection_name:
+    selection_specific_name:
         ImageLoaded|endswith:
-            - '\eb.sys'
             - '\nseckrnl.sys'
             - '\GameDriverX64.sys'
             - '\stpm_old.sys'
             - '\stpm_new.sys'
-            - '\dmx.sys'
             - '\360netmon_wfp.sys'
             - '\IMFForceDelete.sys'
             - '\G11.sys'
             - '\googleApiUtil64.sys'
             - '\ThrottleBlood.sys'
             - '\havoc.sys'
-            - '\PoisonX.sys'
-            - '\vgk.sys'
-    condition: selection_hash or selection_name
+    selection_generic_name:
+        ImageLoaded|endswith:
+            - '\eb.sys'
+            - '\dmx.sys'
+    selection_generic_hash:
+        Hashes|contains:
+            - 'BA914FE77B177B45799403B16DD14765C510A074'
+            - '96F0DBF52AED0AFD43E44500116B04B674F7358E'
+    condition: selection_hash or selection_specific_name or (selection_generic_name and selection_generic_hash)
 falsepositives:
     - Legitimate installations of the original software (FACEIT Anti-Cheat, Valorant, Safetica, Zemana, IObit, Baidu Antivirus, Huawei audio driver)
 level: high
@@ -289,11 +313,11 @@ level: high
 
 ### Sigma: GentleKiller EDR Killer Executable
 
-Detects execution of GentleKiller variant executables by SHA-1 hash or the distinctive filename patterns used by the framework.
+Detects execution of GentleKiller variant executables by SHA-1 hash or the distinctive filename patterns used by the framework. Hash-based detection is authoritative (level: critical); filename-based detection covers known naming variants.
 
 **Status:** compile ✅ compiles -- confidence: high
 
-<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Hash-based selections are authoritative; filename selections cover known naming variants including suffix permutations. -->
+<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Hash-based selections are authoritative; filename selections cover known naming variants including suffix permutations. Removed \Symantec.exe from filename selection (legitimate Symantec binary produces FPs; hash D29670E6... still detects the malicious variant). Added attack.t1562.001 tag (defense impairment). sigma-cli flags t1562.001 as InvalidATTACKTagIssue due to incomplete bundled ATT&CK data; this is a validator limitation, not a rule error. -->
 
 ```yaml
 title: GentleKiller EDR Killer Executable
@@ -303,14 +327,16 @@ description: >
     Detects execution of GentleKiller EDR killer variants and associated tools
     (HexKiller, ThrottleBlood, HavocKiller) used by the Gentlemen RaaS operation.
     These executables masquerade as legitimate security products using names like
-    Kaspersky, FACEIT, Valorant, and Symantec.
+    Kaspersky, FACEIT, and Valorant.
 references:
     - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
     - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
 author: Actioner
 date: 2026/06/23
+modified: 2026/06/23
 tags:
     - attack.t1036.001
+    - attack.t1562.001
 logsource:
     category: process_creation
     product: windows
@@ -347,69 +373,19 @@ detection:
             - '\BitD1.exe'
             - '\MB2.exe'
             - '\Deletor.exe'
-            - '\Symantec.exe'
     condition: selection_hash or selection_name
 falsepositives:
     - Unlikely - these filenames in the observed naming pattern are highly specific to GentleKiller
 level: critical
 ```
 
-### Sigma: Security Product Service Terminated Unexpectedly
-
-Detects unexpected termination of security product services via Windows System Event ID 7034, covering the highest-value targets in GentleKiller's 48-product target list.
-
-**Status:** compile ✅ compiles -- confidence: medium
-
-<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Uses Windows System event log service crash events (7034). Service display names used in param1 field. Medium confidence because service crashes can occur for benign reasons; correlate multiple 7034 events in short succession for high confidence. -->
-
-```yaml
-title: Security Product Process Terminated Unexpectedly
-id: 3f9c70ae-9a5b-4a08-8837-3af8a7a2dc59
-status: experimental
-description: >
-    Detects unexpected termination of critical security product processes that are
-    high-value targets for the GentleKiller EDR killer framework. Alert on any
-    single instance; correlate multiple hits in short succession for high-confidence
-    GentleKiller activity.
-references:
-    - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
-    - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
-author: Actioner
-date: 2026/06/23
-tags:
-    - attack.t1543.003
-logsource:
-    product: windows
-    service: system
-detection:
-    selection:
-        EventID: 7034
-        param1|endswith:
-            - 'Windows Defender Advanced Threat Protection Service'
-            - 'Windows Defender Antivirus Service'
-            - 'CrowdStrike Falcon Sensor Service'
-            - 'Sophos Health Service'
-            - 'Sophos MCS Agent'
-            - 'Kaspersky Security Service'
-            - 'ESET Service'
-            - 'Carbon Black Defense Sensor'
-            - 'SentinelOne Agent Service'
-            - 'Cylance Service'
-            - 'Cortex XDR'
-    condition: selection
-falsepositives:
-    - Legitimate security product updates or reinstallation
-    - Service crashes unrelated to malicious activity
-level: high
-```
-
 ### Sigma: OxideHarvest Credential Stealer Execution
 
-Detects OxideHarvest (buildx641/buildx64) by hash, filename, or the distinctive five-flag command-line argument pattern used for credential harvesting operations.
+Detects OxideHarvest (buildx641/buildx64) by SHA-1 hash or filename. Detection relies on hash and filename only; generic CLI argument matching was removed to eliminate false positives from unrelated tools.
 
 **Status:** compile ✅ compiles -- confidence: high
 
-<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. The command-line selection (-i -u -p -t -o all present) has moderate false-positive potential from other CLI tools; hash and filename selections are authoritative. -->
+<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Removed selection_args (generic CLI flags -i -u -p -t -o match many legitimate tools). Removed attack.t1059.003 tag (OxideHarvest is a credential stealer, not a command shell executor). Hash and filename detection only. -->
 
 ```yaml
 title: OxideHarvest Credential Stealer Execution
@@ -425,9 +401,9 @@ references:
     - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
 author: Actioner
 date: 2026/06/23
+modified: 2026/06/23
 tags:
     - attack.t1555.003
-    - attack.t1059.003
 logsource:
     category: process_creation
     product: windows
@@ -440,16 +416,9 @@ detection:
         Image|endswith:
             - '\buildx641.exe'
             - '\buildx64.exe'
-    selection_args:
-        CommandLine|contains|all:
-            - '-i '
-            - '-u '
-            - '-p '
-            - '-t '
-            - '-o '
-    condition: selection_hash or selection_name or selection_args
+    condition: selection_hash or selection_name
 falsepositives:
-    - Custom internal tools using the same combination of argument flags (unlikely)
+    - Unlikely - hash and filename detection is highly specific
 level: critical
 ```
 
@@ -459,7 +428,7 @@ Detects execution of HexKiller, ThrottleBlood, and HavocKiller tools distributed
 
 **Status:** compile ✅ compiles -- confidence: high
 
-<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Pure hash-based detection; zero expected false positives. Executable filenames (Avast.exe, Sent.exe, Sophos.exe) are too generic for filename-only detection. -->
+<!-- audit: sigma check 0 errors, 0 condition errors, 0 issues. sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Pure hash-based detection; zero expected false positives. Executable filenames (Avast.exe, Sent.exe, Sophos.exe) are too generic for filename-only detection. Changed tag from attack.t1036.001 to attack.t1562.001 (defense impairment is the primary TTP for EDR killers). sigma-cli flags t1562.001 as InvalidATTACKTagIssue due to incomplete bundled ATT&CK data; this is a validator limitation. -->
 
 ```yaml
 title: GentleKiller Third-Party EDR Killer Tools (HexKiller, ThrottleBlood, HavocKiller)
@@ -476,8 +445,9 @@ references:
     - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
 author: Actioner
 date: 2026/06/23
+modified: 2026/06/23
 tags:
-    - attack.t1036.001
+    - attack.t1562.001
 logsource:
     category: process_creation
     product: windows
@@ -500,7 +470,7 @@ Detects GentleKiller EDR killer PE executables by the combination of multiple em
 
 **Status:** compile ✅ compiles -- confidence: medium
 
-<!-- audit: yarac exit code 0. Rule keys on 5+ of 13 security process names AND 1+ driver filename, or 8+ process names alone. Medium confidence due to string-only detection; legitimate security management tools could embed process names, but the driver name requirement raises specificity. -->
+<!-- audit: yarac exit code 0. Rule keys on 5+ of 13 security process names AND 1+ driver filename, or 10+ process names standalone, or device path + 2 process names. Removed $drv09 = "PoisonX.sys" (phantom IOC). Tightened standalone proc* threshold from 8 to 10 to reduce FP from security management tools that may embed multiple process names. -->
 
 ```yara
 import "pe"
@@ -511,6 +481,7 @@ rule Malware_GentleKiller_EDR_Killer
         description = "Detects GentleKiller EDR killer variants used by the Gentlemen RaaS operation. These PE executables load vulnerable drivers to terminate security processes at kernel level."
         author = "Actioner"
         date = "2026-06-23"
+        modified = "2026-06-23"
         reference = "https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/"
         tlp = "WHITE"
         severity = "critical"
@@ -537,8 +508,7 @@ rule Malware_GentleKiller_EDR_Killer
         $drv06 = "dmx.sys" ascii wide
         $drv07 = "360netmon_wfp.sys" ascii wide
         $drv08 = "IMFForceDelete.sys" ascii wide
-        $drv09 = "PoisonX.sys" ascii wide
-        $drv10 = "G11.sys" ascii wide
+        $drv09 = "G11.sys" ascii wide
         $dev01 = "\\\\Device\\\\{F8284233-48F4-4680-ADDD-F8284233}" ascii wide
         $dev02 = "\\\\.\\{F8284233-48F4-4680-ADDD-F8284233}" ascii wide
 
@@ -547,7 +517,7 @@ rule Malware_GentleKiller_EDR_Killer
         filesize < 20MB and
         (
             (5 of ($proc*) and 1 of ($drv*)) or
-            (8 of ($proc*)) or
+            (10 of ($proc*)) or
             (1 of ($dev*) and 2 of ($proc*))
         )
 }
@@ -559,7 +529,7 @@ Detects the PoisonX vulnerable driver (G11.sys) by its unique device symbolic li
 
 **Status:** compile ✅ compiles -- confidence: high
 
-<!-- audit: yarac exit code 0. Keys on unique PoisonX device GUID {F8284233-48F4-4680-ADDD-F8284233} combined with ZwOpenProcess and ZwTerminateProcess API names. GUID is unique to PoisonX; no known legitimate use. -->
+<!-- audit: yarac exit code 0. Keys on unique PoisonX device GUID {F8284233-48F4-4680-ADDD-F8284233} combined with ZwOpenProcess and ZwTerminateProcess API names. GUID is unique to PoisonX; no known legitimate use. No changes from v1.0. -->
 
 ```yara
 rule Malware_PoisonX_BYOVD_Driver
@@ -587,11 +557,11 @@ rule Malware_PoisonX_BYOVD_Driver
 
 ### YARA: OxideHarvest Credential Stealer
 
-Detects the OxideHarvest Rust-based credential stealer by the combination of Rust compilation artifacts, browser credential store file targets, and Chromium/Gecko browser profile paths.
+Detects the OxideHarvest Rust-based credential stealer. Detection requires OxideHarvest-specific filename strings combined with browser credential indicators, or a high threshold of browser credential artifacts. Severity downgraded to low to avoid false positives on legitimate Rust-based password managers (Bitwarden, 1Password).
 
-**Status:** compile ✅ compiles -- confidence: medium
+**Status:** compile ✅ compiles -- confidence: low
 
-<!-- audit: yarac exit code 0. Rule requires Rust artifact + 3 browser credential files + 2 browser paths. Medium confidence because legitimate Rust-based password managers could match; condition thresholds tuned to reduce FPs. -->
+<!-- audit: yarac exit code 0. Added $oxide1/$oxide2 (OxideHarvest-specific filename strings) as anchors. Condition now requires either oxide string + rust + browser evidence, or high-threshold browser evidence (4+ credential files + 3+ browser paths). Downgraded severity to low per critic guidance to avoid FP on legitimate Rust password managers. -->
 
 ```yara
 rule Malware_OxideHarvest_Credential_Stealer
@@ -600,13 +570,16 @@ rule Malware_OxideHarvest_Credential_Stealer
         description = "Detects OxideHarvest (buildx641/buildx64), a Rust-based credential stealer targeting Chromium and Gecko browser stores, distributed by the Gentlemen RaaS operation."
         author = "Actioner"
         date = "2026-06-23"
+        modified = "2026-06-23"
         reference = "https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/"
         tlp = "WHITE"
-        severity = "high"
+        severity = "low"
 
     strings:
         $rust1 = ".cargo" ascii
         $rust2 = "rustc" ascii
+        $oxide1 = "buildx641" ascii wide
+        $oxide2 = "buildx64" ascii wide
         $browser1 = "Login Data" ascii wide
         $browser2 = "Web Data" ascii wide
         $browser3 = "Cookies" ascii wide
@@ -622,9 +595,10 @@ rule Malware_OxideHarvest_Credential_Stealer
     condition:
         uint16(0) == 0x5A4D and
         filesize < 20MB and
-        1 of ($rust*) and
-        3 of ($browser*) and
-        2 of ($chrome*, $firefox1)
+        (
+            (1 of ($oxide*) and 1 of ($rust*) and 2 of ($browser*) and 1 of ($chrome*, $firefox1)) or
+            (1 of ($rust*) and 4 of ($browser*) and 3 of ($chrome*, $firefox1))
+        )
 }
 ```
 

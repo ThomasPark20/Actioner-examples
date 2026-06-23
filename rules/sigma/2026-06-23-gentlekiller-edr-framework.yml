@@ -1,0 +1,182 @@
+title: GentleKiller BYOVD Vulnerable Driver Load
+id: c2fc9dfc-b498-4edf-8eea-dc6cc210e4bf
+status: experimental
+description: >
+    Detects loading of vulnerable drivers abused by the GentleKiller EDR killer
+    framework distributed by the Gentlemen RaaS operation. These drivers are
+    legitimately signed but contain exploitable IOCTL handlers used to terminate
+    security processes at kernel level.
+references:
+    - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
+    - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
+author: Actioner
+date: 2026/06/23
+modified: 2026/06/23
+tags:
+    - attack.t1543.003
+    - attack.t1068
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - 'BA914FE77B177B45799403B16DD14765C510A074'
+            - 'B0B912A3FD1C05D72080848EC4C92880004021A1'
+            - '7556AE58C215B8245A43F764F0676C7A8F0FDD1A'
+            - '711EF221526997039E804A18DB9647C91680BBE2'
+            - '68FEC379F2AE76C3D2CE913F7BE650CEA1D06990'
+            - '96F0DBF52AED0AFD43E44500116B04B674F7358E'
+            - '9AD51AD97C01E97AB59214116740785E0F6320A8'
+            - '12500F6C87CE62712A0ED6652C57468D15C14223'
+            - '56BEE9DF5833A637F5C54D5911DF98B0812FE643'
+            - 'EC296F9501AD71E430810CB5CDC38D954D4BA536'
+            - '82ED942A52CDCF120A8919730E00BA37619661A3'
+            - '1FA071303FB846308571E64727501FB98B1C2BE6'
+    selection_specific_name:
+        ImageLoaded|endswith:
+            - '\nseckrnl.sys'
+            - '\GameDriverX64.sys'
+            - '\stpm_old.sys'
+            - '\stpm_new.sys'
+            - '\360netmon_wfp.sys'
+            - '\IMFForceDelete.sys'
+            - '\G11.sys'
+            - '\googleApiUtil64.sys'
+            - '\ThrottleBlood.sys'
+            - '\havoc.sys'
+    selection_generic_name:
+        ImageLoaded|endswith:
+            - '\eb.sys'
+            - '\dmx.sys'
+    selection_generic_hash:
+        Hashes|contains:
+            - 'BA914FE77B177B45799403B16DD14765C510A074'
+            - '96F0DBF52AED0AFD43E44500116B04B674F7358E'
+    condition: selection_hash or selection_specific_name or (selection_generic_name and selection_generic_hash)
+falsepositives:
+    - Legitimate installations of the original software (FACEIT Anti-Cheat, Valorant, Safetica, Zemana, IObit, Baidu Antivirus, Huawei audio driver)
+level: high
+---
+title: GentleKiller EDR Killer Executable
+id: 5df15923-dbbe-4c4b-8a09-40cc306b5385
+status: experimental
+description: >
+    Detects execution of GentleKiller EDR killer variants and associated tools
+    (HexKiller, ThrottleBlood, HavocKiller) used by the Gentlemen RaaS operation.
+    These executables masquerade as legitimate security products using names like
+    Kaspersky, FACEIT, and Valorant.
+references:
+    - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
+    - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
+author: Actioner
+date: 2026/06/23
+modified: 2026/06/23
+tags:
+    - attack.t1036.001
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - '8AE6BD18B129061F63642531F1B684CF0383C75D'
+            - 'D605994FC72A2BB59B5CFB1624A1B9170ECA73A2'
+            - '5AA3124E5C4921E5EDFC60133B5D71DA21B07DA3'
+            - '331879F5EEC8892BBD896F90BDBB1BAD0BF63BD6'
+            - 'F11AEBCCB9A86A7E2E653F90BAEC697F233C255F'
+            - 'EF9CD06683159397F099CAA244E94E6EAAD96EBA'
+            - 'A11EE9CDC59E5CAA59AEFD27B30D104F3AD68E62'
+            - '2F86898528C6CAB3540C486A9BFAA0C029B73950'
+            - 'A19117175DBC9BA4D23B5DCE8415E299A2E32192'
+            - 'D29670E684E40DDC89B47010C37CBC96737035B6'
+            - 'CF4D74DF17A91B4A36A2911B22AFEC5D8FA93A01'
+            - '7131B377E96016DC1911020C9F95B1B4D042D7B4'
+            - 'F0537CBB773AE12100B36731E7C39F5A9D852B14'
+    selection_name:
+        Image|endswith:
+            - '\Kasps.exe'
+            - '\FaceIT1.exe'
+            - '\FaceIT2.exe'
+            - '\FaceITLight.exe'
+            - '\FaceITClear.exe'
+            - '\Valorant1.exe'
+            - '\Valorant2.exe'
+            - '\ValorantLight.exe'
+            - '\ValorantClear.exe'
+            - '\EASolo1clear.exe'
+            - '\EASolo2Light.exe'
+            - '\EAAntiCheatLight.exe'
+            - '\BitD1.exe'
+            - '\MB2.exe'
+            - '\Deletor.exe'
+    condition: selection_hash or selection_name
+falsepositives:
+    - Unlikely - these filenames in the observed naming pattern are highly specific to GentleKiller
+level: critical
+---
+title: OxideHarvest Credential Stealer Execution
+id: 57770a18-c2fc-4855-a72d-9bcea6ca3322
+status: experimental
+description: >
+    Detects execution of OxideHarvest (buildx641/buildx64), a Rust-based
+    credential stealer distributed alongside the GentleKiller EDR killer by the
+    Gentlemen RaaS operation. It targets browser credential stores for Chrome,
+    Edge, Firefox, Brave, and Opera.
+references:
+    - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
+    - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
+author: Actioner
+date: 2026/06/23
+modified: 2026/06/23
+tags:
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - 'A5CF917EC4A7DFBDFA43621398604805D860C718'
+            - 'D4B19141102015D436321E6F26976E98183CFD27'
+    selection_name:
+        Image|endswith:
+            - '\buildx641.exe'
+            - '\buildx64.exe'
+    condition: selection_hash or selection_name
+falsepositives:
+    - Unlikely - hash and filename detection is highly specific
+level: critical
+---
+title: GentleKiller Third-Party EDR Killer Tools (HexKiller, ThrottleBlood, HavocKiller)
+id: 59eb1655-983d-4465-ba56-2a39b5c6a400
+status: experimental
+description: >
+    Detects execution of third-party EDR killer tools distributed alongside
+    GentleKiller by the Gentlemen RaaS. These include HexKiller (abuses Baidu
+    BdApi driver), ThrottleBlood (abuses TechPowerUp driver), and HavocKiller
+    (abuses Huawei audio driver). The executables masquerade as legitimate
+    security products (Avast.exe, Sent.exe, Sophos.exe).
+references:
+    - https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/
+    - https://thehackernews.com/2026/06/the-gentlemen-raas-uses-gentlekiller.html
+author: Actioner
+date: 2026/06/23
+modified: 2026/06/23
+tags:
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hexkiller:
+        Hashes|contains: 'CF4D74DF17A91B4A36A2911B22AFEC5D8FA93A01'
+    selection_throttleblood:
+        Hashes|contains: '7131B377E96016DC1911020C9F95B1B4D042D7B4'
+    selection_havockiller:
+        Hashes|contains: 'F0537CBB773AE12100B36731E7C39F5A9D852B14'
+    condition: 1 of selection_*
+falsepositives:
+    - None expected - hash-based detection is highly specific
+level: critical
