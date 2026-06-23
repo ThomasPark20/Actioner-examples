@@ -1,0 +1,96 @@
+# Sigma rules for CVE-2026-8461 (PixelSmash) - FFmpeg MagicYUV heap OOB write
+# Source: /home/user/Actioner-examples/summaries/2026-06-23-ffmpeg-pixelsmash-rce.md
+# revision: v2 - crash rule rewritten from process_creation to application log source;
+#   shell spawn rule ParentCommandLine filter removed; levels downgraded per critic review
+---
+title: FFmpeg MagicYUV Decoder Crash Indicating CVE-2026-8461 PixelSmash Exploitation
+id: 7a3e1f42-9c8d-4b2e-a6f5-3d0e7b8c9a14
+status: experimental
+description: >
+    Detects FFmpeg or ffprobe process crashes with heap corruption signals
+    (SIGABRT, SIGSEGV, munmap_chunk) that may indicate exploitation of
+    CVE-2026-8461 PixelSmash. This rule targets application log or syslog
+    entries containing crash diagnostics. CAVEAT: On Linux, native process
+    crashes emit signals but do not spawn child shell processes with crash
+    strings in CommandLine. This rule fires only when a wrapper script or
+    logging harness captures crash output to application logs. Environments
+    without such wrappers should monitor coredump facilities (coredumpctl,
+    journald COREDUMP_EXE fields) instead.
+references:
+    - https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/
+    - https://www.bleepingcomputer.com/news/security/ffmpeg-fixes-pixelsmash-flaw-in-widely-used-video-decoder/
+    - https://vulnerability.circl.lu/vuln/ghsa-qff7-4q6c-m8h6
+author: Actioner
+date: 2026-06-23
+modified: 2026-06-23
+tags:
+    - attack.t1203
+logsource:
+    category: application
+    product: linux
+detection:
+    selection_process:
+        Application|contains:
+            - 'ffmpeg'
+            - 'ffprobe'
+            - 'ffmpegthumbnailer'
+            - 'jellyfin'
+            - 'emby'
+    selection_crash:
+        Message|contains:
+            - 'core dumped'
+            - 'SIGABRT'
+            - 'SIGSEGV'
+            - 'munmap_chunk'
+            - 'heap-buffer-overflow'
+            - 'bytestream_get_buffer'
+            - 'magicyuv'
+    condition: selection_process and selection_crash
+falsepositives:
+    - Legitimate FFmpeg crashes from corrupted but non-malicious media files
+    - Debug or fuzzing environments generating intentional crashes
+    - Media server wrapper scripts logging non-exploit related crashes
+level: low
+---
+title: Jellyfin/Emby Media Server Spawning Shell Indicating CVE-2026-8461 RCE
+id: 2b4d8e61-5f3a-4c7e-b9d2-1a6f0c3e5d87
+status: experimental
+description: >
+    Detects Jellyfin or Emby media server processes spawning unexpected shell
+    processes, which may indicate successful exploitation of CVE-2026-8461
+    PixelSmash to achieve remote code execution. The exploit overwrites AVBuffer
+    function pointers to redirect execution to system() with attacker-controlled
+    arguments. When system() is called from within libavcodec, the shell spawns
+    as a direct child of the media server process (not FFmpeg), so
+    ParentCommandLine will reference the Jellyfin/Emby binary, not ffmpeg.
+references:
+    - https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/
+    - https://www.bleepingcomputer.com/news/security/ffmpeg-fixes-pixelsmash-flaw-in-widely-used-video-decoder/
+author: Actioner
+date: 2026-06-23
+modified: 2026-06-23
+tags:
+    - attack.t1203
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/jellyfin'
+            - '/jellyfin-web'
+            - '/emby'
+            - '/EmbyServer'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate post-processing scripts invoked by media servers
+    - Plugin-based transcoding pipelines that spawn shell commands
+    - Health-check or maintenance scripts spawned by media server processes
+level: medium

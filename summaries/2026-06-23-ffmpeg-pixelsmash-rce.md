@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-23
-Version: 1.0-draft
+Version: 1.1-revised
 
 ## Executive Summary
 
@@ -173,25 +173,29 @@ Versions prior to 8.1.2 (or 8.0.3 for the 8.0.x branch) are vulnerable.
 
 ## Detection Rules
 
-Three YARA rules detect crafted media files carrying MagicYUV exploit payloads at the file level. Two Sigma rules detect exploitation behavior on Linux endpoints -- FFmpeg crashes and post-exploitation shell spawning from media servers. One Snort rule and two Suricata rules detect network delivery of exploit files over HTTP. All rules target PoC-specific indicators (MAGY FourCC, small file sizes, crash signatures) and should be tuned for environments with legitimate MagicYUV usage.
+Three YARA rules detect crafted media files carrying MagicYUV exploit payloads at the file level (AVI and MKV at low confidence as broad heuristics; Generic at high confidence due to shell-command conjunction). Two Sigma rules detect exploitation behavior on Linux endpoints -- FFmpeg crashes via application logs (low confidence, requires wrapper/logging harness) and post-exploitation shell spawning from media servers (medium confidence). One Snort rule and two Suricata rules detect network delivery of exploit files over HTTP. All rules target PoC-specific indicators (MAGY FourCC, small file sizes, crash signatures) and should be tuned for environments with legitimate MagicYUV usage.
+
+<!-- revision: v2 summary - YARA AVI: removed coded_height_32 no-op, downgraded to low. YARA MKV: removed V_MS/VFW/FOURCC, downgraded to low. Sigma crash: rewrote from process_creation to application logsource, downgraded to low. Sigma shell spawn: removed ParentCommandLine filter, downgraded to medium. Snort: added file_data + fast_pattern, scoped to HTTP_PORTS, downgraded to low. Suricata rules: unchanged (PASS). -->
 
 ### YARA: Crafted AVI with MagicYUV Exploit Indicators
 
-Detects AVI files containing MagicYUV codec data with the PoC-characteristic `coded_height=32` and small file size, matching the documented 50 KB exploit payload structure.
+Detects AVI files containing MagicYUV codec data with small file size, matching the documented 50 KB exploit payload structure. This is a broad heuristic: any small AVI carrying MagicYUV will match.
 
-**Status:** compile pass | confidence: medium
+**Status:** compile pass | confidence: low
 
-<!-- audit: yarac exit 0. Rule matches AVI RIFF header + MAGY FourCC + LE uint32 0x20 (32) + filesize <200KB. The coded_height byte pattern {20 00 00 00} may false-positive on unrelated 4-byte sequences within AVI metadata; the conjunction with MAGY FourCC and size constraint mitigates this. No hash available for known PoC sample. -->
+<!-- revision: v2 - removed $coded_height_32 pattern {20 00 00 00} which is effectively a no-op (space + 3 NULs is ubiquitous in AVI padding). Downgraded from medium to low confidence. -->
+<!-- audit: yarac exit 0. Rule matches AVI RIFF header + MAGY FourCC + filesize <200KB. Will match any legitimate small MagicYUV AVI file; conjunction of MAGY FourCC and size constraint provides the only specificity. No hash available for known PoC sample. -->
 
 ```yara
 rule Exploit_CVE_2026_8461_PixelSmash_MagicYUV_AVI
 {
     meta:
-        description = "Detects crafted AVI files exploiting CVE-2026-8461 PixelSmash via MagicYUV codec with anomalous slice_height triggering heap OOB write"
+        description = "Detects crafted AVI files exploiting CVE-2026-8461 PixelSmash via MagicYUV codec - small AVI with MAGY FourCC. Broad heuristic: any small AVI carrying MagicYUV will match."
         author = "Actioner"
         date = "2026-06-23"
+        modified = "2026-06-23"
         reference = "https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/"
-        severity = "critical"
+        severity = "low"
         tlp = "WHITE"
 
     strings:
@@ -204,42 +208,39 @@ rule Exploit_CVE_2026_8461_PixelSmash_MagicYUV_AVI
         // MagicYUV codec identifier variants
         $magy_lower = "magy" ascii
 
-        // Typical exploit coded_height=32 as little-endian uint32
-        $coded_height_32 = { 20 00 00 00 }
-
     condition:
         $avi_riff at 0 and
         ($magy_fourcc or $magy_lower) and
-        $coded_height_32 and
         filesize < 200KB
 }
 ```
 
 ### YARA: Crafted MKV with MagicYUV Exploit Indicators
 
-Detects Matroska (MKV) containers carrying MagicYUV codec data with small file size, covering the MKV delivery vector documented in the advisory.
+Detects Matroska (MKV) containers carrying MagicYUV codec data with small file size, covering the MKV delivery vector documented in the advisory. This is a broad codec-presence heuristic: the previous `V_MS/VFW/FOURCC` string matched any VFW-wrapped codec in MKV (not just MagicYUV), so the rule now requires the actual MAGY FourCC for specificity.
 
-**Status:** compile pass | confidence: medium
+**Status:** compile pass | confidence: low
 
-<!-- audit: yarac exit 0. Matches EBML header + MAGY or V_MS/VFW/FOURCC + filesize <200KB. MKV files legitimately carrying MagicYUV content will match if under 200KB; this is expected to be rare in production environments. -->
+<!-- revision: v2 - removed V_MS/VFW/FOURCC from condition (matches any VFW codec, not MagicYUV-specific). Now requires MAGY or magy FourCC. Downgraded from medium to low. -->
+<!-- audit: yarac exit 0. Matches EBML header + MAGY FourCC + filesize <200KB. Legitimate small MKV files with MagicYUV will match; expected rare in production. -->
 
 ```yara
 rule Exploit_CVE_2026_8461_PixelSmash_MagicYUV_MKV
 {
     meta:
-        description = "Detects crafted MKV files exploiting CVE-2026-8461 PixelSmash via MagicYUV codec with small frame dimensions"
+        description = "Detects crafted MKV files with MagicYUV codec presence and small file size. Broad codec-presence heuristic: V_MS/VFW/FOURCC matches any VFW-wrapped codec in MKV, not just MagicYUV. Conjunction with MAGY FourCC or small size provides modest specificity."
         author = "Actioner"
         date = "2026-06-23"
+        modified = "2026-06-23"
         reference = "https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/"
-        severity = "critical"
+        severity = "low"
         tlp = "WHITE"
 
     strings:
         // EBML/MKV magic bytes
         $mkv_magic = { 1A 45 DF A3 }
 
-        // MagicYUV codec identifier in Matroska CodecID
-        $codec_magy = "V_MS/VFW/FOURCC" ascii
+        // MagicYUV FourCC - required for specificity
         $magy_fourcc = "MAGY" ascii
 
         // MagicYUV codec private data marker
@@ -247,7 +248,7 @@ rule Exploit_CVE_2026_8461_PixelSmash_MagicYUV_MKV
 
     condition:
         $mkv_magic at 0 and
-        ($codec_magy or $magy_fourcc or $magy_lower) and
+        ($magy_fourcc or $magy_lower) and
         filesize < 200KB
 }
 ```
@@ -291,81 +292,93 @@ rule Exploit_CVE_2026_8461_PixelSmash_MagicYUV_Generic
 
 ### Sigma: FFmpeg MagicYUV Decoder Crash Detection
 
-Detects FFmpeg or ffprobe crashes with crash-related signals (SIGABRT, SIGSEGV, munmap_chunk) that indicate heap corruption from CVE-2026-8461 exploitation.
+Detects FFmpeg or ffprobe crashes with crash-related signals (SIGABRT, SIGSEGV, munmap_chunk) that indicate heap corruption from CVE-2026-8461 exploitation. This rule targets application log entries rather than process creation events because Linux crashes (SIGABRT/SIGSEGV) do not spawn child shell processes with crash strings in CommandLine. The rule fires only when a wrapper script or logging harness captures crash output to application logs. Environments without such wrappers should monitor coredump facilities (coredumpctl, journald COREDUMP_EXE fields) instead.
 
-**Status:** compile pass (sigma check 0 errors, converts to Splunk and LogScale) | confidence: medium
+**Status:** compile pass (sigma check 0 errors, converts to Splunk and LogScale) | confidence: low
 
-Requires process creation logging with parent-child relationships (e.g., Sysmon for Linux or auditd with process tracking).
+Requires application-level logging from media processing pipelines (e.g., Jellyfin/Emby application logs, systemd journal, or wrapper script output directed to syslog).
 
-<!-- audit: sigma check 0 errors 0 issues. sigma convert --without-pipeline -t splunk succeeds. sigma convert --without-pipeline -t log_scale succeeds. Detection relies on crash strings appearing in CommandLine of child processes spawned by the crashing FFmpeg parent; this depends on how the OS propagates crash diagnostics. Some crash scenarios may produce SIGSEGV in FFmpeg itself without spawning a child process, which this rule would miss. -->
+<!-- revision: v2 - rewrote detection model from process_creation (architecturally wrong - Linux crashes don't spawn child shells with crash strings) to application logsource targeting syslog/journald crash messages. Downgraded from high to low. Added honest caveat about wrapper script requirement. -->
+<!-- audit: sigma check 0 errors 0 issues. sigma convert --without-pipeline -t splunk succeeds. sigma convert --without-pipeline -t log_scale succeeds. -->
 
 ```yaml
 title: FFmpeg MagicYUV Decoder Crash Indicating CVE-2026-8461 PixelSmash Exploitation
 id: 7a3e1f42-9c8d-4b2e-a6f5-3d0e7b8c9a14
 status: experimental
 description: >
-    Detects FFmpeg or ffprobe process crashes with signals (SIGABRT, SIGSEGV)
-    that indicate exploitation of CVE-2026-8461 PixelSmash, a heap out-of-bounds
-    write in the MagicYUV decoder. Crashes during media processing of small AVI,
-    MKV, or MOV files containing MagicYUV codec data are strong indicators of
-    exploitation attempts.
+    Detects FFmpeg or ffprobe process crashes with heap corruption signals
+    (SIGABRT, SIGSEGV, munmap_chunk) that may indicate exploitation of
+    CVE-2026-8461 PixelSmash. This rule targets application log or syslog
+    entries containing crash diagnostics. CAVEAT: On Linux, native process
+    crashes emit signals but do not spawn child shell processes with crash
+    strings in CommandLine. This rule fires only when a wrapper script or
+    logging harness captures crash output to application logs. Environments
+    without such wrappers should monitor coredump facilities (coredumpctl,
+    journald COREDUMP_EXE fields) instead.
 references:
     - https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/
     - https://www.bleepingcomputer.com/news/security/ffmpeg-fixes-pixelsmash-flaw-in-widely-used-video-decoder/
     - https://vulnerability.circl.lu/vuln/ghsa-qff7-4q6c-m8h6
 author: Actioner
 date: 2026-06-23
+modified: 2026-06-23
 tags:
     - attack.t1203
 logsource:
-    category: process_creation
+    category: application
     product: linux
 detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '/ffmpeg'
-            - '/ffprobe'
-            - '/ffmpegthumbnailer'
+    selection_process:
+        Application|contains:
+            - 'ffmpeg'
+            - 'ffprobe'
+            - 'ffmpegthumbnailer'
+            - 'jellyfin'
+            - 'emby'
     selection_crash:
-        Image|endswith:
-            - '/sh'
-            - '/bash'
-        CommandLine|contains:
+        Message|contains:
             - 'core dumped'
             - 'SIGABRT'
             - 'SIGSEGV'
             - 'munmap_chunk'
             - 'heap-buffer-overflow'
-    condition: selection_parent and selection_crash
+            - 'bytestream_get_buffer'
+            - 'magicyuv'
+    condition: selection_process and selection_crash
 falsepositives:
     - Legitimate FFmpeg crashes from corrupted but non-malicious media files
     - Debug or fuzzing environments generating intentional crashes
-level: high
+    - Media server wrapper scripts logging non-exploit related crashes
+level: low
 ```
 
 ### Sigma: Jellyfin/Emby Shell Spawn After FFmpeg Processing (RCE Indicator)
 
-Detects media server processes spawning shell commands after FFmpeg media processing, indicating successful CVE-2026-8461 RCE via hijacked `AVBuffer.free` function pointer redirecting to `system()`.
+Detects media server processes spawning unexpected shell processes, indicating potential CVE-2026-8461 RCE via hijacked `AVBuffer.free` function pointer redirecting to `system()`. When `system()` is called from within libavcodec, the shell spawns as a direct child of the media server process (not FFmpeg), so `ParentCommandLine` will reference the Jellyfin/Emby binary, not ffmpeg.
 
-**Status:** compile pass (sigma check 0 errors, converts to Splunk and LogScale) | confidence: high
+**Status:** compile pass (sigma check 0 errors, converts to Splunk and LogScale) | confidence: medium
 
-<!-- audit: sigma check 0 errors 0 issues. sigma convert --without-pipeline -t splunk succeeds. sigma convert --without-pipeline -t log_scale succeeds. This rule detects post-exploitation behavior (shell spawn from media server) rather than the vulnerability trigger itself, making it resilient to exploit variants. False positives possible from legitimate plugin-based transcoding that invokes shell scripts, but these should be rare and can be filtered by specific CommandLine patterns. -->
+<!-- revision: v2 - removed ParentCommandLine|contains filter for "ffmpeg"/"ffprobe"/"MediaEncoder" from selection_parent. The system() call from libavcodec spawns the shell as a child of the Jellyfin process, whose CommandLine does not contain "ffmpeg". The old filter blocked the primary detection path. Downgraded from high/critical to medium. -->
+<!-- audit: sigma check 0 errors 0 issues. sigma convert --without-pipeline -t splunk succeeds. sigma convert --without-pipeline -t log_scale succeeds. This rule detects post-exploitation behavior (shell spawn from media server) rather than the vulnerability trigger itself. False positives possible from legitimate plugin-based transcoding that invokes shell scripts. -->
 
 ```yaml
-title: Jellyfin Media Server Spawning Shell After FFmpeg Processing Indicating CVE-2026-8461 RCE
+title: Jellyfin/Emby Media Server Spawning Shell Indicating CVE-2026-8461 RCE
 id: 2b4d8e61-5f3a-4c7e-b9d2-1a6f0c3e5d87
 status: experimental
 description: >
-    Detects Jellyfin media server processes spawning shell commands after FFmpeg
-    media processing, which may indicate successful exploitation of CVE-2026-8461
+    Detects Jellyfin or Emby media server processes spawning unexpected shell
+    processes, which may indicate successful exploitation of CVE-2026-8461
     PixelSmash to achieve remote code execution. The exploit overwrites AVBuffer
     function pointers to redirect execution to system() with attacker-controlled
-    arguments.
+    arguments. When system() is called from within libavcodec, the shell spawns
+    as a direct child of the media server process (not FFmpeg), so
+    ParentCommandLine will reference the Jellyfin/Emby binary, not ffmpeg.
 references:
     - https://jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/
     - https://www.bleepingcomputer.com/news/security/ffmpeg-fixes-pixelsmash-flaw-in-widely-used-video-decoder/
 author: Actioner
 date: 2026-06-23
+modified: 2026-06-23
 tags:
     - attack.t1203
     - attack.t1059.004
@@ -379,10 +392,6 @@ detection:
             - '/jellyfin-web'
             - '/emby'
             - '/EmbyServer'
-        ParentCommandLine|contains:
-            - 'ffmpeg'
-            - 'ffprobe'
-            - 'MediaEncoder'
     selection_child:
         Image|endswith:
             - '/sh'
@@ -393,19 +402,21 @@ detection:
 falsepositives:
     - Legitimate post-processing scripts invoked by media servers
     - Plugin-based transcoding pipelines that spawn shell commands
-level: critical
+    - Health-check or maintenance scripts spawned by media server processes
+level: medium
 ```
 
 ### Snort: MagicYUV AVI Exploit File Network Delivery
 
-Detects AVI files containing MagicYUV codec data delivered over TCP, matching the documented exploit delivery containers.
+Detects AVI files containing MagicYUV codec data delivered over HTTP, matching the documented exploit delivery containers. Uses `file_data` keyword for HTTP response body inspection and `fast_pattern` on the MAGY FourCC for efficient matching.
 
-**Status:** compile pass (Snort 2.9.20 validation successful) | confidence: medium
+**Status:** compile pass (Snort 2.9.20 validation successful) | confidence: low
 
-<!-- audit: snort -c /etc/snort/snort.conf -T with included rule exits 0. Rule matches RIFF AVI header followed by MAGY FourCC in TCP stream to HOME_NET. Content match uses depth/distance for positional accuracy. May match legitimate MagicYUV AVI transfers; the conjunction with RIFF+AVI+MAGY constrains FPs to actual MagicYUV content. Cannot distinguish exploit from benign MagicYUV at the network level without deeper inspection. -->
+<!-- revision: v2 - added file_data keyword for proper HTTP content inspection (was raw TCP without HTTP preprocessor keywords). Added fast_pattern on MAGY content. Scoped to $HTTP_PORTS. Downgraded from medium to low. -->
+<!-- audit: snort -c /etc/snort/snort.conf -T with included rule exits 0. Rule matches RIFF AVI header followed by MAGY FourCC in HTTP response file data. May match legitimate MagicYUV AVI transfers over HTTP. -->
 
 ```
-alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - CVE-2026-8461 PixelSmash MagicYUV Exploit AVI File Delivery via HTTP"; flow:established,to_client; content:"RIFF"; depth:4; content:"AVI "; distance:0; within:8; content:"MAGY"; distance:0; classtype:attempted-user; reference:cve,2026-8461; reference:url,jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/; metadata:author Actioner, created_at 2026-06-23, cve CVE-2026-8461; sid:2100002; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-8461 PixelSmash MagicYUV Exploit AVI File Delivery via HTTP"; flow:established,to_client; file_data; content:"RIFF"; depth:4; content:"AVI "; distance:0; within:8; content:"MAGY"; fast_pattern; classtype:attempted-user; reference:cve,2026-8461; reference:url,jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/; metadata:author Actioner, created_at 2026-06-23, cve CVE-2026-8461; sid:2100002; rev:2;)
 ```
 
 ### Suricata: MagicYUV AVI Exploit File HTTP Delivery
@@ -451,4 +462,5 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - CVE-2026-8461 Pix
 - [OffSeq Threat Radar](https://radar.offseq.com/threat/ffmpeg-fixes-pixelsmash-flaw-in-widely-used-video--5ccb783d6ccf419b) — threat intelligence aggregation
 
 ---
+<!-- revision: v2 2026-06-23 - Applied critic NEEDS-REVISION verdict. YARA AVI: removed $coded_height_32 no-op pattern, downgraded medium->low. YARA MKV: removed V_MS/VFW/FOURCC (too broad), require MAGY FourCC, downgraded medium->low. YARA Generic: unchanged (PASS). Sigma crash: rewrote detection model from process_creation to application logsource (Linux crashes don't spawn child shells with crash strings in CommandLine), downgraded high->low, added wrapper-script caveat. Sigma shell spawn: removed ParentCommandLine filter (system() from libavcodec spawns shell as child of Jellyfin, not ffmpeg), downgraded critical->medium. Snort: added file_data keyword + fast_pattern on MAGY + scoped to $HTTP_PORTS, downgraded medium->low. Suricata AVI and MKV: unchanged (PASS). All changed rules re-validated: yarac exit 0, sigma check 0 errors, sigma convert splunk/log_scale success, snort -T success, suricata -T success. -->
 *Report generated by Actioner*
