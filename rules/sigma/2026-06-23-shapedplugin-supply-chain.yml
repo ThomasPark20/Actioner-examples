@@ -1,0 +1,85 @@
+title: ShapedPlugin Backdoor Web Shell Access via URL Parameters
+id: 9c3e7a1d-4b2f-5e8d-a6c9-1f0d3b7e2a4c
+status: experimental
+description: >
+    Detects HTTP requests to web shell components deployed by the ShapedPlugin
+    supply chain backdoor, including the custom REST API backdoor disguised as
+    WooCommerce plugins and suspicious PHP files dropped by the payload.
+references:
+    - https://securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html
+    - https://thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html
+author: Actioner
+date: 2026-06-23
+tags:
+    - attack.t1505.003
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_fake_plugins:
+        cs-uri-stem|contains:
+            - '/wp-content/plugins/woocommerce-subscription/'
+            - '/wp-content/plugins/woocommerce-notification/'
+    selection_suspicious_files:
+        cs-uri-stem|contains:
+            - 'class-wp-cache-manager.php'
+            - 'init-core-helper.php'
+            - 'wp-db-update.php'
+            - 'install-persistent.php'
+    condition: selection_fake_plugins or selection_suspicious_files
+falsepositives:
+    - Legitimate WooCommerce subscription or notification plugins with matching directory names (note the legitimate plugin uses plural "woocommerce-subscriptions")
+level: medium
+---
+title: DNS Query to ShapedPlugin Backdoor C2 Domains
+id: b7f2d8e1-3a9c-4f6b-8d5e-0c1a2b9d7f3e
+status: experimental
+description: >
+    Detects DNS queries to known command-and-control and exfiltration domains
+    used by the ShapedPlugin supply chain attack backdoor, including the 2FA
+    secret exfiltration domain and the credential staging domain.
+references:
+    - https://securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html
+    - https://thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html
+author: Actioner
+date: 2026-06-23
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '2faplugin.org'
+            - 'cdn-stats-api.com'
+    condition: selection
+falsepositives:
+    - Unlikely - these are attacker-controlled domains
+level: critical
+---
+title: Network Connection to ShapedPlugin Backdoor C2 Server
+id: e4a1c6d9-8b3f-4e7a-9d2c-5f0b1a8e3c6d
+status: experimental
+description: >
+    Detects outbound network connections to the known C2 server IP and port used
+    by the ShapedPlugin LicenseLoader.php initial stage backdoor to download
+    second-stage payloads.
+references:
+    - https://securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html
+    - https://thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html
+author: Actioner
+date: 2026-06-23
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip: '194.76.217.28'
+        dst_port: 2871
+    condition: selection
+falsepositives:
+    - Unlikely - this IP and port combination is specific to the attacker C2
+level: critical

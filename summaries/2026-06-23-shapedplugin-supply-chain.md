@@ -1,9 +1,10 @@
+<!-- revision: v1.1 2026-06-23 — Applied critic NEEDS-REVISION verdict. Changes: (1) YARA Exfiltration_Payload: removed generic $totp_steal string, downgraded High->Medium. (2) YARA Webshell_Indicators: $hidden_admin now requires conjunction with $c2_domain or $suspicious*; $sp_option branch tightened to require both options plus $suspicious*. (3) Sigma Web Shell: removed selection_tools arm (tinyfilemanager/adminer FPs), downgraded High->Medium. (4) Snort SID 2100001: rewrote to use dest IP in rule header instead of payload content match. (5) Snort SID 2100003 / Suricata SID 2200002: added singular/plural naming caveat, downgraded to Medium. (6) Snort SID 2100005 / Suricata SID 2200005: fixed CVE reference from CVE-2026-10735 to CVE-2026-49777. (7) Snort metadata: standardized created->created_at across all SIDs. (8) ATT&CK: T1140->T1070.004 (File Deletion); T1078.001->T1556 (Modify Authentication Process). (9) CVE note added clarifying CVE-2026-49777 vs CVE-2026-10735. All changed rules re-validated. -->
 # Technical Analysis Report: ShapedPlugin WordPress Pro Plugins Supply Chain Attack (2026-06-23)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-23
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -119,9 +120,11 @@ The `install-persistent.php` component exfiltrates the following data categories
 
 | Package / Component | Malicious Version | Clean Version | Description |
 |---------------------|-------------------|---------------|-------------|
-| Product Slider Pro for WooCommerce | < 3.5.4 (confirmed 3.5.2) | 3.5.4 | Backdoored via supply chain, CVE-2026-49777 |
+| Product Slider Pro for WooCommerce | < 3.5.4 (confirmed 3.5.2) | 3.5.4 | Backdoored via supply chain, CVE-2026-49777 (CVSS 10.0) |
 | Real Testimonials Pro | 3.2.4 | 3.2.5 | Backdoored via supply chain |
 | Smart Post Show Pro | 4.0.1 | 4.0.2 | Backdoored via supply chain |
+
+> **CVE Note:** Multiple CVE identifiers appear in public reporting for this campaign. CVE-2026-49777 (CVSS 10.0) is the NVD-assigned identifier for the Product Slider Pro for WooCommerce backdoor. Some sources (e.g., Threat-Modeling.com, Mallory.ai) also reference CVE-2026-10735, which may cover additional affected plugins or a separate aspect of the vulnerability. All detection rules in this report are standardized on CVE-2026-49777 as the primary reference.
 
 ### File System
 
@@ -159,14 +162,14 @@ The `install-persistent.php` component exfiltrates the following data categories
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Attackers compromised ShapedPlugin's build pipeline and EDD update server to inject malware into Pro plugin updates |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Web shell component accepts URL parameter commands for execution on the server |
 | T1505.003 | Server Software Component: Web Shell | Deployment of web shell, Tiny File Manager, and Adminer for persistent server access |
-| T1078.001 | Valid Accounts: Default Accounts | Hidden administrator account `wp_support_sys` and hardcoded MD5 hash for password-less admin login |
+| T1556 | Modify Authentication Process | Hardcoded MD5 hash enabling password-less admin login bypasses WordPress authentication |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication over HTTP to generate.2faplugin[.]org and cdn-stats-api[.]com |
 | T1105 | Ingress Tool Transfer | LicenseLoader.php downloads second-stage payload from C2 server |
 | T1041 | Exfiltration Over C2 Channel | Credentials, 2FA secrets, wp-config.php, and WooCommerce data exfiltrated to C2 domains |
 | T1556.006 | Modify Authentication Process: Multi-Factor Authentication | TOTP seed exfiltration from WP 2FA, Wordfence Login Security, Really Simple SSL 2FA, and Two-Factor plugin |
 | T1136.001 | Create Account: Local Account | Creation of hidden `wp_support_sys` administrator account |
 | T1564.001 | Hide Artifacts: Hidden Files and Directories | Fake plugin hidden from WordPress admin interface |
-| T1140 | Deobfuscate/Decode Files or Information | Self-deleting loader to remove evidence of initial infection |
+| T1070.004 | Indicator Removal: File Deletion | Self-deleting LicenseLoader.php removes evidence of initial infection |
 
 ## Impact Assessment
 
@@ -265,9 +268,10 @@ rule ShapedPlugin_LicenseLoader_Backdoor
 
 Detects the Stage 2 credential-stealing payload that targets wp-config.php and 2FA secrets, exfiltrating to the known domain.
 
-**Status:** Compiled ✅ | Confidence: High
+**Status:** Compiled ✅ | Confidence: Medium
 
-<!-- audit: yarac exit 0. Requires PHP tag, exfil domain OR (install-persistent.php AND wp-config.php), AND at least one of the fake plugin names or TOTP string. Multi-factor condition minimizes FPs. -->
+<!-- revision: removed $totp_steal ("totp") from strings and condition -- too generic, matches legitimate 2FA code. Downgraded confidence High->Medium. Now requires fake plugin name as second factor. -->
+<!-- audit: yarac exit 0. Requires PHP tag, exfil domain OR (install-persistent.php AND wp-config.php), AND at least one of the fake plugin names. Multi-factor condition minimizes FPs. -->
 
 ```yara
 rule ShapedPlugin_Exfiltration_Payload
@@ -277,19 +281,18 @@ rule ShapedPlugin_Exfiltration_Payload
         author = "Actioner"
         date = "2026-06-23"
         reference = "https://thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $exfil_domain = "generate.2faplugin.org" ascii
         $install_persist = "install-persistent.php" ascii
         $wp_config_read = "wp-config.php" ascii
-        $totp_steal = "totp" ascii nocase
         $fake_plugin1 = "woocommerce-subscription" ascii
         $fake_plugin2 = "woocommerce-notification" ascii
         $php_tag = "<?php" ascii
 
     condition:
-        $php_tag and ($exfil_domain or ($install_persist and $wp_config_read)) and ($fake_plugin1 or $fake_plugin2 or $totp_steal)
+        $php_tag and ($exfil_domain or ($install_persist and $wp_config_read)) and ($fake_plugin1 or $fake_plugin2)
 }
 ```
 
@@ -299,7 +302,8 @@ Detects web shell components and attacker tools (Tiny File Manager, Adminer, hid
 
 **Status:** Compiled ✅ | Confidence: Medium
 
-<!-- audit: yarac exit 0. Broader rule matching tool combinations, hidden admin account, C2 domain, or suspicious file name clusters. The Tiny File Manager + Adminer conjunction alone is not malicious in isolation (both are legitimate tools), but their co-presence in a WordPress plugin directory is highly anomalous. -->
+<!-- revision: $hidden_admin standalone branch was too broad -- now requires conjunction with $c2_domain or a $suspicious* file. $sp_option1 branch tightened to require both $sp_option1 AND $sp_option2 plus a $suspicious* file, preventing lone wp_options prefix matches. -->
+<!-- audit: yarac exit 0. Broader rule matching tool combinations, hidden admin account (with corroborating IOC), C2 domain, or suspicious file name clusters. The Tiny File Manager + Adminer conjunction alone is not malicious in isolation (both are legitimate tools), but their co-presence in a WordPress plugin directory is highly anomalous. -->
 
 ```yara
 rule ShapedPlugin_Webshell_Indicators
@@ -326,10 +330,10 @@ rule ShapedPlugin_Webshell_Indicators
     condition:
         $php_tag and (
             ($tiny_fm and $adminer) or
-            $hidden_admin or
+            ($hidden_admin and ($c2_domain or 1 of ($suspicious*))) or
             $c2_domain or
             (2 of ($suspicious*)) or
-            (1 of ($sp_option*) and 1 of ($suspicious*))
+            ($sp_option1 and $sp_option2 and 1 of ($suspicious*))
         )
 }
 ```
@@ -338,9 +342,10 @@ rule ShapedPlugin_Webshell_Indicators
 
 Detects HTTP requests to web shell components deployed by the ShapedPlugin backdoor in web server access logs.
 
-**Status:** Compiled ✅ | Confidence: High
+**Status:** Compiled ✅ | Confidence: Medium
 
-<!-- audit: sigma check 0 errors 0 issues. Converts to Splunk and LogScale without error. Targets webserver access logs for URI paths matching fake plugin directories, suspicious PHP file names, and embedded attacker tools. No defanged values. -->
+<!-- revision: removed selection_tools arm (tinyfilemanager/adminer) -- these are legitimate admin tools and cause FPs when deployed standalone. Downgraded confidence High->Medium and level high->medium. Added false-positive note about singular vs plural WooCommerce Subscriptions naming. -->
+<!-- audit: sigma check 0 errors 0 issues. Converts to Splunk and LogScale without error. Targets webserver access logs for URI paths matching fake plugin directories and suspicious PHP file names. No defanged values. -->
 
 ```yaml
 title: ShapedPlugin Backdoor Web Shell Access via URL Parameters
@@ -348,8 +353,8 @@ id: 9c3e7a1d-4b2f-5e8d-a6c9-1f0d3b7e2a4c
 status: experimental
 description: >
     Detects HTTP requests to web shell components deployed by the ShapedPlugin
-    supply chain backdoor, including Tiny File Manager, Adminer, and the custom
-    REST API backdoor disguised as WooCommerce plugins.
+    supply chain backdoor, including the custom REST API backdoor disguised as
+    WooCommerce plugins and suspicious PHP files dropped by the payload.
 references:
     - https://securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html
     - https://thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html
@@ -371,16 +376,10 @@ detection:
             - 'init-core-helper.php'
             - 'wp-db-update.php'
             - 'install-persistent.php'
-    selection_tools:
-        cs-uri-stem|contains:
-            - 'tinyfilemanager'
-            - 'adminer'
-        cs-uri-stem|endswith:
-            - '.php'
-    condition: selection_fake_plugins or selection_suspicious_files or selection_tools
+    condition: selection_fake_plugins or selection_suspicious_files
 falsepositives:
-    - Legitimate WooCommerce subscription or notification plugins with matching directory names
-level: high
+    - Legitimate WooCommerce subscription or notification plugins with matching directory names (note the legitimate plugin uses plural "woocommerce-subscriptions")
+level: medium
 ```
 
 ### Sigma: DNS Query to ShapedPlugin C2 Domains
@@ -458,42 +457,44 @@ level: critical
 
 ### Snort: ShapedPlugin C2 and Exfiltration Detection (5 rules)
 
-Five Snort 2.x rules detecting C2 communication on port 2871, exfiltration to 2faplugin[.]org, fake WooCommerce plugin HTTP requests, and cdn-stats-api[.]com C2 traffic.
+Five Snort 2.x rules detecting C2 communication on port 2871, exfiltration to 2faplugin[.]org, fake WooCommerce plugin HTTP requests, and cdn-stats-api[.]com C2 traffic. Note: SID 2100003 (`woocommerce-subscription`, singular) may match environments running the legitimate WooCommerce Subscriptions plugin if its directory name is similar -- the legitimate plugin uses plural `woocommerce-subscriptions`.
 
-**Status:** Compiled ✅ | Confidence: High
+**Status:** Compiled ✅ | Confidence: Medium-High (see per-rule caveats)
 
-<!-- audit: snort -T exit 0. All 5 rules validated against Snort 2.9.20 with /etc/snort/snort.conf. Uses $HOME_NET/$EXTERNAL_NET variables, flow:established for TCP rules, and fast_pattern on primary content matches. SIDs 2100001-2100005. No Snort 3 syntax. -->
+<!-- revision: SID 2100001 rewritten -- moved C2 IP from content match (IP is in network header, not payload) to destination IP in rule header, matching Suricata SID 2200006 approach. SID 2100003 msg updated to note singular "woocommerce-subscription" (the legitimate plugin is plural "woocommerce-subscriptions"); downgraded to Medium due to naming overlap risk. SID 2100005 fixed CVE reference from CVE-2026-10735 to CVE-2026-49777 for consistency. All SIDs: standardized metadata key to created_at. Bumped rev on changed SIDs. -->
+<!-- audit: snort -T exit 0. All 5 rules validated against Snort 2.9.20 with /etc/snort/snort.conf. Uses $HOME_NET/$EXTERNAL_NET variables, flow:established for TCP rules, and fast_pattern on primary content matches. SIDs 2100001-2100005. -->
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET 2871 (msg:"Actioner - ShapedPlugin Backdoor C2 Communication to 194.76.217.28:2871"; flow:established,to_server; content:"194.76.217.28"; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created 2026-06-23; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> 194.76.217.28 2871 (msg:"Actioner - ShapedPlugin Backdoor C2 Communication to 194.76.217.28:2871"; flow:established,to_server; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2100001; rev:2;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Exfiltration to 2faplugin.org"; flow:established,to_server; content:"generate.2faplugin.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created 2026-06-23; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Exfiltration to 2faplugin.org"; flow:established,to_server; content:"generate.2faplugin.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2100002; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce Plugin Request"; flow:established,to_server; content:"/wp-content/plugins/woocommerce-subscription/"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created 2026-06-23; sid:2100003; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce Plugin Request (woocommerce-subscription singular)"; flow:established,to_server; content:"/wp-content/plugins/woocommerce-subscription/"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2100003; rev:2;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce Notification Plugin"; flow:established,to_server; content:"/wp-content/plugins/woocommerce-notification/"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created 2026-06-23; sid:2100004; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce Notification Plugin"; flow:established,to_server; content:"/wp-content/plugins/woocommerce-notification/"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2100004; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor C2 Domain cdn-stats-api.com"; flow:established,to_server; content:"cdn-stats-api.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,threat-modeling.com/shapedplugin-wordpress-update-flow-supply-chain-attack-june-2026/; reference:cve,2026-10735; metadata:author Actioner, created 2026-06-23; sid:2100005; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ShapedPlugin Backdoor C2 Domain cdn-stats-api.com"; flow:established,to_server; content:"cdn-stats-api.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,threat-modeling.com/shapedplugin-wordpress-update-flow-supply-chain-attack-june-2026/; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2100005; rev:2;)
 ```
 
 ### Suricata: ShapedPlugin C2, Exfiltration, and DNS Detection (6 rules)
 
-Six Suricata 7.x rules using dot-notation sticky buffers for HTTP host/URI matching, DNS query detection for both C2 domains, and a direct TCP rule for the C2 IP:port.
+Six Suricata 7.x rules using dot-notation sticky buffers for HTTP host/URI matching, DNS query detection for both C2 domains, and a direct TCP rule for the C2 IP:port. Note: SID 2200002 (`woocommerce-subscription`, singular) may overlap with the legitimate WooCommerce Subscriptions plugin (plural `woocommerce-subscriptions`) -- verify directory naming in your environment before deployment.
 
-**Status:** Compiled ✅ | Confidence: High
+**Status:** Compiled ✅ | Confidence: Medium-High (see per-rule caveats)
 
+<!-- revision: SID 2200002 msg updated to note singular naming -- the legitimate WooCommerce plugin is "woocommerce-subscriptions" (plural); downgraded to Medium confidence due to naming overlap. SID 2200005 fixed CVE reference from CVE-2026-10735 to CVE-2026-49777 for consistency across all rules. Bumped rev on changed SIDs. -->
 <!-- audit: suricata -T exit 0 on Suricata 7.0.3. All 6 rules validated. Uses http.host, http.uri, dns.query dot-notation buffers. SIDs 2200001-2200006. No underscore (Snort) syntax. -->
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ShapedPlugin Backdoor Exfiltration to generate.2faplugin.org"; flow:established,to_server; http.host; content:"generate.2faplugin.org"; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200001; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce-Subscription Plugin Access"; flow:established,to_server; http.uri; content:"/wp-content/plugins/woocommerce-subscription/"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce-Subscription Plugin Access (singular)"; flow:established,to_server; http.uri; content:"/wp-content/plugins/woocommerce-subscription/"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200002; rev:2;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ShapedPlugin Backdoor Fake WooCommerce-Notification Plugin Access"; flow:established,to_server; http.uri; content:"/wp-content/plugins/woocommerce-notification/"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/06/shapedplugin-wordpress-pro-plugins.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200003; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - ShapedPlugin Backdoor DNS Query to 2faplugin.org Exfil Domain"; dns.query; content:"2faplugin.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200004; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - ShapedPlugin Backdoor DNS Query to cdn-stats-api.com C2 Domain"; dns.query; content:"cdn-stats-api.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,threat-modeling.com/shapedplugin-wordpress-update-flow-supply-chain-attack-june-2026/; reference:cve,2026-10735; metadata:author Actioner, created_at 2026-06-23; sid:2200005; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - ShapedPlugin Backdoor DNS Query to cdn-stats-api.com C2 Domain"; dns.query; content:"cdn-stats-api.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200005; rev:2;)
 
 alert tcp $HOME_NET any -> 194.76.217.28 2871 (msg:"Actioner - ShapedPlugin Backdoor C2 Connection to 194.76.217.28:2871"; flow:established,to_server; classtype:trojan-activity; reference:url,securityaffairs.com/194059/hacking/shapedplugin-supply-chain-attack-backdoors-pro-plugin-updates.html; reference:cve,2026-49777; metadata:author Actioner, created_at 2026-06-23; sid:2200006; rev:1;)
 ```
