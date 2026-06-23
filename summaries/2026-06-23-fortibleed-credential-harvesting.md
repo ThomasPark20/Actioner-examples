@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-23
-Version: 1.0
+Version: 2.0
 
 ## Executive Summary
 
@@ -91,7 +91,7 @@ More than **260 operation servers** support the campaign. The offensive testing 
 
 - **No traditional malware deployed** -- the FortigateSniffer abuses a legitimate diagnostic command, making detection via traditional AV/EDR ineffective
 - **Business-hours-only operation** (07:00-18:00 Moscow Time) to blend with normal traffic
-- **Passive sniffing** rather than active man-in-the-middle, reducing network anomaly signatures
+- **Passive sniffing** rather than active interception, reducing network anomaly signatures
 - Segregated infrastructure across multiple micro-hosters to resist takedown
 
 ## Indicators of Compromise (IOCs)
@@ -161,7 +161,6 @@ More than **260 operation servers** support the campaign. The offensive testing 
 | T1110.001 | Brute Force: Password Guessing | SSH brute-force using 16 curated wordlists targeting FortiGate admin naming conventions |
 | T1110.003 | Brute Force: Password Spraying | Credential spraying against SSL-VPN portals and admin interfaces |
 | T1040 | Network Sniffing | FortigateSniffer passively captures authentication traffic across 24 protocols via `diagnose sniffer packet` |
-| T1557 | Adversary-in-the-Middle | Passive credential interception from network traffic transiting compromised FortiGate devices |
 | T1110.002 | Brute Force: Password Cracking | Distributed Hashtopolis/Hashcat GPU cluster with vast.ai capacity for offline hash cracking |
 | T1021 | Remote Services | Access via SSL VPN and SSH using compromised credentials |
 | T1005 | Data from Local System | Exfiltration of FortiGate device configurations containing credentials |
@@ -231,13 +230,17 @@ execute log display
 
 ## Detection Rules
 
-The following rules detect indicators of the FortiBleed campaign at multiple stages: suspicious diagnostic command abuse, unauthorized account usage, brute-force attempts, configuration exfiltration, and network-level credential spraying. Sigma rules target FortiGate event logs; Suricata rules detect network-visible brute-force and suspicious account activity; Snort rules cover credential spraying at the TCP layer; YARA rules identify the FortigateSniffer tooling and related campaign artifacts. No specific C2 IP addresses or file hashes are available in public reporting, so network IOC-based rules are not included -- deploy SOCRadar's full IOC feed when the whitepaper indicators become available.
+The following rules detect indicators of the FortiBleed campaign at multiple stages: suspicious diagnostic command abuse, unauthorized account usage, brute-force attempts, configuration exfiltration, and network-level credential spraying. Sigma rules target FortiGate event logs; Suricata rules detect network-visible brute-force and suspicious account activity (now covering all four IOC accounts); Snort rules cover credential spraying at the TCP layer (requires TLS decryption -- see deployment caveats); YARA rules identify the FortigateSniffer tooling and related campaign artifacts. No specific C2 IP addresses or file hashes are available in public reporting, so network IOC-based rules are not included -- deploy SOCRadar's full IOC feed when the whitepaper indicators become available.
+
+<!-- revision: v2 summary - 2 rules dropped (generic failed-login Sigma, generic SSH Suricata); sniffer Sigma field corrected action->msg; T1557 removed from ATT&CK table; config export downgraded to low; all Snort rules get TLS decryption caveat and downgrade; depth:10 removed from SID 2100003; 2 new Suricata rules added for fortiuser (SID 2200006) and fortinet-tech-support (SID 2200007) -->
 
 ### Sigma: FortiGate Diagnostic Sniffer Packet Command Abuse
 
 Detects execution of the `diagnose sniffer packet` command on FortiGate devices, which is the core mechanism abused by the FortigateSniffer tool to passively harvest credentials.
 
-Compile status: compiles (sigma check 0 errors, 0 issues; splunk/logscale convert pass) | Confidence: **high**
+Compile status: compiles (sigma check 0 errors, 0 issues; splunk/logscale convert pass) | Confidence: **medium**
+
+<!-- revision: v2 field changed from action to msg (FortiGate action field holds values like login/tunnel-up, not CLI commands); T1557 removed (passive sniffing is not active MitM, T1040 alone is sufficient); downgraded high to medium -->
 
 ```yaml
 title: FortiGate Diagnostic Sniffer Packet Command Abuse
@@ -258,21 +261,20 @@ author: Actioner
 date: 2026-06-23
 tags:
     - attack.t1040
-    - attack.t1557
 logsource:
     product: fortinet
     service: event
 detection:
     selection:
-        action|contains: 'diagnose sniffer packet'
+        msg|contains: 'diagnose sniffer packet'
     condition: selection
 falsepositives:
     - Legitimate network diagnostics by authorized FortiGate administrators during scheduled maintenance
     - Automated monitoring scripts that use sniffer diagnostics
-level: high
+level: medium
 ```
 
-<!-- audit: sigma check 0 errors 0 condition-errors 0 issues; splunk convert produces action="*diagnose sniffer packet*"; logscale convert produces action=/diagnose sniffer packet/i; logsource product:fortinet service:event requires Fortinet event log forwarding to SIEM. Field 'action' maps to FortiGate log action field. No defanged values in rule. -->
+<!-- audit: sigma check 0 errors 0 condition-errors 0 issues; splunk convert produces msg="*diagnose sniffer packet*"; logscale convert produces msg=/diagnose sniffer packet/i; logsource product:fortinet service:event requires Fortinet event log forwarding to SIEM. Field 'msg' maps to FortiGate log message/logdesc field containing CLI command details. No defanged values in rule. -->
 
 ### Sigma: FortiGate Suspicious Default or Backdoor Admin Account Login
 
@@ -317,54 +319,17 @@ level: critical
 
 <!-- audit: sigma check 0 errors 0 condition-errors 0 issues; splunk convert produces user IN ("forticloud", "fortiuser", "fortinet-support", "fortinet-tech-support"); logscale convert pass. Account names sourced from Fortinet's official PSIRT blog. -->
 
-### Sigma: FortiGate SSL VPN or Admin Portal Failed Login Attempt
+### ~~Sigma: FortiGate SSL VPN or Admin Portal Failed Login Attempt~~ (DROPPED)
 
-Detects failed login events on FortiGate devices consistent with the credential spraying phase of the FortiBleed campaign; aggregate by source IP in SIEM to identify brute-force patterns.
-
-Compile status: compiles (sigma check 0 errors, 0 issues; splunk convert pass) | Confidence: **medium**
-
-> **Deployment note:** This rule fires on individual failed logins. To detect brute-force patterns, create a SIEM correlation rule that triggers when this alert fires more than 10 times from the same source IP within 60 seconds.
-
-```yaml
-title: FortiGate SSL VPN or Admin Portal Failed Login Attempt
-id: 0b1eac1d-d9d5-41bc-8a6c-6196a83de550
-status: experimental
-description: >
-    Detects failed login attempts to FortiGate SSL VPN or admin portals,
-    consistent with the FortiBleed campaign's credential spraying phase
-    using curated wordlists targeting FortiGate admin naming conventions.
-    Aggregate multiple hits from the same source IP to identify brute
-    force activity.
-references:
-    - https://securityaffairs.com/194004/hacking/fortibleed-the-most-detailed-breakdown-yet-of-an-active-russian-credential-harvesting-operation.html
-    - https://thehackernews.com/2026/06/cisa-warns-fortinet-customers-as.html
-    - https://www.fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices
-author: Actioner
-date: 2026-06-23
-tags:
-    - attack.t1110.003
-    - attack.t1110.001
-logsource:
-    product: fortinet
-    service: event
-detection:
-    selection:
-        action: 'login'
-        status: 'failure'
-    condition: selection
-falsepositives:
-    - Users who have genuinely forgotten their password and make multiple attempts
-    - Automated monitoring systems that perform login health checks
-level: medium
-```
-
-<!-- audit: sigma check 0 errors 0 condition-errors 0 issues; splunk convert produces action="login" status="failure"; original pipe-aggregation syntax removed due to pySigma deprecation. Threshold-based detection should be implemented at SIEM correlation layer. -->
+<!-- revision: v2 DROPPED - generic failed-login rule with zero campaign-specific markers; any forgotten password triggers this rule, producing unacceptable false-positive volume. Brute-force detection for FortiGate SSL-VPN and admin portals is covered by the Suricata threshold rules (SID 2200001, 2200002) and Snort detection_filter rules (SID 2100001, 2100002) which enforce rate-based thresholds at the network layer. -->
 
 ### Sigma: FortiGate Unauthorized Configuration Export or Backup
 
 Detects configuration backup or export operations that may indicate credential exfiltration, as FortiBleed harvested full device configurations containing plaintext and hashed passwords.
 
-Compile status: compiles (sigma check 0 errors, 0 issues; splunk/logscale convert pass) | Confidence: **medium**
+Compile status: compiles (sigma check 0 errors, 0 issues; splunk/logscale convert pass) | Confidence: **low**
+
+<!-- revision: v2 downgraded medium to low - fires on all backups including scheduled/automated; lacks campaign-specific markers to distinguish malicious from routine operations -->
 
 ```yaml
 title: FortiGate Unauthorized Configuration Export or Backup
@@ -398,7 +363,7 @@ detection:
 falsepositives:
     - Scheduled automated configuration backups
     - Legitimate administrator-initiated backups during maintenance windows
-level: medium
+level: low
 ```
 
 <!-- audit: sigma check 0 errors 0 condition-errors 0 issues; splunk convert produces action IN ("*backup*", "*execute backup*", "*sys_conf*"); logscale convert pass. action field values based on FortiGate event log schema for configuration operations. -->
@@ -427,19 +392,9 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed FortiG
 
 <!-- audit: suricata -T -S pass exit 0; /logincheck is standard FortiGate admin login endpoint distinct from /remote/logincheck (SSL-VPN). Both endpoints are targeted in FortiBleed Phase 2. -->
 
-### Suricata: FortiGate SSH Brute Force Attempt
+### ~~Suricata: FortiGate SSH Brute Force Attempt (SID 2200003)~~ (DROPPED)
 
-Detects high-frequency SSH connection attempts to FortiGate management ports, consistent with FortiBleed's SSH brute-force phase using curated wordlists.
-
-Compile status: compiles (suricata -T pass, 0 warnings) | Confidence: **medium**
-
-> **Caveat:** This rule triggers on any SSH brute-force against port 22, not FortiGate-specific. Scope deployment to network segments containing FortiGate management interfaces.
-
-```
-alert ssh $EXTERNAL_NET any -> $HOME_NET 22 (msg:"Actioner - FortiBleed FortiGate SSH Brute Force Attempt"; flow:to_server; threshold:type both, track by_src, count 15, seconds 60; classtype:attempted-admin; reference:url,securityaffairs.com/194004/hacking/fortibleed-the-most-detailed-breakdown-yet-of-an-active-russian-credential-harvesting-operation.html; metadata:author Actioner, created_at 2026_06_23, confidence medium, deployment Perimeter; sid:2200003; rev:1;)
-```
-
-<!-- audit: suricata -T -S pass exit 0; ssh protocol enables SSH app-layer; threshold 15/60s to reduce FP from legitimate admin SSH. Generic SSH brute-force, not FortiGate-specific at network layer. -->
+<!-- revision: v2 DROPPED - the rule's own caveat acknowledged it was not FortiGate-specific; it is a generic SSH threshold rule that duplicates existing SSH brute-force detection in most IDS deployments. SID 2200003 retired. -->
 
 ### Suricata: Suspicious FortiGate Admin Account Login (forticloud)
 
@@ -448,10 +403,10 @@ Detects HTTP POST login attempts using the "forticloud" username, an unauthorize
 Compile status: compiles (suricata -T pass, 0 warnings) | Confidence: **high**
 
 ```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed Suspicious FortiGate Admin Account Login Attempt"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/logincheck"; http.request_body; content:"username=forticloud"; fast_pattern; classtype:attempted-admin; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; metadata:author Actioner, created_at 2026_06_23, confidence high, deployment Perimeter; sid:2200004; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed Suspicious FortiGate Admin Account Login (forticloud)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/logincheck"; http.request_body; content:"username=forticloud"; fast_pattern; classtype:attempted-admin; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; metadata:author Actioner, created_at 2026_06_23, confidence high, deployment Perimeter; sid:2200004; rev:1;)
 ```
 
-<!-- audit: suricata -T -S pass exit 0; http.request_body inspects POST body; "username=forticloud" matches URL-encoded form field. Additional rules for fortinet-support (sid 2200005) also validated. -->
+<!-- audit: suricata -T -S pass exit 0; http.request_body inspects POST body; "username=forticloud" matches URL-encoded form field. -->
 
 ### Suricata: Suspicious fortinet-support Account Login
 
@@ -465,29 +420,65 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed Suspic
 
 <!-- audit: suricata -T -S pass exit 0; mirrors sid 2200004 logic for different account name. -->
 
+### Suricata: Suspicious fortiuser Account Login
+
+Detects HTTP POST login attempts using the "fortiuser" username, an unauthorized account name identified by Fortinet in compromised FortiBleed devices.
+
+Compile status: compiles (suricata -T pass, 0 warnings) | Confidence: **high**
+
+<!-- revision: v2 NEW rule added to cover missing IOC account fortiuser -->
+
+```
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed Suspicious fortiuser Account Login"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/logincheck"; http.request_body; content:"username=fortiuser"; fast_pattern; classtype:attempted-admin; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; metadata:author Actioner, created_at 2026_06_23, confidence high, deployment Perimeter; sid:2200006; rev:1;)
+```
+
+<!-- audit: suricata -T -S pass exit 0; mirrors sid 2200004/2200005 logic for fortiuser account. -->
+
+### Suricata: Suspicious fortinet-tech-support Account Login
+
+Detects HTTP POST login attempts using the "fortinet-tech-support" username, an unauthorized account name identified by Fortinet in compromised FortiBleed devices.
+
+Compile status: compiles (suricata -T pass, 0 warnings) | Confidence: **high**
+
+<!-- revision: v2 NEW rule added to cover missing IOC account fortinet-tech-support -->
+
+```
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - FortiBleed Suspicious fortinet-tech-support Account Login"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/logincheck"; http.request_body; content:"username=fortinet-tech-support"; fast_pattern; classtype:attempted-admin; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; metadata:author Actioner, created_at 2026_06_23, confidence high, deployment Perimeter; sid:2200007; rev:1;)
+```
+
+<!-- audit: suricata -T -S pass exit 0; mirrors sid 2200004/2200005 logic for fortinet-tech-support account. -->
+
 ### Snort: FortiGate SSL VPN Credential Spraying
 
 Detects high-frequency POST requests to the FortiGate SSL-VPN login endpoint at the TCP layer for Snort 2.x deployments.
 
-Compile status: compiles (snort -T pass via local.rules inclusion) | Confidence: **high**
+Compile status: compiles (snort -T pass via local.rules inclusion) | Confidence: **medium**
+
+<!-- revision: v2 downgraded high to medium; added [requires TLS decryption] caveat to msg; rev bumped to 2. This rule targets port 443 with plaintext content matches and is non-functional against TLS-encrypted traffic without upstream decryption. -->
+
+> **Deployment caveat:** This rule performs plaintext content matching against port 443 (HTTPS) traffic. It is **non-functional against TLS-encrypted sessions** unless a TLS decryption appliance (SSL inspection proxy, inline decryptor, or Snort ssl_preproc) terminates TLS upstream and feeds cleartext to Snort. Deploy only on network segments where TLS has been terminated.
 
 ```
-alert tcp $EXTERNAL_NET any -> $HOME_NET 443 (msg:"Actioner - FortiBleed FortiGate SSL VPN Credential Spraying Attempt"; flow:established,to_server; content:"POST"; depth:4; content:"/remote/logincheck"; content:"username="; nocase; detection_filter:track by_src, count 10, seconds 60; classtype:attempted-admin; reference:url,socradar.io/blog/dismantling-fortibleed/; reference:url,thehackernews.com/2026/06/cisa-warns-fortinet-customers-as.html; sid:2100001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 443 (msg:"Actioner - FortiBleed FortiGate SSL VPN Credential Spraying Attempt [requires TLS decryption]"; flow:established,to_server; content:"POST"; depth:4; content:"/remote/logincheck"; content:"username="; nocase; detection_filter:track by_src, count 10, seconds 60; classtype:attempted-admin; reference:url,socradar.io/blog/dismantling-fortibleed/; reference:url,thehackernews.com/2026/06/cisa-warns-fortinet-customers-as.html; sid:2100001; rev:2;)
 ```
 
-<!-- audit: snort 2.9.20 validation pass via local.rules inclusion; tcp protocol with depth:4 for POST match; detection_filter for rate-based alerting; /remote/logincheck is FortiGate SSL-VPN endpoint. -->
+<!-- audit: snort 2.9.20 validation pass via local.rules inclusion; tcp protocol with depth:4 for POST match; detection_filter for rate-based alerting; /remote/logincheck is FortiGate SSL-VPN endpoint. TLS caveat added: plaintext matching on 443 requires TLS termination upstream. -->
 
 ### Snort: FortiGate Admin Login Brute Force
 
 Detects high-frequency POST requests to the FortiGate admin portal login endpoint for Snort 2.x deployments.
 
-Compile status: compiles (snort -T pass via local.rules inclusion) | Confidence: **high**
+Compile status: compiles (snort -T pass via local.rules inclusion) | Confidence: **medium**
+
+<!-- revision: v2 downgraded high to medium; added [requires TLS decryption] caveat to msg; rev bumped to 2. Same TLS limitation as SID 2100001. -->
+
+> **Deployment caveat:** Same TLS limitation as SID 2100001 above. This rule requires upstream TLS decryption to function against HTTPS traffic on port 443.
 
 ```
-alert tcp $EXTERNAL_NET any -> $HOME_NET 443 (msg:"Actioner - FortiBleed FortiGate Admin Login Brute Force via HTTPS"; flow:established,to_server; content:"POST"; depth:4; content:"/logincheck"; content:"username="; nocase; detection_filter:track by_src, count 10, seconds 60; classtype:attempted-admin; reference:url,socradar.io/blog/dismantling-fortibleed/; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; sid:2100002; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 443 (msg:"Actioner - FortiBleed FortiGate Admin Login Brute Force via HTTPS [requires TLS decryption]"; flow:established,to_server; content:"POST"; depth:4; content:"/logincheck"; content:"username="; nocase; detection_filter:track by_src, count 10, seconds 60; classtype:attempted-admin; reference:url,socradar.io/blog/dismantling-fortibleed/; reference:url,fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices; sid:2100002; rev:2;)
 ```
 
-<!-- audit: snort 2.9.20 validation pass via local.rules inclusion; mirrors sid 2100001 for admin portal endpoint /logincheck vs /remote/logincheck. -->
+<!-- audit: snort 2.9.20 validation pass via local.rules inclusion; mirrors sid 2100001 for admin portal endpoint /logincheck vs /remote/logincheck. TLS caveat added. -->
 
 ### Snort: FortiGate Configuration Exfiltration
 
@@ -495,13 +486,15 @@ Detects potential exfiltration of FortiGate device configurations containing enc
 
 Compile status: compiles (snort -T pass via local.rules inclusion) | Confidence: **low**
 
-> **Caveat:** This rule has a high false positive potential as "ENC" and "set password" may appear in legitimate FortiGate management traffic. Deploy only on segments where FortiGate management traffic should not contain large outbound data transfers.
+<!-- revision: v2 removed depth:10 from ENC match (HTTP headers precede body, so depth:10 would never match in the response body); added [requires TLS decryption] caveat to msg; rev bumped to 2 -->
+
+> **Caveat:** This rule has a high false positive potential as "ENC" and "set password" may appear in legitimate FortiGate management traffic. Deploy only on segments where FortiGate management traffic should not contain large outbound data transfers. Requires upstream TLS decryption if traffic is encrypted.
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - FortiBleed Potential Credential Exfiltration Large Outbound Data from FortiGate"; flow:established,to_server; dsize:>5000; content:"ENC"; depth:10; content:"set password"; classtype:policy-violation; reference:url,socradar.io/blog/dismantling-fortibleed/; sid:2100003; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - FortiBleed Potential Credential Exfiltration Large Outbound Data from FortiGate [requires TLS decryption]"; flow:established,to_server; dsize:>5000; content:"ENC"; content:"set password"; classtype:policy-violation; reference:url,socradar.io/blog/dismantling-fortibleed/; sid:2100003; rev:2;)
 ```
 
-<!-- audit: snort 2.9.20 validation pass; dsize:>5000 limits to large payloads; "ENC" in first 10 bytes + "set password" matches FortiGate config format with encrypted passwords. Low confidence due to generic pattern. -->
+<!-- audit: snort 2.9.20 validation pass; dsize:>5000 limits to large payloads; "ENC" + "set password" matches FortiGate config format with encrypted passwords. Low confidence due to generic pattern. depth:10 removed (HTTP headers precede body making shallow depth incorrect). TLS caveat added. -->
 
 ### YARA: FortiBleed FortigateSniffer Tool
 
@@ -640,4 +633,7 @@ rule FortiBleed_Recon_Tool
 - [Fortinet PSIRT Blog - Analysis of Reported Credential Compromise of FortiGate Devices](https://www.fortinet.com/blog/psirt-blogs/analysis-of-reported-credential-compromise-of-fortigate-devices) -- official Fortinet analysis by Carl Windsor (June 19, 2026); unauthorized account names, PBKDF2 guidance, FG-IR references
 
 ---
+
+<!-- revision: v2.0 2026-06-23 post-review revision applied. Changes: (1) DROPPED Sigma generic failed-login rule (zero campaign markers, unacceptable FP); (2) DROPPED Suricata SSH brute-force SID 2200003 (generic, not FortiGate-specific); (3) Fixed Sigma sniffer detection field from action to msg (FortiGate action field holds login/tunnel-up values, not CLI commands); (4) Removed T1557 from ATT&CK table (passive sniffing != active MitM; T1040 is correct); (5) Downgraded sniffer Sigma high->medium; (6) Downgraded config export Sigma medium->low; (7) All 3 Snort rules: added mandatory TLS decryption deployment caveat, downgraded SID 2100001/2100002 high->medium, removed incorrect depth:10 from SID 2100003; (8) Added Suricata rules for missing IOC accounts fortiuser (SID 2200006) and fortinet-tech-support (SID 2200007). All changed rules re-validated: sigma check pass, sigma convert splunk/log_scale pass, suricata -T pass, snort -T pass, yarac pass. -->
+
 *Report generated by Actioner*
