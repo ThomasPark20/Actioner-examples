@@ -1,0 +1,19 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to wigetticks C2 Domain"; flow:established,to_server; content:"wigetticks.com"; fast_pattern; content:"private-response.php"; nocase; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; sid:2100201; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to wizzleticks C2 Domain"; flow:established,to_server; content:"wizzleticks.com"; fast_pattern; content:"scope-schema.php"; nocase; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack; sid:2100202; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to urotypos Staging Domain"; flow:established,to_server; content:"urotypos.com"; fast_pattern; nocase; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100203; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SmartApeSG Okendo Supply Chain - HTTP Request to fresicrto Fake CAPTCHA Domain"; flow:established,to_server; content:"fresicrto.top"; fast_pattern; nocase; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100204; rev:1;)
+
+alert tcp $HOME_NET any -> 95.142.45.231 443 (msg:"Actioner - SmartApeSG Okendo Supply Chain - Remcos RAT C2 Connection to 95.142.45.231"; flow:established,to_server; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100205; rev:1;)
+
+alert tcp $HOME_NET any -> 185.163.47.220 443 (msg:"Actioner - SmartApeSG Okendo Supply Chain - NetSupport RAT C2 Connection to 185.163.47.220"; flow:established,to_server; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100206; rev:1;)
+
+alert tcp $HOME_NET any -> 89.46.38.100 80 (msg:"Actioner - SmartApeSG Okendo Supply Chain - StealC C2 Connection to 89.46.38.100"; flow:established,to_server; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100207; rev:1;)
+
+alert tcp $HOME_NET any -> 195.85.115.11 9000 (msg:"Actioner - SmartApeSG Okendo Supply Chain - Sectop RAT C2 Connection to 195.85.115.11"; flow:established,to_server; classtype:trojan-activity; reference:url,isc.sans.edu/diary/32826; sid:2100208; rev:1;)
+
+alert tcp $HOME_NET any -> 193.239.237.40 any (msg:"Actioner - SmartApeSG Okendo Supply Chain - StealC Exfil C2 Connection to 193.239.237.40"; flow:established,to_server; classtype:trojan-activity; reference:url,www.malware-traffic-analysis.net/2025/03/26/index.html; sid:2100209; rev:1;)
+
+alert tcp $HOME_NET any -> 194.180.191.168 443 (msg:"Actioner - SmartApeSG Okendo Supply Chain - NetSupport C2 Connection to 194.180.191.168"; flow:established,to_server; classtype:trojan-activity; reference:url,www.malware-traffic-analysis.net/2025/03/26/index.html; sid:2100210; rev:1;)

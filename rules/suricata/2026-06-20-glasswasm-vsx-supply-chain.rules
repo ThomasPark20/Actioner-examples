@@ -1,0 +1,14 @@
+# NOTE: DNS rule works on unencrypted DNS traffic. No TLS caveat needed.
+alert dns $HOME_NET any -> any any (msg:"Actioner - GlassWASM DNS Query to Known C2 Domain dodod.lat"; flow:to_server; dns.query; content:"dodod.lat"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created_at 2026-06-20; sid:2100201; rev:1;)
+
+# NOTE: HTTP-layer rules (SIDs 2100202-2100205) require TLS inspection/decryption.
+# HTTPS traffic to dodod[.]lat and api.mainnet.solana.com will not be visible
+# without SSL interception or a TLS-terminating proxy.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GlassWASM Solana RPC getSignaturesForAddress Request"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"getSignaturesForAddress"; fast_pattern; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created_at 2026-06-20; sid:2100202; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GlassWASM C2 Stage2 Download Pattern"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/darwin/i/_"; fast_pattern; http.host; content:"dodod.lat"; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created_at 2026-06-20; sid:2100203; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GlassWASM C2 Stage2 Download Linux"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/linux/i/_"; fast_pattern; http.host; content:"dodod.lat"; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created_at 2026-06-20; sid:2100204; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GlassWASM C2 Stage2 Download Windows"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/win32/i/_"; fast_pattern; http.host; content:"dodod.lat"; classtype:trojan-activity; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; metadata:author Actioner, created_at 2026-06-20; sid:2100205; rev:1;)

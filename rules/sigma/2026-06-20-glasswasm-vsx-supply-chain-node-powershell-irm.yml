@@ -1,0 +1,33 @@
+title: GlassWASM - Node.js Child Process Spawns PowerShell IRM Piped to IEX
+id: 2b4d6f8a-1c3e-5d7f-b9a0-4e2c6d8f0a1b
+status: experimental
+description: >
+    Detects Node.js (VS Code extension host) spawning PowerShell with
+    Invoke-RestMethod piped to Invoke-Expression, consistent with GlassWASM
+    fileless delivery on Windows.
+references:
+    - https://socket.dev/blog/glasswasm-malware-open-vsx-extensions
+    - https://securityonline.info/glasswasm-malware-open-vsx-extensions/
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1059.001
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\node.exe'
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'irm'
+            - 'iex'
+    selection_cmd_longform:
+        CommandLine|contains|all:
+            - 'Invoke-RestMethod'
+            - 'Invoke-Expression'
+    condition: selection_parent and (selection_cmd or selection_cmd_longform)
+falsepositives:
+    - Legitimate VS Code extensions that invoke PowerShell download-and-execute patterns
+level: medium

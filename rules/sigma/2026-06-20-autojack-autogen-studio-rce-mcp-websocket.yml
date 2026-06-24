@@ -1,0 +1,28 @@
+title: WebSocket Connection to AutoGen Studio MCP Endpoint with server_params (AutoJack)
+id: 8d47c889-a12c-4e0b-a110-ac05bbf01bc4
+status: experimental
+description: >
+    Detects network connections to the AutoGen Studio MCP WebSocket endpoint
+    containing a server_params query parameter, the attack surface exploited
+    by the AutoJack vulnerability to pass attacker-controlled StdioServerParams
+    for arbitrary command execution. Requires a host-level HTTP proxy or IDS
+    sensor inspecting loopback traffic; perimeter deployments will not see
+    AutoJack exploitation.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/
+    - https://thehackernews.com/2026/06/autojack-attack-lets-one-web-page.html
+author: Actioner
+date: 2026/06/20
+tags:
+    - attack.t1190
+    - attack.t1059
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-uri-stem|contains: '/api/mcp/ws/'
+        cs-uri-query|contains: 'server_params='
+    condition: selection
+falsepositives:
+    - Legitimate AutoGen Studio MCP server registration via the pre-fix URL parameter interface — pre-fix, 100% of legitimate MCP connections match this pattern
+level: low

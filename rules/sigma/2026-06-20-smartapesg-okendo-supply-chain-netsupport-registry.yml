@@ -1,0 +1,25 @@
+title: SmartApeSG Okendo Supply Chain - NetSupport RAT Registry Persistence
+id: ac5d9f3e-4e6f-5a7c-bd8e-3f2a0e9c5b4d
+status: experimental
+description: >
+    Detects registry Run key modification to establish persistence for
+    NetSupport RAT client32.exe, a known payload in SmartApeSG campaigns
+    including the Okendo supply chain attack.
+references:
+    - https://www.esentire.com/blog/smartapesg-delivering-netsupport-rat
+    - https://www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
+        Details|contains: 'client32.exe'
+    condition: selection
+falsepositives:
+    - Legitimate NetSupport Manager deployments in enterprise environments
+level: medium

@@ -1,0 +1,30 @@
+title: SmartApeSG Okendo Supply Chain - Network Connection to Known C2 IPs
+id: ce7fb15a-6a8b-7c9e-dfa0-5b4c2abc7d6f
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses associated with
+    SmartApeSG C2 infrastructure used for Remcos RAT, NetSupport RAT,
+    StealC, and Sectop RAT command and control.
+references:
+    - https://isc.sans.edu/diary/32826
+    - https://www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp:
+            - '95.142.45.231'
+            - '185.163.47.220'
+            - '89.46.38.100'
+            - '195.85.115.11'
+            - '193.239.237.40'
+            - '194.180.191.168'
+    condition: selection
+falsepositives:
+    - Unlikely given specific C2 IP indicators; however IPs may be reassigned over time
+level: high

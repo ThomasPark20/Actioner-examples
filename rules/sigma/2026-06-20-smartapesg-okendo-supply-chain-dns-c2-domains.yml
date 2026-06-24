@@ -1,0 +1,36 @@
+title: SmartApeSG Okendo Supply Chain - DNS Query to SmartApeSG C2 Domains
+id: 8a3e7f1b-2c4d-4e5a-9b6f-1d0e8c7a3f2b
+status: experimental
+description: >
+    Detects DNS queries to known SmartApeSG command-and-control and staging
+    domains used in the Okendo Reviews supply chain attack to deliver
+    fake browser updates and RAT payloads.
+references:
+    - https://www.zscaler.com/blogs/security-research/smartapesg-launches-okendo-reviews-supply-chain-attack
+    - https://isc.sans.edu/diary/32826
+author: Actioner
+date: 2026-06-20
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: dns_query
+detection:
+    selection_sub:
+        QueryName|endswith:
+            - '.wigetticks.com'
+            - '.wizzleticks.com'
+            - '.fresicrto.top'
+            - '.urotypos.com'
+            - '.layardrama21.top'
+    selection_exact:
+        QueryName:
+            - 'wigetticks.com'
+            - 'wizzleticks.com'
+            - 'fresicrto.top'
+            - 'urotypos.com'
+            - 'layardrama21.top'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely given the specificity of these domains
+level: high
