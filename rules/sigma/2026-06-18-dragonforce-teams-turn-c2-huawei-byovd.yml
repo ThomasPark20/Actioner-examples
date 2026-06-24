@@ -1,0 +1,24 @@
+title: BYOVD Loading of Huawei HWAuidoOs2Ec Driver
+id: d283b8cc-d789-4782-b72e-6861ac3b7e55
+status: experimental
+description: >
+    Detects the loading of the vulnerable Huawei audio driver HWAuidoOs2Ec.sys,
+    exploited by DragonForce operators using a novel Havoc Process Terminator
+    technique to terminate security processes at the kernel level.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+    - https://securityaffairs.com/193801/security/dragonforce-hid-inside-microsoft-teams-and-nobody-noticed-for-two-months.html
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1068
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\HWAuidoOs2Ec.sys'
+    condition: selection
+falsepositives:
+    - Legitimate Huawei audio driver installations on Huawei hardware
+level: high

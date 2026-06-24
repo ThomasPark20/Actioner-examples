@@ -1,0 +1,19 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain projetosmecanicos.com.br"; flow:to_server; dns.query; content:"projetosmecanicos.com.br"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain socialbizsolutions.com"; flow:to_server; dns.query; content:"socialbizsolutions.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain professionalhomebasedbusiness.com"; flow:to_server; dns.query; content:"professionalhomebasedbusiness.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain safefire.jo"; flow:to_server; dns.query; content:"safefire.jo"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain glanz-gmbh.de"; flow:to_server; dns.query; content:"glanz-gmbh.de"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100105; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain turnkeyaiagents.com"; flow:to_server; dns.query; content:"turnkeyaiagents.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain comunidadesparentais.com.br"; flow:to_server; dns.query; content:"comunidadesparentais.com.br"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100107; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DragonForce Backdoor.Turn C2 Domain mysimerp.net"; flow:to_server; dns.query; content:"mysimerp.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100108; rev:1;)
+
+alert tcp $HOME_NET any -> 62.164.177.25 any (msg:"Actioner - TCP Connection to DragonForce Backdoor.Turn C2 IP 62.164.177.25"; flow:established,to_server; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100109; rev:1;)
+
+alert http $HOME_NET any -> 192.36.27.51 any (msg:"Actioner - HTTP Request to DragonForce Staging IP for TechSupV18Fix3.zip"; flow:established,to_server; http.uri; content:"/TechSupV18Fix3.zip"; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/dragonforce-msteams-backdoor; metadata:author Actioner, created_at 2026-06-18; sid:2100110; rev:2;)

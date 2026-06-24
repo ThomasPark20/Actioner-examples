@@ -1,0 +1,32 @@
+title: CryptoBandits Scheduled Task Creation via XML in Public Documents
+id: 8a3b7c4d-1e2f-4a5b-9c6d-7e8f0a1b2c3d
+status: experimental
+description: >
+    Detects scheduled task creation using XML files stored in C:\Users\Public\Documents
+    subdirectories, consistent with the CryptoBandits crypto clipper worm persistence mechanism.
+    The malware creates indefinite scheduled tasks from XML files in randomly named 4-6 character
+    subdirectories under Public Documents.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith: '\schtasks.exe'
+    selection_args:
+        CommandLine|contains|all:
+            - '/create'
+            - '/xml'
+            - '\Users\Public\Documents\'
+            - '/f'
+        CommandLine|contains:
+            - '/tn '
+    condition: selection_binary and selection_args
+falsepositives:
+    - Legitimate software installers that deploy scheduled tasks from Public Documents
+level: high

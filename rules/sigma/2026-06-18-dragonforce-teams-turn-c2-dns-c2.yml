@@ -1,0 +1,32 @@
+title: DNS Query to DragonForce Backdoor.Turn C2 Domains
+id: 5b4e83e3-4561-414c-a356-abfa8de09e69
+status: experimental
+description: >
+    Detects DNS queries to known command-and-control domains used by
+    DragonForce operators for the Backdoor.Turn downloader component
+    (vboxrt.dll) to retrieve payloads. These are compromised legitimate
+    domains, so some benign traffic is expected.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'projetosmecanicos.com.br'
+            - 'socialbizsolutions.com'
+            - 'professionalhomebasedbusiness.com'
+            - 'safefire.jo'
+            - 'glanz-gmbh.de'
+            - 'turnkeyaiagents.com'
+            - 'comunidadesparentais.com.br'
+            - 'mysimerp.net'
+    condition: selection
+falsepositives:
+    - Legitimate access to these domains prior to their compromise
+level: high

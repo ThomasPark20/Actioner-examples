@@ -1,0 +1,30 @@
+title: BYOVD Loading of Drivers Exploited by DragonForce
+id: 9dd85597-949b-4cf2-8b0a-7a80ea8a077b
+status: experimental
+description: >
+    Detects loading of vulnerable drivers exploited in DragonForce ransomware
+    operations for BYOVD attacks, including Topaz Antifraud wsftprm.sys
+    (CVE-2023-52271), Tower of Fantasy GameDriverx64.sys (CVE-2025-61155),
+    and K7 Security K7RKScan.sys (CVE-2025-1055). These drivers are used
+    to gain kernel-level access and terminate security products.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1068
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith:
+            - '\wsftprm.sys'
+            - '\GameDriverx64.sys'
+            - '\K7RKScan.sys'
+    condition: selection
+falsepositives:
+    - Legitimate Topaz Antifraud installations
+    - Tower of Fantasy game installations
+    - K7 Security antivirus products
+level: medium

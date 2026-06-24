@@ -1,0 +1,28 @@
+title: Backdoor.Turn VBoxRT DLL Sideloading via VirtualBox or DbgView
+id: 75113c78-6ec7-4ec1-aee4-cae13b1f2136
+status: experimental
+description: >
+    Detects DLL sideloading of vboxrt.dll alongside legitimate VirtualBox or
+    DbgView executables, a technique used by DragonForce operators to deploy
+    the Backdoor.Turn Go-based RAT via malicious ZIP archives.
+references:
+    - https://www.security.com/threat-intelligence/dragonforce-msteams-backdoor
+    - https://securityaffairs.com/193801/security/dragonforce-hid-inside-microsoft-teams-and-nobody-noticed-for-two-months.html
+author: Actioner
+date: 2026-06-18
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_dll:
+        ImageLoaded|endswith: '\vboxrt.dll'
+    filter_legitimate:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\Oracle\VirtualBox\'
+            - 'C:\Program Files (x86)\Oracle\VirtualBox\'
+    condition: selection_dll and not filter_legitimate
+falsepositives:
+    - Portable VirtualBox installations running from non-standard paths
+level: high
