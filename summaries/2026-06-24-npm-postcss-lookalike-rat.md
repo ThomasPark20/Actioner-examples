@@ -1,3 +1,4 @@
+<!-- revision: 2026-06-24T1 — SIGMA-5 generic dotfile selectors (.store/.host) removed, rule now fires only on IOC-specific winPatch.zip; YARA-2/YARA-3 wrong hash attribution (audiodriver.pyd hash) removed; YARA-3 operator-precedence bug fixed (filesize < 50KB guard now covers all condition branches); SNORT-1 switched http_header to http_host for precise Host header matching; SNORT-3 msg domain defanged per convention, TCP/53 variant note added. -->
 # Technical Analysis Report: npm PostCSS Lookalike RAT (2026-06-24)
 
 Prepared by: Actioner
@@ -302,13 +303,13 @@ level: high
 #### SIGMA-5: PostCSS Lookalike RAT - Temp Directory File Artifacts
 
 **Compile status:** ✅ (splunk + log_scale convert successful)
-**Confidence:** high (IOC-specific: unique file path patterns)
+**Confidence:** high (IOC-specific: unique zip payload filename)
 
 ```yaml
 title: PostCSS Lookalike RAT - Temp Directory File Artifacts
 id: 3e8a6d14-2b5c-4f7d-9a1e-0c4b8f6d3a72
 status: experimental
-description: Detects creation of characteristic file artifacts in the temp directory associated with the PostCSS lookalike npm RAT including winPatch.zip, .store, and .host files.
+description: Detects creation of the winPatch.zip payload in the temp directory, a characteristic artifact of the PostCSS lookalike npm RAT delivery chain.
 references:
     - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
     - https://thehackernews.com/2026/06/malicious-npm-packages-pose-as-postcss.html
@@ -322,15 +323,13 @@ logsource:
 detection:
     selection_zip:
         TargetFilename|endswith: '\winPatch.zip'
-    selection_store:
-        TargetFilename|endswith:
-            - '\Temp\.store'
-            - '\Temp\.host'
-    condition: selection_zip or selection_store
+    condition: selection_zip
 falsepositives:
-    - Unknown
+    - Legitimate software using winPatch.zip as a filename (unlikely)
 level: high
 ```
+
+> **Revision note:** The original rule included `.store` and `.host` dotfile selectors which are too generic for standalone detection (many applications create dotfiles in Temp). These selectors were removed. The dotfile artifacts (`%TEMP%\.store`, `%TEMP%\.host`) remain documented in the IOC table above for use in SIEM temporal-correlation rules pairing dotfile creation with other PostCSS RAT indicators.
 
 ---
 
@@ -472,7 +471,7 @@ rule PostCSS_Lookalike_RAT_JS_Dropper
         author = "Actioner"
         date = "2026-06-24"
         reference = "https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/"
-        hash = "164e322d6fbc62e254d73583acd7f39444c884d3f5e6a5d27db143fc25bc88b3"
+        // hash omitted — no confirmed SHA-256 for the JS dropper file itself
 
     strings:
         $settings_ps1 = "settings.ps1" ascii
@@ -508,7 +507,7 @@ rule PostCSS_Lookalike_RAT_VBS_Bootstrap
         author = "Actioner"
         date = "2026-06-24"
         reference = "https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/"
-        hash = "164e322d6fbc62e254d73583acd7f39444c884d3f5e6a5d27db143fc25bc88b3"
+        // hash omitted — no confirmed SHA-256 for update.vbs itself
 
     strings:
         $chost = "chost.exe" ascii wide nocase
@@ -518,8 +517,10 @@ rule PostCSS_Lookalike_RAT_VBS_Bootstrap
 
     condition:
         filesize < 50KB and
-        ($chost and $loader) or
-        ($wscript_shell and $winpatch and ($chost or $loader))
+        (
+            ($chost and $loader) or
+            ($wscript_shell and $winpatch and ($chost or $loader))
+        )
 }
 ```
 
@@ -576,7 +577,7 @@ Structural check only — ⚠️ uncompiled (no Snort binary available for valid
 **Confidence:** high (IOC-specific)
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER PostCSS Lookalike RAT - Payload Download from nvidiadriver.net"; flow:established,to_server; content:"nvidiadriver.net"; http_header; content:"/verv1432/"; http_uri; content:"winpatch"; http_uri; classtype:trojan-activity; sid:2100001; rev:1; reference:url,research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER PostCSS Lookalike RAT - Payload Download from nvidiadriver.net"; flow:established,to_server; content:"nvidiadriver.net"; http_host; content:"/verv1432/"; http_uri; content:"winpatch"; http_uri; classtype:trojan-activity; sid:2100001; rev:1; reference:url,research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/;)
 ```
 
 ---
@@ -598,7 +599,8 @@ alert tcp $HOME_NET any -> 95.216.92.207 8080 (msg:"ACTIONER PostCSS Lookalike R
 **Confidence:** high (IOC-specific)
 
 ```
-alert udp $HOME_NET any -> any 53 (msg:"ACTIONER PostCSS Lookalike RAT - DNS Query for nvidiadriver.net"; content:"|0d|nvidiadriver|03|net|00|"; nocase; classtype:trojan-activity; sid:2100003; rev:1; reference:url,research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/;)
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER PostCSS Lookalike RAT - DNS Query for nvidiadriver[.]net"; content:"|0d|nvidiadriver|03|net|00|"; nocase; classtype:trojan-activity; sid:2100003; rev:1; reference:url,research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/;)
+# NOTE: For TCP/53 DNS traffic, duplicate this rule with "alert tcp" and the same options.
 ```
 
 ---

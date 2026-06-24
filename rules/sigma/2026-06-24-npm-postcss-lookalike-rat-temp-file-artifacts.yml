@@ -1,0 +1,21 @@
+title: PostCSS Lookalike RAT - Temp Directory File Artifacts
+id: 3e8a6d14-2b5c-4f7d-9a1e-0c4b8f6d3a72
+status: experimental
+description: Detects creation of the winPatch.zip payload in the temp directory, a characteristic artifact of the PostCSS lookalike npm RAT delivery chain.
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+    - https://thehackernews.com/2026/06/malicious-npm-packages-pose-as-postcss.html
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_zip:
+        TargetFilename|endswith: '\winPatch.zip'
+    condition: selection_zip
+falsepositives:
+    - Legitimate software using winPatch.zip as a filename (unlikely)
+level: high

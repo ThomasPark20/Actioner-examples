@@ -1,0 +1,21 @@
+title: PostCSS Lookalike RAT - Registry Persistence via csshost
+id: 2b4f8d16-7e3a-49c5-a1d0-9f8c2b5e4a73
+status: experimental
+description: Detects registry persistence mechanism used by the PostCSS lookalike npm RAT, which creates a Run key named csshost pointing to a renamed Python launcher (chost.exe).
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+    - https://thehackernews.com/2026/06/malicious-npm-packages-pose-as-postcss.html
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\csshost'
+    condition: selection
+falsepositives:
+    - Unknown
+level: high

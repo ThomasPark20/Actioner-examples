@@ -1,0 +1,25 @@
+title: PostCSS Lookalike RAT - VM Detection Process Checks
+id: 4a2c8e57-6b1d-4f9a-d3e5-8c0f7b2a9d64
+status: experimental
+description: Detects process creation patterns consistent with the PostCSS lookalike npm RAT performing VM environment detection by checking for virtualization-related processes.
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1497.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\chost.exe'
+    selection_target:
+        CommandLine|contains:
+            - 'vmtoolsd'
+            - 'vboxtray'
+            - 'vboxservice'
+    condition: selection_parent and selection_target
+falsepositives:
+    - System administration scripts checking VM status from Python-based tools
+level: medium
