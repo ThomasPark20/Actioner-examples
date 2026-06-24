@@ -1,0 +1,5 @@
+# Snort rules for CVE-2026-8461 (PixelSmash) - FFmpeg MagicYUV heap OOB write
+# Source: /home/user/Actioner-examples/summaries/2026-06-23-ffmpeg-pixelsmash-rce.md
+# revision: v2 - added file_data keyword for HTTP content inspection,
+#   fast_pattern on MAGY, scoped to $HTTP_PORTS, downgraded to low
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-8461 PixelSmash MagicYUV Exploit AVI File Delivery via HTTP"; flow:established,to_client; file_data; content:"RIFF"; depth:4; content:"AVI "; distance:0; within:8; content:"MAGY"; fast_pattern; classtype:attempted-user; reference:cve,2026-8461; reference:url,jfrog.com/blog/pixelsmash-critical-ffmpeg-vulnerability-turns-media-files-into-weapons/; metadata:author Actioner, created_at 2026-06-23, cve CVE-2026-8461; sid:2100002; rev:2;)
