@@ -1,0 +1,11 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw AMOS Infostealer C2 Communication to 91.92.242.30"; content:"91.92.242.30"; sid:2100001; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Cluw Infostealer Payload Server 2.26.75.16"; content:"2.26.75.16"; sid:2100002; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE OpenClaw Affiliate Injection Domain laosji.net"; content:"laosji.net"; http_header; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE OpenClaw Front-Running Coordination Domain letssendit.fun"; content:"letssendit.fun"; http_header; nocase; sid:2100004; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE OpenClaw Paste-Site Dropper via glot.io"; content:"glot.io"; content:"/snippets/hfd3x9ueu5"; distance:0; http_uri; sid:2100005; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE OpenClaw Malware Distribution Domain setup-service.com"; content:"setup-service.com"; http_header; nocase; sid:2100006; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/;)

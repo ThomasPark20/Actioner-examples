@@ -1,3 +1,4 @@
+<!-- revision: 2026-06-24T2 — (1) Sigma Rule 1: renamed filter_main to selection_ioc per Sigma naming convention (filter_ prefix reserved for exclusions); (2) Sigma Rule 3: added caveat that FileSize|gte requires custom field mapping (not official Sigma spec), marked compile status as warning; (3) Sigma Rule 5: removed 'node' from ParentImage|contains to reduce false positives in Node.js environments; (4) YARA Rule 1: tightened condition from 'any of them' to require curl+bash combo or 2+ domain IOC strings; (5) YARA Rule 3: changed 'any of them' to '2 of them' to prevent single-IOC matches in threat intel documents; (6) added this revision comment. -->
 # Technical Analysis Report: OpenClaw AI Supply Chain (2026-06-24)
 Prepared by: Actioner
 Date: 2026-06-24
@@ -167,13 +168,13 @@ detection:
         CommandLine|contains|all:
             - 'curl'
             - 'bash'
-    filter_main:
+    selection_ioc:
         CommandLine|contains:
             - 'glot.io/snippets'
             - 'rentry.co/openclaw'
             - '91.92.242.30'
             - '2.26.75.16'
-    condition: selection_curl_bash and filter_main
+    condition: selection_curl_bash and selection_ioc
 falsepositives:
     - Legitimate developer scripts fetching from paste sites (unlikely with these specific indicators)
 level: high
@@ -229,7 +230,9 @@ level: high
 
 Detects creation of README.md files exceeding 20 MB, consistent with the padding evasion technique used by the omnicogg AMOS dropper.
 
-**Compile Status**: ✅ Compiles (Splunk, LogScale) | **Confidence**: Medium (TTP-based; legitimate large README files are rare but possible)
+**Compile Status**: ⚠️ Compiles (Splunk, LogScale) but requires custom field mapping | **Confidence**: Medium (TTP-based; legitimate large README files are rare but possible)
+
+> **Caveat**: The `FileSize|gte` modifier is not part of the official Sigma specification. This rule requires a custom field mapping for `FileSize` in your SIEM pipeline. Most file-event log sources (Sysmon EventID 11, macOS Endpoint Security Framework) do not natively populate a `FileSize` field. Implementers must enrich file-event telemetry with file size data or use a SIEM-native approach (e.g., Splunk `eval` on indexed metadata) and adapt the detection logic accordingly.
 
 ```yaml
 title: OpenClaw Oversized README Evasion Technique
@@ -257,7 +260,7 @@ falsepositives:
 level: medium
 ```
 
-<!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; TTP-based rule capped at medium confidence; FileSize field availability depends on log source -->
+<!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; TTP-based rule capped at medium confidence; FileSize|gte is NOT an official Sigma modifier -- requires custom field mapping; FileSize field availability depends on log source -->
 
 ---
 
@@ -329,14 +332,13 @@ detection:
         ParentImage|contains:
             - 'openclaw'
             - 'claw'
-            - 'node'
     condition: selection_crontab and selection_parent
 falsepositives:
     - Legitimate OpenClaw auto-updater skills creating scheduled tasks
 level: medium
 ```
 
-<!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; TTP-based rule capped at medium; ParentImage contains 'node' may generate false positives in Node.js-heavy environments -->
+<!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; TTP-based rule capped at medium; removed 'node' from ParentImage filter to reduce false positives in Node.js environments -->
 
 ---
 
@@ -364,11 +366,11 @@ rule OpenClaw_AMOS_Dropper_Padded {
         $app_dist = "app-distribution.net" ascii wide
 
     condition:
-        filesize > 20MB and any of them
+        filesize > 20MB and (($curl_bash and $pipe_bash) or 2 of ($glot*, $rentry*, $setup_service*, $app_dist*))
 }
 ```
 
-<!-- audit: yarac /tmp/actioner/openclaw_amos_dropper.yar /dev/null EXIT:0; initial version with regex padding pattern failed (repeat interval too large), replaced with string-based detection + filesize constraint -->
+<!-- audit: yarac /tmp/actioner/openclaw_amos_dropper.yar /dev/null EXIT:0; tightened condition from 'any of them' to require curl+bash combo or 2+ domain/URL IOC strings to reduce false positives on large benign files -->
 
 ---
 
@@ -433,11 +435,11 @@ rule OpenClaw_Malicious_Skill_Indicators {
         $vercel = "openclawcli.vercel.app" ascii wide
 
     condition:
-        any of them
+        2 of them
 }
 ```
 
-<!-- audit: yarac /tmp/actioner/openclaw_amos_dropper.yar /dev/null EXIT:0; broad 'any of them' condition may flag threat intel reports containing these IOCs -->
+<!-- audit: yarac /tmp/actioner/openclaw_amos_dropper.yar /dev/null EXIT:0; changed from 'any of them' to '2 of them' to prevent single-IOC-string matches in threat intel documents -->
 
 ---
 

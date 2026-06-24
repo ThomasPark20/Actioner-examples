@@ -1,0 +1,17 @@
+alert ip $HOME_NET any -> 91.92.242.30 any (msg:"MALWARE OpenClaw AMOS C2 to 91.92.242.30"; sid:2200001; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert ip $HOME_NET any -> 2.26.75.16 any (msg:"MALWARE OpenClaw Cluw Payload Server 2.26.75.16"; sid:2200002; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Affiliate Injection to laosji.net"; http.host; content:"laosji.net"; sid:2200003; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Front-Running Coordination letssendit.fun"; http.host; content:"letssendit.fun"; sid:2200004; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Dropper Paste-Site glot.io Snippet"; http.host; content:"glot.io"; http.uri; content:"/snippets/hfd3x9ueu5"; sid:2200005; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Malware Distribution setup-service.com"; http.host; content:"setup-service.com"; sid:2200006; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Malware Distribution app-distribution.net"; http.host; content:"app-distribution.net"; sid:2200007; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Vercel Distribution Endpoint"; http.host; content:"openclawcli.vercel.app"; sid:2200008; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE OpenClaw Rentry Paste-Site Lure"; http.host; content:"rentry.co"; http.uri; content:"/openclaw-code"; sid:2200009; rev:1; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/; metadata: author Actioner;)
