@@ -3,7 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-24
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+
+<!-- revision: v1.1 2026-06-24 — Applied critic review: (1) Sigma Rule 1 level high→medium, tag t1059.004→t1105; (2) Sigma Rule 4 CommandLine OR→AND via contains|all for "display dialog"+"with hidden answer"; (3) Sigma Rule 5 title updated, level high→medium, noted .mainhelper/.agent tuning; (4) YARA Rule 1 condition tightened to require cross-branch overlap; (5) Suricata Rule 6 /gate→/gate/chunk; (6) Suricata Rule 9 /contact DROPPED (FP risk); (7) Snort Rules 1,3 DNS label length bytes fixed (|17|→|14|, |0d|→|0c|); (8) Snort Rule 6 /gate→/gate/chunk. Total rules: 24 (was 25). -->
 
 ## Executive Summary
 
@@ -291,7 +293,7 @@ The following rules target specific artifacts and behaviors documented in the Bl
 
 Detects the core novel technique -- silent DMG mounting via `hdiutil attach -nobrowse` to prevent Finder/desktop display.
 
-compile: sigma check N/A (network error fetching MITRE data) | splunk pass | log_scale pass | confidence: medium (TTP-level; hdiutil -nobrowse has legitimate uses in MDM/installer contexts)
+compile: sigma check N/A (network error fetching MITRE data) | splunk pass | log_scale pass | confidence: medium (TTP-level; hdiutil -nobrowse has legitimate uses in MDM/installer contexts) | REVISED: level high→medium, tag t1059.004→t1105
 
 ```yaml
 title: macOS ClickFix - Silent DMG Mount via hdiutil attach -nobrowse
@@ -309,7 +311,7 @@ author: Actioner
 date: 2026/06/24
 tags:
     - attack.t1204.002
-    - attack.t1059.004
+    - attack.t1105
 logsource:
     category: process_creation
     product: macos
@@ -323,10 +325,10 @@ detection:
 falsepositives:
     - Legitimate software installers using silent DMG mounts
     - MDM or configuration management tools deploying packages
-level: high
+level: medium
 ```
 
-<!-- AUDIT: TTP-level detection for hdiutil -nobrowse silent mount. sigma check could not complete due to network error fetching MITRE ATT&CK STIX data (IncompleteRead). sigma convert --without-pipeline -t splunk: PASS (Image="*/hdiutil" CommandLine="*attach*" CommandLine="*-nobrowse*"). sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated via Python yaml.safe_load with all required fields present. Requires macOS EDR telemetry with process creation logging. -->
+<!-- AUDIT: TTP-level detection for hdiutil -nobrowse silent mount. sigma check could not complete due to network error fetching MITRE ATT&CK STIX data (IncompleteRead). sigma convert --without-pipeline -t splunk: PASS (Image="*/hdiutil" CommandLine="*attach*" CommandLine="*-nobrowse*"). sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated via Python yaml.safe_load with all required fields present. Requires macOS EDR telemetry with process creation logging. REVISION: level high→medium (legitimate uses in MDM/installer contexts); tag t1059.004 removed (hdiutil is not a shell interpreter) and replaced with t1105 (Ingress Tool Transfer). -->
 
 ### Sigma Rule 2: Curl Download of DMG to Temp Directory
 
@@ -439,27 +441,26 @@ logsource:
 detection:
     selection:
         Image|endswith: '/osascript'
-        CommandLine|contains:
+        CommandLine|contains|all:
             - 'display dialog'
-            - 'System Preferences'
             - 'with hidden answer'
     condition: selection
 falsepositives:
-    - Legitimate scripts using AppleScript dialogs
-    - IT admin tools using osascript for user prompts
+    - Legitimate scripts using AppleScript dialogs with hidden answer fields
+    - IT admin tools using osascript for password prompts
 level: medium
 ```
 
-<!-- AUDIT: TTP-level detection for T1056.002 GUI input capture. sigma check N/A (MITRE network error). sigma convert --without-pipeline -t splunk: PASS. sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated. Note: detection uses OR logic on CommandLine -- any one of the three strings triggers; consider tuning to require multiple for higher specificity. -->
+<!-- AUDIT: TTP-level detection for T1056.002 GUI input capture. sigma check N/A (MITRE network error). sigma convert --without-pipeline -t splunk: PASS. sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated. REVISION: Changed CommandLine from OR to AND (contains|all) requiring BOTH "display dialog" AND "with hidden answer" to prevent firing on any osascript dialog. Removed "System Preferences" from required match -- the hidden answer pattern is the key malicious indicator. -->
 
 ### Sigma Rule 5: Malicious LaunchAgent/LaunchDaemon Persistence
 
 Detects creation of specific persistence artifacts used by ClickFix campaign variants.
 
-compile: sigma check N/A (network error) | splunk pass | log_scale pass | confidence: high (specific persistence path indicators)
+compile: sigma check N/A (network error) | splunk pass | log_scale pass | confidence: medium (com.finder.helper.plist is high-fidelity; .mainhelper/.agent are generic and may need environment tuning) | REVISED: title updated, level high→medium
 
 ```yaml
-title: macOS ClickFix - Malicious LaunchAgent Persistence via com.finder.helper
+title: macOS ClickFix - Malicious LaunchAgent/LaunchDaemon Persistence
 id: e0b5a2c7-6d8f-7e1b-f9a0-2b6c7d5e4f18
 status: experimental
 description: >
@@ -486,11 +487,12 @@ detection:
             - '/.agent'
     condition: selection_helper_plist or selection_hidden_agents
 falsepositives:
-    - Unlikely in production environments
-level: high
+    - Legitimate software creating .agent or .mainhelper files in user home (unlikely but possible)
+    - Note that .mainhelper/.agent filenames are generic and may need environment tuning
+level: medium
 ```
 
-<!-- AUDIT: IOC-level detection for specific persistence paths. sigma check N/A (MITRE network error). sigma convert --without-pipeline -t splunk: PASS. sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated. High confidence for com.finder.helper.plist; medium confidence for .mainhelper/.agent as generic filenames. -->
+<!-- AUDIT: IOC-level detection for specific persistence paths. sigma check N/A (MITRE network error). sigma convert --without-pipeline -t splunk: PASS. sigma convert --without-pipeline -t log_scale: PASS. YAML structure validated. REVISION: Title updated to "Malicious LaunchAgent/LaunchDaemon Persistence". Level lowered high→medium because .mainhelper/.agent are generic filenames that may need environment tuning. com.finder.helper.plist remains high-fidelity but overall level reflects the weaker branch. -->
 
 ### Sigma Rule 6: Base64 Decoded Command Piped to Shell
 
@@ -572,8 +574,8 @@ rule ClickFix_DMG_AMOS_Stealer_Script
 
     condition:
         (
-            ($mount_silent and $nobrowse) or
-            ($staging_shub or $staging_log) or
+            (($mount_silent and $nobrowse) and (1 of ($staging_shub, $staging_log, $exfil_gate, $heartbeat, $wallet_exodus, $wallet_ledger, $wallet_trezor, $wallet_atomic, $filegrabber))) or
+            (($staging_shub or $staging_log) and (1 of ($exfil_gate, $heartbeat, $debug_event, $wallet_exodus, $wallet_ledger, $wallet_trezor, $wallet_atomic, $filegrabber))) or
             ($exfil_gate and ($heartbeat or $debug_event)) or
             ($loader_sh and $curl_fssl) or
             (3 of ($wallet_exodus, $wallet_ledger, $wallet_trezor, $wallet_atomic)) or
@@ -640,7 +642,7 @@ rule ClickFix_DMG_C2_Indicators
 
 ### Suricata Rules: C2 Communication Detection
 
-Ten Suricata rules targeting DNS lookups for known C2 domains and HTTP-based C2 communication patterns.
+Nine Suricata rules targeting DNS lookups for known C2 domains and HTTP-based C2 communication patterns (Rule 9 `/contact` endpoint dropped due to excessive false-positive risk).
 
 compile: suricata -T ✅ pass ("Configuration provided was successfully loaded. Exiting.") | confidence: DNS rules high (specific IOC domains), HTTP rules medium (URI patterns could match legitimate services)
 
@@ -655,18 +657,18 @@ alert dns $HOME_NET any -> any any (msg:"ACTIONER ClickFix macOS C2 - 0x666.info
 
 alert dns $HOME_NET any -> any any (msg:"ACTIONER ClickFix macOS C2 - honestly.ink DNS Lookup"; dns.query; content:"honestly.ink"; nocase; sid:2200005; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/; classtype:trojan-activity;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER ClickFix macOS - AMOS/SHub Stealer Exfiltration to /gate Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/gate"; endswith; sid:2200006; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/; classtype:trojan-activity;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER ClickFix macOS - AMOS/SHub Stealer Exfiltration to /gate/chunk Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/gate/chunk"; sid:2200006; rev:2; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/; classtype:trojan-activity;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER ClickFix macOS - AMOS/SHub Stealer Heartbeat Beacon"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/bot/heartbeat"; sid:2200007; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/; classtype:trojan-activity;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER ClickFix macOS - Loader Script Download Pattern"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/loader.sh?build="; sid:2200008; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/; classtype:trojan-activity;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER ClickFix macOS - Exfiltration to /contact Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/contact"; endswith; sid:2200009; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/; classtype:trojan-activity;)
+<!-- DROPPED: Suricata Rule 9 (sid:2200009, /contact endpoint) removed -- /contact is an extremely common web form URI that would generate massive false positives in production. -->
 
 alert dns $HOME_NET any -> any any (msg:"ACTIONER ClickFix macOS C2 - pla7ina.cfd DNS Lookup"; dns.query; content:"pla7ina.cfd"; nocase; sid:2200010; rev:1; metadata: author Actioner, created_at 2026_06_24, deployment Perimeter; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/; classtype:trojan-activity;)
 ```
 
-<!-- AUDIT: Suricata rules validated via suricata -T -S clickfix_dmg_c2.rules -l /tmp/actioner. Output: "Configuration provided was successfully loaded. Exiting." All 10 rules passed syntax validation. DNS rules use dns.query sticky buffer; HTTP rules use http.method and http.uri sticky buffers with flow:established,to_server. -->
+<!-- AUDIT: Suricata rules validated via suricata -T -S clickfix_dmg_c2.rules -l /tmp/actioner. Output: "Configuration provided was successfully loaded. Exiting." 9 rules passed syntax validation (Rule 9 /contact dropped). DNS rules use dns.query sticky buffer; HTTP rules use http.method and http.uri sticky buffers with flow:established,to_server. REVISION: sid:2200006 /gate→/gate/chunk for specificity; sid:2200009 dropped (false-positive risk). -->
 
 ### Snort Rules: C2 Communication Detection
 
@@ -675,20 +677,20 @@ Six Snort rules targeting DNS queries for known C2 domains and HTTP-based C2 end
 compile: structural check only -- ⚠️ uncompiled | confidence: DNS rules high (specific IOCs), HTTP rules medium (URI pattern matching)
 
 ```
-alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - svs-verificationdate.beer DNS Query"; content:"|17|svs-verificationdate|04|beer|00|"; nocase; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/;)
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - svs-verificationdate.beer DNS Query"; content:"|14|svs-verificationdate|04|beer|00|"; nocase; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/;)
 
 alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - imper-strlk5.com DNS Query"; content:"|0c|imper-strlk5|03|com|00|"; nocase; sid:2100002; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
 
-alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - cleanmymacos.org DNS Query"; content:"|0d|cleanmymacos|03|org|00|"; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/;)
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - cleanmymacos.org DNS Query"; content:"|0c|cleanmymacos|03|org|00|"; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - AMOS Heartbeat Beacon POST /api/bot/heartbeat"; flow:established,to_server; content:"POST"; http_method; content:"/api/bot/heartbeat"; http_uri; sid:2100004; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - Loader Script Request /loader.sh?build="; flow:established,to_server; content:"GET"; http_method; content:"/loader.sh?build="; http_uri; sid:2100005; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - AMOS Data Exfiltration POST /gate"; flow:established,to_server; content:"POST"; http_method; content:"/gate"; http_uri; sid:2100006; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - AMOS Data Exfiltration POST /gate/chunk"; flow:established,to_server; content:"POST"; http_method; content:"/gate/chunk"; http_uri; sid:2100006; rev:2; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
 ```
 
-<!-- AUDIT: Snort rules structural check only -- no Snort compiler available in this environment. DNS rules use DNS wire format with length-prefixed labels. HTTP rules use http_method and http_uri content modifiers with established flow. SID range 2100000+. -->
+<!-- AUDIT: Snort rules structural check only -- no Snort compiler available in this environment. DNS rules use DNS wire format with length-prefixed labels. HTTP rules use http_method and http_uri content modifiers with established flow. SID range 2100000+. REVISION: sid:2100001 label byte |17|→|14| (svs-verificationdate = 20 chars = 0x14); sid:2100003 label byte |0d|→|0c| (cleanmymacos = 12 chars = 0x0C); sid:2100006 /gate→/gate/chunk. -->
 
 ## Sources
 

@@ -1,0 +1,25 @@
+title: macOS ClickFix - SHub/AMOS Stealer Staging Directory Creation
+id: c8f3e0a5-4b6d-5c9f-d7e8-0f4a5b3c2d96
+status: experimental
+description: >
+    Detects creation of files in the /tmp/shub_ staging directory used by
+    the SHub and AMOS infostealers delivered via macOS ClickFix campaigns.
+    The malware stages stolen data in /tmp/shub_<random>/ directories
+    before archiving and exfiltrating to C2.
+references:
+    - https://www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/
+    - https://securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|contains: '/tmp/shub_'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments
+level: high

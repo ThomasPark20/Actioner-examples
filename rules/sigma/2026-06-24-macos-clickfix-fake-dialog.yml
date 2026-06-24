@@ -1,0 +1,29 @@
+title: macOS ClickFix - osascript Displaying Fake Authentication Dialog
+id: d9a4f1b6-5c7e-6d0a-e8f9-1a5b6c4d3e07
+status: experimental
+description: >
+    Detects osascript being used to display dialog boxes that impersonate
+    System Preferences or macOS authentication prompts. The ClickFix campaign
+    uses this technique to trick users into entering credentials via fake
+    system dialogs rendered by AppleScript.
+references:
+    - https://www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/
+    - https://www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1056.002
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        Image|endswith: '/osascript'
+        CommandLine|contains|all:
+            - 'display dialog'
+            - 'with hidden answer'
+    condition: selection
+falsepositives:
+    - Legitimate scripts using AppleScript dialogs with hidden answer fields
+    - IT admin tools using osascript for password prompts
+level: medium

@@ -1,0 +1,30 @@
+title: macOS ClickFix - Malicious LaunchAgent/LaunchDaemon Persistence
+id: e0b5a2c7-6d8f-7e1b-f9a0-2b6c7d5e4f18
+status: experimental
+description: >
+    Detects creation of the com.finder.helper LaunchDaemon plist used by
+    the Helper campaign variant of macOS ClickFix infostealers for root-level
+    persistence, or creation of hidden agent/helper binaries in user home.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/
+    - https://securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1543.001
+    - attack.t1543.004
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_helper_plist:
+        TargetFilename|contains: 'com.finder.helper.plist'
+    selection_hidden_agents:
+        TargetFilename|endswith:
+            - '/.mainhelper'
+            - '/.agent'
+    condition: selection_helper_plist or selection_hidden_agents
+falsepositives:
+    - Legitimate software creating .agent or .mainhelper files in user home (unlikely but possible)
+    - Note that .mainhelper/.agent filenames are generic and may need environment tuning
+level: medium

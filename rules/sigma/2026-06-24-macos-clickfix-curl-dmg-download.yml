@@ -1,0 +1,36 @@
+title: macOS ClickFix - Curl Download of DMG to Temp Directory
+id: b7e2d9f4-3a5c-4b8e-c6d7-9e3f4a2b1c85
+status: experimental
+description: >
+    Detects curl downloading a DMG file with silent flags commonly used in
+    ClickFix campaigns. The attack chain uses curl with -fsSL or -kSsfL flags
+    to fetch a DMG payload, which is then silently mounted via hdiutil.
+references:
+    - https://www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/
+    - https://www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1204.002
+    - attack.t1059.004
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_curl:
+        Image|endswith: '/curl'
+    selection_flags:
+        CommandLine|contains:
+            - '-fsSL'
+            - '-kSsfL'
+            - '-sSfL'
+    selection_target:
+        CommandLine|contains:
+            - '.dmg'
+            - '/tmp/'
+    condition: selection_curl and selection_flags and selection_target
+falsepositives:
+    - Legitimate software auto-updaters downloading DMG files
+    - Developer scripts fetching release builds
+level: medium
