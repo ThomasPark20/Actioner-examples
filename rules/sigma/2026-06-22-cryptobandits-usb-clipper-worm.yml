@@ -1,0 +1,117 @@
+title: CryptoBandits - WScript/CScript Spawning Curl with Tor SOCKS5 Proxy
+id: 8a3f7c12-4e9b-4d1a-b6c5-2e8f0a9d3b7e
+status: experimental
+description: >
+    Detects wscript.exe or cscript.exe spawning curl.exe with SOCKS5 proxy
+    arguments pointing to localhost:9050, consistent with the CryptoBandits
+    crypto clipper using Tor for C2 communication and data exfiltration.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+    - https://thehackernews.com/2026/06/microsoft-details-windows-clipper.html
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1059.007
+    - attack.t1090
+    - attack.t1041
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_child:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains|all:
+            - 'socks5'
+            - 'localhost:9050'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate scripts using Tor SOCKS5 proxy via curl (unlikely in enterprise)
+level: high
+---
+title: CryptoBandits - Execution of ugate.exe Tor Proxy Binary
+id: c5d2e8f1-3a7b-4c96-9e0d-1f4a6b8c2d5e
+status: experimental
+description: >
+    Detects execution of ugate.exe, a renamed portable Tor client binary
+    used by the CryptoBandits campaign to establish a local SOCKS5 proxy
+    for anonymous C2 communication over Tor hidden services.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+    - https://thehackernews.com/2026/06/microsoft-details-windows-clipper.html
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1090
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\ugate.exe'
+    condition: selection
+falsepositives:
+    - Legitimate software using a binary named ugate.exe (uncommon)
+level: high
+---
+title: CryptoBandits - Scheduled Task Created from Public Documents Subfolder
+id: 7e9a1b3c-5d2f-4a86-b8c0-6e3f2d7a4c9e
+status: experimental
+description: >
+    Detects schtasks.exe creating a task using an XML file located in a
+    subfolder of C:\Users\Public\Documents, consistent with CryptoBandits
+    persistence mechanism using randomized 4-6 character folder names.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+    - https://www.bleepingcomputer.com/news/security/usb-worm-spreads-crypto-stealing-malware-via-windows-shortcut-files/
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - '/xml'
+            - '\Users\Public\Documents\'
+    condition: selection
+falsepositives:
+    - Legitimate software creating scheduled tasks with XML configs in Public Documents
+level: high
+---
+title: CryptoBandits - Script Execution from Public Documents Subfolder
+id: a2b4c6d8-1e3f-5a7b-9c0d-8e6f4a2b0c1d
+status: experimental
+description: >
+    Detects wscript.exe or cscript.exe executing JavaScript files from a
+    subfolder of C:\Users\Public\Documents, consistent with the CryptoBandits
+    malware staging its JS payloads in randomized subdirectories under
+    that path.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/06/17/crypto-clipper-uses-tor-worm-like-propagation-for-persistence-control/
+    - https://thehackernews.com/2026/06/microsoft-details-windows-clipper.html
+author: Actioner
+date: 2026/06/22
+tags:
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+        CommandLine|contains: '\Users\Public\Documents\'
+        CommandLine|endswith: '.js'
+    condition: selection
+falsepositives:
+    - Legitimate scripts deployed in Public Documents (uncommon in enterprise)
+level: medium

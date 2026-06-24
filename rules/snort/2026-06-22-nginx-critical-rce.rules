@@ -1,0 +1,5 @@
+# Actioner - NGINX Critical RCE Detection Rules
+# CVE-2026-42055: HTTP/2 HPACK Heap Buffer Overflow
+# Confidence: low — best-effort heuristic; proper HTTP/2 frame parsing is needed for high-confidence detection.
+# SID 9000001 (outside Emerging Threats reserved range)
+alert tcp any any -> $HOME_NET any (msg:"Actioner - HTTP/2 Oversized Header Value Potential HPACK Overflow (CVE-2026-42055)"; flow:established,to_server; content:"|50 52 49 20 2A 20 48 54 54 50 2F 32|"; depth:24; content:"|00 00|"; distance:0; byte_test:4,>,2097278,0,relative; classtype:attempted-admin; reference:url,my.f5.com/manage/s/article/K000161584; reference:cve,2026-42055; metadata:author Actioner, created 2026-06-22; sid:9000001; rev:1;)
