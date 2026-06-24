@@ -1,0 +1,26 @@
+title: Suspicious caffeinate Invocation from Non-Standard Process
+id: 4c8e2f1a-7b3d-4a9e-8d6f-1e5c3a2b7d90
+status: experimental
+description: Detects suspicious caffeinate invocations from non-standard parent processes. macOS.Gaslight uses IOPMAssertionCreateWithName to prevent system sleep and maintain C2 connectivity; caffeinate is a proxy indicator for this behavior.
+references:
+    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1497
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        CommandLine|contains: 'caffeinate'
+    filter_known:
+        Image|endswith:
+            - '/caffeinate'
+            - '/pmset'
+    condition: selection and not filter_known
+falsepositives:
+    - Legitimate applications preventing sleep during long operations
+    - Backup software
+    - Media applications
+level: low

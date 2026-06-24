@@ -1,3 +1,4 @@
+<!-- revision: 2026-06-24T2 REVISE pass — (1) Sigma Rule 2: added c-uri pipeline mapping caveat and Telegram bot integration tuning note; (2) Sigma Rule 3: tightened condition from '1 of selection_*' to require 2-of-3 selections (expanded to boolean OR of pairwise ANDs for backend compatibility); (3) Sigma Rule 4: lowered confidence high→medium, added CodeSigningIdentifier custom pipeline note and mutability caveat; (4) Sigma Rule 5: renamed title to 'Suspicious caffeinate Invocation from Non-Standard Process', fixed MITRE mapping T1029→T1497; (5) YARA Rule 2: lowered confidence medium→low (generic string set); (6) Snort Rules 9-10: added http_uri and http_client_body buffer keywords for precision; (7) MITRE table: updated T1029→T1497 entry. -->
 # Technical Analysis Report: macOS.Gaslight DPRK Rust Backdoor (2026-06-24)
 
 Prepared by: Actioner
@@ -127,7 +128,7 @@ The binary embeds a 3.5 KB Markdown-fenced blob containing 38 fabricated "system
 | T1555.001 | Credentials from Password Stores: Keychain | Harvesting `login.keychain-db` |
 | T1005 | Data from Local System | Collection of browser data, histories, app listings |
 | T1082 | System Information Discovery | System profiling via `system_profiler` and `ps aux` |
-| T1029 | Scheduled Transfer | Sleep prevention assertion to maintain C2 availability |
+| T1497 | Virtualization/Sandbox Evasion | Sleep prevention assertion to maintain C2 availability and resist sandbox timeouts |
 | T1041 | Exfiltration Over C2 Channel | File upload via Telegram `attach://` |
 | T1027.009 | Obfuscated Files or Information: Embedded Payloads | Base64-encoded Python stealer and bash installer |
 | T1106 | Native API | Runtime API resolution via `dlsym`; `IOPMAssertionCreateWithName` |
@@ -224,7 +225,7 @@ falsepositives:
 level: medium
 ```
 
-Caveat: Telegram Bot API is a legitimate service; tune for environments where Telegram bot usage is unexpected.
+Caveat: Telegram Bot API is a legitimate service; tune for environments where Telegram bot usage is unexpected. The `c-uri` field requires a custom Sigma pipeline mapping for most backends (e.g., Splunk CIM `url` field, LogScale custom parser). Organizations with legitimate Telegram bot integrations (ChatOps, alerting bots, CI/CD notifications) should add allowlist filters for known bot tokens or source processes to avoid alert fatigue.
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check failed due to network error (IncompleteRead) -->
 
@@ -259,15 +260,14 @@ detection:
         CommandLine|contains: 'system_profiler'
     selection_collected:
         CommandLine|contains: 'collected_data.zip'
-    condition: 1 of selection_*
+    condition: (selection_keychain and selection_profiler) or (selection_keychain and selection_collected) or (selection_profiler and selection_collected)
 falsepositives:
-    - System administration scripts
-    - Legitimate backup tools accessing keychain
-    - IT asset management software running system_profiler
+    - System administration scripts combining keychain access with system profiling
+    - Legitimate backup tools accessing keychain alongside data archival
 level: medium
 ```
 
-Caveat: Individual selection criteria (especially `system_profiler`) are broad; consider correlating multiple selections in a single time window for higher fidelity.
+Caveat: Condition requires at least 2 of the 3 selection criteria to fire, reducing false positives from benign `system_profiler` or keychain access alone. Single-indicator matches should be handled via separate, lower-priority hunt queries.
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check failed due to network error (IncompleteRead) -->
 
@@ -277,7 +277,7 @@ Caveat: Individual selection criteria (especially `system_profiler`) are broad; 
 
 Detects execution of ad-hoc signed binaries with signing identifiers matching the `endpoint-macos-aarch64-*` pattern used by macOS.Gaslight.
 
-**Status:** ✅ compiles (sigma convert splunk exit 0, sigma convert log_scale exit 0) | **Confidence:** high
+**Status:** ✅ compiles (sigma convert splunk exit 0, sigma convert log_scale exit 0) | **Confidence:** medium
 
 ```yaml
 title: macOS Ad-hoc Signed Binary with Endpoint Identifier Pattern
@@ -299,30 +299,32 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate developer builds with similar naming convention
-level: high
+level: medium
 ```
+
+Note: The `CodeSigningIdentifier` field requires a custom Sigma pipeline for backend conversion (e.g., mapping to CrowdStrike `CodeSigningIdentifier`, Jamf `signing_id`, or Elastic `process.code_signature.signing_id`). This field is not part of the default Sigma taxonomy. Additionally, ad-hoc signing identifiers are mutable -- an attacker can trivially change this value between builds, so this rule should be treated as a point-in-time indicator rather than a durable detection.
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check failed due to network error (IncompleteRead) -->
 
 ---
 
-### Sigma: macOS Sleep Prevention via IOPMAssertionCreateWithName
+### Sigma: Suspicious caffeinate Invocation from Non-Standard Process
 
-Detects processes preventing system sleep, a technique used by macOS.Gaslight to maintain persistent C2 connectivity.
+Detects suspicious invocations of `caffeinate` from non-standard parent processes, a technique used by macOS.Gaslight to prevent system sleep and maintain persistent C2 connectivity.
 
 **Status:** ✅ compiles (sigma convert splunk exit 0, sigma convert log_scale exit 0) | **Confidence:** low
 
 ```yaml
-title: macOS Sleep Prevention via IOPMAssertionCreateWithName
+title: Suspicious caffeinate Invocation from Non-Standard Process
 id: 4c8e2f1a-7b3d-4a9e-8d6f-1e5c3a2b7d90
 status: experimental
-description: Detects processes creating power management assertions to prevent system sleep, a technique used by macOS.Gaslight to maintain persistent C2 connectivity.
+description: Detects suspicious caffeinate invocations from non-standard parent processes. macOS.Gaslight uses IOPMAssertionCreateWithName to prevent system sleep and maintain C2 connectivity; caffeinate is a proxy indicator for this behavior.
 references:
     - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
 author: Actioner
 date: 2026/06/24
 tags:
-    - attack.t1029
+    - attack.t1497
 logsource:
     category: process_creation
     product: macos
@@ -351,7 +353,7 @@ Caveat: This rule uses a proxy indicator (`caffeinate` command line) since `IOPM
 
 Detects the primary Gaslight Mach-O implant, the embedded Python stealer payload, and the bash installer via distinctive string combinations and file structure.
 
-**Status:** ✅ compiles (yarac exit 0) | **Confidence:** high (Mach-O rule), medium (Python stealer), medium (bash installer)
+**Status:** ✅ compiles (yarac exit 0) | **Confidence:** high (Mach-O rule), low (Python stealer -- generic string set), medium (bash installer)
 
 ```yara
 rule macOS_Gaslight_Rust_Backdoor
@@ -472,9 +474,9 @@ Detects Telegram Bot API C2 polling and file upload exfiltration patterns associ
 **Status:** ⚠️ uncompiled (structural check only) | **Confidence:** medium
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API getUpdates C2 Polling"; flow:established,to_server; content:"api.telegram.org"; content:"/bot"; content:"/getUpdates"; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API getUpdates C2 Polling"; flow:established,to_server; content:"api.telegram.org"; http_uri; content:"/bot"; http_uri; content:"/getUpdates"; sid:2100001; rev:2; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram File Upload Exfiltration"; flow:established,to_server; content:"api.telegram.org"; content:"attach://"; sid:2100002; rev:1; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram File Upload Exfiltration"; flow:established,to_server; content:"api.telegram.org"; http_client_body; content:"attach://"; sid:2100002; rev:2; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
 ```
 
 Caveat: TLS inspection (SSL/TLS decryption) is required to inspect HTTPS traffic to `api[.]telegram[.]org`; without it, content matching will not fire.

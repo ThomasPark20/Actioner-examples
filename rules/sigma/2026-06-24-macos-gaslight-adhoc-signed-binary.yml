@@ -1,0 +1,20 @@
+title: macOS Ad-hoc Signed Binary with Endpoint Identifier Pattern
+id: 6e0a4f3c-9b5d-4c8f-d2e7-3a8f1b4c9d56
+status: experimental
+description: Detects execution of ad-hoc signed macOS binaries with signing identifiers matching the pattern used by macOS.Gaslight (endpoint-macos-aarch64-*), indicating a potentially malicious unsigned Rust binary.
+references:
+    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1553.002
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        CodeSigningIdentifier|startswith: 'endpoint-macos-aarch64-'
+    condition: selection
+falsepositives:
+    - Legitimate developer builds with similar naming convention
+level: medium

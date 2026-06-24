@@ -1,0 +1,23 @@
+title: Potential Telegram Bot API C2 Communication from macOS Process
+id: 9b2f4e7c-1a3d-4f8e-b6c5-2d9e8a7f3b01
+status: experimental
+description: Detects outbound HTTP requests to the Telegram Bot API getUpdates endpoint, which is used by macOS.Gaslight and other malware as a C2 polling mechanism.
+references:
+    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains: 'api.telegram.org'
+    selection_endpoint:
+        c-uri|contains: '/getUpdates'
+    condition: selection_domain and selection_endpoint
+falsepositives:
+    - Legitimate Telegram bot integrations
+    - Developer testing environments
+level: medium

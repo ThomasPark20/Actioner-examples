@@ -1,0 +1,27 @@
+title: macOS.Gaslight Python Stealer Data Collection Activity
+id: 5d9f3e2b-8a4c-4b7e-c1d6-2f7e9a3b8c45
+status: experimental
+description: Detects command patterns consistent with the macOS.Gaslight embedded Python stealer that collects browser data, keychain, command histories, and system profiles.
+references:
+    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1555.001
+    - attack.t1005
+    - attack.t1082
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_keychain:
+        CommandLine|contains: 'login.keychain-db'
+    selection_profiler:
+        CommandLine|contains: 'system_profiler'
+    selection_collected:
+        CommandLine|contains: 'collected_data.zip'
+    condition: (selection_keychain and selection_profiler) or (selection_keychain and selection_collected) or (selection_profiler and selection_collected)
+falsepositives:
+    - System administration scripts combining keychain access with system profiling
+    - Legitimate backup tools accessing keychain alongside data archival
+level: medium
