@@ -1,0 +1,12 @@
+# TeamPCP Supply Chain Attack - Snort 2.x Detection Rules
+# Generated: 2026-06-21 | Actioner CTI
+# Rules 1-6 and 8 anchor domain matching to the Host header to avoid bare http_header false positives.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - check.git-service.com"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"check.git-service.com"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062101; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - scan.aquasecurtiy.org"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"scan.aquasecurtiy.org"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062102; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - checkmarx.zone"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"checkmarx.zone"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062103; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - models.litellm.cloud"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"models.litellm.cloud"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062104; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - git-tanstack.com"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"git-tanstack.com"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062105; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP C2 Domain - t.m-kosche.com"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"t.m-kosche.com"; http_header; distance:0; nocase; classtype:trojan-activity; sid:2026062106; rev:2;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP Payload Download - rope.pyz"; flow:established,to_server; content:"/rope.pyz"; http_uri; classtype:trojan-activity; sid:2026062107; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"TEAMPCP FIRESCALE Dead Drop via GitHub API"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"api.github.com"; http_header; distance:0; content:"/search/commits"; http_uri; content:"FIRESCALE"; http_uri; classtype:trojan-activity; sid:2026062108; rev:2;)

@@ -1,0 +1,15 @@
+# TeamPCP Supply Chain Attack - Suricata Detection Rules
+# Generated: 2026-06-21 | Actioner CTI
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - check.git-service.com"; flow:established,to_server; http.host; content:"check.git-service.com"; classtype:trojan-activity; sid:2026062201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - scan.aquasecurtiy.org"; flow:established,to_server; http.host; content:"scan.aquasecurtiy.org"; classtype:trojan-activity; sid:2026062202; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - checkmarx.zone"; flow:established,to_server; http.host; content:"checkmarx.zone"; classtype:trojan-activity; sid:2026062203; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - models.litellm.cloud"; flow:established,to_server; http.host; content:"models.litellm.cloud"; classtype:trojan-activity; sid:2026062204; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - git-tanstack.com"; flow:established,to_server; http.host; content:"git-tanstack.com"; classtype:trojan-activity; sid:2026062205; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP C2 Domain - t.m-kosche.com"; flow:established,to_server; http.host; content:"t.m-kosche.com"; classtype:trojan-activity; sid:2026062206; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP Payload Download - rope.pyz"; flow:established,to_server; http.uri; content:"/rope.pyz"; classtype:trojan-activity; sid:2026062207; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"TEAMPCP FIRESCALE Dead Drop via GitHub API"; flow:established,to_server; http.host; content:"api.github.com"; http.uri; content:"/search/commits"; content:"FIRESCALE"; classtype:trojan-activity; sid:2026062208; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"TEAMPCP DNS Lookup - check.git-service.com"; dns.query; content:"check.git-service.com"; classtype:trojan-activity; sid:2026062209; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"TEAMPCP DNS Lookup - scan.aquasecurtiy.org"; dns.query; content:"scan.aquasecurtiy.org"; classtype:trojan-activity; sid:2026062210; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"TEAMPCP DNS Lookup - git-tanstack.com"; dns.query; content:"git-tanstack.com"; classtype:trojan-activity; sid:2026062211; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"TEAMPCP DNS Lookup - t.m-kosche.com"; dns.query; content:"t.m-kosche.com"; classtype:trojan-activity; sid:2026062212; rev:1;)

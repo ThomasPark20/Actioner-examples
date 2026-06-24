@@ -1,0 +1,237 @@
+# TeamPCP Supply Chain Attack - Sigma Detection Rules
+# Generated: 2026-06-21 | Actioner CTI
+# Sources:
+#   - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+#   - https://ramimac.me/teampcp/
+#   - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
+#   - https://www.tenable.com/blog/mini-shai-hulud-frequently-asked-questions
+#   - https://orca.security/resources/blog/tanstack-npm-supply-chain-worm/
+#
+# Rule 4 (Credential File Access by Python) DROPPED -- behavioral, not artifact-specific;
+# ~100% FP rate in dev/CI environments where any Python/Node process touching credential files matches.
+---
+title: TeamPCP Supply Chain Attack - C2 Domain DNS Lookups
+id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+status: experimental
+description: Detects DNS queries to known TeamPCP command-and-control domains used in supply chain attack campaigns from March-May 2026.
+references:
+    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+    - https://ramimac.me/teampcp/
+    - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1071.001
+    - attack.t1102.001
+logsource:
+    category: dns
+detection:
+    selection:
+        query|endswith:
+            - 'scan.aquasecurtiy.org'
+            - 'checkmarx.zone'
+            - 'models.litellm.cloud'
+            - 'git-tanstack.com'
+            - 'check.git-service.com'
+            - 't.m-kosche.com'
+            - 'nsa.cat'
+            - 'tdtqy-oyaaa-aaaae-af2dq-cai.raw.icp0.io'
+    condition: selection
+falsepositives:
+    - Unlikely, these are attacker-controlled domains
+level: high
+---
+title: TeamPCP Supply Chain Attack - C2 IP Address Connections
+id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+status: experimental
+description: >
+    Detects network connections to IP addresses associated with TeamPCP supply chain attack
+    infrastructure. Confidence is medium because IPs may be reassigned over time. Four
+    reconnaissance/validation IPs (209.159.147.239, 170.62.100.245, 154.47.29.12, 103.75.11.59)
+    were excluded because they are shared hosting or short-lived VPS nodes with high reassignment
+    likelihood and would generate excessive false positives.
+references:
+    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+    - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '23.142.184.129'
+            - '45.148.10.212'
+            - '63.251.162.11'
+            - '83.142.209.11'
+            - '83.142.209.194'
+            - '83.142.209.203'
+            - '195.5.171.242'
+            - '209.34.235.18'
+            - '212.71.124.188'
+    condition: selection
+falsepositives:
+    - IP address reassignment after infrastructure takedown
+level: medium
+---
+title: TeamPCP Supply Chain Attack - Persistence via Fake PostgreSQL Service
+id: c3d4e5f6-a7b8-9012-cdef-123456789012
+status: experimental
+description: >
+    Detects the creation of systemd services masquerading as PostgreSQL monitoring and
+    TeamPCP-specific persistence payloads. The selection_payload condition uses full attacker
+    paths to avoid matching any file arbitrarily named pglog.
+references:
+    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+    - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_service:
+        TargetFilename|endswith:
+            - '/pgsql-monitor.service'
+            - '/sysmon.service'
+    selection_payload:
+        TargetFilename:
+            - '/usr/bin/pgmonitor.py'
+            - '/usr/bin/pglog'
+            - '/usr/bin/.pg_state'
+    selection_payload_user:
+        TargetFilename|endswith:
+            - '/.local/bin/pgmonitor.py'
+            - '/.local/bin/pglog'
+            - '/.local/bin/.pg_state'
+    condition: selection_service or selection_payload or (selection_payload_user and selection_service)
+falsepositives:
+    - Legitimate PostgreSQL monitoring scripts at these exact paths (unlikely)
+level: medium
+---
+title: TeamPCP Supply Chain Attack - OpenSSL Encryption for Exfiltration
+id: e5f6a7b8-c9d0-1234-efab-345678901234
+status: experimental
+description: >
+    Detects the use of openssl to generate session keys and encrypt payloads for exfiltration,
+    matching the specific AES-256-CBC + session.key + payload.enc pattern used by TeamPCP.
+    Both file-name markers (session.key and payload.enc) are required together to avoid
+    matching legitimate openssl usage.
+references:
+    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1027
+    - attack.t1560.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_openssl:
+        Image|endswith: '/openssl'
+    selection_markers:
+        CommandLine|contains|all:
+            - 'session.key'
+            - 'payload.enc'
+    selection_aes_encrypt:
+        CommandLine|contains|all:
+            - 'aes-256-cbc'
+            - 'session.key'
+            - 'payload.enc'
+    condition: selection_openssl and (selection_markers or selection_aes_encrypt)
+falsepositives:
+    - Legitimate use of openssl with both session.key and payload.enc filenames (unlikely)
+level: medium
+---
+title: TeamPCP Mini Shai-Hulud - GitHub Token Monitor Persistence
+id: f6a7b8c9-d0e1-2345-fabc-456789012345
+status: experimental
+description: >
+    Detects the gh-token-monitor persistence mechanism used by the Mini Shai-Hulud worm
+    to poll for GitHub tokens every 60 seconds. Also detects malicious AI tool hooks
+    (.claude/router_runtime.js and .vscode/setup.mjs) using endswith matching to avoid
+    collisions with legitimate VS Code extension files.
+references:
+    - https://www.tenable.com/blog/mini-shai-hulud-frequently-asked-questions
+    - https://orca.security/resources/blog/tanstack-npm-supply-chain-worm/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1543.002
+    - attack.t1543.004
+logsource:
+    category: file_event
+detection:
+    selection_systemd:
+        TargetFilename|endswith: '/gh-token-monitor.service'
+    selection_launchagent:
+        TargetFilename|endswith: '/com.user.gh-token-monitor.plist'
+    selection_hooks:
+        TargetFilename|endswith:
+            - '/.claude/router_runtime.js'
+            - '/.vscode/setup.mjs'
+    condition: selection_systemd or selection_launchagent or selection_hooks
+falsepositives:
+    - Unlikely, these are specific malware artifacts
+level: high
+---
+title: TeamPCP Supply Chain Attack - FIRESCALE Dead Drop via GitHub API
+id: a7b8c9d0-e1f2-3456-abcd-567890123456
+status: experimental
+description: Detects HTTP requests to the GitHub commit search API containing the FIRESCALE dead-drop pattern used by TeamPCP for C2 resolution.
+references:
+    - https://phoenix.security/teampcp-github-breach-durabletask-pypi-supply-chain-wave-four-2026/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1102.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains|all:
+            - 'api.github.com/search/commits'
+            - 'FIRESCALE'
+    condition: selection
+falsepositives:
+    - Unlikely, FIRESCALE is a unique TeamPCP dead-drop marker
+level: high
+---
+title: TeamPCP Supply Chain Attack - Process Environment Variable Theft via /proc
+id: b8c9d0e1-f2a3-4567-bcde-678901234567
+status: experimental
+description: >
+    Detects reading of /proc/PID/environ to steal runner secrets from CI/CD environments,
+    a technique used by TeamPCP in compromised GitHub Actions workflows. Confidence lowered
+    to low because the |re modifier has portability concerns across SIEM backends and the
+    pattern is not TeamPCP-specific.
+references:
+    - https://ramimac.me/teampcp/
+    - https://unit42.paloaltonetworks.com/teampcp-supply-chain-attacks/
+author: Actioner CTI
+date: 2026-06-21
+tags:
+    - attack.t1552.001
+    - attack.t1057
+logsource:
+    category: file_access
+    product: linux
+detection:
+    selection:
+        TargetFilename|re: '/proc/\d+/environ'
+    filter_main:
+        Image|endswith:
+            - '/systemd'
+            - '/dockerd'
+            - '/containerd'
+    condition: selection and not filter_main
+falsepositives:
+    - Process monitoring tools
+    - Container runtime introspection
+    - The |re modifier may not be supported by all SIEM backends
+level: low

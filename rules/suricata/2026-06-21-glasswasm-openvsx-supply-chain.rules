@@ -1,0 +1,15 @@
+# GlassWASM C2 Domain Detection
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM C2 Domain (dodod.lat)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062201; rev:1;)
+
+# GlassWASM Stage-3 URL Patterns (domain-anchored)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/darwin/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/darwin/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062202; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/linux/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/linux/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062203; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Stage-3 URL (/win32/i/_)"; flow:to_server,established; http.host; content:"dodod.lat"; endswith; http.uri; content:"/win32/i/_"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062204; rev:2;)
+
+# GlassWASM Solana RPC with Watched Wallet Address
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE GlassWASM Solana RPC Query for Watched Wallet"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"getSignaturesForAddress"; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062205; rev:1;)
+
+# GlassWASM DNS Lookup for C2 Domain
+alert dns $HOME_NET any -> any any (msg:"MALWARE GlassWASM C2 DNS Query (dodod.lat)"; dns.query; content:"dodod.lat"; endswith; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062206; rev:1;)

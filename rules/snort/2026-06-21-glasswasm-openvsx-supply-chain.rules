@@ -1,0 +1,12 @@
+# GlassWASM C2 Domain Detection
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM C2 Domain (dodod.lat) in HTTP Host Header"; flow:to_server,established; content:"Host|3A| "; http_header; content:"dodod.lat"; http_header; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062101; rev:1;)
+
+# GlassWASM Platform-Specific C2 URL Paths (domain-anchored)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/darwin/i/_)"; flow:to_server,established; content:"dodod.lat"; http_header; content:"/darwin/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062102; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/linux/i/_)"; flow:to_server,established; content:"dodod.lat"; http_header; content:"/linux/i/_"; http_uri; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062103; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Stage-3 Download URL Pattern (/win32/i/_)"; flow:to_server,established; content:"/win32/i/_"; http_uri; content:"dodod.lat"; http_header; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062104; rev:2;)
+
+# GlassWASM Solana RPC getSignaturesForAddress with Watched Wallet
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE GlassWASM Solana RPC getSignaturesForAddress Call"; flow:to_server,established; content:"getSignaturesForAddress"; http_client_body; content:"6ExrZayPZzMMSnszc42cH81DpuKT8FhCX9H6Sesn6rpz"; http_client_body; reference:url,socket.dev/blog/glasswasm-malware-open-vsx-extensions; classtype:trojan-activity; sid:2026062105; rev:1;)
