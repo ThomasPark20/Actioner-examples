@@ -1,0 +1,132 @@
+title: NGINX Worker Process Crash Indicating HTTP/3 Use-After-Free Exploitation (CVE-2026-42530)
+id: 60e3bdd3-d59b-4a98-9549-fbd858a88fa8
+status: experimental
+description: >
+    Detects NGINX worker process crashes (signal 11/SIGSEGV) in the error log
+    that may indicate exploitation of CVE-2026-42530, a use-after-free
+    vulnerability in the ngx_http_v3_module (HTTP/3 QUIC). Worker process
+    crashes caused by memory corruption from QPACK encoder stream manipulation
+    will produce signal 11 entries in the NGINX error log. Module keywords
+    (ngx_http_v3, quic, qpack) appear in core dump backtraces, not in the
+    standard error log line; this rule fires on signal 11 crashes and should
+    be combined with core dump analysis for HTTP/3-specific attribution.
+references:
+    - https://my.f5.com/manage/s/article/K000161616
+    - https://thehackernews.com/2026/06/f5-patches-two-critical-nginx-open.html
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1190
+logsource:
+    category: application
+    product: nginx
+detection:
+    selection_crash:
+        data|contains|all:
+            - 'worker process'
+            - 'exited on signal 11'
+    condition: selection_crash
+falsepositives:
+    - Legitimate NGINX worker crashes due to bugs unrelated to exploitation
+    - Memory issues caused by system resource exhaustion
+level: medium
+---
+title: NGINX Worker Process Crash Indicating HTTP/2 Buffer Overflow Exploitation (CVE-2026-42055)
+id: 5968f81b-f6a8-495e-bdf2-1ccf487c3d6a
+status: experimental
+description: >
+    Detects NGINX worker process crashes (signal 11/SIGSEGV) in the error log
+    that may indicate exploitation of CVE-2026-42055, a heap-based buffer
+    overflow in ngx_http_proxy_v2_module and ngx_http_grpc_module. Crashes from
+    oversized HTTP/2 header manipulation will produce signal 11 entries. Module
+    keywords (ngx_http_proxy, ngx_http_grpc) appear in core dump backtraces,
+    not in the standard error log line; this rule fires on signal 11 crashes
+    and should be combined with core dump analysis for HTTP/2-specific
+    attribution.
+references:
+    - https://my.f5.com/manage/s/article/K000161584
+    - https://thehackernews.com/2026/06/f5-patches-two-critical-nginx-open.html
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1190
+logsource:
+    category: application
+    product: nginx
+detection:
+    selection_crash:
+        data|contains|all:
+            - 'worker process'
+            - 'exited on signal 11'
+    condition: selection_crash
+falsepositives:
+    - Legitimate NGINX worker crashes due to bugs unrelated to exploitation
+    - Upstream connectivity issues causing worker instability
+level: medium
+---
+title: NGINX Worker Process Crash on Signal 11 (CVE-2026-42530 / CVE-2026-42055 Indicator)
+id: d9f0fb72-3b15-4125-99db-aa8d1564adb6
+status: experimental
+description: >
+    Detects any NGINX worker process exit on signal 11 (SIGSEGV) in the error
+    log. This is a single-event detector; layer SIEM correlation (count >= 5
+    within 60 seconds) on top of this rule to detect crash-restart loops
+    indicative of memory corruption exploit brute-forcing against
+    CVE-2026-42530 or CVE-2026-42055. A single crash is suspicious; rapid
+    repeated crashes are near-certain exploitation.
+references:
+    - https://my.f5.com/manage/s/article/K000161616
+    - https://my.f5.com/manage/s/article/K000161584
+    - https://thehackernews.com/2026/06/f5-patches-two-critical-nginx-open.html
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1190
+logsource:
+    category: application
+    product: nginx
+detection:
+    selection:
+        data|contains|all:
+            - 'worker process'
+            - 'exited on signal 11'
+    condition: selection
+falsepositives:
+    - NGINX under severe memory pressure from legitimate traffic
+    - Configuration errors causing repeated crashes
+level: high
+---
+title: NGINX Vulnerable Version Detected in Server Response Header
+id: f1258d34-a297-4be1-af18-69630ccdc5a0
+status: experimental
+description: >
+    Detects NGINX server response headers advertising versions known to be
+    vulnerable to CVE-2026-42530 and/or CVE-2026-42055. This is an
+    asset-awareness rule to identify unpatched NGINX instances in web traffic
+    logs. Versions 1.31.0 and 1.31.1 are affected by both CVEs. Versions
+    1.30.0 through 1.30.2 are affected by CVE-2026-42055 only. Does not
+    cover NGINX Plus version strings (e.g., "nginx-plus-r36"). Field mapping
+    is pipeline-dependent; map keywords to the Server header field in your
+    SIEM (e.g., sc_server, response.server, http.response.header.server).
+references:
+    - https://my.f5.com/manage/s/article/K000161616
+    - https://my.f5.com/manage/s/article/K000161584
+    - https://securityonline.info/nginx-vulnerabilities/
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1592
+logsource:
+    category: webserver
+detection:
+    keywords:
+        - 'nginx/1.31.0'
+        - 'nginx/1.31.1'
+        - 'nginx/1.30.0'
+        - 'nginx/1.30.1'
+        - 'nginx/1.30.2'
+    condition: keywords
+falsepositives:
+    - NGINX instances with custom or spoofed Server headers
+    - Testing environments running vulnerable versions intentionally
+level: medium

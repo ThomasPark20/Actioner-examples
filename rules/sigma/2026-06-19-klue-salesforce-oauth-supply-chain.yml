@@ -1,0 +1,106 @@
+# Klue OAuth Token Abuse Supply Chain Attack (Icarus Threat Actors)
+# Date: 2026-06-19
+# Report: summaries/2026-06-19-klue-salesforce-oauth-supply-chain.md
+# Rules: 3 Sigma (proxy logsource)
+# Dropped: Sigma Rule 4 (gofile.io upload) -- too generic, no campaign-specific anchor
+---
+title: Suspicious Salesforce API Access with Python-urllib User-Agent
+id: f7a2c3d1-8e4b-5f6a-9b1d-2c7e8f3a4b5d
+status: experimental
+description: >
+    Detects Salesforce REST API access using Python-urllib User-Agent strings,
+    which were observed during the Klue OAuth token abuse supply chain attack
+    (June 2026). Threat actor Icarus used Python-urllib/3.12 and Python-urllib/3.14
+    to issue bulk queries against Salesforce REST API endpoints using stolen OAuth tokens.
+references:
+    - https://www.huntress.com/blog/klue-breach-investigation
+    - https://www.securityweek.com/cybersecurity-firms-impacted-by-klue-supply-chain-attack/
+    - https://thehackernews.com/2026/06/salesforce-disables-klue-app.html
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1528
+    - attack.t1106
+logsource:
+    category: proxy
+detection:
+    selection_useragent:
+        c-useragent|startswith: 'Python-urllib'
+    selection_sfdc_target:
+        r-dns|endswith:
+            - '.salesforce.com'
+            - '.force.com'
+    selection_api_path:
+        cs-uri-stem|contains: '/services/data/'
+    condition: selection_useragent and selection_sfdc_target and selection_api_path
+falsepositives:
+    - Legitimate internal automation scripts using Python requests/urllib to interact with Salesforce APIs
+    - CI/CD pipelines with Salesforce integration tests
+level: medium
+---
+title: Salesforce REST API Query Endpoint Access with Anomalous Numeric User-Agent
+id: e8b3d4f2-9a5c-6e7b-0c2d-3d8f9e4a5b6c
+status: experimental
+description: >
+    Detects access to the Salesforce REST API query endpoint with the suspicious User-Agent
+    value "5238". During the Klue OAuth supply chain attack (June 2026), the Icarus threat
+    actor used this anomalous numeric User-Agent string for the majority of malicious API
+    queries against Salesforce REST API query endpoints.
+references:
+    - https://www.huntress.com/blog/klue-breach-investigation
+    - https://www.securityweek.com/cybersecurity-firms-impacted-by-klue-supply-chain-attack/
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1528
+    - attack.t1106
+logsource:
+    category: proxy
+detection:
+    selection_sfdc_query:
+        cs-uri-stem|contains: '/services/data/'
+        r-dns|endswith:
+            - '.salesforce.com'
+            - '.force.com'
+    selection_suspicious_ua:
+        c-useragent: '5238'
+    selection_api_path:
+        cs-uri-stem|contains: '/query'
+    condition: selection_sfdc_query and selection_suspicious_ua and selection_api_path
+falsepositives:
+    - Misconfigured legitimate API clients sending numeric User-Agent strings
+level: medium
+---
+title: Salesforce API Access from Known Icarus Threat Actor Infrastructure
+id: d9c4e5a3-0b6d-7f8c-1d3e-4e9f0a5b6c7d
+status: experimental
+description: >
+    Detects network connections to Salesforce from IP addresses attributed to the Icarus
+    threat actor group, which compromised Klue OAuth tokens to exfiltrate CRM data from
+    Salesforce instances in June 2026. These IPs were observed performing bulk API queries
+    using stolen OAuth tokens.
+references:
+    - https://www.huntress.com/blog/klue-breach-investigation
+    - https://www.securityweek.com/cybersecurity-firms-impacted-by-klue-supply-chain-attack/
+author: Actioner
+date: 2026-06-19
+tags:
+    - attack.t1528
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_src_ip:
+        c-ip:
+            - '138.226.246.94'
+            - '212.86.125.24'
+            - '213.111.148.90'
+            - '94.154.32.160'
+    selection_sfdc:
+        r-dns|endswith:
+            - '.salesforce.com'
+            - '.force.com'
+    condition: selection_src_ip and selection_sfdc
+falsepositives:
+    - Unlikely given the specificity of the IP addresses and Salesforce destination; however IPs may be reassigned over time
+level: high

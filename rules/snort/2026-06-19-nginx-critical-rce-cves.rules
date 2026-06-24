@@ -1,0 +1,7 @@
+# Snort rules for NGINX CVE-2026-42530 and CVE-2026-42055
+# Author: Actioner | Date: 2026-06-19
+# Report: summaries/2026-06-19-nginx-critical-rce-cves.md
+
+# NGINX Vulnerable Version 1.31.x in Server Response Header
+# Covers 1.31.0 and 1.31.1 via prefix match "nginx/1.31."
+alert tcp $HOME_NET $HTTP_PORTS -> any any (msg:"Actioner - NGINX Vulnerable Version in Server Header (CVE-2026-42530/CVE-2026-42055)"; flow:established,to_client; content:"Server|3a| nginx/1.31."; nocase; classtype:policy-violation; reference:cve,2026-42530; reference:cve,2026-42055; sid:2100016; rev:1;)

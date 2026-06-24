@@ -1,0 +1,85 @@
+# AutoJack: AutoGen Studio AI Agent RCE via MCP WebSocket Exploitation
+# Report: /summaries/2026-06-19-autojack-autogen-studio-rce.md
+# Generated: 2026-06-19 | Status: FINAL
+# Rules: 2 Sigma | Dropped: 1 (browser automation — false positive on normal operation)
+# Validation: sigma check PASS, sigma convert splunk PASS, sigma convert log_scale PASS
+
+---
+title: AutoGen Studio MCP WebSocket Suspicious Child Process Spawning
+id: 7c4a2e9f-3b8d-4f1a-a5c6-0d2e8f1b7a3c
+status: experimental
+description: >
+  Detects suspicious child process creation from AutoGen Studio processes,
+  indicative of the AutoJack exploit chain where a malicious webpage triggers
+  arbitrary command execution via the MCP WebSocket endpoint. The vulnerable
+  endpoint accepted base64-encoded StdioServerParams and passed them directly
+  to process spawning without allowlisting.
+references:
+  - https://www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/
+author: Actioner CTI
+date: 2026-06-19
+tags:
+  - attack.t1059
+  - attack.t1203
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_parent:
+    ParentCommandLine|contains:
+      - 'autogenstudio'
+      - 'autogen_studio'
+      - 'autogen-studio'
+  selection_suspicious_child:
+    Image|endswith:
+      - '\cmd.exe'
+      - '\powershell.exe'
+      - '\pwsh.exe'
+      - '\bash.exe'
+      - '\wsl.exe'
+      - '\certutil.exe'
+      - '\mshta.exe'
+      - '\rundll32.exe'
+      - '\regsvr32.exe'
+      - '\curl.exe'
+      - '\wget.exe'
+      - '\bitsadmin.exe'
+      - '\calc.exe'
+  condition: selection_parent and selection_suspicious_child
+falsepositives:
+  - Legitimate AutoGen MCP servers routinely spawn cmd.exe, bash.exe, node.exe via stdio_client()
+  - Developer-configured MCP servers using standard system binaries
+level: medium
+
+---
+title: AutoGen Studio MCP WebSocket Connection with server_params Query String
+id: 9e1b3d5f-7a2c-4e8f-b6d0-1c3a5e7f9b2d
+status: experimental
+description: >
+  Detects network connections to AutoGen Studio's default ports (8081, 8080)
+  with URI patterns containing the MCP WebSocket endpoint and server_params
+  query parameter. This pattern matches the AutoJack exploit chain where
+  attacker-controlled JavaScript opens a WebSocket to localhost with
+  base64-encoded command execution parameters.
+references:
+  - https://www.microsoft.com/en-us/security/blog/2026/06/18/autojack-single-page-rce-host-running-ai-agent/
+author: Actioner CTI
+date: 2026-06-19
+tags:
+  - attack.t1059
+  - attack.t1203
+logsource:
+  category: proxy
+detection:
+  selection_port:
+    dst_port:
+      - 8081
+      - 8080
+  selection_uri:
+    cs-uri-stem|contains: '/api/mcp/ws/'
+  selection_params:
+    cs-uri-query|contains: 'server_params='
+  condition: selection_port and selection_uri and selection_params
+falsepositives:
+  - Legitimate MCP server connections using the pre-fix AutoGen Studio API
+level: high
