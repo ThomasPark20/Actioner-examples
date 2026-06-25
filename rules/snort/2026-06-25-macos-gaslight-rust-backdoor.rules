@@ -1,0 +1,10 @@
+# macOS.Gaslight - Telegram Bot API C2 Communication (Snort 2.9)
+# Reference: https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+# Author: Actioner CTI
+# Date: 2026-06-25
+
+# Detects HTTP requests to Telegram Bot API with getUpdates (unencrypted fallback)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight - Telegram Bot API getUpdates C2 Polling"; flow:established,to_server; content:"api.telegram.org"; nocase; http_header; content:"/bot"; http_uri; content:"getUpdates"; http_uri; sid:2026062510; rev:1; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
+
+# Detects Telegram file upload via multipart attach mechanism
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight - Telegram Bot API File Exfiltration"; flow:established,to_server; content:"api.telegram.org"; nocase; http_header; content:"sendDocument"; http_uri; content:"attach://"; http_client_body; sid:2026062511; rev:1; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
