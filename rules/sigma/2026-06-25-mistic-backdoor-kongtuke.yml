@@ -1,0 +1,165 @@
+title: Mistic Backdoor DLL Side-Loading via MpExtMs.exe
+id: a1f7c3d2-9e4b-4a6f-8d1c-3b5e7f9a2c4d
+status: experimental
+description: Detects the Mistic/MLTBackdoor DLL side-loading chain where a legitimate Microsoft Defender executable (MpExtMs.exe) is abused to load a malicious EndpointDlp.dll payload. The malware masquerades as Microsoft endpoint security tooling.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+    - https://www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor
+author: Actioner CTI
+date: 2026-06-25
+tags:
+    - attack.defense_evasion
+    - attack.t1574.002
+    - attack.execution
+    - attack.t1204.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_parent:
+        ImageLoaded|endswith: '\EndpointDlp.dll'
+        Image|endswith: '\MpExtMs.exe'
+    filter_legitimate:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\Microsoft'
+            - 'C:\Program Files (x86)\Microsoft'
+            - 'C:\ProgramData\Microsoft'
+            - 'C:\Windows\System32'
+    condition: selection_parent and not filter_legitimate
+falsepositives:
+    - Legitimate Microsoft Defender for Endpoint installations loading EndpointDlp.dll from standard paths
+level: high
+---
+title: Mistic Backdoor ClickFix Delivery Chain
+id: b2e8d4f3-0a5c-5b7e-9e2d-4c6f8a0b3d5e
+status: experimental
+description: Detects the ClickFix-style delivery chain used to deploy MLTBackdoor/Mistic, involving conhost headless execution piped through cmd to download, extract, and execute the backdoor via rundll32.
+references:
+    - https://www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor
+author: Actioner CTI
+date: 2026-06-25
+tags:
+    - attack.execution
+    - attack.t1059.003
+    - attack.defense_evasion
+    - attack.t1218.011
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_conhost:
+        ParentImage|endswith: '\conhost.exe'
+        CommandLine|contains: '--headless'
+    selection_curl_tar:
+        CommandLine|contains|all:
+            - 'curl'
+            - 'tar xf'
+            - 'rundll32'
+    selection_rundll32_endpoint:
+        CommandLine|contains|all:
+            - 'rundll32'
+            - 'endpointdlp.dll'
+            - ',#2'
+    condition: selection_conhost or selection_curl_tar or selection_rundll32_endpoint
+falsepositives:
+    - Legitimate use of conhost --headless with cmd is uncommon but possible in automated deployment scripts
+level: high
+---
+title: Mistic Backdoor version.dll Loader Suspicious Load
+id: c3f9e5a4-1b6d-6c8f-af3e-5d7a9b1c4e6f
+status: experimental
+description: Detects suspicious loading of version.dll from non-standard paths by MpExtMs.exe. The Mistic loader uses version.dll to hook GetModuleFileNameW and LoadLibraryW for the sideloading chain.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+author: Actioner CTI
+date: 2026-06-25
+tags:
+    - attack.defense_evasion
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MpExtMs.exe'
+        ImageLoaded|endswith: '\version.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32'
+            - 'C:\Windows\SysWOW64'
+            - 'C:\Windows\WinSxS'
+    condition: selection and not filter_system
+falsepositives:
+    - Portable applications bundling their own version.dll alongside MpExtMs.exe in non-standard directories
+level: high
+---
+title: Mistic Backdoor Persistence via Run Key Masquerading
+id: d4a0f6b5-2c7e-7d9a-ba4f-6e8b0c2d5f7a
+status: experimental
+description: Detects registry Run key persistence created by Mistic/KongTuke operations that masquerade as legitimate remote access tools (AnyDesk, Splashtop, Comms) to maintain access.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+author: Actioner CTI
+date: 2026-06-25
+tags:
+    - attack.persistence
+    - attack.t1547.001
+    - attack.defense_evasion
+    - attack.t1036.005
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run'
+    selection_masquerade:
+        TargetObject|endswith:
+            - '\AnyDesk'
+            - '\Splashtop'
+            - '\Comms'
+        Details|contains: 'MpExtMs'
+    condition: selection_key and selection_masquerade
+falsepositives:
+    - Legitimate AnyDesk or Splashtop installations pointing to MpExtMs.exe (very unlikely)
+level: high
+---
+title: Mistic Backdoor C2 Communication Pattern
+id: e5b1a7c6-3d8f-8eab-cb5a-7f9c1d3e6a8b
+status: experimental
+description: Detects network connections to known Mistic/MLTBackdoor C2 domains and the characteristic User-Agent string used by the malware.
+references:
+    - https://www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+author: Actioner CTI
+date: 2026-06-25
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: proxy
+    product: windows
+detection:
+    selection_domains:
+        c-uri|contains:
+            - 'carrolc.com'
+            - 'cwrtwright.com'
+            - 'thomphon.com'
+            - 'mueleer.com'
+            - 'oeannon.com'
+            - 'authorized-logins.net'
+            - 'updater-worelos.com'
+            - 'upd-domain-goloro.com'
+            - 'upscale-kolo.com'
+            - 'sql-updater-service.com'
+            - 'rotoa-upda-lo.com'
+            - 'update-fall.com'
+            - 'grande-luna.top'
+            - 'human-check.top'
+            - 'powwowski.com'
+    selection_ua_path:
+        c-useragent: 'Microsoft-Delivery-Optimization/10.1'
+        c-uri|contains: '/api/v1/telemetry'
+    condition: selection_domains or selection_ua_path
+falsepositives:
+    - Windows Delivery Optimization legitimate traffic uses a similar User-Agent but different URI paths
+level: high
