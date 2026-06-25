@@ -1,5 +1,7 @@
 # macOS.Gaslight -- DPRK Rust Backdoor with LLM Prompt Injection Evasion
 
+<!-- revision: 2026-06-25T2 — Critic review applied. Dropped 7 rules: Sigma IOPMAssertion (broken detection logic — C API not CLI), Sigma collected_data.zip (generic filename), Sigma astral-sh staging (FPs on legitimate dev tooling), Sigma Telegram C2 (behavioral, no Gaslight artifact), Suricata SIDs 2026062501-03 (generic SNI/rate/github.com detectors). Tightened YARA Prompt_Injection filesize from 5MB to 500KB. Relabeled Snort rules as hunting (TLS interception required). Removed T1529 mapping. Final count: 1 Sigma, 4 YARA, 2 Snort (hunting), 0 Suricata = 7 rules. -->
+
 > **Status:** DRAFT -- Actioner CTI  
 > **Date:** 2026-06-25  
 > **TLP:** CLEAR  
@@ -126,7 +128,6 @@ The goal is to compel LLM agents to abort, truncate, or refuse analysis of the s
 | Discovery | Software Discovery: Security Software Discovery | T1518.001 | Installed application enumeration |
 | Exfiltration | Exfiltration Over C2 Channel | T1041 | File upload via Telegram `sendDocument` |
 | Resource Development | Stage Capabilities: Upload Malware | T1608.001 | Python runtime staged from GitHub |
-| Impact | System Shutdown/Reboot | T1529 | Sleep prevention via IOPMAssertion (non-standard mapping -- prevents idle sleep) |
 
 ---
 
@@ -149,7 +150,7 @@ The goal is to compel LLM agents to abort, truncate, or refuse analysis of the s
 
 ### Sigma Rules
 
-Validated via `sigma convert --without-pipeline -t splunk` and `sigma convert --without-pipeline -t log_scale` (all 5 rules convert cleanly). `sigma check` could not complete due to MITRE ATT&CK data fetch timeout in this environment (not a rule syntax issue).
+Validated via `sigma convert --without-pipeline -t splunk` and `sigma convert --without-pipeline -t log_scale` (rule converts cleanly). `sigma check` could not complete due to MITRE ATT&CK data fetch timeout in this environment (not a rule syntax issue).
 
 **File:** `rules/sigma/2026-06-25-macos-gaslight-rust-backdoor.yml`
 
@@ -163,50 +164,6 @@ Detects LaunchAgent plist creation with the `com.apple.system.services.activity`
 |----------|-------|
 | Compile Status | PASS (convert) |
 | Confidence | **High** -- unique artifact-specific string, low false positive rate |
-
-#### 2. macOS.Gaslight -- IOPMAssertion Sleep Prevention
-
-Detects non-Apple processes calling IOPMAssertionCreateWithName. Caveat: behavioral rule; many legitimate apps prevent sleep; requires tuning per environment.
-
-<!-- audit: sigma-convert-splunk=PASS, sigma-convert-logscale=PASS, sigma-check=SKIP(network timeout), splunk-output='CommandLine="*IOPMAssertionCreateWithName*" NOT Image="/System/*"' -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS (convert) |
-| Confidence | **Low** -- behavioral; high false positive potential from legitimate apps |
-
-#### 3. macOS.Gaslight -- Python Stealer Data Collection Archive
-
-Detects creation of `temp/collected_data.zip`. Caveat: filename is not globally unique; best paired with other Gaslight indicators.
-
-<!-- audit: sigma-convert-splunk=PASS, sigma-convert-logscale=PASS, sigma-check=SKIP(network timeout), splunk-output='TargetFilename="*/temp/collected_data.zip"' -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS (convert) |
-| Confidence | **Medium** -- moderately specific file path; could match other archive tools |
-
-#### 4. macOS.Gaslight -- Python Runtime Staging from astral-sh
-
-Detects command lines referencing `astral-sh`, `python-build-standalone`, and `cpython-3.10` together. Caveat: legitimate developer use of astral-sh python-build-standalone will trigger this.
-
-<!-- audit: sigma-convert-splunk=PASS, sigma-convert-logscale=PASS, sigma-check=SKIP(network timeout), splunk-output='CommandLine="*astral-sh*" CommandLine="*python-build-standalone*" CommandLine="*cpython-3.10*"' -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS (convert) |
-| Confidence | **Low** -- behavioral; legitimate developer activity will match |
-
-#### 5. macOS.Gaslight -- Telegram Bot API C2 Communication
-
-Detects command lines referencing both `api.telegram.org` and `getUpdates`. Caveat: legitimate Telegram bots on macOS will match; best used as a hunting query.
-
-<!-- audit: sigma-convert-splunk=PASS, sigma-convert-logscale=PASS, sigma-check=SKIP(network timeout), splunk-output='CommandLine="*api.telegram.org*" CommandLine="*getUpdates*"' -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS (convert) |
-| Confidence | **Low** -- behavioral; Telegram bots are legitimate software |
 
 ---
 
@@ -242,7 +199,7 @@ Detects the embedded Python stealer payload by matching collection targets and o
 
 Detects the LLM prompt injection payload via scaffolding tokens and fabricated system message strings. Caveat: the `{{DATA}}` token and markdown fences are common individually; the rule requires co-occurrence with 3+ fabricated error message patterns.
 
-<!-- audit: yarac=PASS(exit 0), condition-logic='filesize<5MB AND scaffold AND md-fence AND 3-of-fakes' -->
+<!-- audit: yarac=PASS(exit 0), condition-logic='filesize<500KB AND scaffold AND md-fence AND 3-of-fakes' -->
 
 | Property | Value |
 |----------|-------|
@@ -264,72 +221,37 @@ Detects the bash installer script that stages the Python runtime. Caveat: astral
 
 ### Suricata Rules
 
-Validated via `suricata -T` -- configuration loaded successfully.
-
-**File:** `rules/suricata/2026-06-25-macos-gaslight-rust-backdoor.rules`
-
-#### 1. SID 2026062501 -- Telegram Bot API C2 getUpdates Polling
-
-Detects TLS connections with SNI matching `api.telegram.org`. Caveat: will fire on any TLS connection to Telegram's API; requires additional context for triage.
-
-<!-- audit: suricata-T=PASS, keyword=tls.sni, protocol=tls -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS |
-| Confidence | **Low** -- behavioral; any Telegram API client will match |
-
-#### 2. SID 2026062502 -- Telegram Bot API TLS Connection (Threshold)
-
-Rate-limited variant (10+ connections in 60 seconds from same source) to detect polling behavior. Caveat: chatty Telegram bots or desktop clients may exceed this threshold.
-
-<!-- audit: suricata-T=PASS, keyword=tls.sni+threshold, protocol=tls -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS |
-| Confidence | **Low** -- behavioral; threshold helps but legitimate bots poll frequently |
-
-#### 3. SID 2026062503 -- Python Runtime Staging Download
-
-Detects TLS connections to `github.com` -- overly broad as written; included as a placeholder for environments that can correlate with endpoint process context. Caveat: extremely noisy; should be combined with endpoint telemetry or restricted to specific subnets.
-
-<!-- audit: suricata-T=PASS, keyword=tls.sni, protocol=tls, note=BROAD-github.com-only -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS |
-| Confidence | **Very Low** -- too broad for production use without additional filtering |
+All Suricata rules were dropped during review: SID 2026062501 (generic Telegram SNI detector mislabeled as getUpdates-specific), SID 2026062502 (generic Telegram rate detector), SID 2026062503 (fires on all github.com traffic). No Suricata rules remain for this threat.
 
 ---
 
-### Snort Rules
+### Snort Rules (Hunting)
 
-Validated via `snort -T` with minimal configuration -- configuration validated successfully.
+Validated via `snort -T` with minimal configuration -- configuration validated successfully. These are **hunting rules only** -- Gaslight uses HTTPS with TLS certificate pinning, so these rules require TLS interception (e.g., SSL/TLS proxy) to fire.
 
 **File:** `rules/snort/2026-06-25-macos-gaslight-rust-backdoor.rules`
 
-#### 1. SID 2026062510 -- Telegram Bot API getUpdates C2 Polling
+#### 1. SID 2026062510 -- Telegram Bot API getUpdates C2 Polling (Hunting)
 
-Detects HTTP requests to `api.telegram.org` with `/bot` and `getUpdates` in the URI. Caveat: only fires on unencrypted HTTP; Gaslight uses TLS with certificate pinning, so this rule targets degraded/intercepted scenarios only.
+Detects HTTP requests to `api.telegram.org` with `/bot` and `getUpdates` in the URI. Caveat: only fires on unencrypted/intercepted HTTP; Gaslight uses TLS with certificate pinning.
 
-<!-- audit: snort-T=PASS(minimal-config), protocol=tcp, keywords=http_header+http_uri, note=HTTP-only-gaslight-uses-TLS -->
-
-| Property | Value |
-|----------|-------|
-| Compile Status | PASS |
-| Confidence | **Low** -- HTTP-only; malware uses HTTPS with cert pinning; useful only with TLS interception |
-
-#### 2. SID 2026062511 -- Telegram Bot API File Exfiltration
-
-Detects HTTP requests to Telegram API with `sendDocument` and `attach://` pattern. Caveat: same HTTP-only limitation as above.
-
-<!-- audit: snort-T=PASS(minimal-config), protocol=tcp, keywords=http_header+http_uri+http_client_body, note=HTTP-only-gaslight-uses-TLS -->
+<!-- audit: snort-T=PASS(minimal-config), protocol=tcp, keywords=http_header+http_uri, note=HUNTING-TLS-interception-required -->
 
 | Property | Value |
 |----------|-------|
 | Compile Status | PASS |
-| Confidence | **Low** -- HTTP-only; requires TLS interception to be effective |
+| Confidence | **Low** -- hunting rule; requires TLS interception to be effective |
+
+#### 2. SID 2026062511 -- Telegram Bot API File Exfiltration (Hunting)
+
+Detects HTTP requests to Telegram API with `sendDocument` and `attach://` pattern. Caveat: same TLS interception requirement as above.
+
+<!-- audit: snort-T=PASS(minimal-config), protocol=tcp, keywords=http_header+http_uri+http_client_body, note=HUNTING-TLS-interception-required -->
+
+| Property | Value |
+|----------|-------|
+| Compile Status | PASS |
+| Confidence | **Low** -- hunting rule; requires TLS interception to be effective |
 
 ---
 
@@ -347,7 +269,7 @@ These are hash-based signatures and will not detect variants.
 
 1. **Deploy YARA rules** `macOS_Gaslight_Rust_Backdoor` and `macOS_Gaslight_Python_Stealer` to file scanning pipelines and EDR platforms -- these have the highest specificity
 2. **Deploy Sigma rule** for LaunchAgent persistence with `com.apple.system.services.activity` label -- high confidence, low false positive
-3. **Hunt** for Telegram Bot API polling from macOS endpoints using the Sigma/Suricata behavioral rules
+3. **Hunt** for Telegram Bot API polling from macOS endpoints using the Snort hunting rules (requires TLS interception)
 4. **Verify XProtect** is current on macOS fleet (should include `MACOS_BONZAI_COBUCH`)
 5. **Audit LLM-assisted analysis pipelines** to ensure sample content is treated as adversarial input, never as instructions -- implement input sanitization for `{{DATA}}` scaffolding tokens and markdown-fenced blocks before LLM processing
 6. **Monitor** for `astral-sh/python-build-standalone` downloads from non-developer endpoints
@@ -359,20 +281,13 @@ These are hash-based signatures and will not detect variants.
 | # | Type | Title | Compile Status | Confidence |
 |---|------|-------|---------------|------------|
 | 1 | Sigma | LaunchAgent Persistence | PASS (convert) | High |
-| 2 | Sigma | IOPMAssertion Sleep Prevention | PASS (convert) | Low |
-| 3 | Sigma | Python Stealer Data Collection Archive | PASS (convert) | Medium |
-| 4 | Sigma | Python Runtime Staging from astral-sh | PASS (convert) | Low |
-| 5 | Sigma | Telegram Bot API C2 Communication | PASS (convert) | Low |
-| 6 | YARA | macOS_Gaslight_Rust_Backdoor | PASS | High |
-| 7 | YARA | macOS_Gaslight_Python_Stealer | PASS | High |
-| 8 | YARA | macOS_Gaslight_Prompt_Injection | PASS | Medium |
-| 9 | YARA | macOS_Gaslight_Bash_Installer | PASS | Medium |
-| 10 | Suricata | Telegram Bot API C2 getUpdates (SID 2026062501) | PASS | Low |
-| 11 | Suricata | Telegram Bot API TLS Connection threshold (SID 2026062502) | PASS | Low |
-| 12 | Suricata | Python Runtime Staging Download (SID 2026062503) | PASS | Very Low |
-| 13 | Snort | Telegram Bot API getUpdates C2 Polling (SID 2026062510) | PASS | Low |
-| 14 | Snort | Telegram Bot API File Exfiltration (SID 2026062511) | PASS | Low |
+| 2 | YARA | macOS_Gaslight_Rust_Backdoor | PASS | High |
+| 3 | YARA | macOS_Gaslight_Python_Stealer | PASS | High |
+| 4 | YARA | macOS_Gaslight_Prompt_Injection | PASS | Medium |
+| 5 | YARA | macOS_Gaslight_Bash_Installer | PASS | Medium |
+| 6 | Snort | Telegram Bot API getUpdates C2 Polling -- hunting (SID 2026062510) | PASS | Low |
+| 7 | Snort | Telegram Bot API File Exfiltration -- hunting (SID 2026062511) | PASS | Low |
 
 ---
 
-*This is a DRAFT report. All detection rules have been machine-validated but have not been tested against live samples or in production environments. Behavioral rules (confidence: Low) should be tuned per environment before deployment.*
+*This is a DRAFT report (revised). 7 detection rules remain after review (1 Sigma, 4 YARA, 2 Snort hunting). All rules have been machine-validated but have not been tested against live samples or in production environments. Snort hunting rules (confidence: Low) require TLS interception and should be tuned per environment before deployment.*

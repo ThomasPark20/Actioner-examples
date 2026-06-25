@@ -104,7 +104,7 @@ rule macOS_Gaslight_Prompt_Injection : AI_evasion DPRK
         $md_fence = "```" ascii
 
     condition:
-        filesize < 5MB and
+        filesize < 500KB and
         $scaffold1 and
         $md_fence and
         3 of ($fake_*)

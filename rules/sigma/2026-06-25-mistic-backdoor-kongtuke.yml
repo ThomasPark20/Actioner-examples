@@ -63,7 +63,7 @@ detection:
     condition: selection_conhost or selection_curl_tar or selection_rundll32_endpoint
 falsepositives:
     - Legitimate use of conhost --headless with cmd is uncommon but possible in automated deployment scripts
-level: high
+level: medium
 ---
 title: Mistic Backdoor version.dll Loader Suspicious Load
 id: c3f9e5a4-1b6d-6c8f-af3e-5d7a9b1c4e6f
@@ -75,7 +75,7 @@ author: Actioner CTI
 date: 2026-06-25
 tags:
     - attack.defense_evasion
-    - attack.t1574.001
+    - attack.t1574.002
 logsource:
     category: image_load
     product: windows

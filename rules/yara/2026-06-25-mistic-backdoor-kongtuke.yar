@@ -125,7 +125,7 @@ rule Mistic_MLTBackdoor_RC4_Encrypted_Payload
         )
 }
 
-rule Mistic_MLTBackdoor_Hashes
+rule Mistic_MLTBackdoor_AntiAnalysis_ProcHashes
 {
     meta:
         description = "Detects known Mistic/MLTBackdoor samples by SHA256 hash match on import table or code section characteristics"

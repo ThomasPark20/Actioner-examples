@@ -1,3 +1,4 @@
+<!-- revision: 2026-06-25 r2 -- critic CONDITIONAL PASS applied. Blocking: (1) Suricata SID 2026062516 SNI constraint removed for IP-only matching; (2) SID 2026062517 downgraded to low/hunting; (3) Sigma Rule #2 downgraded from high to medium. Non-blocking: (4) SID 2026062501 msg corrected; (5) Sigma Rule #5 confidence split IOC/behavioral in report; (6) Sigma Rule #3 MITRE tag corrected T1574.001->T1574.002; (7) YARA Rule #4 renamed to AntiAnalysis_ProcHashes; (8) T1569.002 removed from MITRE table. -->
 # Mistic Backdoor / MLTBackdoor -- KongTuke Access Broker
 
 **Status:** DRAFT | **Date:** 2026-06-25 | **TLP:** CLEAR | **Analyst:** Actioner CTI
@@ -171,7 +172,6 @@ Supports standard Cobalt Strike-compatible BOF API (BeaconDataParse, BeaconPrint
 | Initial Access | Phishing | T1566 | ClickFix/CrashFix/FileFix social engineering |
 | Execution | User Execution: Malicious File | T1204.002 | User pastes and executes malicious command |
 | Execution | Command and Scripting Interpreter: Windows Command Shell | T1059.003 | conhost --headless -> cmd delivery |
-| Execution | System Services: Service Execution | T1569.002 | rundll32 endpointdlp.dll,#2 |
 | Persistence | Boot or Logon Autostart Execution: Registry Run Keys | T1547.001 | HKCU Run keys masquerading as AnyDesk/Splashtop |
 | Defense Evasion | Hijack Execution Flow: DLL Side-Loading | T1574.002 | MpExtMs.exe -> version.dll -> EndpointDlp.dll |
 | Defense Evasion | Masquerading: Match Legitimate Name or Location | T1036.005 | EndpointDlp.dll mimics Microsoft DLP component |
@@ -291,10 +291,10 @@ Supports standard Cobalt Strike-compatible BOF API (BeaconDataParse, BeaconPrint
 | # | Rule Title | Compile Status | Confidence | Notes |
 |---|-----------|---------------|------------|-------|
 | 1 | Mistic Backdoor DLL Side-Loading via MpExtMs.exe | compiled (splunk, logscale) | high | Detects EndpointDlp.dll loaded by MpExtMs.exe from non-standard paths. Caveat: requires Sysmon image load logging (Event ID 7). |
-| 2 | Mistic Backdoor ClickFix Delivery Chain | compiled (splunk, logscale) | high | Detects conhost --headless delivery and rundll32 endpointdlp.dll execution. Caveat: conhost --headless alone may fire on legitimate automation. |
+| 2 | Mistic Backdoor ClickFix Delivery Chain | compiled (splunk, logscale) | medium | Detects conhost --headless delivery and rundll32 endpointdlp.dll execution. Caveat: selection_conhost branch is behavioral/TTP-level; conhost --headless alone may fire on legitimate automation. |
 | 3 | Mistic Backdoor version.dll Loader Suspicious Load | compiled (splunk, logscale) | high | Detects version.dll loaded from non-system paths by MpExtMs.exe. Caveat: requires Sysmon image load events. |
 | 4 | Mistic Backdoor Persistence via Run Key Masquerading | compiled (splunk, logscale) | medium | Detects Run key entries named AnyDesk/Splashtop/Comms pointing to MpExtMs. Caveat: TTP-level detection; may require tuning in environments with legitimate remote access tools. |
-| 5 | Mistic Backdoor C2 Communication Pattern | compiled (splunk, logscale) | high (IOC) | Detects known C2 domains and the characteristic User-Agent + URI path combination. Caveat: IOC-based rules have a limited shelf life as infrastructure rotates. |
+| 5 | Mistic Backdoor C2 Communication Pattern | compiled (splunk, logscale) | high (IOC) / medium (behavioral) | Detects known C2 domains (high confidence, IOC-based) and the characteristic User-Agent + URI path combination (medium confidence, behavioral). Caveat: IOC-based branch has limited shelf life as infrastructure rotates; UA+path branch is TTP-level and may match legitimate Windows Delivery Optimization traffic on different URI paths. |
 
 <!-- audit: Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `-t log_scale`, all five rules converted successfully with exit 0. sigma check failed due to upstream D3FEND ontology fetch error (network/proxy issue), not a rule syntax problem. -->
 
@@ -307,7 +307,7 @@ Supports standard Cobalt Strike-compatible BOF API (BeaconDataParse, BeaconPrint
 | 1 | Mistic_MLTBackdoor_Payload | compiled (yarac exit 0) | high | Detects MLTBackdoor payload via protocol magic bytes, DGA LCG constants, BOF loader hashes, and NT API hashes. Caveat: MBA/CFF obfuscation may cause string-based matches to shift across builds. |
 | 2 | Mistic_MLTBackdoor_Loader_VersionDLL | compiled (yarac exit 0) | high | Detects the version.dll loader via hook targets and sideload references. Caveat: requires PE export `GetFileVersionInfoA` which is standard for version.dll proxying. |
 | 3 | Mistic_MLTBackdoor_RC4_Encrypted_Payload | compiled (yarac exit 0) | medium | Detects archives containing the sideload triple (MpExtMs.exe, version.dll, EndpointDlp.dll). Caveat: filename-based detection in archives; determined actor could rename components. |
-| 4 | Mistic_MLTBackdoor_Hashes | compiled (yarac exit 0) | high | Detects embedded SHA256 hashes of analysis tool process names used for anti-analysis. Caveat: partial hash matching (first 16 bytes); other malware families may use similar anti-analysis lists. |
+| 4 | Mistic_MLTBackdoor_AntiAnalysis_ProcHashes | compiled (yarac exit 0) | high | Detects embedded SHA256 hashes of analysis tool process names used for anti-analysis. Caveat: partial hash matching (first 16 bytes); other malware families may use similar anti-analysis lists. |
 
 <!-- audit: All 4 YARA rules compiled successfully with `yarac /tmp/actioner/mistic-yara.yar /dev/null` exit code 0. Rules require the `pe` module. -->
 
@@ -318,8 +318,8 @@ Supports standard Cobalt Strike-compatible BOF API (BeaconDataParse, BeaconPrint
 | # | SID | Rule Summary | Compile Status | Confidence | Notes |
 |---|-----|-------------|---------------|------------|-------|
 | 1-12 | 2026062501-2026062512 | TLS SNI matches for known C2 domains | compiled (suricata -T exit 0) | high (IOC) | One rule per known C2 domain. Caveat: IOC-based; infrastructure will rotate. |
-| 13-16 | 2026062513-2026062516 | C2 IP address matches on TLS port 443 | compiled (suricata -T exit 0) | high (IOC) | Direct IP matching. Caveat: IPs may be reassigned to legitimate services. |
-| 17 | 2026062517 | HTTP URI /update.msi payload download | compiled (suricata -T exit 0) | medium | Detects MSI payload retrieval. Caveat: generic URI pattern; combine with domain context. |
+| 13-16 | 2026062513-2026062516 | C2 IP address matches on TLS port 443 | compiled (suricata -T exit 0) | high (IOC) | Direct IP matching (no SNI constraint). Caveat: IPs may be reassigned to legitimate services. |
+| 17 | 2026062517 | HTTP URI /update.msi payload download (hunting) | compiled (suricata -T exit 0) | low | Hunting rule only -- bare `/update.msi` URI pattern is generic and will generate false positives in production. Combine with domain context before promoting. |
 | 18 | 2026062518 | HTTP payload download from powwowski[.]com | compiled (suricata -T exit 0) | high (IOC) | Domain + specific path match. Caveat: IOC-based. |
 
 <!-- audit: All 18 Suricata rules validated with `suricata -T -S /tmp/actioner/mistic-suricata.rules -l /tmp/actioner` exit code 0, message "Configuration provided was successfully loaded. Exiting." -->
