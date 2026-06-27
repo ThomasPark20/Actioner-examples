@@ -230,6 +230,7 @@ Both exploits are designed to be **forensically silent**. The page-cache corrupt
 
 ## Detection Rules
 
+<!-- revision: 2026-06-27-R1 -- 4 of 7 Sigma rules revised (rules 1, 3, 5, 7). All 7 re-validated via sigma convert (Splunk + LogScale --without-pipeline). All 4 YARA rules unchanged, re-validated via yarac. -->
 ### Sigma Rules (7 rules) -- all validated via Splunk and LogScale conversion
 
 #### 1. act_pedit Kernel Module Load Detection
@@ -316,8 +317,10 @@ level: critical
 
 #### 3. Unprivileged User Namespace Creation for CAP_NET_ADMIN
 
+<!-- revision: 2026-06-27-R1 -- downgraded confidence to Low (from Medium) and level to medium (from high). Added filter_container_runtimes exclusion for Flatpak/Podman/Buildah/bwrap/bubblewrap. Added tuning guidance to description. Too generic for "specific" altitude due to legitimate container runtime usage. -->
+
 **Compile status**: PASS (Splunk + LogScale)
-**Confidence**: Medium
+**Confidence**: Low
 
 ```yaml
 title: Unprivileged User Namespace Creation for Network Admin Capabilities
@@ -326,7 +329,9 @@ status: experimental
 description: Detects the use of unshare to create user namespaces with network namespace capabilities,
     which is the common prerequisite for both CVE-2026-46331 (pedit COW) and CVE-2026-43503
     (DirtyClone) exploitation. Both exploits require CAP_NET_ADMIN obtained via unprivileged
-    user namespaces.
+    user namespaces. Note that this pattern is also used legitimately by Flatpak, Podman,
+    and other container runtimes, so tuning is expected to be necessary. Consider baselining
+    expected users and processes that invoke unshare in your environment.
 references:
     - https://github.com/sgkdev/packet_edit_meme
     - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
@@ -347,11 +352,21 @@ detection:
             - '-U'
             - '-r'
             - '-n'
-    condition: selection_unshare
+    filter_container_runtimes:
+        ParentImage|endswith:
+            - '/flatpak'
+            - '/podman'
+            - '/buildah'
+            - '/bwrap'
+            - '/bubblewrap'
+    condition: selection_unshare and not filter_container_runtimes
 falsepositives:
+    - Flatpak application launches
+    - Podman and Buildah container operations
+    - Bubblewrap sandboxing (used by GNOME and other desktop components)
     - Container runtime operations
     - Legitimate namespace isolation for testing
-level: high
+level: medium
 ```
 
 #### 4. DirtyClone IPsec Loopback Tunnel Configuration
@@ -410,6 +425,8 @@ level: high
 
 #### 5. Suspicious vmsplice/splice Syscalls from Exploit Binaries
 
+<!-- revision: 2026-06-27-R1 -- BLOCKER FIX: removed invalid dual logsource (service: auditd + category: process_creation are mutually exclusive in Sigma). Kept service: auditd only, as this rule detects SYSCALL audit records, not process creation events. -->
+
 **Compile status**: PASS (Splunk + LogScale)
 **Confidence**: High
 
@@ -432,7 +449,6 @@ tags:
 logsource:
     product: linux
     service: auditd
-    category: process_creation
 detection:
     selection_vmsplice:
         type: SYSCALL
@@ -490,8 +506,10 @@ level: medium
 
 #### 7. Setuid Binary Spawning Shell as Root (Post-Exploitation)
 
+<!-- revision: 2026-06-27-R1 -- downgraded confidence to Low (from Medium) and level to low (from medium) due to high FP rate from interactive su sessions. Removed redundant ParentImage '/su' (subsumed by '/bin/su' and '/usr/bin/su'). Added 'su -' and 'su - root' to filter_legitimate to cover common admin patterns. Expanded description with FP warning and correlation guidance. -->
+
 **Compile status**: PASS (Splunk + LogScale)
-**Confidence**: Medium
+**Confidence**: Low
 
 ```yaml
 title: Setuid Binary Execution After User Namespace Operations - Page Cache LPE
@@ -500,7 +518,9 @@ status: experimental
 description: Detects execution of setuid binaries (su) spawning a root shell without standard
     login flags, which is the final step in page-cache poisoning LPE exploits. After corrupting
     the cached binary via pedit COW or DirtyClone, the attacker executes it to trigger the
-    injected shellcode (setgid(0)+setuid(0)+execve("/bin/sh")).
+    injected shellcode (setgid(0)+setuid(0)+execve("/bin/sh")). Note that interactive su
+    sessions legitimately spawn shells as root; this rule has a high false-positive rate
+    and should be correlated with other indicators from this report for actionable alerting.
 references:
     - https://github.com/sgkdev/packet_edit_meme
     - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
@@ -516,7 +536,6 @@ logsource:
 detection:
     selection_su_spawn_shell:
         ParentImage|endswith:
-            - '/su'
             - '/bin/su'
             - '/usr/bin/su'
         Image|endswith:
@@ -528,10 +547,14 @@ detection:
             - '-c'
             - '--command'
             - '--login'
+            - 'su -'
+            - 'su - root'
     condition: selection_su_spawn_shell and not filter_legitimate
 falsepositives:
-    - Interactive su sessions spawning shells
-level: medium
+    - Interactive su sessions spawning shells (common admin workflow)
+    - Automated scripts using su to switch users
+    - System services that invoke su for privilege changes
+level: low
 ```
 
 ### YARA Rules (4 rules) -- compiled successfully with yarac
@@ -701,15 +724,16 @@ rule dirtyclone_python_poc
 
 ### Detection Rule Summary
 
+<!-- revision: 2026-06-27-R1 -- updated confidence for rules 1 (Medium, unchanged), 3 (Low, downgraded), 7 (Low, downgraded) -->
 | # | Type | Title | Compile Status | Confidence |
 |---|------|-------|---------------|------------|
 | 1 | Sigma | act_pedit Kernel Module Load | PASS (Splunk + LogScale) | Medium |
 | 2 | Sigma | pedit COW Exploit Process Chain | PASS (Splunk + LogScale) | High |
-| 3 | Sigma | Unprivileged User Namespace Creation | PASS (Splunk + LogScale) | Medium |
+| 3 | Sigma | Unprivileged User Namespace Creation | PASS (Splunk + LogScale) | Low |
 | 4 | Sigma | DirtyClone IPsec Loopback Tunnel | PASS (Splunk + LogScale) | High |
 | 5 | Sigma | vmsplice/splice from Exploit Binaries | PASS (Splunk + LogScale) | High |
 | 6 | Sigma | Suspicious tc pedit Configuration | PASS (Splunk + LogScale) | Medium |
-| 7 | Sigma | Setuid Binary Spawning Root Shell | PASS (Splunk + LogScale) | Medium |
+| 7 | Sigma | Setuid Binary Spawning Root Shell | PASS (Splunk + LogScale) | Low |
 | 8 | YARA | packet_edit_meme ELF Detection | PASS (yarac) | High |
 | 9 | YARA | DirtyClone Exploit Binary/Script | PASS (yarac) | High |
 | 10 | YARA | Page-Cache Poisoning Shellcode (Generic) | PASS (yarac) | Medium |
@@ -793,3 +817,4 @@ uname -r
 
 ---
 *Generated by Actioner -- 2026-06-27*
+*Revised: 2026-06-27-R1 -- critic review applied (4 Sigma rules fixed, 2 MITRE mappings corrected)*

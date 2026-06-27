@@ -214,7 +214,7 @@ C2 communication occurs over HTTPS to domains mimicking Microsoft services. One 
 | T1003.003 | OS Credential Dumping: NTDS | ntdsutil used to extract AD database |
 | T1087.002 | Account Discovery: Domain Account | Get-ADGroupMember, net group enumeration |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS C2 communication to Microsoft-mimicking domains |
-| T1055 | Process Injection | Cobalt Strike Beacon shellcode injected into thread buffer |
+| T1055.003 | Process Injection: Thread Execution Hijacking | Cobalt Strike Beacon shellcode written to suspended thread buffer and executed via ResumeThread |
 | T1027.013 | Obfuscated Files: Encrypted/Encoded File | Blowfish and AES-128 encryption of payload modules |
 | T1106 | Native API | Direct NT syscalls to bypass user-mode hooks |
 | T1505.003 | Server Software Component: Web Shell | Web shells deployed on compromised Exchange/Openfire servers |
@@ -394,11 +394,11 @@ level: medium
 
 ### YARA Rule 1 -- SharkLoader Dropper Strings
 
-compile-status: **Compiles** | confidence: **high**
+<!-- revision: removed unused import "math"; tightened second condition branch — was "2 of" any strings which could match legitimate Windows files; now requires at least one distinctive path string ($path1 or $path2) plus 2 alternative module names; downgraded confidence from high to medium -->
+
+compile-status: **Compiles** | confidence: **medium**
 
 ```yara
-import "math"
-
 rule SharkLoader_Dropper_Strings
 {
     meta:
@@ -408,6 +408,7 @@ rule SharkLoader_Dropper_Strings
         reference = "https://securelist.com/strikeshark-campaign/120326/"
         hash1 = "C559CC68986933200FD5D9E4388E2F58"
         hash2 = "B3352B42432DEDC4A519F011DC8B5D5A"
+        confidence = "medium"
 
     strings:
         $loader_dll = "SystemSettings.dll" ascii wide
@@ -430,7 +431,7 @@ rule SharkLoader_Dropper_Strings
         uint16(0) == 0x5A4D and
         (
             ($loader_dll and ($enc_module1 or $enc_module2)) or
-            (2 of ($path1, $path2, $alt_mui1, $alt_mui2, $alt_dat1, $alt_xml1, $alt_etl1)) or
+            (any of ($path*) and 2 of ($alt_mui*, $alt_dat1, $alt_xml1, $alt_etl1, $enc_module*)) or
             (any of ($dropper*) and any of ($enc_module*))
         )
 }
