@@ -1,0 +1,266 @@
+title: Linux act_pedit Kernel Module Load - Potential CVE-2026-46331 Exploitation
+id: 7a3b2c1d-4e5f-6a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: Detects loading of the act_pedit kernel module which is required for CVE-2026-46331
+    (pedit COW) exploitation. The module is rarely loaded in production environments and
+    its loading by non-root users via unprivileged user namespaces is a strong indicator
+    of exploitation preparation.
+references:
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
+    - https://ubuntu.com/security/CVE-2026-46331
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: KERN_MODULE
+        name: 'act_pedit'
+    condition: selection
+falsepositives:
+    - Legitimate traffic control configuration using pedit actions
+    - Network administrators configuring tc rules
+level: medium
+---
+title: Linux pedit COW Exploit Process Chain - CVE-2026-46331
+id: 8b4c3d2e-5f6a-7b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: Detects the process execution pattern associated with the packet_edit_meme exploit
+    for CVE-2026-46331. The exploit binary spawns a user namespace child process with
+    CAP_NET_ADMIN, configures tc pedit rules to corrupt page cache of /bin/su, then
+    executes the poisoned setuid binary to gain root.
+references:
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+    - attack.t1548.001
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_exploit_binary:
+        Image|endswith:
+            - '/packet_edit_meme'
+        CommandLine|contains:
+            - 'packet_edit_meme'
+    selection_ubuntu_bypass:
+        Image|endswith:
+            - '/aa-exec'
+        CommandLine|contains:
+            - 'trinity'
+            - 'chrome'
+            - 'flatpak'
+    condition: selection_exploit_binary or selection_ubuntu_bypass
+falsepositives:
+    - Legitimate use of aa-exec with these profiles is uncommon but possible
+level: critical
+---
+title: Unprivileged User Namespace Creation for Network Admin Capabilities
+id: 9c5d4e3f-6a7b-8c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: Detects the use of unshare to create user namespaces with network namespace capabilities,
+    which is the common prerequisite for both CVE-2026-46331 (pedit COW) and CVE-2026-43503
+    (DirtyClone) exploitation. Both exploits require CAP_NET_ADMIN obtained via unprivileged
+    user namespaces. Note that this pattern is also used legitimately by Flatpak, Podman,
+    and other container runtimes, so tuning is expected to be necessary. Consider baselining
+    expected users and processes that invoke unshare in your environment.
+references:
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+    - attack.defense-evasion
+    - attack.t1611
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_unshare:
+        Image|endswith: '/unshare'
+        CommandLine|contains|all:
+            - '-U'
+            - '-r'
+            - '-n'
+    filter_container_runtimes:
+        ParentImage|endswith:
+            - '/flatpak'
+            - '/podman'
+            - '/buildah'
+            - '/bwrap'
+            - '/bubblewrap'
+    condition: selection_unshare and not filter_container_runtimes
+falsepositives:
+    - Flatpak application launches
+    - Podman and Buildah container operations
+    - Bubblewrap sandboxing (used by GNOME and other desktop components)
+    - Container runtime operations
+    - Legitimate namespace isolation for testing
+level: medium
+---
+title: DirtyClone IPsec Loopback Tunnel Configuration - CVE-2026-43503
+id: 0d6e5f4a-7b8c-9d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: Detects configuration of IPsec/XFRM state and policy on the loopback interface, which
+    is a key step in the DirtyClone (CVE-2026-43503) exploitation chain. The exploit creates
+    a loopback IPsec tunnel to trigger in-place ESP decryption that overwrites page-cache memory.
+references:
+    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
+    - https://thehackernews.com/2026/06/new-dirtyclone-linux-kernel-flaw-lets.html
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_xfrm_state:
+        Image|endswith: '/ip'
+        CommandLine|contains|all:
+            - 'xfrm'
+            - 'state'
+            - 'add'
+            - '127.0.0.1'
+            - 'esp'
+    selection_xfrm_policy:
+        Image|endswith: '/ip'
+        CommandLine|contains|all:
+            - 'xfrm'
+            - 'policy'
+            - 'add'
+            - '127.0.0.1'
+            - 'esp'
+    selection_tee_rule:
+        Image|endswith:
+            - '/iptables'
+            - '/iptables-nft'
+        CommandLine|contains|all:
+            - 'TEE'
+            - 'mangle'
+            - 'OUTPUT'
+    condition: selection_xfrm_state or selection_xfrm_policy or selection_tee_rule
+falsepositives:
+    - IPsec testing on loopback in development environments
+level: high
+---
+title: Suspicious vmsplice/splice Syscalls on Setuid Binary - Page Cache Injection
+id: 1e7f6a5b-8c9d-0e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: Detects auditd syscall events for vmsplice and splice operations from known
+    exploit binaries. This pattern is characteristic of both CVE-2026-46331 (pedit COW)
+    and CVE-2026-43503 (DirtyClone) which use vmsplice/splice to inject page-cache-backed
+    memory into socket buffers for corruption.
+references:
+    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
+    - https://github.com/sgkdev/packet_edit_meme
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection_vmsplice:
+        type: SYSCALL
+        syscall: 'vmsplice'
+        exe|endswith:
+            - '/packet_edit_meme'
+            - '/dirtyclone'
+    selection_splice:
+        type: SYSCALL
+        syscall: 'splice'
+        exe|endswith:
+            - '/packet_edit_meme'
+            - '/dirtyclone'
+    condition: selection_vmsplice or selection_splice
+falsepositives:
+    - Legitimate use of vmsplice/splice for high-performance I/O
+level: critical
+---
+title: Suspicious Traffic Control pedit Action Configuration - CVE-2026-46331
+id: 2f8a7b6c-9d0e-1f2a-3b4c-5d6e7f8a9b0c
+status: experimental
+description: Detects execution of tc (traffic control) commands that configure pedit actions,
+    which is a required step in CVE-2026-46331 exploitation. The exploit configures
+    typed pedit keys with runtime offsets that exceed the precomputed writable range.
+references:
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://tuxcare.com/blog/pedit-cow-cve/
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '/tc'
+        CommandLine|contains|all:
+            - 'pedit'
+            - 'action'
+    condition: selection
+falsepositives:
+    - Legitimate network traffic control configuration
+    - Network quality of service (QoS) tuning
+level: medium
+---
+title: Setuid Binary Execution After User Namespace Operations - Page Cache LPE
+id: 3a9b8c7d-0e1f-2a3b-4c5d-6e7f8a9b0c1d
+status: experimental
+description: Detects execution of setuid binaries (su) spawning a root shell without standard
+    login flags, which is the final step in page-cache poisoning LPE exploits. After corrupting
+    the cached binary via pedit COW or DirtyClone, the attacker executes it to trigger the
+    injected shellcode (setgid(0)+setuid(0)+execve("/bin/sh")). Note that interactive su
+    sessions legitimately spawn shells as root; this rule has a high false-positive rate
+    and should be correlated with other indicators from this report for actionable alerting.
+references:
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
+author: Actioner CTI
+date: 2026-06-27
+tags:
+    - attack.privilege-escalation
+    - attack.t1068
+    - attack.t1548.001
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_su_spawn_shell:
+        ParentImage|endswith:
+            - '/bin/su'
+            - '/usr/bin/su'
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+        User: 'root'
+    filter_legitimate:
+        ParentCommandLine|contains:
+            - '-c'
+            - '--command'
+            - '--login'
+            - 'su -'
+            - 'su - root'
+    condition: selection_su_spawn_shell and not filter_legitimate
+falsepositives:
+    - Interactive su sessions spawning shells (common admin workflow)
+    - Automated scripts using su to switch users
+    - System services that invoke su for privilege changes
+level: low

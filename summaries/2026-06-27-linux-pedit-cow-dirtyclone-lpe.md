@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-27
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -224,15 +224,17 @@ Both exploits are designed to be **forensically silent**. The page-cache corrupt
 | Exploitation for Privilege Escalation | [T1068](https://attack.mitre.org/techniques/T1068/) | Core technique: kernel vulnerability exploitation for root access |
 | Abuse Elevation Control Mechanism: Setuid and Setgid | [T1548.001](https://attack.mitre.org/techniques/T1548/001/) | Exploits target setuid-root binaries (`/bin/su`, `/usr/bin/su`) |
 | Escape to Host | [T1611](https://attack.mitre.org/techniques/T1611/) | Namespace creation used to obtain `CAP_NET_ADMIN` |
-| Indicator Removal: Timestomp | [T1070.006](https://attack.mitre.org/techniques/T1070/006/) | Page-cache poisoning avoids file modification timestamps |
-| Rootkit | [T1014](https://attack.mitre.org/techniques/T1014/) | In-memory modification of system binaries without touching disk |
+| Process Injection | [T1055](https://attack.mitre.org/techniques/T1055/) | In-memory modification of cached binary code pages without touching disk |
 | System Information Discovery | [T1082](https://attack.mitre.org/techniques/T1082/) | Exploit may probe kernel version and module availability |
+<!-- revision: 2026-06-27-R1 -- removed T1070.006 (Timestomp): exploits do not modify timestamps. Removed T1014 (Rootkit): in-memory page-cache corruption is not a rootkit. Added T1055 (Process Injection) as closer match for in-memory binary modification. -->
 
 ## Detection Rules
 
 ### Sigma Rules (7 rules) -- all validated via Splunk and LogScale conversion
 
 #### 1. act_pedit Kernel Module Load Detection
+
+<!-- revision: 2026-06-27-R1 -- changed logsource from syslog/EventType:module_load to auditd/type:KERN_MODULE+name:act_pedit. Fixed condition from "selection or keywords" (overly broad) to single "selection" with structured fields. Downgraded level from high to medium to match medium confidence. -->
 
 **Compile status**: PASS (Splunk + LogScale)
 **Confidence**: Medium
@@ -256,17 +258,16 @@ tags:
     - attack.t1068
 logsource:
     product: linux
-    service: syslog
+    service: auditd
 detection:
     selection:
-        EventType: module_load
-    keywords:
-        - 'act_pedit'
-    condition: selection or keywords
+        type: KERN_MODULE
+        name: 'act_pedit'
+    condition: selection
 falsepositives:
     - Legitimate traffic control configuration using pedit actions
     - Network administrators configuring tc rules
-level: high
+level: medium
 ```
 
 #### 2. packet_edit_meme Exploit Process Execution
