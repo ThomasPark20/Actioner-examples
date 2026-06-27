@@ -1,5 +1,7 @@
 # macOS.Gaslight -- DPRK Rust Backdoor with Prompt Injection
 
+<!-- revision: 2026-06-27T1 — applied critic verdict NEEDS-REVISION; dropped 5 rules (Sigma #4, Suricata #10, Snort #15/#16/#17); fixed 9 rules; corrected MITRE ATT&CK T1608.001→T1105; normalized confidence labels to high/medium/low; fixed YARA #5 hash typo, #6 threshold+confidence, #8 confidence, #9 rewritten with hash module; relabeled Suricata #11/#12/#14 and Snort #18 to medium; tightened Sigma #2 with collected_data.zip anchor; final rule count: 13 -->
+
 ## Executive Summary
 
 macOS.Gaslight is a Rust-compiled macOS backdoor attributed with high confidence to DPRK-aligned threat activity. Discovered by SentinelOne Labs and published on June 23, 2026, the malware is notable for embedding a 3.5 KB cascade of 38 fabricated "system" messages designed to deceive LLM-based analysis tools into aborting, truncating, or refusing analysis before reaching actionable content. The implant uses Telegram Bot API as its primary C2 channel, deploys a Python-based credential stealer targeting browser data and the macOS login keychain, and persists via a LaunchAgent masquerading within Apple's `com.apple.*` namespace. Apple's XProtect detects the sample under the rule `MACOS_BONZAI_COBUCH`. The binary was uploaded to VirusTotal on May 22, 2026, where it initially evaded all static engines.
@@ -169,19 +171,25 @@ The intent is to make an LLM-assisted triage agent "doubt its own session" and a
 | Command and Control | T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-GCM with per-message nonces |
 | Command and Control | T1008 | Fallback Channels | GitHub-based secondary infrastructure |
 | Exfiltration | T1567 | Exfiltration Over Web Service | Telegram `sendDocument` file upload |
-| Resource Development | T1608.001 | Stage Capabilities: Upload Malware | Runtime Python staging from astral-sh repository |
+| Resource Development | T1105 | Ingress Tool Transfer | Runtime Python staging from astral-sh repository |
+
+<!-- revision: T1608.001 (Stage Capabilities: Upload Malware) corrected to T1105 (Ingress Tool Transfer) — the implant downloads a tool to the victim, not uploading malware to staging infrastructure -->
 
 ---
 
 ## Detection Rules
 
+<!-- revision: 18 rules reduced to 13 after dropping 5 (Sigma #4, Suricata #10, Snort #15/#16/#17) and fixing 9 -->
+
 ### Sigma Rules
+
+<!-- revision: Sigma #4 (Telegram Bot API C2 Communication) DROPPED — too broad, fires on any Telegram API usage, not Gaslight-specific (altitude violation) -->
 
 #### 1. macOS.Gaslight LaunchAgent Persistence
 
 **File:** `sigma_gaslight_launchagent.yml`
 **Compile Status:** PASS (Splunk + LogScale conversion successful)
-**Confidence:** HIGH
+**Confidence:** high
 
 ```yaml
 title: macOS.Gaslight DPRK Backdoor LaunchAgent Persistence
@@ -212,15 +220,17 @@ level: critical
 
 #### 2. macOS.Gaslight Credential Theft via Python Stealer
 
+<!-- revision: tightened OR logic — collected_data.zip is now mandatory anchor, plus at least one other indicator required; confidence downgraded from HIGH to medium -->
+
 **File:** `sigma_gaslight_credential_theft.yml`
 **Compile Status:** PASS (Splunk + LogScale conversion successful)
-**Confidence:** HIGH
+**Confidence:** medium
 
 ```yaml
 title: macOS.Gaslight Credential Theft via Python Stealer Module
 id: 2b4c8d3e-6f1a-4e9b-c2d3-e5f6a7b8c9d0
 status: experimental
-description: Detects the macOS.Gaslight Python stealer module accessing browser credential stores and keychain databases on macOS systems.
+description: Detects the macOS.Gaslight Python stealer module accessing browser credential stores and keychain databases on macOS systems. Requires collected_data.zip as mandatory anchor artifact plus at least one other stealer indicator.
 references:
     - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
 author: Actioner CTI
@@ -240,22 +250,26 @@ detection:
             - '/python3'
             - '/python3.10'
             - '/python'
-    selection_keychain:
+    selection_anchor:
+        CommandLine|contains:
+            - 'collected_data.zip'
+    selection_indicators:
         CommandLine|contains:
             - 'login.keychain-db'
-            - 'collected_data.zip'
             - 'system_profiler'
-    condition: selection_python and selection_keychain
+    condition: selection_python and selection_anchor and selection_indicators
 falsepositives:
-    - Legitimate administrative scripts accessing keychain for backup purposes
+    - Legitimate administrative scripts accessing keychain for backup purposes that also create collected_data.zip archives
 level: high
 ```
 
 #### 3. macOS.Gaslight Standalone Python Runtime Staging
 
+<!-- revision: MITRE tag corrected from T1608.001 to T1105 -->
+
 **File:** `sigma_gaslight_python_staging.yml`
 **Compile Status:** PASS (Splunk + LogScale conversion successful)
-**Confidence:** MEDIUM
+**Confidence:** medium
 
 ```yaml
 title: macOS.Gaslight Standalone Python Runtime Staging
@@ -270,7 +284,7 @@ tags:
     - attack.execution
     - attack.t1059.006
     - attack.resource_development
-    - attack.t1608.001
+    - attack.t1105
 logsource:
     category: process_creation
     product: macos
@@ -285,57 +299,21 @@ falsepositives:
 level: medium
 ```
 
-#### 4. macOS.Gaslight Telegram Bot API C2 Communication
-
-**File:** `sigma_gaslight_telegram_c2.yml`
-**Compile Status:** PASS (Splunk + LogScale conversion successful)
-**Confidence:** MEDIUM
-
-```yaml
-title: macOS.Gaslight Telegram Bot API C2 Communication
-id: 4d6ea0f5-8b3c-4a1d-e4f5-a7b8c9d0e1f2
-status: experimental
-description: Detects network connections to the Telegram Bot API endpoint, which is used by macOS.Gaslight as its primary command and control channel.
-references:
-    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
-author: Actioner CTI
-date: 2026-06-27
-tags:
-    - attack.command_and_control
-    - attack.t1102.002
-    - attack.t1071.001
-logsource:
-    category: proxy
-    product: macos
-detection:
-    selection:
-        c-uri|contains:
-            - 'api.telegram.org/bot'
-            - '/getUpdates'
-            - '/sendDocument'
-            - '/sendMessage'
-    filter_legitimate:
-        c-useragent|contains:
-            - 'Telegram'
-    condition: selection and not filter_legitimate
-falsepositives:
-    - Legitimate applications using Telegram Bot API
-    - Developer testing with Telegram bots
-level: medium
-```
-
 ---
 
 ### YARA Rules
 
 #### 5. macOS_Gaslight_Rust_Backdoor
 
+<!-- revision: fixed hash typo in meta — removed extra "6a" (was 66 chars, now correct 64-char SHA256); severity downgraded from critical to high -->
+
 **File:** `yara_gaslight.yar` (Rule 1 of 5)
 **Compile Status:** PASS (`yarac` exit code 0)
-**Confidence:** HIGH
+**Confidence:** high
 
 ```yara
 import "macho"
+import "hash"
 
 rule macOS_Gaslight_Rust_Backdoor
 {
@@ -344,10 +322,10 @@ rule macOS_Gaslight_Rust_Backdoor
         author = "Actioner CTI"
         date = "2026-06-27"
         reference = "https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/"
-        hash = "6328567511d88fdc2ae0939c5ef17b7a63d2a833881900de018a4f6a12f4982525"
+        hash = "6328567511d88fdc2ae0939c5ef17b7a63d2a833881900de018a4f12f4982525"
         threat_actor = "DPRK"
         malware_family = "Gaslight"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $cmd_help = "help" ascii
@@ -400,9 +378,11 @@ rule macOS_Gaslight_Rust_Backdoor
 
 #### 6. macOS_Gaslight_Prompt_Injection_Payload
 
+<!-- revision: confidence downgraded from HIGH to medium; threshold raised from 3-of-6 to 4-of-6 fake strings -->
+
 **File:** `yara_gaslight.yar` (Rule 2 of 5)
 **Compile Status:** PASS
-**Confidence:** HIGH
+**Confidence:** medium
 
 ```yara
 rule macOS_Gaslight_Prompt_Injection_Payload
@@ -412,7 +392,7 @@ rule macOS_Gaslight_Prompt_Injection_Payload
         author = "Actioner CTI"
         date = "2026-06-27"
         reference = "https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $marker = "{{DATA}}" ascii
@@ -424,7 +404,7 @@ rule macOS_Gaslight_Prompt_Injection_Payload
         $fake6 = "static-analysis" ascii nocase
 
     condition:
-        $marker and 3 of ($fake*) and filesize < 10MB
+        $marker and 4 of ($fake*) and filesize < 10MB
 }
 ```
 
@@ -432,7 +412,7 @@ rule macOS_Gaslight_Prompt_Injection_Payload
 
 **File:** `yara_gaslight.yar` (Rule 3 of 5)
 **Compile Status:** PASS
-**Confidence:** HIGH
+**Confidence:** high
 
 ```yara
 rule macOS_Gaslight_Python_Stealer
@@ -462,9 +442,11 @@ rule macOS_Gaslight_Python_Stealer
 
 #### 8. macOS_Gaslight_Bash_Installer
 
+<!-- revision: confidence changed from CRITICAL to high; removed erroneous "(hash-anchored)" label — rule uses string matching not hash anchoring -->
+
 **File:** `yara_gaslight.yar` (Rule 4 of 5)
 **Compile Status:** PASS
-**Confidence:** CRITICAL (hash-anchored)
+**Confidence:** high
 
 ```yara
 rule macOS_Gaslight_Bash_Installer
@@ -491,25 +473,27 @@ rule macOS_Gaslight_Bash_Installer
 
 #### 9. macOS_Gaslight_SHA256_Hash
 
+<!-- revision: REWRITTEN — original rule searched for hash bytes as strings in file content, which does not detect files with that SHA256 digest; now uses YARA hash module with hash.sha256(0, filesize) for correct hash-based detection; confidence changed from CRITICAL to high; expanded to cover all 4 known sample hashes -->
+
 **File:** `yara_gaslight.yar` (Rule 5 of 5)
 **Compile Status:** PASS
-**Confidence:** CRITICAL (exact hash match)
+**Confidence:** high
 
 ```yara
 rule macOS_Gaslight_SHA256_Hash
 {
     meta:
-        description = "Detects macOS.Gaslight primary sample by SHA256 hash"
+        description = "Detects macOS.Gaslight primary sample and related artifacts by SHA256 hash"
         author = "Actioner CTI"
         date = "2026-06-27"
         reference = "https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/"
-        severity = "critical"
-
-    strings:
-        $hash = { 63 28 56 75 11 d8 8f dc 2a e0 93 9c 5e f1 7b 7a 63 d2 a8 33 88 19 00 de 01 8a 4f 12 f4 98 25 25 }
+        severity = "high"
 
     condition:
-        $hash
+        hash.sha256(0, filesize) == "6328567511d88fdc2ae0939c5ef17b7a63d2a833881900de018a4f12f4982525" or
+        hash.sha256(0, filesize) == "77b4fd46994992f0e57302cfe76ed23c0d90101381d2b89fc2ddf5c4536e77ca" or
+        hash.sha256(0, filesize) == "baabf249c77bc54c54ab0e66e15af798bd28aa5b4683554456a8b73ab8741239" or
+        hash.sha256(0, filesize) == "b3c56d689414343589f38394d19ba2fe9a518133281200faa0556ba4e4136394"
 }
 ```
 
@@ -517,26 +501,28 @@ rule macOS_Gaslight_SHA256_Hash
 
 ### Suricata Rules
 
+<!-- revision: SID 2026062701 (Telegram Bot API TLS SNI) DROPPED — fires on ALL Telegram TLS traffic with no narrowing, massive false positive rate; all remaining rules relabeled from MEDIUM-HIGH to medium -->
+
 **File:** `suricata_gaslight.rules`
 **Compile Status:** PASS (`suricata -T` -- "Configuration provided was successfully loaded. Exiting.")
-**Confidence:** MEDIUM-HIGH
-
-#### 10. Telegram Bot API TLS SNI Detection (SID 2026062701)
-
-```
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API TLS SNI - C2 Communication"; tls.sni; content:"api.telegram.org"; nocase; flow:established,to_server; classtype:trojan-activity; sid:2026062701; rev:1;)
-```
+**Confidence:** medium
 
 #### 11. Telegram Bot API getUpdates C2 Polling (SID 2026062702)
 
+<!-- revision: confidence relabeled to medium; caveat added about FP with legitimate Telegram bots -->
+
+> **Note:** This rule may fire on legitimate Telegram bot integrations. Investigate alerts by correlating with the source process -- non-browser, non-Telegram-client processes polling getUpdates warrant further investigation.
+
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API getUpdates C2 Polling"; content:"api.telegram.org"; http_host; content:"/bot"; http_uri; content:"/getUpdates"; http_uri; flow:established,to_server; classtype:trojan-activity; sid:2026062702; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API getUpdates C2 Polling"; content:"api.telegram.org"; http_host; content:"/bot"; http_uri; content:"/getUpdates"; http_uri; flow:established,to_server; classtype:trojan-activity; sid:2026062702; rev:2;)
 ```
 
 #### 12. Telegram sendDocument Data Exfiltration (SID 2026062703)
 
+<!-- revision: confidence relabeled to medium -->
+
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API sendDocument Data Exfiltration"; content:"api.telegram.org"; http_host; content:"/bot"; http_uri; content:"/sendDocument"; http_uri; flow:established,to_server; classtype:trojan-activity; sid:2026062703; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Bot API sendDocument Data Exfiltration"; content:"api.telegram.org"; http_host; content:"/bot"; http_uri; content:"/sendDocument"; http_uri; flow:established,to_server; classtype:trojan-activity; sid:2026062703; rev:2;)
 ```
 
 #### 13. Standalone Python Runtime Download (SID 2026062704)
@@ -547,40 +533,30 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Stand
 
 #### 14. Telegram Multipart File Upload (SID 2026062705)
 
+<!-- revision: confidence relabeled to medium -->
+
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Multipart File Upload via attach URI"; content:"api.telegram.org"; http_host; content:"attach://"; http_client_body; flow:established,to_server; classtype:trojan-activity; sid:2026062705; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE macOS.Gaslight Telegram Multipart File Upload via attach URI"; content:"api.telegram.org"; http_host; content:"attach://"; http_client_body; flow:established,to_server; classtype:trojan-activity; sid:2026062705; rev:2;)
 ```
 
 ---
 
 ### Snort Rules
 
+<!-- revision: SIDs 2026270001, 2026270002, 2026270003 DROPPED — redundant with Suricata #11/#12 (lower fidelity, same detection logic) and Suricata #13 (Python download) respectively -->
+
 **File:** `snort_gaslight.rules`
 **Compile Status:** PASS ("Snort successfully validated the configuration!")
-**Confidence:** MEDIUM-HIGH
-
-#### 15. Telegram Bot API C2 Traffic (SID 2026270001)
-
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight Telegram Bot API C2 Traffic"; content:"api.telegram.org"; nocase; content:"/bot"; content:"/getUpdates"; sid:2026270001; rev:1; classtype:trojan-activity;)
-```
-
-#### 16. Telegram sendDocument Exfiltration (SID 2026270002)
-
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight Telegram sendDocument Exfiltration"; content:"api.telegram.org"; nocase; content:"/bot"; content:"/sendDocument"; sid:2026270002; rev:1; classtype:trojan-activity;)
-```
-
-#### 17. Python Build Standalone Download (SID 2026270003)
-
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight Python Build Standalone Download"; content:"python-build-standalone"; nocase; content:"cpython-3.10"; nocase; sid:2026270003; rev:1; classtype:trojan-activity;)
-```
+**Confidence:** medium
 
 #### 18. collected_data.zip Exfiltration (SID 2026270004)
 
+<!-- revision: confidence relabeled to medium; note added about content modifier limitations — Snort content matches are payload-level and require TLS inspection to be effective against HTTPS traffic -->
+
+> **Note:** This rule's content matches operate at the payload level. Because macOS.Gaslight uses HTTPS with TLS certificate pinning, this rule is only effective when TLS inspection or HTTP proxy decryption is in place.
+
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight collected_data.zip Exfiltration"; content:"api.telegram.org"; nocase; content:"collected_data.zip"; nocase; sid:2026270004; rev:1; classtype:trojan-activity;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gaslight collected_data.zip Exfiltration"; content:"api.telegram.org"; nocase; content:"collected_data.zip"; nocase; sid:2026270004; rev:2; classtype:trojan-activity;)
 ```
 
 ---
@@ -620,4 +596,4 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE macOS.Gasligh
 
 ---
 
-*Generated by Actioner -- 2026-06-27*
+*Generated by Actioner -- 2026-06-27 | Revised: 2026-06-27T1*
