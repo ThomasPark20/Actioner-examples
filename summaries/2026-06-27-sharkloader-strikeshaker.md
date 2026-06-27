@@ -1,3 +1,5 @@
+<!-- revision: 2026-06-27-R1 — Applied critic fixes: replaced placeholder UUIDs with UUIDv4; renamed Sigma 4 to generic TTP and downgraded to medium; added clarifying comment to Sigma 5 AnyConnect filename (k9exe is intentional per source) and downgraded confidence to medium; removed unused import "math" from YARA 1 and tightened second condition branch to require a distinctive path string, downgraded confidence to medium; updated T1055 to T1055.003; confirmed CVE-2025-55182 present in Kaspersky source. -->
+
 # SharkLoader / StrikeShark Campaign — Cobalt Strike Deployment Against Government and Diplomatic Targets
 
 ## Executive Summary
@@ -226,7 +228,7 @@ compile-status: **Compiles** | confidence: **high**
 
 ```yaml
 title: SharkLoader DLL Side-Loading via SystemSettings.exe from Non-Standard Path
-id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+id: face6b72-9660-46bb-bd91-24db5e6fb8d3
 status: experimental
 description: Detects execution of SystemSettings.exe from non-standard directories, indicative of SharkLoader DLL side-loading as observed in the StrikeShark campaign.
 references:
@@ -261,7 +263,7 @@ compile-status: **Compiles** | confidence: **high**
 
 ```yaml
 title: SharkLoader Registry Run Key Persistence - MFUpdate
-id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+id: 1ec4e74f-ed3a-4b36-8152-1caa1279a61d
 status: experimental
 description: Detects creation of the MFUpdate registry Run key value pointing to SystemSettings.exe under Identities folder, a persistence mechanism used by SharkLoader in the StrikeShark campaign.
 references:
@@ -291,7 +293,7 @@ compile-status: **Compiles** | confidence: **high**
 
 ```yaml
 title: SharkLoader Scheduled Task Creation - Edge Update Masquerade
-id: c3d4e5f6-a7b8-9012-cdef-123456789012
+id: 3e72b4d4-3bc5-4b39-b2d8-35d3e946760c
 status: experimental
 description: Detects creation of scheduled tasks masquerading as Microsoft Edge updates used by SharkLoader for persistence, executing SystemSettings.exe from suspicious paths.
 references:
@@ -318,15 +320,17 @@ falsepositives:
 level: critical
 ```
 
-### Sigma Rule 4 -- StrikeShark Post-Exploitation NTDS Credential Extraction
+### Sigma Rule 4 -- NTDS Credential Extraction via ntdsutil IFM
+
+<!-- revision: renamed from "StrikeShark Post-Exploitation - NTDS Credential Extraction" to generic TTP name; downgraded level from high to medium per critic -->
 
 compile-status: **Compiles** | confidence: **medium**
 
 ```yaml
-title: StrikeShark Post-Exploitation - NTDS Credential Extraction
-id: d4e5f6a7-b8c9-0123-defa-234567890123
+title: NTDS Credential Extraction via ntdsutil IFM
+id: 4bf1d261-7cbe-4cb9-9845-47c33b076531
 status: experimental
-description: Detects ntdsutil credential extraction commands observed in StrikeShark post-compromise activity targeting Active Directory databases.
+description: Detects ntdsutil credential extraction commands using Install From Media (IFM) to dump the Active Directory database. This is a generic credential access technique observed across multiple campaigns including StrikeShark.
 references:
     - https://securelist.com/strikeshark-campaign/120326/
     - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
@@ -348,18 +352,22 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate Active Directory backup operations
-level: high
+level: medium
 ```
 
 ### Sigma Rule 5 -- SharkLoader Dropper Execution (Known Filenames)
 
-compile-status: **Compiles** | confidence: **high**
+<!-- revision: confirmed AnyConnect filename "k9exe" (no dot) matches Kaspersky source verbatim — this is the actual dropper name, not a typo; downgraded confidence from high to medium -->
+
+compile-status: **Compiles** | confidence: **medium**
 
 ```yaml
 title: SharkLoader Dropper Execution - Known Filenames
-id: e5f6a7b8-c9d0-1234-efab-345678901234
+id: c2f80e9d-4c2f-4eb2-b7bd-edbb55c2c683
 status: experimental
-description: Detects execution of known SharkLoader dropper filenames disguised as legitimate software installers, including fake Cisco AnyConnect and Google Update binaries.
+description: |
+    Detects execution of known SharkLoader dropper filenames disguised as legitimate software installers, including fake Cisco AnyConnect and Google Update binaries.
+    Note: The AnyConnect filename intentionally ends in "k9exe" without a dot separator. This matches the actual dropper filename observed in the wild, which omits the file extension dot to evade simple extension-based filters.
 references:
     - https://securelist.com/strikeshark-campaign/120326/
     - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
