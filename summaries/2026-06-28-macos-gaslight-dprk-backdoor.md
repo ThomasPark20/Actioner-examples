@@ -320,24 +320,6 @@ falsepositives:
 level: medium
 ```
 
-### Snort: Telegram Bot API C2 getUpdates Polling
-
-Detects outbound HTTP traffic to `api.telegram.org` containing both `bot` and `getUpdates` URI patterns, consistent with the Gaslight C2 polling loop.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf -T exit 0 (rule appended to local.rules). Snort 2.9.20. Generic Telegram Bot API detection; legitimate bot traffic will match — deploy with source-process context. -->
-```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - macOS.Gaslight Telegram Bot API C2 getUpdates Polling"; flow:established,to_server; content:"api.telegram.org"; fast_pattern; content:"getUpdates"; content:"bot"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/;)
-```
-
-### Suricata: Telegram Bot API C2 getUpdates Polling
-
-Detects HTTP requests to `api.telegram.org` with `/bot*/getUpdates` URI pattern using Suricata's HTTP sticky buffers.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T -S exit 0, "Configuration provided was successfully loaded." Suricata 7.0.3. Uses http.host + http.uri dot-notation buffers. Same FP profile as Snort variant — legitimate Telegram bot traffic will match. -->
-```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - macOS.Gaslight Telegram Bot API C2 getUpdates Polling"; flow:established,to_server; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; startswith; content:"/getUpdates"; fast_pattern; classtype:trojan-activity; reference:url,www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/; metadata:author Actioner, created_at 2026-06-28; sid:2200101; rev:1;)
-```
-
 ### YARA: macOS.Gaslight Rust Backdoor Binary
 
 Detects the macOS.Gaslight Rust binary via its ad-hoc signing identifier, embedded serde configuration field names, prompt injection delimiters, and operator command error strings. Sample-tested against published indicators.

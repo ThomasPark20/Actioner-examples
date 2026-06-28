@@ -1,2 +1,3 @@
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Spoofed Delivery Optimization User-Agent"; flow:established,to_server; content:"Microsoft-Delivery-Optimization/10.1"; http_header; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; sid:2100010; rev:1;)
+# SID 2100010 DROPPED: UA-only rule matching "Microsoft-Delivery-Optimization/10.1" produces critical false positives
+# against legitimate Windows Update Delivery Optimization traffic on every Win10/11 machine. Removed per review.
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Telemetry URI Pattern"; flow:established,to_server; content:"/api/v1/telemetry"; http_uri; fast_pattern; content:"Microsoft-Delivery-Optimization"; http_header; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; sid:2100011; rev:1;)

@@ -1,10 +1,12 @@
-title: Mistic Backdoor C2 Communication with Spoofed Delivery Optimization User-Agent
+title: Mistic Backdoor C2 via MpExtMs.exe Outbound Network Connection
 id: 2f8b5d1a-9c4e-4a7f-b3d6-8e0c2f1a5b9d
 status: experimental
 description: >
     Detects network connections from MpExtMs.exe to external hosts on port 443,
-    consistent with Mistic backdoor C2 using a Microsoft-Delivery-Optimization
-    user-agent string to blend with legitimate Windows traffic.
+    consistent with Mistic backdoor C2 activity. Note: Sysmon EID 3 does not
+    capture HTTP headers; this rule keys on the process-port-destination tuple only.
+    Pair with network-layer rules (Snort/Suricata SID 2100011/2200011) for UA-based
+    detection.
 references:
     - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
     - https://thehackernews.com/2026/06/new-mistic-backdoor-linked-to-kongtuke.html
@@ -29,4 +31,5 @@ detection:
     condition: selection and not filter_microsoft
 falsepositives:
     - Legitimate MpExtMs.exe communicating with Microsoft endpoints
-level: high
+    - Environments where DestinationHostname is not populated (filter will not apply)
+level: medium

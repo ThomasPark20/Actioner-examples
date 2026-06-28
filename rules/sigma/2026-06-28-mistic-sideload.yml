@@ -26,9 +26,12 @@ detection:
     filter_legitimate_path:
         ImageLoaded|startswith:
             - 'C:\Program Files\Windows Defender\'
+            - 'C:\Program Files (x86)\Windows Defender\'
             - 'C:\Program Files\Microsoft Security Client\'
             - 'C:\ProgramData\Microsoft\Windows Defender\'
+            - 'C:\Windows\WinSxS\'
     condition: selection_parent and selection_dll and not filter_legitimate_path
 falsepositives:
     - Legitimate Microsoft Defender DLP module loading from standard directories
-level: high
+    - Windows component servicing loading version.dll from WinSxS
+level: medium

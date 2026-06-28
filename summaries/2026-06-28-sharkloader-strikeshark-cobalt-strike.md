@@ -226,7 +226,7 @@ Get-DnsClientCache | Where-Object { $_.Entry -match "connect-microsoft|ms-record
 
 ### Remediation
 
-1. **Contain:** Isolate affected hosts; block C2 domains (`connect-microsoft.com`, `ms-record.com`, `ms-record.top`, `ms-tray.top`) at DNS/proxy
+1. **Contain:** Isolate affected hosts; block C2 domains (`connect-microsoft[.]com`, `ms-record[.]com`, `ms-record[.]top`, `ms-tray[.]top`) at DNS/proxy
 2. **Eradicate:** Remove `MFUpdate` registry Run key; delete scheduled tasks; remove SharkLoader files from deployment directories
 3. **Credential Reset:** Assume credential compromise; reset all domain admin, service account, and affected user passwords; rotate Kerberos KRBTGT key twice
 4. **Patch:** Prioritize patching all listed CVEs on internet-facing infrastructure (Exchange, Openfire, GeoServer, FortiOS, Cisco IOS XE, etc.)
@@ -243,6 +243,8 @@ Get-DnsClientCache | Where-Object { $_.Entry -match "connect-microsoft|ms-record
 ## Detection Rules
 
 These detections target SharkLoader DLL side-loading, encrypted payload deployment, persistence mechanisms, and C2 domain resolution from the StrikeShark campaign. PoC/advisory-specific altitude; all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles clean does not mean fires clean -- verify rules in your pipeline with representative telemetry.
+
+> **Advisory -- Intentional Omissions:** The alternate encrypted payload filenames `diagerr.xml` and `NtfsLog.etl` are excluded from the file-creation Sigma rule. Both names collide with legitimate Windows diagnostic/NTFS log files that are routinely created during normal system operation, making them unsuitable for reliable file-event detection. They remain documented as IOCs in the indicators table for manual hunt reference.
 
 ### Sigma: SharkLoader DLL Side-Loading via SystemSettings.exe
 Detects SystemSettings.exe executing from a non-standard directory, the key indicator of SharkLoader DLL side-loading.
@@ -411,8 +413,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to SharkLoader C2 
 
 ### YARA: SharkLoader DLL and Dropper Detection
 Detects SharkLoader DLL and dropper binaries via characteristic PE resource names (TELEMETRY, VAULTSVCD, UMRDPRDAT) and encrypted payload filenames.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos.txt matched Malware_SharkLoader_DLL; neg.txt quiet. Positive constructed from published resource names (TELEMETRY, VAULTSVCD, UMRDPRDAT) and filenames (DscCoreR.mui, SyncRes.dat) per Securelist report. Two rules: _DLL (loader) and _Dropper (installer). PE header check + filesize constraint + combinatorial string matching. -->
+**Status:** compile ✅ compiles · confidence: medium (DLL) / high (Dropper) · sample: fired ✓
+<!-- audit: yarac exit 0. yara pos.txt matched Malware_SharkLoader_DLL; neg.txt quiet. Positive constructed from published resource names (TELEMETRY, VAULTSVCD, UMRDPRDAT) and filenames (DscCoreR.mui, SyncRes.dat) per Securelist report. Two rules: _DLL (loader) and _Dropper (installer). PE header check + filesize constraint + combinatorial string matching. Revision 1.1: tightened Malware_SharkLoader_DLL condition branch from (1 of ($res*) and 1 of ($file*)) to (1 of ($res*) and 2 of ($file*)) to reduce FP risk from $file3 (SystemSettings.dll — generic name); downgraded _DLL severity from critical to medium. -->
 ```yara
 import "pe"
 
@@ -423,7 +425,7 @@ rule Malware_SharkLoader_DLL
         author = "Actioner"
         date = "2026-06-28"
         reference = "https://securelist.com/strikeshark-campaign/120326/"
-        severity = "critical"
+        severity = "medium"
 
     strings:
         $res1 = "TELEMETRY" ascii wide
@@ -442,7 +444,7 @@ rule Malware_SharkLoader_DLL
         (
             (2 of ($res*)) or
             ($file1 and $file2) or
-            (1 of ($res*) and 1 of ($file*)) or
+            (1 of ($res*) and 2 of ($file*)) or
             (1 of ($res*) and 1 of ($alt*))
         )
 }
