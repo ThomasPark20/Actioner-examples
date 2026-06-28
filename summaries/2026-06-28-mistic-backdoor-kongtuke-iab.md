@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-28
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -246,11 +246,13 @@ Get-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" | W
 
 These detections target the Mistic backdoor DLL sideloading chain, C2 communication patterns, self-destruct behavior, and known C2 infrastructure. PoC/advisory-specific altitude; all rules compile and convert cleanly. Note: compiles != fires -- verify in your pipeline with representative telemetry before production deployment.
 
+**Rule summary (post-review):** 3 Sigma rules (1 high, 2 medium), 1 Snort rule (1 high, 1 dropped), 5 Suricata rules (5 high, 1 dropped), 2 YARA rules (2 low/best-effort). Two UA-only network rules (Snort SID 2100010, Suricata SID 2200010) were dropped due to critical false-positive risk against legitimate Windows Delivery Optimization traffic.
+
 ### Sigma: Mistic Backdoor DLL Sideloading via MpExtMs.exe
 
 Detects MpExtMs.exe loading EndpointDlp.dll or version.dll from a non-standard directory, the distinctive sideloading chain used by the Mistic backdoor.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (network error fetching MITRE STIX data, not a rule issue); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma convert -p splunk_windows -t splunk exit 0. All field names standard Sysmon image_load (Image, ImageLoaded). No defanged values in detection. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (network error fetching MITRE STIX data, not a rule issue); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma convert -p splunk_windows -t splunk exit 0. All field names standard Sysmon image_load (Image, ImageLoaded). No defanged values in detection. REVISION: added filter paths for C:\Program Files (x86)\Windows Defender\ and C:\Windows\WinSxS\; downgraded to medium due to version.dll being a common legitimate DLL name. -->
 ```yaml
 title: Mistic Backdoor DLL Sideloading via MpExtMs.exe
 id: 7c3a1e8f-4b2d-4f9a-8e6c-1d5a0f3b7e9d
@@ -280,27 +282,32 @@ detection:
     filter_legitimate_path:
         ImageLoaded|startswith:
             - 'C:\Program Files\Windows Defender\'
+            - 'C:\Program Files (x86)\Windows Defender\'
             - 'C:\Program Files\Microsoft Security Client\'
             - 'C:\ProgramData\Microsoft\Windows Defender\'
+            - 'C:\Windows\WinSxS\'
     condition: selection_parent and selection_dll and not filter_legitimate_path
 falsepositives:
     - Legitimate Microsoft Defender DLP module loading from standard directories
-level: high
+    - Windows component servicing loading version.dll from WinSxS
+level: medium
 ```
 
 ### Sigma: Mistic Backdoor C2 via MpExtMs.exe Network Connection
 
-Detects MpExtMs.exe initiating outbound connections on port 443 to non-Microsoft hosts, consistent with Mistic's C2 over HTTPS with a spoofed Delivery Optimization user-agent.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0; -p splunk_windows exit 0. Sysmon EID 3 fields (Image, DestinationPort, Initiated, DestinationHostname). Filter excludes known-good Microsoft domains. -->
+Detects MpExtMs.exe initiating outbound connections on port 443 to non-Microsoft hosts, consistent with Mistic's C2 over HTTPS. Note: this rule keys on the process-port-destination tuple via Sysmon EID 3, which does not capture HTTP headers; it cannot detect the spoofed user-agent. Pair with network-layer rules (Snort SID 2100011 / Suricata SID 2200011) for UA-based detection. The DestinationHostname filter depends on DNS resolution being available to Sysmon; environments without it will see higher false-positive rates.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0; -p splunk_windows exit 0. Sysmon EID 3 fields (Image, DestinationPort, Initiated, DestinationHostname). Filter excludes known-good Microsoft domains. REVISION: removed "Spoofed UA" from title (Sysmon EID 3 does not capture HTTP headers); downgraded to medium; added note about DestinationHostname dependency. -->
 ```yaml
-title: Mistic Backdoor C2 Communication with Spoofed Delivery Optimization User-Agent
+title: Mistic Backdoor C2 via MpExtMs.exe Outbound Network Connection
 id: 2f8b5d1a-9c4e-4a7f-b3d6-8e0c2f1a5b9d
 status: experimental
 description: >
     Detects network connections from MpExtMs.exe to external hosts on port 443,
-    consistent with Mistic backdoor C2 using a Microsoft-Delivery-Optimization
-    user-agent string to blend with legitimate Windows traffic.
+    consistent with Mistic backdoor C2 activity. Note: Sysmon EID 3 does not
+    capture HTTP headers; this rule keys on the process-port-destination tuple only.
+    Pair with network-layer rules (Snort/Suricata SID 2100011/2200011) for UA-based
+    detection.
 references:
     - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
     - https://thehackernews.com/2026/06/new-mistic-backdoor-linked-to-kongtuke.html
@@ -325,7 +332,8 @@ detection:
     condition: selection and not filter_microsoft
 falsepositives:
     - Legitimate MpExtMs.exe communicating with Microsoft endpoints
-level: high
+    - Environments where DestinationHostname is not populated (filter will not apply)
+level: medium
 ```
 
 ### Sigma: Mistic Backdoor Self-Destruct File Deletion
@@ -364,23 +372,45 @@ falsepositives:
 level: high
 ```
 
-### Snort: Mistic Backdoor C2 Spoofed User-Agent and Telemetry URI
+### Snort: Mistic Backdoor C2 Telemetry URI
 
-Detects outbound HTTP with the campaign's known Microsoft-Delivery-Optimization/10.1 user-agent and /api/v1/telemetry C2 endpoint.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R m.rules -T exit 0 (Snort 2.9.20). Two rules: SID 2100010 matches UA alone; SID 2100011 matches URI+UA combination for higher fidelity. UA string is highly distinctive (version-pinned spoofed Microsoft string). -->
+Detects outbound HTTP with the /api/v1/telemetry C2 endpoint combined with the Microsoft-Delivery-Optimization user-agent.
+
+> **Dropped rule (SID 2100010):** The standalone UA-only rule matching `Microsoft-Delivery-Optimization/10.1` was removed because this user-agent is generated by legitimate Windows Update Delivery Optimization on every Windows 10/11 machine, producing critical false positives at scale.
+
+**Status:** compile ✅ compiles
+| SID | Description | Confidence |
+|-----|-------------|------------|
+| ~~2100010~~ | ~~UA-only~~ | **DROPPED** (critical FP) |
+| 2100011 | URI + UA combo | high |
+<!-- audit: snort -c /etc/snort/snort.conf -R m.rules -T exit 0 (Snort 2.9.20). SID 2100010 dropped per review: Microsoft-Delivery-Optimization/10.1 is legitimate Win10/11 Delivery Optimization traffic. SID 2100011 retained: URI+UA combination is highly specific. -->
 ```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Spoofed Delivery Optimization User-Agent"; flow:established,to_server; content:"Microsoft-Delivery-Optimization/10.1"; http_header; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; sid:2100010; rev:1;)
+# SID 2100010 DROPPED: UA-only rule produces critical false positives against legitimate Windows Update
+# Delivery Optimization traffic on every Win10/11 machine.
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Telemetry URI Pattern"; flow:established,to_server; content:"/api/v1/telemetry"; http_uri; fast_pattern; content:"Microsoft-Delivery-Optimization"; http_header; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; sid:2100011; rev:1;)
 ```
 
-### Suricata: Mistic C2 User-Agent, Telemetry URI, and Known C2 Domains
+### Suricata: Mistic C2 Telemetry URI and Known C2 Domains
 
-Detects Mistic C2 traffic via spoofed Microsoft-Delivery-Optimization user-agent, the /api/v1/telemetry endpoint, and DNS queries to known C2 domains.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S mistic-c2-suricata.rules -l /tmp/actioner exit 0 (Suricata 7.0.3). Six rules: SID 2200010 UA match, SID 2200011 URI+UA, SIDs 2200012-2200015 known C2 domain DNS queries. Dot-notation buffers verified (http.user_agent, http.uri, dns.query). -->
+Detects Mistic C2 traffic via the /api/v1/telemetry endpoint combined with the Microsoft-Delivery-Optimization user-agent, and DNS queries to known C2 domains.
+
+> **Dropped rule (SID 2200010):** The standalone UA-only rule matching `Microsoft-Delivery-Optimization/10.1` was removed because this user-agent is generated by legitimate Windows Update Delivery Optimization on every Windows 10/11 machine, producing critical false positives at scale.
+
+> **Domain selection criteria:** The four DNS rules below (SIDs 2200012-2200015) cover the primary parent C2 domains from the IOC table. The remaining 20+ domains are subdomains of these or are typosquat/DGA-style domains better handled by threat intel feed ingestion. IOC-based DNS rules have a limited shelf life as infrastructure rotates; recommend a **90-day review cadence** to retire stale domains and add newly observed ones.
+
+**Status:** compile ✅ compiles
+| SID | Description | Confidence |
+|-----|-------------|------------|
+| ~~2200010~~ | ~~UA-only~~ | **DROPPED** (critical FP) |
+| 2200011 | URI + UA combo | high |
+| 2200012 | DNS: authorized-logins.net | high |
+| 2200013 | DNS: updater-worelos.com | high |
+| 2200014 | DNS: upd-domain-goloro.com | high |
+| 2200015 | DNS: sql-updater-service.com | high |
+<!-- audit: suricata -T -S mistic-c2-suricata.rules -l /tmp/actioner exit 0 (Suricata 7.0.3). SID 2200010 dropped per review: Microsoft-Delivery-Optimization/10.1 is legitimate Win10/11 Delivery Optimization traffic. SIDs 2200011-2200015 retained. Dot-notation buffers verified (http.user_agent, http.uri, dns.query). -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Spoofed Delivery Optimization User-Agent"; flow:established,to_server; http.user_agent; content:"Microsoft-Delivery-Optimization/10.1"; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; metadata:author Actioner, created_at 2026-06-28; sid:2200010; rev:1;)
+# SID 2200010 DROPPED: UA-only rule produces critical false positives against legitimate Windows Update
+# Delivery Optimization traffic on every Win10/11 machine.
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Mistic Backdoor C2 Telemetry URI with Spoofed UA"; flow:established,to_server; http.uri; content:"/api/v1/telemetry"; fast_pattern; http.user_agent; content:"Microsoft-Delivery-Optimization"; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; metadata:author Actioner, created_at 2026-06-28; sid:2200011; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - Mistic C2 Domain authorized-logins.net"; flow:to_server; dns.query; content:"authorized-logins.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; metadata:author Actioner, created_at 2026-06-28; sid:2200012; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - Mistic C2 Domain updater-worelos.com"; flow:to_server; dns.query; content:"updater-worelos.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat; metadata:author Actioner, created_at 2026-06-28; sid:2200013; rev:1;)
@@ -391,8 +421,11 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - Mistic C2 Domain sql-updater
 ### YARA: Mistic Backdoor Loader and Payload
 
 Detects the Mistic loader DLL (version.dll) by API hook targets and sideloading filename references, and the Mistic payload (EndpointDlp.dll) by its C2 user-agent string, telemetry URI, and memory allocation API imports.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac /tmp/actioner/mistic-loader.yar /dev/null exit 0. Two rules: Malware_Mistic_Backdoor_Loader keys on hook targets + sideload filenames; Malware_Mistic_Backdoor_Payload keys on UA + telemetry URI + API imports. No sample available for fired test (PE header gate prevents text-file matching, which is correct). Medium confidence: string-based detection on PE files without a confirmed sample to test against; the published hash provides provenance but we cannot verify in this environment. -->
+
+> **Best-effort caveat:** These rules are untested against live malware samples. Both rules rely on common Windows API imports (GetModuleFileNameW, LoadLibraryW, VirtualAlloc, VirtualProtect, CreateThread) that appear in many legitimate DLLs. The PE header gate and filename string anchors reduce but do not eliminate false positives. Validate against your environment before production deployment and consider pairing with hash-based IOC lookups for higher-confidence detection.
+
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: yarac /tmp/actioner/mistic-loader.yar /dev/null exit 0. Two rules: Malware_Mistic_Backdoor_Loader keys on hook targets + sideload filenames; Malware_Mistic_Backdoor_Payload keys on UA + telemetry URI + API imports. No sample available for fired test (PE header gate prevents text-file matching, which is correct). REVISION: downgraded from medium to low -- common API imports (GetModuleFileNameW, LoadLibraryW, VirtualAlloc, VirtualProtect, CreateThread) make these high-FP without sample validation. Added best-effort caveat. -->
 ```yara
 import "pe"
 
@@ -404,7 +437,8 @@ rule Malware_Mistic_Backdoor_Loader
         date = "2026-06-28"
         reference = "https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat"
         hash = "59e3c4cb06331b4f2d78a9a0592f3747e573bd01c5a7650c26361d1e25520712"
-        severity = "high"
+        severity = "low"
+        quality = "best-effort, untested against live samples; common API imports (GetModuleFileNameW, LoadLibraryW) may cause false positives on legitimate DLLs that reference the same APIs and filenames"
 
     strings:
         $hook1 = "GetModuleFileNameW" ascii fullword
@@ -429,7 +463,8 @@ rule Malware_Mistic_Backdoor_Payload
         date = "2026-06-28"
         reference = "https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat"
         hash = "1e41c7bfaa6aa3b93b6cc024274a10e33f3e12fe7c98c1db387ef8927f9d1984"
-        severity = "high"
+        severity = "low"
+        quality = "best-effort, untested against live samples; common API imports (VirtualAlloc, VirtualProtect, CreateThread) may cause false positives on legitimate PE files"
 
     strings:
         $name1 = "EndpointDlp" ascii wide

@@ -8,7 +8,8 @@ rule Malware_Mistic_Backdoor_Loader
         date = "2026-06-28"
         reference = "https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat"
         hash = "59e3c4cb06331b4f2d78a9a0592f3747e573bd01c5a7650c26361d1e25520712"
-        severity = "high"
+        severity = "low"
+        quality = "best-effort, untested against live samples; common API imports (GetModuleFileNameW, LoadLibraryW) may cause false positives on legitimate DLLs that reference the same APIs and filenames"
 
     strings:
         $hook1 = "GetModuleFileNameW" ascii fullword
@@ -33,7 +34,8 @@ rule Malware_Mistic_Backdoor_Payload
         date = "2026-06-28"
         reference = "https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat"
         hash = "1e41c7bfaa6aa3b93b6cc024274a10e33f3e12fe7c98c1db387ef8927f9d1984"
-        severity = "high"
+        severity = "low"
+        quality = "best-effort, untested against live samples; common API imports (VirtualAlloc, VirtualProtect, CreateThread) may cause false positives on legitimate PE files"
 
     strings:
         $name1 = "EndpointDlp" ascii wide

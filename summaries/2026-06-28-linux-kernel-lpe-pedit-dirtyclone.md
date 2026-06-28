@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-06-28
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -164,7 +164,7 @@ No external network indicators. Both exploits operate entirely locally via loopb
 |-----|-----------|-------------------|
 | T1068 | Exploitation for Privilege Escalation | Both CVEs exploit kernel vulnerabilities to escalate from unprivileged user to root |
 | T1548 | Abuse Elevation Control Mechanism | pedit COW bypasses Ubuntu AppArmor user namespace restrictions via aa-exec with permissive profiles |
-| T1014 | Rootkit (Defense Evasion) | Page-cache-only corruption leaves no on-disk traces; bypasses file-integrity monitoring |
+| T1070.004 | Indicator Removal: File Deletion | Page-cache-only corruption leaves no on-disk artifacts; exploit namespaces are destroyed after use, removing all tc/iptables/xfrm configuration traces |
 | T1059.004 | Unix Shell | Exploit payloads spawn root shells after corrupting setuid binaries |
 
 ## Impact Assessment
@@ -248,19 +248,24 @@ echo 3 > /proc/sys/vm/drop_caches
 
 These detections target the specific PoC artifacts and exploit command patterns of CVE-2026-46331 (pedit COW) and CVE-2026-43503 (DirtyClone). All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; `sigma check` failed only due to a transient MITRE ATT&CK STIX data download error, not a rule syntax issue. Compiles do not equal fires -- verify in your pipeline with representative telemetry.
 
-### Sigma: TC Pedit Action Configuration via User Namespace
+**Dropped rules (review revision):**
+- **Sigma: Unshare with User and Network Namespace** -- dropped; generic prerequisite behavior (`unshare -Urn`) used by container runtimes, Flatpak, and other legitimate tooling. Failed altitude and false-positive bar.
+- **Sigma: IPsec XFRM State and Policy Configuration** -- dropped; too generic at the selected altitude. Fires on any `ip xfrm policy add` (normal IPsec/VPN administration), not a reliable DirtyClone indicator as written.
+
+### Sigma: TC Pedit Munge Action Configuration
 
 Detects `tc` pedit munge commands characteristic of CVE-2026-46331 exploitation.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (transient MITRE STIX download IncompleteRead — not a rule syntax issue); splunk convert exit 0; log_scale convert exit 0. Keys on distinctive 'tc ... pedit ... munge' command-line pattern from the published PoC. FP risk: legitimate tc pedit configurations exist but are rare outside network-engineering contexts. -->
+**Status:** compile ✅ compiles | confidence: high
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Keys on distinctive 'tc ... pedit ... munge' command-line pattern from the published PoC. FP risk: legitimate tc pedit configurations exist but are rare outside network-engineering contexts. -->
 ```yaml
-title: Pedit COW Exploit - TC Pedit Action Configuration via User Namespace
+title: Pedit COW Exploit - TC Pedit Munge Action Configuration
 id: 8a3c1e7f-4b2d-4f9a-b6e1-c2d5f8a0e3b7
 status: experimental
 description: >
-    Detects tc (traffic control) pedit action configuration commands indicative of
-    CVE-2026-46331 exploitation. The exploit uses tc pedit actions from within a
-    user namespace to corrupt page-cache memory of setuid binaries like /bin/su.
+    Detects tc (traffic control) pedit munge action configuration commands indicative of
+    CVE-2026-46331 exploitation. The exploit uses tc pedit munge actions to
+    corrupt page-cache memory of setuid binaries like /bin/su. The prerequisite
+    CAP_NET_ADMIN capability is obtained via unprivileged user namespaces.
 references:
     - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
     - https://github.com/sgkdev/packet_edit_meme
@@ -284,97 +289,11 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Unshare with User and Network Namespace for Privilege Escalation
-
-Detects `unshare` creating combined user + network namespaces, the prerequisite for both exploits to obtain `CAP_NET_ADMIN`.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (transient MITRE STIX download — not syntax); splunk convert exit 0; log_scale convert exit 0. Covers all permutations of -U -n -r flags. Medium confidence: unshare with these flags is also used by container runtimes and dev environments, so environment-specific tuning may be needed. -->
-```yaml
-title: Pedit COW / DirtyClone - Unshare with User and Network Namespace
-id: 2f6b9d4e-8c1a-4e3f-a7d5-b9c0e2f1a4d6
-status: experimental
-description: >
-    Detects unshare invocations creating user and network namespaces, a prerequisite
-    for both CVE-2026-46331 (pedit COW) and CVE-2026-43503 (DirtyClone) exploits
-    which require CAP_NET_ADMIN obtained via unprivileged user namespaces.
-references:
-    - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
-    - https://thehackernews.com/2026/06/new-dirtyclone-linux-kernel-flaw-lets.html
-    - https://github.com/sgkdev/packet_edit_meme
-author: Actioner
-date: 2026/06/28
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection:
-        Image|endswith: '/unshare'
-        CommandLine|contains:
-            - '-Urn'
-            - '-Unr'
-            - '-rUn'
-            - '-rnU'
-            - '-nUr'
-            - '-nrU'
-    condition: selection
-falsepositives:
-    - Container runtimes creating namespaces
-    - Development and testing environments
-level: medium
-```
-
-### Sigma: IPsec XFRM State and Policy Configuration
-
-Detects `ip xfrm` state/policy configuration commands used in the DirtyClone exploit's loopback IPsec tunnel setup.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (transient MITRE STIX download — not syntax); splunk convert exit 0; log_scale convert exit 0. Condition uses OR to catch either state or policy creation. Medium confidence: legitimate IPsec VPN configurations produce the same commands, so this should be correlated with unshare namespace events. -->
-```yaml
-title: DirtyClone Exploit - IPsec XFRM State and Policy Configuration
-id: 5d8e2a1b-3c7f-4a9e-b0d6-e4f3c1a2b5d8
-status: experimental
-description: >
-    Detects ip xfrm state and policy configuration commands characteristic of
-    CVE-2026-43503 (DirtyClone) exploitation. The exploit configures loopback
-    IPsec tunnels with ESP encryption to trigger in-place decryption of
-    page-cache-backed network packet data.
-references:
-    - https://thehackernews.com/2026/06/new-dirtyclone-linux-kernel-flaw-lets.html
-    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
-    - https://www.scworld.com/news/2-linux-kernel-flaw-pocs-published-enabling-local-privilege-escalation
-author: Actioner
-date: 2026/06/28
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_xfrm_state:
-        Image|endswith: '/ip'
-        CommandLine|contains|all:
-            - 'xfrm'
-            - 'state'
-            - 'add'
-            - 'esp'
-    selection_xfrm_policy:
-        Image|endswith: '/ip'
-        CommandLine|contains|all:
-            - 'xfrm'
-            - 'policy'
-            - 'add'
-    condition: selection_xfrm_state or selection_xfrm_policy
-falsepositives:
-    - Legitimate IPsec VPN configuration
-level: medium
-```
-
 ### Sigma: Iptables TEE Target on Mangle Table
 
 Detects iptables rules using the TEE target on the mangle table, a specific step in the DirtyClone exploit chain that triggers the vulnerable `__pskb_copy_fclone()` packet cloning.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (transient MITRE STIX download — not syntax); splunk convert exit 0; log_scale convert exit 0. The combination of mangle table + TEE target is distinctive and rare in normal operations. -->
+**Status:** compile ✅ compiles | confidence: high
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. The combination of mangle table + TEE target is distinctive and rare in normal operations. -->
 ```yaml
 title: DirtyClone Exploit - Iptables TEE Target on Mangle Table
 id: 7c4f3b2a-9d6e-4a1f-b8c5-d3e2a0f1b7c9
@@ -411,8 +330,8 @@ level: high
 ### Sigma: AppArmor Bypass via aa-exec with Permissive Profiles
 
 Detects `aa-exec` invocations using permissive AppArmor profiles (`trinity`, `chrome`, `flatpak`) to bypass user namespace restrictions, as used in the pedit COW exploit's Ubuntu mode.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (transient MITRE STIX download — not syntax); splunk convert exit 0; log_scale convert exit 0. Distinctive artifact from the published PoC's --ubuntu bypass. FP risk low: aa-exec with these specific profiles is abnormal outside exploit/testing contexts. -->
+**Status:** compile ✅ compiles | confidence: high
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Distinctive artifact from the published PoC's --ubuntu bypass. FP risk low: aa-exec with these specific profiles is abnormal outside exploit/testing contexts. -->
 ```yaml
 title: Pedit COW Exploit - AppArmor Bypass via aa-exec
 id: 3e1d9c8b-5a2f-4b7e-c6d0-f4a3b2e1c0d5
@@ -448,7 +367,7 @@ level: high
 ### YARA: Pedit COW PoC Binary (packet_edit_meme)
 
 Detects compiled pedit COW exploit binaries by matching the PoC's distinctive string artifacts (`packet_edit_meme`, `pedit_primitive`, `act_pedit`).
-**Status:** compile ✅ compiles · confidence: high
+**Status:** compile ✅ compiles | confidence: high
 <!-- audit: yarac exit 0. Keys on published PoC strings from github.com/sgkdev/packet_edit_meme. Condition requires ELF header + anchor string + 2 supporting strings. -->
 ```yara
 rule Exploit_CVE_2026_46331_PeditCOW_POC
@@ -482,8 +401,8 @@ rule Exploit_CVE_2026_46331_PeditCOW_POC
 ### YARA: DirtyClone PoC Binary
 
 Detects compiled DirtyClone exploit binaries by matching distinctive string artifacts from the JFrog PoC (`DirtyClone`, `SKBFL_SHARED_FRAG`, `__pskb_copy_fclone`).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. Keys on JFrog-published PoC strings. Medium confidence: condition uses 3-of-10 which may match unrelated kernel analysis tools containing the same function names. Narrow via ELF + filesize constraint. -->
+**Status:** compile ✅ compiles | confidence: low
+<!-- audit: yarac exit 0. Keys on JFrog-published PoC strings. Condition now requires at least one anchor ($s1 or $s2) plus 2 supporting strings, reducing FP risk from unrelated kernel analysis tools. Low confidence: anchor strings may appear in blog posts or educational materials about DirtyClone. -->
 ```yara
 rule Exploit_CVE_2026_43503_DirtyClone_POC
 {
@@ -509,7 +428,8 @@ rule Exploit_CVE_2026_43503_DirtyClone_POC
     condition:
         uint32(0) == 0x464C457F and
         filesize < 5MB and
-        3 of them
+        ($s1 or $s2) and
+        2 of ($s3, $s4, $s5, $s6, $s7, $s8, $s9, $s10)
 }
 ```
 
