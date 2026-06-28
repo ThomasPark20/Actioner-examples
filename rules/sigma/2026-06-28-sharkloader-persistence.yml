@@ -1,0 +1,24 @@
+title: SharkLoader Registry Persistence via MFUpdate Run Key
+id: 9d5f3e8b-6a4d-4ae2-c7f5-8d0b2e1a4c3f
+status: experimental
+description: >
+    Detects the SharkLoader persistence mechanism that creates an MFUpdate
+    registry Run key pointing to SystemSettings.exe in the Identities
+    directory, as observed in the StrikeShark campaign.
+references:
+    - https://securelist.com/strikeshark-campaign/120326/
+    - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Microsoft\Windows\CurrentVersion\Run\MFUpdate'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical
