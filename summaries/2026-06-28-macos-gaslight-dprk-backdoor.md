@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-28
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -192,7 +192,7 @@ The following distinctive strings are present in the binary:
 | T1005 | Data from Local System | Collection of terminal histories, app listings, system profiles |
 | T1560.001 | Archive Collected Data: Archive via Utility | Data compressed into `collected_data.zip` |
 | T1132.001 | Data Encoding: Standard Encoding | Base64-encoded Python stealer and Bash installer embedded in binary |
-| T1027.002 | Obfuscated Files or Information: Software Packing | Rust binary with embedded payloads and runtime API resolution |
+| T1027.009 | Obfuscated Files or Information: Embedded Payloads | Rust binary with base64-encoded Python stealer and Bash installer embedded as payloads |
 | T1106 | Native API | Runtime API resolution via `dlsym` |
 | T1057 | Process Discovery | `ps aux` enumeration |
 | T1082 | System Information Discovery | `system_profiler` execution |
@@ -243,42 +243,9 @@ log show --predicate 'processImagePath contains "api.telegram.org"' --last 24h
 
 ## Detection Rules
 
-These detections target the macOS.Gaslight Rust backdoor at the PoC/advisory-specific altitude, covering the Telegram C2 channel, LaunchAgent persistence, Python stealer execution, and file-level binary signatures. Compiles does not equal fires -- verify each rule against your telemetry pipeline before production deployment.
+These detections target the macOS.Gaslight Rust backdoor at the PoC/advisory-specific altitude, covering LaunchAgent persistence, Python stealer execution, and file-level binary signatures. Compiles does not equal fires -- verify each rule against your telemetry pipeline before production deployment.
 
-### Sigma: Telegram Bot API C2 Communication
-
-Detects macOS processes initiating outbound connections to `api.telegram.org`, consistent with the Gaslight Telegram C2 polling loop.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed due to MITRE STIX download timeout (toolchain network issue, not rule error). sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. Field names are generic (DestinationHostname, Initiated) — no macOS-specific pipeline available for schema mapping. Telegram is a legitimate service so FP from Telegram desktop app is expected; pair with process-image filter in deployment. -->
-```yaml
-title: macOS Gaslight Rust Backdoor - Telegram Bot API C2 Communication
-id: 8a3f7c12-e4b5-4d9a-b6c1-f2e8d7a09b34
-status: experimental
-description: >
-    Detects macOS processes making outbound HTTPS connections to the Telegram Bot API
-    (api.telegram.org), consistent with macOS.Gaslight Rust backdoor C2 communication.
-    The malware uses Telegram getUpdates polling for command receipt and multipart
-    attach:// for data exfiltration.
-references:
-    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
-author: Actioner
-date: 2026/06/28
-tags:
-    - attack.t1071.001
-    - attack.t1102.002
-logsource:
-    category: network_connection
-    product: macos
-detection:
-    selection:
-        DestinationHostname|endswith: 'api.telegram.org'
-        Initiated: 'true'
-    condition: selection
-falsepositives:
-    - Legitimate Telegram desktop application
-    - Developer tools or bots using the Telegram Bot API
-level: medium
-```
+> **Network detection gap:** Three network-layer rules (Sigma network_connection, Snort, and Suricata) targeting Telegram Bot API traffic were drafted and subsequently dropped during review. The Sigma rule keyed on any process connecting to `api.telegram.org` -- generic activity not specific to Gaslight. The Snort and Suricata rules inspected raw TCP/HTTP for `/bot*/getUpdates` patterns, but Gaslight communicates over HTTPS; without TLS interception these rules would not fire, and even with interception they match any Telegram bot, not this threat specifically. Meaningful network-layer detection for Gaslight will require Gaslight-specific network artifacts (e.g., unique URI paths, JA4 fingerprints, or encrypted payload signatures) not yet available from public research.
 
 ### Sigma: Suspicious LaunchAgent Persistence
 
@@ -315,9 +282,9 @@ level: high
 
 ### Sigma: Python Credential Stealer via Standalone CPython
 
-Detects execution of a standalone CPython 3.10 runtime or command-line indicators consistent with the Gaslight credential harvesting module.
+Detects execution of a standalone CPython 3.10 runtime with command-line indicators consistent with the Gaslight credential harvesting module. Both the CPython image path and stealer activity markers must match (AND logic) to avoid false positives from ubiquitous tools like `system_profiler`.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. OR logic broadens matching: selection_python is specific to cpython-3.10 standalone; selection_activity catches stealer artifacts but "system_profiler" alone is a common legitimate tool. Pair both branches for highest confidence. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. Revised from OR to AND logic: selection_python is specific to cpython-3.10 standalone; selection_activity catches stealer artifacts. AND prevents selection_activity from firing alone on legitimate system_profiler usage. -->
 ```yaml
 title: macOS Gaslight - Python Credential Stealer via Standalone CPython
 id: 5c8d9e0f-1a2b-3c4d-5e6f-7a8b9c0d1e2f
@@ -347,10 +314,10 @@ detection:
             - 'collected_data.zip'
             - 'login.keychain-db'
             - 'system_profiler'
-    condition: selection_python or selection_activity
+    condition: selection_python and selection_activity
 falsepositives:
     - Developers using standalone CPython builds from astral-sh for legitimate purposes
-level: high
+level: medium
 ```
 
 ### Snort: Telegram Bot API C2 getUpdates Polling

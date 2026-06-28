@@ -1,0 +1,30 @@
+title: DirtyClone Exploit - Iptables TEE Target on Mangle Table
+id: 7c4f3b2a-9d6e-4a1f-b8c5-d3e2a0f1b7c9
+status: experimental
+description: >
+    Detects iptables rules using the TEE target on the mangle table, a specific
+    step in CVE-2026-43503 (DirtyClone) exploitation. The exploit uses TEE to
+    duplicate UDP packets destined for port 4500, triggering packet cloning via
+    __pskb_copy_fclone() which drops the SKBFL_SHARED_FRAG safety flag.
+references:
+    - https://thehackernews.com/2026/06/new-dirtyclone-linux-kernel-flaw-lets.html
+    - https://research.jfrog.com/post/dissecting-and-exploiting-linux-lpe-variant-dirtyclone-cve-2026-43503/
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/iptables'
+            - '/ip6tables'
+        CommandLine|contains|all:
+            - 'mangle'
+            - 'TEE'
+    condition: selection
+falsepositives:
+    - Network mirroring configurations using TEE target
+level: high

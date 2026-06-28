@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-28
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -247,7 +247,7 @@ These detections target SharkLoader DLL side-loading, encrypted payload deployme
 ### Sigma: SharkLoader DLL Side-Loading via SystemSettings.exe
 Detects SystemSettings.exe executing from a non-standard directory, the key indicator of SharkLoader DLL side-loading.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed due to MITRE STIX download timeout (network issue, not rule issue). splunk convert exit 0; log_scale convert exit 0. Fields: Image (process_creation/windows) — standard Sysmon/4688 field, no encoding concerns. Non-defanged paths in detection values. -->
+<!-- audit: sigma check failed due to MITRE STIX download timeout (network issue, not rule issue). splunk convert exit 0; log_scale convert exit 0. Fields: Image (process_creation/windows) — standard Sysmon/4688 field, no encoding concerns. Non-defanged paths in detection values. Revision 1.1: removed incorrect attack.t1059.003 tag (command-line interpreter not relevant to this DLL side-loading rule). -->
 ```yaml
 title: SharkLoader DLL Side-Loading via SystemSettings.exe
 id: 7c3a9f1e-4d2b-48e6-a5c3-6b8d0e9f2a1c
@@ -263,7 +263,6 @@ author: Actioner
 date: 2026/06/28
 tags:
     - attack.t1574.002
-    - attack.t1059.003
 logsource:
     category: process_creation
     product: windows
@@ -282,8 +281,8 @@ level: high
 
 ### Sigma: SharkLoader Encrypted Payload File Creation
 Detects creation of files matching SharkLoader encrypted payload names (DscCoreR.mui, SyncRes.dat, and known alternates).
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (STIX network timeout). splunk/log_scale convert exit 0. TargetFilename (file_event/windows) — standard Sysmon EID 11 field. Filenames are distinctive to this campaign. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (STIX network timeout). splunk/log_scale convert exit 0. TargetFilename (file_event/windows) — standard Sysmon EID 11 field. Filenames are distinctive to this campaign. Revision 1.1: added filter_system32 to exclude legitimate VistaCompat.nls at C:\Windows\System32\; downgraded confidence from high to medium. -->
 ```yaml
 title: SharkLoader Encrypted Payload File Creation
 id: 8b4e2d7a-5f3c-49d1-b6e4-7c9a1f0d3b2e
@@ -311,10 +310,12 @@ detection:
             - '\GameInputInboxs32.mui'
             - '\Ignored.Dat'
             - '\VistaCompat.nls'
-    condition: selection
+    filter_system32:
+        TargetFilename|startswith: 'C:\Windows\System32\'
+    condition: selection and not filter_system32
 falsepositives:
     - Legitimate Windows files with the same names in system directories
-level: high
+level: medium
 ```
 
 ### Sigma: SharkLoader Registry Persistence via MFUpdate Run Key

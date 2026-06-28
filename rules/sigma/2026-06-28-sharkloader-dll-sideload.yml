@@ -12,7 +12,6 @@ author: Actioner
 date: 2026/06/28
 tags:
     - attack.t1574.002
-    - attack.t1059.003
 logsource:
     category: process_creation
     product: windows

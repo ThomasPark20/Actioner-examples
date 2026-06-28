@@ -24,7 +24,9 @@ detection:
             - '\GameInputInboxs32.mui'
             - '\Ignored.Dat'
             - '\VistaCompat.nls'
-    condition: selection
+    filter_system32:
+        TargetFilename|startswith: 'C:\Windows\System32\'
+    condition: selection and not filter_system32
 falsepositives:
     - Legitimate Windows files with the same names in system directories
-level: high
+level: medium

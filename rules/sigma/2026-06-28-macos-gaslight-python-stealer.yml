@@ -26,7 +26,7 @@ detection:
             - 'collected_data.zip'
             - 'login.keychain-db'
             - 'system_profiler'
-    condition: selection_python or selection_activity
+    condition: selection_python and selection_activity
 falsepositives:
     - Developers using standalone CPython builds from astral-sh for legitimate purposes
-level: high
+level: medium

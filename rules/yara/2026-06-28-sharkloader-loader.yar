@@ -7,7 +7,7 @@ rule Malware_SharkLoader_DLL
         author = "Actioner"
         date = "2026-06-28"
         reference = "https://securelist.com/strikeshark-campaign/120326/"
-        severity = "critical"
+        severity = "medium"
 
     strings:
         $res1 = "TELEMETRY" ascii wide
@@ -26,7 +26,7 @@ rule Malware_SharkLoader_DLL
         (
             (2 of ($res*)) or
             ($file1 and $file2) or
-            (1 of ($res*) and 1 of ($file*)) or
+            (1 of ($res*) and 2 of ($file*)) or
             (1 of ($res*) and 1 of ($alt*))
         )
 }

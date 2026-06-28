@@ -1,0 +1,32 @@
+title: Mistic Backdoor C2 Communication with Spoofed Delivery Optimization User-Agent
+id: 2f8b5d1a-9c4e-4a7f-b3d6-8e0c2f1a5b9d
+status: experimental
+description: >
+    Detects network connections from MpExtMs.exe to external hosts on port 443,
+    consistent with Mistic backdoor C2 using a Microsoft-Delivery-Optimization
+    user-agent string to blend with legitimate Windows traffic.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+    - https://thehackernews.com/2026/06/new-mistic-backdoor-linked-to-kongtuke.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1071.001
+    - attack.t1036.005
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MpExtMs.exe'
+        DestinationPort: 443
+        Initiated: 'true'
+    filter_microsoft:
+        DestinationHostname|endswith:
+            - '.microsoft.com'
+            - '.windowsupdate.com'
+            - '.windows.net'
+    condition: selection and not filter_microsoft
+falsepositives:
+    - Legitimate MpExtMs.exe communicating with Microsoft endpoints
+level: high
