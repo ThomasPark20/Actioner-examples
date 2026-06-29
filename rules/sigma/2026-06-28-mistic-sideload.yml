@@ -1,0 +1,37 @@
+title: Mistic Backdoor DLL Sideloading via MpExtMs.exe
+id: 7c3a1e8f-4b2d-4f9a-8e6c-1d5a0f3b7e9d
+status: experimental
+description: >
+    Detects the Mistic backdoor DLL sideloading chain where MpExtMs.exe loads
+    a malicious version.dll or EndpointDlp.dll from a non-standard directory,
+    consistent with Woodgnat/KongTuke initial access broker activity.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+    - https://thehackernews.com/2026/06/new-mistic-backdoor-linked-to-kongtuke.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1574.002
+    - attack.t1036.005
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_parent:
+        Image|endswith: '\MpExtMs.exe'
+    selection_dll:
+        ImageLoaded|endswith:
+            - '\EndpointDlp.dll'
+            - '\version.dll'
+    filter_legitimate_path:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\Windows Defender\'
+            - 'C:\Program Files (x86)\Windows Defender\'
+            - 'C:\Program Files\Microsoft Security Client\'
+            - 'C:\ProgramData\Microsoft\Windows Defender\'
+            - 'C:\Windows\WinSxS\'
+    condition: selection_parent and selection_dll and not filter_legitimate_path
+falsepositives:
+    - Legitimate Microsoft Defender DLP module loading from standard directories
+    - Windows component servicing loading version.dll from WinSxS
+level: medium

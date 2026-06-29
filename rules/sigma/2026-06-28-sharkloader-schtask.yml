@@ -1,0 +1,31 @@
+title: SharkLoader Scheduled Task Creation for Persistence
+id: ae6f4a9c-7b5e-4bf3-d8a6-9e1c3f2b5d4a
+status: experimental
+description: >
+    Detects schtasks.exe creating scheduled tasks with names and paths
+    matching SharkLoader persistence patterns from the StrikeShark campaign,
+    including tasks masquerading as Edge updates or OneDrive sync.
+references:
+    - https://securelist.com/strikeshark-campaign/120326/
+    - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: '/create'
+    selection_indicators:
+        CommandLine|contains:
+            - '\Microsoft\Windows\Edge\Edgeupdate'
+            - 'ADriveLogs_Logs\SystemSettings.exe'
+            - 'OneDrive Standalone Update Task-S-1-5-21-'
+            - 'MicrosoftUpdateTaskUserS-1-5-32-'
+    condition: selection_schtasks and selection_indicators
+falsepositives:
+    - Legitimate Microsoft Edge or OneDrive scheduled tasks (names differ slightly)
+level: high

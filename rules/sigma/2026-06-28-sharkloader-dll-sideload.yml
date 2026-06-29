@@ -1,0 +1,28 @@
+title: SharkLoader DLL Side-Loading via SystemSettings.exe
+id: 7c3a9f1e-4d2b-48e6-a5c3-6b8d0e9f2a1c
+status: experimental
+description: >
+    Detects the SharkLoader DLL side-loading chain where SystemSettings.exe
+    is copied to an unusual directory and executed, loading the malicious
+    SystemSettings.dll loader as observed in the StrikeShark campaign.
+references:
+    - https://securelist.com/strikeshark-campaign/120326/
+    - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\SystemSettings.exe'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Windows\ImmersiveControlPanel\'
+            - 'C:\Windows\SystemApps\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate copies of SystemSettings.exe in non-standard directories (unlikely)
+level: high

@@ -1,0 +1,29 @@
+title: Pedit COW Exploit - AppArmor Bypass via aa-exec
+id: 3e1d9c8b-5a2f-4b7e-c6d0-f4a3b2e1c0d5
+status: experimental
+description: >
+    Detects the use of aa-exec with permissive profiles (trinity, chrome, flatpak)
+    to bypass AppArmor restrictions on unprivileged user namespaces, as used in the
+    CVE-2026-46331 (pedit COW) exploit's Ubuntu bypass mode.
+references:
+    - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
+    - https://github.com/sgkdev/packet_edit_meme
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1068
+    - attack.t1548
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith: '/aa-exec'
+        CommandLine|contains:
+            - 'trinity'
+            - 'chrome'
+            - 'flatpak'
+    condition: selection
+falsepositives:
+    - Legitimate AppArmor profile testing
+level: high

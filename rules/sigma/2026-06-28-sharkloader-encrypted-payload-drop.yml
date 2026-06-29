@@ -1,0 +1,32 @@
+title: SharkLoader Encrypted Payload File Creation
+id: 8b4e2d7a-5f3c-49d1-b6e4-7c9a1f0d3b2e
+status: experimental
+description: >
+    Detects creation of encrypted payload files (DscCoreR.mui, SyncRes.dat)
+    or their known alternate names used by SharkLoader in the StrikeShark
+    campaign to deliver Cobalt Strike beacons.
+references:
+    - https://securelist.com/strikeshark-campaign/120326/
+    - https://thehackernews.com/2026/06/new-sharkloader-malware-deploys-cobalt.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1140
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\DscCoreR.mui'
+            - '\SyncRes.dat'
+            - '\GameInputInboxs32.mui'
+            - '\Ignored.Dat'
+            - '\VistaCompat.nls'
+    filter_system32:
+        TargetFilename|startswith: 'C:\Windows\System32\'
+    condition: selection and not filter_system32
+falsepositives:
+    - Legitimate Windows files with the same names in system directories
+level: medium

@@ -1,0 +1,28 @@
+title: Mistic Backdoor Self-Destruct File Deletion
+id: a4e9c7b2-3f1d-4e8a-9b5c-6d0a2f7e1c3b
+status: experimental
+description: >
+    Detects MpExtMs.exe or associated loader deleting its own DLL components,
+    consistent with Mistic backdoor kill switch / self-destruct behavior.
+references:
+    - https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+    - https://thehackernews.com/2026/06/new-mistic-backdoor-linked-to-kongtuke.html
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1070.004
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\MpExtMs.exe'
+    selection_file:
+        TargetFilename|endswith:
+            - '\EndpointDlp.dll'
+            - '\version.dll'
+            - '\MpExtMs.exe'
+    condition: selection_process and selection_file
+falsepositives:
+    - Legitimate Microsoft Defender self-update removing old components
+level: high

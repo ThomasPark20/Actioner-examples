@@ -1,0 +1,29 @@
+title: Pedit COW Exploit - TC Pedit Munge Action Configuration
+id: 8a3c1e7f-4b2d-4f9a-b6e1-c2d5f8a0e3b7
+status: experimental
+description: >
+    Detects tc (traffic control) pedit munge action configuration commands indicative of
+    CVE-2026-46331 exploitation. The exploit uses tc pedit munge actions to
+    corrupt page-cache memory of setuid binaries like /bin/su. The prerequisite
+    CAP_NET_ADMIN capability is obtained via unprivileged user namespaces.
+references:
+    - https://thehackernews.com/2026/06/new-linux-pedit-cow-exploit-enables.html
+    - https://github.com/sgkdev/packet_edit_meme
+    - https://www.scworld.com/news/2-linux-kernel-flaw-pocs-published-enabling-local-privilege-escalation
+author: Actioner
+date: 2026/06/28
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_tc:
+        Image|endswith: '/tc'
+        CommandLine|contains|all:
+            - 'pedit'
+            - 'munge'
+    condition: selection_tc
+falsepositives:
+    - Legitimate network traffic shaping with tc pedit rules
+level: high
