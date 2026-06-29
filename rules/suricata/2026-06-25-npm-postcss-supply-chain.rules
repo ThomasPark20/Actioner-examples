@@ -1,0 +1,11 @@
+# Suricata rules for PostCSS npm supply chain RAT
+# Reference: https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+
+# Detect payload download from nvidiadriver.net
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MAL PostCSS RAT - Payload Download from nvidiadriver.net"; flow:established,to_server; http.host; content:"nvidiadriver.net"; http.uri; content:"/verv1432/"; classtype:trojan-activity; sid:2026062501; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25;)
+
+# Detect C2 communication to 95.216.92.207:8080
+alert tcp $HOME_NET any -> 95.216.92.207 8080 (msg:"MAL PostCSS RAT - C2 Communication to Known IP"; flow:established,to_server; classtype:trojan-activity; sid:2026062502; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25;)
+
+# Detect HTTP POST with octet-stream to C2 (behavioral)
+alert http $HOME_NET any -> 95.216.92.207 8080 (msg:"MAL PostCSS RAT - HTTP C2 Binary POST"; flow:established,to_server; http.method; content:"POST"; http.content_type; content:"application/octet-stream"; classtype:trojan-activity; sid:2026062503; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25;)

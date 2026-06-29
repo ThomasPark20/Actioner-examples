@@ -1,0 +1,99 @@
+title: Malicious npm PostCSS Package - PowerShell Dropper Execution
+id: a7c3e1f0-4b2d-4e8a-9f1c-3d5e7a9b0c2f
+status: experimental
+description: >
+    Detects the PowerShell dropper execution chain associated with malicious npm packages
+    (postcss-minify-selector-parser, postcss-minify-selector, aes-decode-runner-pro)
+    that deliver a Windows RAT. The dropper writes settings.ps1 and executes it with
+    bypass policy to download payloads from nvidiadriver.net.
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+    - https://thehackernews.com/2026/06/malicious-npm-packages-pose-as-postcss.html
+author: Actioner DRAFT
+date: 2026-06-25
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.defense-evasion
+    - attack.t1140
+    - attack.command-and-control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ps_dropper:
+        ParentImage|endswith: '\node.exe'
+        CommandLine|contains|all:
+            - 'powershell'
+            - '-NoProfile'
+            - '-ExecutionPolicy'
+            - 'Bypass'
+            - 'settings.ps1'
+    selection_curl_download:
+        CommandLine|contains|all:
+            - 'curl.exe'
+            - 'nvidiadriver.net'
+            - 'winPatch'
+    selection_wscript_vbs:
+        Image|endswith: '\wscript.exe'
+        CommandLine|contains:
+            - 'update.vbs'
+            - 'winPatch'
+    condition: selection_ps_dropper or selection_curl_download or selection_wscript_vbs
+falsepositives:
+    - Unlikely in legitimate environments; settings.ps1 launched by node.exe with bypass policy is highly specific
+level: high
+---
+title: Malicious npm PostCSS RAT - Registry Persistence via csshost Run Key
+id: b8d4f2a1-5c3e-4f9b-a0d2-4e6f8b0c1d3a
+status: experimental
+description: >
+    Detects the RAT establishing persistence by creating a registry Run key named
+    'csshost' under HKCU, as used by the postcss-minify-selector-parser RAT.
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+author: Actioner DRAFT
+date: 2026-06-25
+tags:
+    - attack.persistence
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\csshost'
+    condition: selection
+falsepositives:
+    - Unknown legitimate software using the exact registry value name 'csshost'
+level: high
+---
+title: Malicious npm PostCSS RAT - Temp Directory File Artifacts
+id: c9e5a3b2-6d4f-4a0c-b1e3-5f7a9c1d2e4b
+status: experimental
+description: >
+    Detects creation of characteristic file artifacts in the temp directory associated
+    with the PostCSS RAT payload extraction and tracking files (.store, .host, winPatch).
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+author: Actioner DRAFT
+date: 2026-06-25
+tags:
+    - attack.execution
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_winpatch:
+        TargetFilename|contains: '\winPatch'
+    selection_tracking:
+        TargetFilename|endswith:
+            - '\.store'
+            - '\.host'
+        TargetFilename|contains: '\Temp\'
+    condition: selection_winpatch or selection_tracking
+falsepositives:
+    - Other software creating .store or .host files in temp directories
+level: medium

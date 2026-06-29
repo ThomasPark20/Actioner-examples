@@ -1,0 +1,45 @@
+# Mistic/MLTBackdoor Suricata Rules
+# Author: Actioner CTI
+# Date: 2026-06-25
+# References:
+#   https://www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor
+#   https://www.security.com/threat-intelligence/new-mistic-backdoor-modelorat
+
+# Mistic C2 beacon User-Agent + URI path combination
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Actioner - Mistic C2 Domain - carrolc.com"; flow:established,to_server; tls.sni; content:"carrolc.com"; sid:2026062501; rev:2; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - cwrtwright.com"; flow:established,to_server; tls.sni; content:"cwrtwright.com"; sid:2026062502; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - thomphon.com"; flow:established,to_server; tls.sni; content:"thomphon.com"; sid:2026062503; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - authorized-logins.net"; flow:established,to_server; tls.sni; content:"authorized-logins.net"; sid:2026062504; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - updater-worelos.com"; flow:established,to_server; tls.sni; content:"updater-worelos.com"; sid:2026062505; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - upd-domain-goloro.com"; flow:established,to_server; tls.sni; content:"upd-domain-goloro.com"; sid:2026062506; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - upscale-kolo.com"; flow:established,to_server; tls.sni; content:"upscale-kolo.com"; sid:2026062507; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - sql-updater-service.com"; flow:established,to_server; tls.sni; content:"sql-updater-service.com"; sid:2026062508; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - rotoa-upda-lo.com"; flow:established,to_server; tls.sni; content:"rotoa-upda-lo.com"; sid:2026062509; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - powwowski.com"; flow:established,to_server; tls.sni; content:"powwowski.com"; sid:2026062510; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - grande-luna.top"; flow:established,to_server; tls.sni; content:"grande-luna.top"; sid:2026062511; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor C2 Domain - human-check.top"; flow:established,to_server; tls.sni; content:"human-check.top"; sid:2026062512; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+# Mistic C2 communication to known IP addresses
+alert tls $HOME_NET any -> 142.93.242.144 443 (msg:"MALWARE Mistic/MLTBackdoor C2 IP 142.93.242.144"; flow:established,to_server; sid:2026062513; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> 144.31.53.78 443 (msg:"MALWARE Mistic/MLTBackdoor C2 IP 144.31.53.78"; flow:established,to_server; sid:2026062514; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> 198.13.159.44 443 (msg:"MALWARE Mistic/MLTBackdoor C2 IP 198.13.159.44"; flow:established,to_server; sid:2026062515; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert tls $HOME_NET any -> 199.91.221.42 443 (msg:"MALWARE Mistic/MLTBackdoor C2 IP 199.91.221.42"; flow:established,to_server; sid:2026062516; rev:2; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+# Mistic ClickFix delivery - payload download pattern
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor ClickFix Payload Download - update.msi (hunting)"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/update.msi"; endswith; sid:2026062517; rev:2; metadata:created_at 2026_06_25, updated_at 2026_06_25, confidence low; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/new-mistic-backdoor-modelorat;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Mistic/MLTBackdoor Payload Download - update.zip from powwowski"; flow:established,to_server; http.host; content:"powwowski.com"; http.uri; content:"/payloads/update.zip"; sid:2026062518; rev:1; metadata:created_at 2026_06_25, updated_at 2026_06_25; classtype:trojan-activity; reference:url,www.zscaler.com/blogs/security-research/technical-analysis-mltbackdoor;)
