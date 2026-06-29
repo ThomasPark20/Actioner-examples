@@ -1,0 +1,33 @@
+title: macOS ClickFix - Base64 Decoded Command Piped to Shell Execution
+id: f1c6b3d8-7e9a-8f2c-a0b1-3c7d8e6f5a29
+status: experimental
+description: >
+    Detects the initial ClickFix execution pattern where a base64-encoded
+    payload is decoded and piped to bash/zsh for execution. This is the
+    primary entry point for ClickFix campaigns where users paste the
+    malicious command into Terminal.
+references:
+    - https://www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/
+    - https://www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1059.004
+    - attack.t1140
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_base64_pipe:
+        CommandLine|contains|all:
+            - 'base64'
+            - '-d'
+        CommandLine|contains:
+            - '| bash'
+            - '| zsh'
+            - '| sh'
+    condition: selection_base64_pipe
+falsepositives:
+    - Developers decoding base64-encoded scripts
+    - CI/CD pipelines using base64-encoded commands
+level: medium

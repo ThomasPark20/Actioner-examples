@@ -1,0 +1,23 @@
+title: macOS.Gaslight LaunchAgent Persistence via Apple Namespace Masquerade
+id: 7a3e1d4f-8c2b-4e6a-9f01-3b5d7c8e2a14
+status: experimental
+description: Detects creation of a LaunchAgent plist masquerading as an Apple system service, consistent with macOS.Gaslight DPRK backdoor persistence using the label com.apple.system.services.activity.
+references:
+    - https://www.sentinelone.com/labs/macos-gaslight-rust-backdoor-turns-prompt-injection-on-the-analyst-not-the-sandbox/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1543.001
+    - attack.t1036.004
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_path:
+        TargetFilename|contains: '/LaunchAgents/'
+    selection_label:
+        TargetFilename|contains: 'com.apple.system.services.activity'
+    condition: selection_path and selection_label
+falsepositives:
+    - Legitimate Apple system services (verify against known Apple LaunchAgent labels)
+level: high

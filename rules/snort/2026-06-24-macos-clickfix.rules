@@ -1,0 +1,11 @@
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - svs-verificationdate.beer DNS Query"; content:"|14|svs-verificationdate|04|beer|00|"; nocase; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/;)
+
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - imper-strlk5.com DNS Query"; content:"|0c|imper-strlk5|03|com|00|"; nocase; sid:2100002; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
+
+alert udp $HOME_NET any -> any 53 (msg:"ACTIONER ClickFix macOS C2 - cleanmymacos.org DNS Query"; content:"|0c|cleanmymacos|03|org|00|"; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - AMOS Heartbeat Beacon POST /api/bot/heartbeat"; flow:established,to_server; content:"POST"; http_method; content:"/api/bot/heartbeat"; http_uri; sid:2100004; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - Loader Script Request /loader.sh?build="; flow:established,to_server; content:"GET"; http_method; content:"/loader.sh?build="; http_uri; sid:2100005; rev:1; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ACTIONER ClickFix macOS - AMOS Data Exfiltration POST /gate/chunk"; flow:established,to_server; content:"POST"; http_method; content:"/gate/chunk"; http_uri; sid:2100006; rev:2; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/tech-impersonators-clickfix-and-macos-infostealers/;)

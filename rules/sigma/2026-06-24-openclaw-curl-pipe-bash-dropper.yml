@@ -1,0 +1,31 @@
+title: OpenClaw Malicious Skill - Curl Pipe Bash Dropper Execution
+id: ce5e1b37-30a4-4b4b-94cb-91e65ba0a8eb
+status: experimental
+description: Detects curl-pipe-bash dropper pattern associated with OpenClaw ClawHub malicious skills delivering AMOS and cluw infostealers via paste-site intermediaries.
+references:
+    - https://unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.defense_evasion
+    - attack.t1140
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_curl_bash:
+        CommandLine|contains|all:
+            - 'curl'
+            - 'bash'
+    selection_ioc:
+        CommandLine|contains:
+            - 'glot.io/snippets'
+            - 'rentry.co/openclaw'
+            - '91.92.242.30'
+            - '2.26.75.16'
+    condition: selection_curl_bash and selection_ioc
+falsepositives:
+    - Legitimate developer scripts fetching from paste sites (unlikely with these specific indicators)
+level: high

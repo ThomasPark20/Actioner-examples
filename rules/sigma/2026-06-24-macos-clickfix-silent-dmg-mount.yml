@@ -1,0 +1,30 @@
+title: macOS ClickFix - Silent DMG Mount via hdiutil attach -nobrowse
+id: a3f1c8e2-7d4b-4e9a-b5c6-8f2d3a1e7b94
+status: experimental
+description: >
+    Detects execution of hdiutil with the -nobrowse flag to silently mount
+    a DMG disk image without displaying it in Finder or on the desktop.
+    This technique is used by the macOS ClickFix campaign to covertly mount
+    malicious DMG files containing the Atomic macOS Stealer (AMOS).
+references:
+    - https://www.bleepingcomputer.com/news/security/new-macos-clickfix-attack-silently-mounts-dmgs-to-push-infostealer/
+    - https://www.microsoft.com/en-us/security/blog/2026/05/06/clickfix-campaign-uses-fake-macos-utilities-lures-deliver-infostealers/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1204.002
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        Image|endswith: '/hdiutil'
+        CommandLine|contains|all:
+            - 'attach'
+            - '-nobrowse'
+    condition: selection
+falsepositives:
+    - Legitimate software installers using silent DMG mounts
+    - MDM or configuration management tools deploying packages
+level: medium

@@ -1,0 +1,26 @@
+title: OpenClaw Malicious Skill Cron Job Persistence
+id: e7fcacee-bb63-4979-b057-374e25a1e6b5
+status: experimental
+description: Detects cron job creation by processes associated with OpenClaw skill execution, used by malicious skills for persistence and maintaining C2 channels.
+references:
+    - https://unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.persistence
+    - attack.t1053.003
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_crontab:
+        Image|endswith: '/crontab'
+        CommandLine|contains: '-'
+    selection_parent:
+        ParentImage|contains:
+            - 'openclaw'
+            - 'claw'
+    condition: selection_crontab and selection_parent
+falsepositives:
+    - Legitimate OpenClaw auto-updater skills creating scheduled tasks
+level: medium

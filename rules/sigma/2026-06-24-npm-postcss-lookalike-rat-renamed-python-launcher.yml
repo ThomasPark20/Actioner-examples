@@ -1,0 +1,22 @@
+title: PostCSS Lookalike RAT - Renamed Python Launcher (chost.exe)
+id: 9d2f4b68-1c7e-4a3d-8f5b-6e0c9a7d2b41
+status: experimental
+description: Detects execution of chost.exe (renamed Python 3.10 launcher) loading loader.py, a behavioral indicator of the PostCSS lookalike npm RAT.
+references:
+    - https://research.jfrog.com/post/from-postcss-typosquat-to-windows-rat/
+    - https://thehackernews.com/2026/06/malicious-npm-packages-pose-as-postcss.html
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\chost.exe'
+        CommandLine|contains: 'loader.py'
+    condition: selection
+falsepositives:
+    - Unknown
+level: high

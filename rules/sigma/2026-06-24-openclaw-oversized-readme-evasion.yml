@@ -1,0 +1,23 @@
+title: OpenClaw Oversized README Evasion Technique
+id: 8394d205-1880-4f8e-84e7-bdb11efa23f1
+status: experimental
+description: Detects creation of abnormally large README files used by OpenClaw malicious skills to evade scanner processing thresholds via 22MB+ padding.
+references:
+    - https://unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/
+author: Actioner
+date: 2026/06/24
+tags:
+    - attack.defense_evasion
+    - attack.t1027.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/README.md'
+        FileSize|gte: 20000000
+    condition: selection
+falsepositives:
+    - Legitimate large README files in data-heavy repositories (rare at 20MB+)
+level: medium
