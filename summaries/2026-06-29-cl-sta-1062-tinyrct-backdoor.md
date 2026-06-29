@@ -3,11 +3,12 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-29
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.0→v1.1 — Fixed ATT&CK mappings (T1056→T1113, T1027→T1573, T1140→T1573.001); flagged AES-128/AES-192 key-length discrepancy; corrected self-destruct prose (choice.exe only deletes file, not scheduled task); downgraded Rule 7 C2 IP from critical→high for Vultr reuse risk; reconciled Rule 4 header/body level mismatch; added IP IOC staleness note; added Snort rule redundancy note. -->
 
 ## Executive Summary
 
-CL-STA-1062 is a Chinese-speaking advanced persistent threat cluster active since at least March 2022, targeting Southeast Asian government entities and critical energy infrastructure. The group uses a hybrid toolkit combining open-source tools (SoftEther VPN, Mimikatz, VNT, yuze, JuicyPotato, fscan) with a newly discovered custom backdoor called **TinyRCT** -- a previously undocumented C# remote access trojan. TinyRCT is delivered via AppDomainManager injection using a trojanized Chrome installer archive, establishes persistence through scheduled tasks masquerading as Google updater processes, and communicates with C2 infrastructure over HTTP using AES-128 CBC encryption with a hardcoded key and null IV. Cisco Talos tracks the same activity cluster as UAT-7237. The campaign has compromised at least 10 organizations across Southeast Asia and Taiwan between September and December 2025.
+CL-STA-1062 is a Chinese-speaking advanced persistent threat cluster active since at least March 2022, targeting Southeast Asian government entities and critical energy infrastructure. The group uses a hybrid toolkit combining open-source tools (SoftEther VPN, Mimikatz, VNT, yuze, JuicyPotato, fscan) with a newly discovered custom backdoor called **TinyRCT** -- a previously undocumented C# remote access trojan. TinyRCT is delivered via AppDomainManager injection using a trojanized Chrome installer archive, establishes persistence through scheduled tasks masquerading as Google updater processes, and communicates with C2 infrastructure over HTTP using AES CBC encryption (24-byte key; see AES-128/AES-192 note below) with a hardcoded key and null IV. Cisco Talos tracks the same activity cluster as UAT-7237. The campaign has compromised at least 10 organizations across Southeast Asia and Taiwan between September and December 2025.
 
 ## Background: Targeted Organizations
 
@@ -49,7 +50,7 @@ TinyRCT is a custom C# RAT that masquerades as Microsoft Visual Studio's telemet
 
 - **Environment validation:** Requires execution from `%LOCALAPPDATA%`; terminates immediately if run from any other path
 - **C2 communication:** HTTP-based; POST for host fingerprinting (username, machine name, OS version, local IP, execution path, PID, GUID); GET for command polling
-- **Encryption:** AES-128 CBC with hardcoded key `ThisIsASecretKey87654321` and null IV (all zeros)
+- **Encryption:** AES CBC with hardcoded key `ThisIsASecretKey87654321` and null IV (all zeros). **Note:** Unit 42 reports AES-128 CBC; however, the 24-byte key corresponds to AES-192. Defenders should attempt decryption with both AES-128 (first 16 bytes) and AES-192 (full 24 bytes).
 - **Beaconing interval:** 10-second sleep between GET polls (adjustable via C2 command)
 - **Capabilities:** Arbitrary command execution, file enumeration, file exfiltration (40 KB chunks with gzip compression + AES encryption), screenshot capture (JPEG format), self-deletion
 - **Language indicator:** Simplified Chinese strings identified in C2 response parsing function
@@ -69,7 +70,7 @@ TinyRCT's cleanup routine uses:
 ```
 choice.exe /C Y /N /D Y /T 3 & del PerfWatson2.exe
 ```
-This deletes the `GoogleUpdater` scheduled task and removes the `PerfWatson2.exe` binary after a 3-second delay.
+This removes the `PerfWatson2.exe` binary after a 3-second delay. **Note:** The observed command only deletes the executable file; no corresponding `schtasks /delete` command was identified in Unit 42's analysis to remove the `GoogleUpdater` scheduled task. The orphaned scheduled task entry may persist as a forensic artifact.
 
 ### 5. Post-Compromise Tooling
 
@@ -85,7 +86,7 @@ This deletes the `GoogleUpdater` scheduled task and removes the `PerfWatson2.exe
 
 ### 6. C2 Infrastructure
 
-All known C2 IP addresses are hosted on Vultr cloud infrastructure:
+All known C2 IP addresses are hosted on Vultr cloud infrastructure. **IOC staleness warning:** Vultr IPs are ephemeral cloud allocations and may be reassigned to legitimate customers. These IOCs should be treated as time-limited; validate against current Vultr IP ownership before blocking in production. Recommended review interval: 90 days from publication date.
 
 | IP Address | Role |
 |------------|------|
@@ -160,11 +161,10 @@ All known C2 IP addresses are hosted on Vultr cloud infrastructure:
 | T1036.005 | Masquerading: Match Legitimate Name or Location | PerfWatson2.exe, vmtools.exe, XDRAgent.exe masquerading |
 | T1572 | Protocol Tunneling | SoftEther VPN, VNT, yuze for network tunneling |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP-based C2 (GET/POST) |
-| T1140 | Deobfuscate/Decode Files or Information | AES-128 CBC decryption of C2 traffic |
-| T1027 | Obfuscated Files or Information | Encrypted C2 payloads, tool masquerading |
+| T1573.001 | Encrypted Channel: Symmetric Cryptography | AES CBC encryption/decryption of C2 traffic with hardcoded key over HTTP |
 | T1041 | Exfiltration Over C2 Channel | File exfiltration via HTTP POST in 40 KB chunks |
 | T1005 | Data from Local System | File enumeration and exfiltration |
-| T1056 | Input Capture | Screenshot capture (JPEG) |
+| T1113 | Screen Capture | Screenshot capture (JPEG) |
 | T1070.004 | Indicator Removal: File Deletion | Self-destruct cleanup of PerfWatson2.exe |
 | T1003 | OS Credential Dumping | Mimikatz credential harvesting |
 | T1068 | Exploitation for Privilege Escalation | JuicyPotato privilege escalation |
@@ -354,7 +354,7 @@ detection:
     condition: selection
 falsepositives:
     - Unknown
-level: critical
+level: high
 ```
 
 ### Sigma: SoftEther VPN Masquerading as VMware or XDR Agent Executable
@@ -441,8 +441,8 @@ level: high
 
 ### Sigma: TinyRCT C2 Network Connection to Known Infrastructure
 Detects outbound connections to known CL-STA-1062 C2 IP addresses.
-**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: critical (IOC-based)
-<!-- audit: DestinationIp (network_connection/windows) -- standard Sysmon EID 3 field. IPs are non-defanged per logsource-encoding spec. Vultr IPs may be reallocated. -->
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high (IOC-based; Vultr IPs subject to reallocation)
+<!-- audit: DestinationIp (network_connection/windows) -- standard Sysmon EID 3 field. IPs are non-defanged per logsource-encoding spec. Vultr IPs may be reallocated. Downgraded from critical to high per Vultr IP reuse risk. -->
 ```yaml
 title: TinyRCT C2 Network Connection to Known Infrastructure
 id: a1b2c3d4-7777-4aaa-bbbb-000000000007
@@ -471,7 +471,7 @@ detection:
     condition: selection
 falsepositives:
     - Vultr cloud hosting IPs may be reused by legitimate services
-level: critical
+level: high
 ```
 
 ### YARA: TinyRCT Backdoor and Downloader Detection
@@ -565,7 +565,7 @@ rule APT_CLSTA1062_ChromeSetup_Archive
 ### Snort: TinyRCT C2 Traffic and Payload Staging
 Detects HTTP traffic to known CL-STA-1062 C2 infrastructure and the staging URI pattern `/sdksdk608/`.
 **Status:** compile pass (snort -T exit 0, 5 rules validated) -- confidence: high (IP-based) / high (URI pattern)
-<!-- audit: snort -c (minimal conf with vars) -T exit 0. 5 rules loaded. IP matching via content keyword in TCP payload. URI pattern sdksdk608 is campaign-specific. -->
+<!-- audit: snort -c (minimal conf with vars) -T exit 0. 5 rules loaded. IP matching via content keyword in TCP payload. URI pattern sdksdk608 is campaign-specific. NOTE: SIDs 2100201/2100202 (content-based IP matching in HTTP payload) overlap with SIDs 2100204/2100205 (destination-IP matching). Content-based rules catch IPs in HTTP Host headers; destination-IP rules catch all TCP connections. Both are retained for defense-in-depth but operators should be aware of potential double-alerting. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TinyRCT C2 Beacon to Known IP 45.32.113.172"; flow:established,to_server; content:"45.32.113.172"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/; metadata:author Actioner, created 2026-06-29; sid:2100201; rev:1;)
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TinyRCT Payload Staging Server 139.180.134.221"; flow:established,to_server; content:"139.180.134.221"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/; metadata:author Actioner, created 2026-06-29; sid:2100202; rev:1;)

@@ -1,9 +1,17 @@
 # Hijacked npm and Go Packages Using VS Code Tasks to Deploy Python Infostealer
 
 **Date:** 2026-06-29
-**Status:** DRAFT
+**Status:** FINAL
 **Threat Actor:** Contagious Interview (G1052) / DPRK-attributed
 **Campaign Variant:** Fake Font
+
+<!-- revision: 2026-06-29 REVISE pass applied -->
+<!-- revision: R1 - Sigma #1: removed bare .woff2 from selection_cmdline, retained campaign-specific paths -->
+<!-- revision: R2 - Sigma #2: constrained Image to node.exe, tightened CommandLine to campaign-specific public/fonts/ paths, downgraded from critical to high -->
+<!-- revision: R3 - Sigma #4: removed .npm path matching (FP on all npm operations), replaced with .n2 hidden dir and get-pip.py staging, widened Python path from Python3127 to Python31* -->
+<!-- revision: R4 - Sigma #5: added missing 4th C2 IP 146.70.41.188; also updated Snort/Suricata IP groups -->
+<!-- revision: R5 - YARA #7: restructured condition so $label_env and $cmd_curl_sh require campaign-specific co-indicators ($cmd_woff2, $font_fa*, or $label_eslint) -->
+<!-- revision: R6 - ATT&CK mapping: corrected T1567.002 (Cloud Storage) to T1102 (Web Service) for Telegram exfil -->
 
 ---
 
@@ -172,7 +180,7 @@ The malicious `tasks.json` structure:
 | T1105 | Ingress Tool Transfer | Downloading Python runtime and infostealer from C2 |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP-based C2 communication with specific URI patterns |
 | T1041 | Exfiltration Over C2 Channel | Data exfiltration via HTTP POST to /u/f and /u/e endpoints |
-| T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Exfiltration via Telegram bot API |
+| T1102 | Web Service | Exfiltration via Telegram bot API (web service, not cloud storage) |
 | T1074.001 | Data Staged: Local Data Staging | Staging stolen data in .npm directories and ZIP archives |
 | T1005 | Data from Local System | Harvesting credentials from browsers, wallets, and OS credential stores |
 | T1102.001 | Web Service: Dead Drop Resolver | Using blockchain transactions (TronGrid/Aptos/BSC) to retrieve encrypted C2 payloads |
@@ -221,7 +229,6 @@ detection:
         CommandLine|contains:
             - 'fa-solid-400.woff2'
             - 'fa-brands-regular.woff2'
-            - '.woff2'
             - 'eslint-check'
     condition: selection_parent and selection_child and selection_cmdline
 falsepositives:
@@ -240,10 +247,10 @@ title: Node.js Execution of Disguised Font File - Fake Font Campaign
 id: 9b4d2e8f-3c5e-4f0b-a07d-6e9f1a2b3d4c
 status: experimental
 description: >
-    Detects Node.js executing a file with a .woff2 extension, characteristic of
-    the Contagious Interview Fake Font variant where malicious JavaScript is
-    disguised as public/fonts/fa-solid-400.woff2 or similar font files. This is
-    the initial execution vector triggered by malicious VS Code tasks.
+    Detects Node.js executing campaign-specific font file paths used by the
+    Contagious Interview Fake Font variant where malicious JavaScript is
+    disguised as public/fonts/fa-solid-400.woff2 or fa-brands-regular.woff2.
+    This is the initial execution vector triggered by malicious VS Code tasks.
 references:
     - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
     - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
@@ -255,14 +262,18 @@ tags:
 logsource:
     category: process_creation
 detection:
-    selection:
-        CommandLine|contains|all:
-            - 'node'
-            - '.woff2'
-    condition: selection
+    selection_image:
+        Image|endswith: '\node.exe'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'public/fonts/fa-solid-400.woff2'
+            - 'public/fonts/fa-brands-regular.woff2'
+            - 'public\\fonts\\fa-solid-400.woff2'
+            - 'public\\fonts\\fa-brands-regular.woff2'
+    condition: selection_image and selection_cmdline
 falsepositives:
-    - Legitimate build tools that process font files through Node.js are unlikely to execute them directly
-level: critical
+    - Legitimate build tools that process font files through Node.js are unlikely to execute them directly with these exact paths
+level: high
 ```
 
 **Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** HIGH
@@ -318,8 +329,9 @@ status: experimental
 description: >
     Detects file creation in staging directories used by the InvisibleFerret
     Python infostealer deployed through the Contagious Interview campaign.
-    The malware stages stolen data in .npm directories and downloads Python
-    runtime to specific paths before exfiltrating credentials.
+    The malware downloads Python runtime to specific versioned paths and
+    creates staging artifacts in hidden directories (.n2) before exfiltrating
+    credentials.
 references:
     - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
     - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
@@ -332,19 +344,26 @@ logsource:
     category: file_event
     product: windows
 detection:
-    selection_staging:
-        TargetFilename|contains:
-            - '\AppData\Local\Programs\Python\Python3127\'
-            - '\.npm\'
-    selection_process:
+    selection_python_staging:
+        TargetFilename|contains: '\AppData\Local\Programs\Python\Python31'
+        Image|endswith:
+            - '\node.exe'
+            - '\cmd.exe'
+    selection_n2_dir:
+        TargetFilename|contains: '\.n2\'
         Image|endswith:
             - '\python.exe'
             - '\python3.exe'
             - '\node.exe'
-    condition: selection_staging and selection_process
+    selection_get_pip:
+        TargetFilename|endswith: '\get-pip.py'
+        Image|endswith:
+            - '\node.exe'
+            - '\cmd.exe'
+            - '\curl.exe'
+    condition: 1 of selection_*
 falsepositives:
-    - Legitimate Python installations via official installer
-    - Normal npm cache operations
+    - Legitimate Python installations via official installer to matching version paths
 level: medium
 ```
 
@@ -379,6 +398,7 @@ detection:
             - '166.88.134.62'
             - '198.105.127.210'
             - '23.27.202.27'
+            - '146.70.41.188'
     condition: selection
 falsepositives:
     - Unlikely; these IPs are associated with confirmed malicious infrastructure
@@ -461,7 +481,6 @@ rule Malware_ContagiousInterview_VSCode_Tasks_FolderOpen
 
         $cmd_woff2 = ".woff2" ascii
         $cmd_curl_sh = "| sh" ascii
-        $cmd_wget = "wget" ascii
         $cmd_curl = "curl" ascii
         $cmd_node = "node " ascii
 
@@ -475,11 +494,11 @@ rule Malware_ContagiousInterview_VSCode_Tasks_FolderOpen
         filesize < 10KB and
         $tasks_ver and $run_on and $run_opts and
         (
-            ($cmd_woff2 and ($cmd_node or $cmd_curl)) or
-            ($cmd_curl_sh or ($cmd_wget and $cmd_curl)) or
+            1 of ($font_fa*) or
             $label_eslint or
-            $label_env or
-            1 of ($font_fa*)
+            ($cmd_woff2 and ($cmd_node or $cmd_curl)) or
+            ($label_env and ($cmd_woff2 or 1 of ($font_fa*) or $label_eslint)) or
+            ($cmd_curl_sh and ($cmd_woff2 or 1 of ($font_fa*) or $label_eslint))
         )
 }
 ```
@@ -604,7 +623,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Contagious
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Contagious Interview C2 Python Tooling Download"; flow:established,to_server; content:"/d/python"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created 2026-06-29, attack_id T1105; sid:2100104; rev:1;)
 
-alert tcp $HOME_NET any -> [166.88.134.62,198.105.127.210,23.27.202.27] $HTTP_PORTS (msg:"Actioner - Contagious Interview Known C2 IP with Sec-V Header"; flow:established,to_server; content:"Sec-V"; http_header; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created 2026-06-29, attack_id T1071.001; sid:2100105; rev:1;)
+alert tcp $HOME_NET any -> [166.88.134.62,198.105.127.210,23.27.202.27,146.70.41.188] $HTTP_PORTS (msg:"Actioner - Contagious Interview Known C2 IP with Sec-V Header"; flow:established,to_server; content:"Sec-V"; http_header; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created 2026-06-29, attack_id T1071.001; sid:2100105; rev:1;)
 ```
 
 **Compile Status:** PASSED (Snort 2.9.20) | **Confidence:** HIGH
@@ -624,7 +643,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interv
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview C2 Python Runtime Download"; flow:established,to_server; http.uri; content:"/d/python"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1105; sid:2100204; rev:1;)
 
-alert http $HOME_NET any -> [166.88.134.62,198.105.127.210,23.27.202.27] any (msg:"Actioner - Contagious Interview Known C2 IP with Sec-V Header"; flow:established,to_server; http.header; content:"Sec-V"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100205; rev:1;)
+alert http $HOME_NET any -> [166.88.134.62,198.105.127.210,23.27.202.27,146.70.41.188] any (msg:"Actioner - Contagious Interview Known C2 IP with Sec-V Header"; flow:established,to_server; http.header; content:"Sec-V"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100205; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview Verify Human Channel Callback"; flow:established,to_server; http.uri; content:"/verify-human/"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100206; rev:1;)
 ```

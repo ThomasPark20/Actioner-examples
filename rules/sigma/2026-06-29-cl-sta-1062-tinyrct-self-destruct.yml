@@ -1,0 +1,29 @@
+title: TinyRCT Self-Destruct Command via Choice.exe
+id: a1b2c3d4-4444-4aaa-bbbb-000000000004
+status: experimental
+description: >
+    Detects the TinyRCT self-destruct command sequence that uses
+    choice.exe with a 3-second delay followed by deletion of
+    PerfWatson2.exe. This is the cleanup routine triggered by
+    the CL-STA-1062 threat actor.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1070.004
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'choice.exe'
+            - '/C Y'
+            - '/T 3'
+            - 'del '
+            - 'PerfWatson2.exe'
+    condition: selection
+falsepositives:
+    - Unknown
+level: high

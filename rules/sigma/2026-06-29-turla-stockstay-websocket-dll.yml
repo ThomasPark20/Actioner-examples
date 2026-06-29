@@ -1,0 +1,32 @@
+title: STOCKSTAY WebSocket Sharp DLL Load by Suspicious Process
+id: a1b2c3d4-5555-4aaa-bbbb-000000000005
+status: experimental
+description: >
+    Detects loading of the websocket-sharp.dll library by processes matching
+    known STOCKSTAY component names. STOCKSTAY.STOCKBROKER uses the open-source
+    websocket-sharp library for WebSocket C2 communication.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering
+    - https://thehackernews.com/2026/06/google-details-turlas-new-stockstay.html
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1071.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_dll:
+        ImageLoaded|endswith: '\websocket-sharp.dll'
+    selection_process:
+        Image|endswith:
+            - '\StockMarketNet.exe'
+            - '\SMNet.exe'
+            - '\ClientMNGR.exe'
+            - '\ClientMNGR2.exe'
+            - '\GR3.exe'
+            - '\MSDriver.exe'
+    condition: selection_dll and selection_process
+falsepositives:
+    - Legitimate .NET applications using websocket-sharp with matching filenames (unlikely)
+level: high

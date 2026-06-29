@@ -1,0 +1,42 @@
+title: InvisibleFerret Python Infostealer Staging Activity
+id: b2d6f4a0-5e7b-6c2d-c39f-8a1b3c4d5e6f
+status: experimental
+description: >
+    Detects file creation in staging directories used by the InvisibleFerret
+    Python infostealer deployed through the Contagious Interview campaign.
+    The malware downloads Python runtime to specific versioned paths and
+    creates staging artifacts in hidden directories (.n2) before exfiltrating
+    credentials.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1074.001
+    - attack.t1005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_python_staging:
+        TargetFilename|contains: '\AppData\Local\Programs\Python\Python31'
+        Image|endswith:
+            - '\node.exe'
+            - '\cmd.exe'
+    selection_n2_dir:
+        TargetFilename|contains: '\.n2\'
+        Image|endswith:
+            - '\python.exe'
+            - '\python3.exe'
+            - '\node.exe'
+    selection_get_pip:
+        TargetFilename|endswith: '\get-pip.py'
+        Image|endswith:
+            - '\node.exe'
+            - '\cmd.exe'
+            - '\curl.exe'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate Python installations via official installer to matching version paths
+level: medium

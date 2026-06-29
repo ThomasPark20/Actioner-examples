@@ -1,0 +1,31 @@
+title: TinyRCT Backdoor Execution as PerfWatson2.exe
+id: a1b2c3d4-1111-4aaa-bbbb-000000000001
+status: experimental
+description: >
+    Detects execution of PerfWatson2.exe from the local AppData directory,
+    the known deployment path of the TinyRCT backdoor used by CL-STA-1062.
+    The legitimate PerfWatson2.exe (Visual Studio telemetry) runs from
+    VS installation directories, not from AppData.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+    - https://thehackernews.com/2026/06/chinese-speaking-apt-deploys-new.html
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1036.005
+    - attack.t1574.014
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\PerfWatson2.exe'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Program Files\Microsoft Visual Studio\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate Visual Studio telemetry process running from unusual paths
+level: high

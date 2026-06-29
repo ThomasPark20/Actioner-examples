@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-06-29
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
+<!-- revision: v1.1 — Applied critic CONDITIONAL PASS revisions: dropped Sigma 0004 (onrender wildcard FP), dropped all 5 Snort rules (redundant with Suricata sticky-buffer rules), fixed Sigma 0001 ATT&CK tags (t1059->t1204.002), fixed YARA STOCKBROKER condition precedence bug, downgraded Sigma 0002 level to high, removed unused YARA dotnet import, replaced ATT&CK T1001.003 with T1573.002. Final rule count: 4 Sigma, 7 YARA, 0 Snort, 10 Suricata = 21 rules. -->
 
 ## Executive Summary
 
@@ -282,7 +283,7 @@ Introduced in May 2025, K1MORPHER is a .NET obfuscation class (`K1.Morpher`) usi
 | T1071.001 | Application Layer Protocol: Web Protocols | WebSocket (WSS) C2 over port 443 |
 | T1090.001 | Proxy: Internal Proxy | STOCKBROKER acts as proxy-aware tunneler between C2 and orchestrator |
 | T1132.001 | Data Encoding: Standard Encoding | Base64 encoding of C2 messages |
-| T1001.003 | Data Obfuscation: Protocol Impersonation | CryptoContainer format with RSA-4096 + AES encryption |
+| T1573.002 | Encrypted Channel: Asymmetric Cryptography | CryptoContainer format with RSA-4096 + AES encryption |
 | T1082 | System Information Discovery | Sysinfo command collects OS/hardware details via WMI |
 | T1083 | File and Directory Discovery | Dir command for directory enumeration |
 | T1113 | Screen Capture | Image command for screenshots |
@@ -333,12 +334,13 @@ Get-ChildItem "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup" -Filt
 
 ## Detection Rules
 
-These detections target STOCKSTAY backdoor component execution, registry persistence, C2 infrastructure, WebSocket communication, and .NET assembly artifacts. PoC/advisory-specific altitude; all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles clean does not mean fires clean -- verify rules in your pipeline with representative telemetry.
+These detections target STOCKSTAY backdoor component execution, registry persistence, C2 infrastructure, WebSocket communication, and .NET assembly artifacts. 21 rules total: 4 Sigma, 7 YARA, 10 Suricata. PoC/advisory-specific altitude; all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles clean does not mean fires clean -- verify rules in your pipeline with representative telemetry.
 
 ### Sigma: STOCKSTAY Backdoor Component Process Execution
 Detects execution of known STOCKSTAY backdoor component filenames across all documented campaigns.
 **Status:** compile pass (splunk + log_scale convert exit 0) -- confidence: high
 <!-- audit: sigma check failed due to MITRE STIX download timeout (network issue, not rule issue). splunk convert exit 0; log_scale convert exit 0. Fields: Image (process_creation/windows) -- standard Sysmon/4688 field, no encoding concerns. Non-defanged paths in detection values. -->
+<!-- revision: Removed attack.t1059 tag (process filename detection does not equal scripting interpreter use). Added attack.t1204.002 (User Execution: Malicious File) which better reflects the detection context. -->
 ```yaml
 title: STOCKSTAY Backdoor Component Process Execution
 id: a1b2c3d4-1111-4aaa-bbbb-000000000001
@@ -355,7 +357,7 @@ author: Actioner
 date: 2026/06/29
 tags:
     - attack.t1036.005
-    - attack.t1059
+    - attack.t1204.002
 logsource:
     category: process_creation
     product: windows
@@ -387,6 +389,7 @@ level: high
 Detects STOCKSTAY.MARKETMAKER establishing persistence via registry Run keys pointing to known component executables.
 **Status:** compile pass (splunk + log_scale convert exit 0) -- confidence: high
 <!-- audit: sigma check failed (STIX network timeout). splunk/log_scale convert exit 0. TargetObject + Details (registry_set/windows) -- standard Sysmon EID 13 fields. -->
+<!-- revision: Downgraded level from critical to high -- registry Run key persistence with generic-ish filenames warrants high but not critical severity. -->
 ```yaml
 title: STOCKSTAY MARKETMAKER Registry Run Key Persistence
 id: a1b2c3d4-2222-4aaa-bbbb-000000000002
@@ -420,7 +423,7 @@ detection:
     condition: selection_key and selection_value
 falsepositives:
     - Unlikely in production environments
-level: critical
+level: high
 ```
 
 ### Sigma: STOCKSTAY C2 DNS Query to Known Infrastructure
@@ -458,37 +461,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Suspicious DNS Query to Onrender Subdomain
-Broader hunting rule to detect potential new STOCKSTAY C2 infrastructure on Render platform.
-**Status:** compile pass (splunk + log_scale convert exit 0) -- confidence: low
-<!-- audit: sigma check failed (STIX network timeout). splunk/log_scale convert exit 0. Broad hunting rule -- high FP rate expected. -->
-```yaml
-title: Suspicious DNS Query to Onrender Subdomain
-id: a1b2c3d4-4444-4aaa-bbbb-000000000004
-status: experimental
-description: >
-    Detects DNS queries to onrender.com subdomains that may indicate STOCKSTAY
-    C2 communication. Turla has increasingly hosted STOCKSTAY WebSocket C2
-    servers on the Render platform. This is a broader hunting rule to identify
-    potential new STOCKSTAY infrastructure.
-references:
-    - https://cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering
-    - https://thehackernews.com/2026/06/google-details-turlas-new-stockstay.html
-author: Actioner
-date: 2026/06/29
-tags:
-    - attack.t1071.001
-logsource:
-    category: dns_query
-detection:
-    selection:
-        QueryName|endswith: '.onrender.com'
-    condition: selection
-falsepositives:
-    - Legitimate web applications hosted on Render platform
-    - Developer testing environments using Render
-level: low
-```
+<!-- revision: DROPPED Sigma Rule 0004 (Suspicious DNS Query to Onrender Subdomain) per review — fires on ANY *.onrender.com causing massive FP; already covered by Rule 0003's specific C2 subdomain matches. -->
 
 ### Sigma: STOCKSTAY WebSocket Sharp DLL Load by Suspicious Process
 Detects loading of websocket-sharp.dll by processes matching known STOCKSTAY component names.
@@ -533,9 +506,8 @@ level: high
 Suite of YARA rules detecting STOCKSTAY.STOCKTRADER backdoor, STOCKSTAY.STOCKMARKET orchestrator, STOCKSTAY.STOCKBROKER tunneler, STOCKSTAY.MARKETMAKER downloader, CryptoContainer parsing code, K1MORPHER obfuscation, and plaintext configuration files.
 **Status:** compile pass (yarac exit 0) -- confidence: high
 <!-- audit: yarac /dev/null exit 0. 7 rules in single file. All use PE header check + .NET-specific strings. -->
+<!-- revision: Removed unused import "dotnet" declaration -- adds scan overhead and breaks builds without the dotnet module compiled in. No rule in this file references dotnet module features. Fixed STOCKBROKER_Tunneler condition operator precedence bug (or branch was bypassing MZ+filesize checks). -->
 ```yara
-import "dotnet"
-
 rule APT_Turla_STOCKSTAY_STOCKTRADER_Backdoor
 {
     meta:
@@ -635,7 +607,7 @@ rule APT_Turla_STOCKSTAY_STOCKBROKER_Tunneler
     condition:
         uint16(0) == 0x5A4D and
         filesize < 5MB and
-        ($s1 and 5 of ($s*)) or ($class_1 and 3 of ($s*))
+        (($s1 and 5 of ($s*)) or ($class_1 and 3 of ($s*)))
 }
 
 rule APT_Turla_STOCKSTAY_CryptoContainer
@@ -753,17 +725,7 @@ rule APT_Turla_STOCKSTAY_Config_Plaintext
 }
 ```
 
-### Snort: STOCKSTAY C2 WebSocket Domain Indicators (5 rules)
-Detects TLS ClientHello traffic containing known STOCKSTAY C2 domain names in the SNI field.
-**Status:** compile pass (snort -T exit 0) -- confidence: critical
-<!-- audit: snort -T -c /etc/snort/snort.conf exit 0. TCP-based content matching for domain names within TLS ClientHello. Uses fast_pattern for efficient matching. -->
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - STOCKSTAY C2 WebSocket Connection to wool-basalt-clock.glitch.me"; flow:established,to_server; content:"wool-basalt-clock", fast_pattern; content:".glitch.me"; classtype:trojan-activity; reference:url,cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering; metadata:author Actioner, created 2026-06-29; sid:2100101; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - STOCKSTAY C2 WebSocket Connection to weatherdataai.theworkpc.com"; flow:established,to_server; content:"weatherdataai", fast_pattern; content:".theworkpc.com"; classtype:trojan-activity; reference:url,cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering; metadata:author Actioner, created 2026-06-29; sid:2100102; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - STOCKSTAY C2 WebSocket Connection to canal1zac1a.onrender.com"; flow:established,to_server; content:"canal1zac1a", fast_pattern; content:".onrender.com"; classtype:trojan-activity; reference:url,cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering; metadata:author Actioner, created 2026-06-29; sid:2100103; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - STOCKSTAY C2 WebSocket Connection to google-ai-labs-it.onrender.com"; flow:established,to_server; content:"google-ai-labs-it", fast_pattern; content:".onrender.com"; classtype:trojan-activity; reference:url,cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering; metadata:author Actioner, created 2026-06-29; sid:2100104; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - STOCKSTAY C2 WebSocket Connection to driverx86-adobe.onrender.com"; flow:established,to_server; content:"driverx86-adobe", fast_pattern; content:".onrender.com"; classtype:trojan-activity; reference:url,cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering; metadata:author Actioner, created 2026-06-29; sid:2100105; rev:1;)
-```
+<!-- revision: DROPPED all 5 Snort rules (SID 2100101-2100105) per review — redundant with superior Suricata rules that use protocol-aware dns.query and tls.sni sticky buffers. Raw TCP content matching on port 443 is unreliable for TLS 1.3 where SNI may be encrypted. The Suricata rules below provide equivalent or better coverage. -->
 
 ### Suricata: STOCKSTAY C2 DNS and TLS Indicators (10 rules)
 Detects DNS queries and TLS SNI matches for all known STOCKSTAY C2 domains using Suricata's dns.query and tls.sni sticky buffers.
