@@ -1,0 +1,27 @@
+title: LSASS Memory Dump via comsvcs.dll MiniDump
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects LSASS credential dumping using rundll32.exe loading comsvcs.dll with the
+    MiniDump export, a technique observed in the Bumblebee/AdaptixC2/Akira intrusion
+    (DFIR Report case TB36726). The threat actor used lsassy to invoke this via multiple
+    execution methods (SMB, WMI, Task, MCOM).
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\rundll32.exe'
+        CommandLine|contains|all:
+            - 'comsvcs'
+            - 'full'
+    condition: selection
+falsepositives:
+    - Legitimate memory dump utilities using comsvcs.dll (rare outside incident response)
+level: critical

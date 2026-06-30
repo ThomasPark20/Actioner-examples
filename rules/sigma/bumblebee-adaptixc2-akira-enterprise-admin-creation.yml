@@ -1,0 +1,30 @@
+title: Suspicious Domain Account Creation and Enterprise Admins Addition
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: >
+    Detects the creation of domain accounts followed by addition to the Enterprise Admins
+    group via net.exe, a persistence technique observed in the Bumblebee/AdaptixC2/Akira
+    intrusion (DFIR Report case TB36726). The threat actor created backup_DA and backup_EA
+    accounts and elevated backup_EA to Enterprise Admins.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1136
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+        CommandLine|contains|all:
+            - 'group'
+            - 'enterprise admins'
+            - '/add'
+    condition: selection
+falsepositives:
+    - Legitimate Active Directory administration adding users to Enterprise Admins (rare and should be audited)
+level: critical

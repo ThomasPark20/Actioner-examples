@@ -1,0 +1,17 @@
+# Actioner - Bumblebee / AdaptixC2 / Akira Ransomware Detection Rules
+# Reference: https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+# Status: uncompiled (structural check only)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Bumblebee C2 Beacon to Known Infrastructure 188.40.187.145"; flow:established,to_server; content:"|16 03|"; depth:2; threshold:type limit, track by_src, count 1, seconds 60; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100201; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Bumblebee C2 Beacon to Known Infrastructure 109.205.195.211"; flow:established,to_server; content:"|16 03|"; depth:2; threshold:type limit, track by_src, count 1, seconds 60; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100202; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Bumblebee SEO Poisoning Domain - opmanager.pro"; flow:established,to_server; content:"opmanager.pro"; http_header; nocase; fast_pattern; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100203; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Bumblebee SEO Poisoning Domain - download-center.online"; flow:established,to_server; content:"download-center.online"; http_header; nocase; fast_pattern; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100204; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AdaptixC2 C2 Communication to 172.96.137.160"; flow:established,to_server; threshold:type limit, track by_src, count 1, seconds 60; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100205; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 22 (msg:"Actioner - Suspicious Reverse SSH Tunnel to Known Akira Infrastructure 193.242.184.150"; flow:established,to_server; threshold:type limit, track by_src, count 1, seconds 300; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100206; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 22 (msg:"Actioner - Data Exfiltration via SFTP to Known Akira Infrastructure 185.174.100.203"; flow:established,to_server; threshold:type limit, track by_src, count 1, seconds 300; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created 2026-06-30; sid:2100207; rev:1;)

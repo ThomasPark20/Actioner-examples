@@ -1,0 +1,29 @@
+title: Shadow Copy Deletion via PowerShell WMI - Akira Ransomware
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f81
+status: experimental
+description: >
+    Detects shadow copy deletion using PowerShell's Get-WmiObject Win32_Shadowcopy piped
+    to Remove-WmiObject, a technique used by Akira ransomware prior to encryption in the
+    Bumblebee/AdaptixC2/Akira intrusion (DFIR Report case TB36726). This inhibits system
+    recovery and is a strong indicator of imminent ransomware deployment.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1490
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Win32_Shadowcopy'
+            - 'Remove-WmiObject'
+    condition: selection
+falsepositives:
+    - Administrative scripts that manage shadow copies via WMI (uncommon)
+level: critical

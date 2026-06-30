@@ -1,0 +1,33 @@
+title: BlueHammer - samlib.dll Loaded by Non-LSASS Process
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects samlib.dll being loaded by a process other than lsass.exe. The BlueHammer
+    exploit (CVE-2026-33825) uses SamiChangePasswordUser() from samlib.dll to reset the
+    local Administrator password as part of its SYSTEM privilege escalation chain.
+    Legitimate samlib.dll loads outside of LSASS are rare.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/
+    - https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer
+    - https://github.com/Nightmare-Eclipse/BlueHammer
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.credential_access
+    - attack.t1003.002
+    - cve.2026-33825
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\samlib.dll'
+    filter_lsass:
+        Image|endswith: '\lsass.exe'
+    condition: selection and not filter_lsass
+falsepositives:
+    - Legitimate credential management tools that call SAM APIs
+    - Some backup or migration software
+level: high

@@ -1,0 +1,27 @@
+title: Veeam Backup Credential Extraction via psql
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects psql.exe querying the VeeamBackup database credentials table, a credential
+    harvesting technique observed in the Bumblebee/AdaptixC2/Akira intrusion (DFIR Report
+    case TB36726). The threat actor executed psql to extract user_name and password columns
+    from the Veeam credentials store.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1555
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\psql.exe'
+        CommandLine|contains|all:
+            - 'VeeamBackup'
+            - 'credentials'
+    condition: selection
+falsepositives:
+    - Database administrators performing legitimate Veeam backup database queries
+level: high

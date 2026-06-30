@@ -1,0 +1,29 @@
+title: NTDS.dit Extraction via wbadmin Backup
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects the use of wbadmin.exe to back up the NTDS.dit Active Directory database,
+    a credential-access technique observed in the Bumblebee/AdaptixC2/Akira intrusion
+    (DFIR Report case TB36726). The threat actor used wbadmin start backup targeting
+    ntds.dit, SYSTEM, and SECURITY hives to a local share for offline extraction.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1003.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_wbadmin:
+        Image|endswith: '\wbadmin.exe'
+        CommandLine|contains|all:
+            - 'start'
+            - 'backup'
+    selection_ntds:
+        CommandLine|contains: 'ntds.dit'
+    condition: selection_wbadmin and selection_ntds
+falsepositives:
+    - Legitimate Active Directory backup procedures that include ntds.dit
+level: high

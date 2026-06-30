@@ -1,0 +1,30 @@
+title: Mass Service Disabling via WMIC - Pre-Ransomware Activity
+id: 07a8b9c0-d1e2-4f3a-4b5c-6d7e8f901234
+status: experimental
+description: >
+    Detects the use of wmic with /node:@<hostfile> to disable services matching a pattern
+    across multiple hosts, a pre-encryption technique observed in the Bumblebee/AdaptixC2/Akira
+    intrusion (DFIR Report case TB36726). The threat actor disabled SQL services across
+    the environment before deploying Akira ransomware.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1489
+    - attack.t1047
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\WMIC.exe'
+        CommandLine|contains|all:
+            - '/node:@'
+            - 'service'
+            - 'ChangeStartmode'
+            - 'Disabled'
+    condition: selection
+falsepositives:
+    - Large-scale legitimate service management via WMIC (uncommon; should be investigated)
+level: high

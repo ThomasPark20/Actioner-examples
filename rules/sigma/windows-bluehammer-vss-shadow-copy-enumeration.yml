@@ -1,0 +1,36 @@
+title: BlueHammer - Volume Shadow Copy Enumeration by Non-System Process
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: >
+    Detects non-system processes accessing Volume Shadow Copy device paths to read
+    sensitive registry hives (SAM, SYSTEM, SECURITY). The BlueHammer exploit
+    (CVE-2026-33825) reads registry hives from shadow copy paths such as
+    \\Device\HarddiskVolumeShadowCopy*\Windows\System32\Config\SAM to extract
+    credential material for its privilege escalation chain.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/
+    - https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer
+    - https://github.com/Nightmare-Eclipse/BlueHammer
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.credential_access
+    - attack.t1003.002
+    - attack.privilege_escalation
+    - attack.t1068
+    - cve.2026-33825
+logsource:
+    category: file_access
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: 'HarddiskVolumeShadowCopy'
+        TargetFilename|endswith:
+            - '\Windows\System32\Config\SAM'
+            - '\Windows\System32\Config\SYSTEM'
+            - '\Windows\System32\Config\SECURITY'
+    condition: selection
+falsepositives:
+    - Legitimate backup or forensic software accessing VSS hives
+    - System restore operations
+level: high
