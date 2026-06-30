@@ -30,4 +30,6 @@ detection:
 falsepositives:
     - Some legitimate software installers create GUID-named services temporarily
     - Container runtime services
+    - Windows Update
+    - MSI-based installers
 level: medium

@@ -26,8 +26,16 @@ detection:
         ImageLoaded|endswith: '\samlib.dll'
     filter_lsass:
         Image|endswith: '\lsass.exe'
-    condition: selection and not filter_lsass
+    filter_known_legitimate:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+            - '\runas.exe'
+            - '\mstsc.exe'
+            - '\dsac.exe'
+    condition: selection and not (filter_lsass or filter_known_legitimate)
 falsepositives:
     - Legitimate credential management tools that call SAM APIs
     - Some backup or migration software
-level: high
+    - Windows built-in utilities (net.exe, runas.exe, mstsc.exe, dsac.exe)
+level: medium

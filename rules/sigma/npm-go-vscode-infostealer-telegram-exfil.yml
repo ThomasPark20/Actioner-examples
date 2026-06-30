@@ -19,12 +19,12 @@ logsource:
     category: proxy
 detection:
     selection_telegram:
-        c-uri|contains:
+        c-uri|contains|all:
             - 'api.telegram.org'
             - 'sendDocument'
     selection_bot:
         c-uri|contains: '7699029999'
-    condition: selection_telegram or selection_bot
+    condition: selection_telegram and selection_bot
 falsepositives:
     - Legitimate use of the specific Telegram bot ID 7699029999, which is unlikely
-level: high
+level: medium

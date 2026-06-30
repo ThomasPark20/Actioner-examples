@@ -4,9 +4,9 @@ rule BlueHammer_CVE_2026_33825_Exploit_Artifact
         description = "Detects the BlueHammer exploit (CVE-2026-33825) for Microsoft Defender privilege escalation via distinctive strings: the hardcoded password used for Administrator reset, the EICAR-triggered filename, Cloud Files sync root registration patterns, and SAM/SYSTEM/SECURITY hive path references used in credential extraction."
         author = "Actioner"
         date = "2026-06-30"
-        reference = "https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/"
-        reference = "https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer"
-        reference = "https://github.com/Nightmare-Eclipse/BlueHammer"
+        reference1 = "https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/"
+        reference2 = "https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer"
+        reference3 = "https://github.com/Nightmare-Eclipse/BlueHammer"
         cve = "CVE-2026-33825"
 
     strings:

@@ -33,4 +33,7 @@ detection:
 falsepositives:
     - Legitimate backup or forensic software accessing VSS hives
     - System restore operations
-level: high
+    # Note: The file_access log category requires Sysmon with FileAccess logging (Event ID 2) or
+    # equivalent EDR telemetry configured. Without specific Sysmon/EDR configuration, this rule
+    # will not generate alerts.
+level: medium

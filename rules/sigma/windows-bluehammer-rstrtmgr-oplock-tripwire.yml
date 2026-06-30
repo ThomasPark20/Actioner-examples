@@ -26,8 +26,7 @@ detection:
         TargetFilename|endswith: '\RstrtMgr.dll'
     selection_temp_path:
         TargetFilename|contains:
-            - '\AppData\Local\Temp\'
-            - '\Users\'
+            - '\Users\*\AppData\Local\Temp\'
     condition: selection_rstrtmgr and selection_temp_path
 falsepositives:
     - Legitimate applications copying RstrtMgr.dll to temporary directories (uncommon)

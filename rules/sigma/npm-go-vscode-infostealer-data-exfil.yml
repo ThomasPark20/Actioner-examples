@@ -1,14 +1,9 @@
-title: InvisibleFerret C2 or Telegram Exfiltration Connection
+title: InvisibleFerret C2 Connection
 id: a4b3ec57-11f8-4ca0-a3ad-71284971bbbb
 status: experimental
 description: >
     Detects outbound network connections to known InvisibleFerret C2 infrastructure
-    IPs (166.88.134.62, 198.105.127.210, 23.27.202.27) or exfiltration via the
-    Telegram Bot API sendDocument endpoint. The Python infostealer stages stolen
-    browser credentials, crypto wallets, SSH keys, and cloud storage metadata under
-    %USERPROFILE%\.npm (Windows) or /tmp/.npm (Linux/macOS) before exfiltrating to
-    these destinations. Part of the North Korea "Fake Font" / Contagious Interview
-    campaign.
+    IPs. Part of the North Korea "Fake Font" / Contagious Interview campaign.
 references:
     - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
     - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
@@ -30,4 +25,4 @@ detection:
     condition: selection_c2_ip
 falsepositives:
     - Unlikely - these are known attacker infrastructure IPs
-level: critical
+level: medium

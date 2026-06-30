@@ -15,21 +15,26 @@ references:
 author: Actioner
 date: 2026-06-30
 tags:
+    - attack.t1195.001
     - attack.t1071.001
     - attack.t1102.001
 logsource:
     category: dns_query
-    product: windows
 detection:
     selection_domain:
         QueryName|endswith:
             - 'api.trongrid.io'
             - 'fullnode.mainnet.aptoslabs.com'
+            - 'bsc-dataseed.binance.org'
+            - 'bsc-rpc.publicnode.com'
     selection_process:
         Image|endswith:
             - '\node.exe'
             - '\code.exe'
             - '\cursor.exe'
+            - '/node'
+            - '/code'
+            - '/cursor'
     condition: selection_domain and selection_process
 falsepositives:
     - Web3 / blockchain developers legitimately querying TronGrid or Aptos from Node.js
