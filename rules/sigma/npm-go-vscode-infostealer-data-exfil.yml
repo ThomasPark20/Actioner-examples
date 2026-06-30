@@ -11,7 +11,6 @@ author: Actioner
 date: 2026-06-30
 tags:
     - attack.t1041
-    - attack.t1567
     - attack.t1071.001
 logsource:
     category: network_connection

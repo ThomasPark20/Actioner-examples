@@ -108,12 +108,16 @@ Note: The exploit primarily uses local system resources and does not require ext
 
 ## Detection Rules
 
+### Temporal Correlation Guidance
+
+For highest-fidelity BlueHammer detection, correlate multiple rule firings within a short time window (e.g., 5 minutes on the same host): samlib.dll non-LSASS load + Administrator password change (Event 4723/4724) + VSS shadow copy hive access. Any two of these three occurring together within a short window strongly indicates active exploitation rather than benign activity.
+
 ### Sigma Rules
 
 **1. samlib.dll Non-LSASS Load**
-Detects samlib.dll loaded by any process other than lsass.exe, indicating potential use of SAM APIs for password manipulation as in the BlueHammer exploit chain.
+Detects samlib.dll loaded by a process other than lsass.exe or known Windows utilities, indicating potential SAM API abuse for password manipulation. Caveat: filter exclusions for net.exe, runas.exe, mstsc.exe, and dsac.exe reduce noise but should be validated per environment.
 - Status: Compiled (Splunk + LogScale)
-- Confidence: **high** — samlib.dll loads outside LSASS are rare and distinctive
+- Confidence: **medium** — samlib.dll loads outside LSASS are uncommon but occur in several built-in Windows utilities
 - File: `rules/sigma/windows-bluehammer-samlib-nonlsass-load.yml`
 
 ```yaml
@@ -125,12 +129,19 @@ detection:
         ImageLoaded|endswith: '\samlib.dll'
     filter_lsass:
         Image|endswith: '\lsass.exe'
-    condition: selection and not filter_lsass
-level: high
+    filter_known_legitimate:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+            - '\runas.exe'
+            - '\mstsc.exe'
+            - '\dsac.exe'
+    condition: selection and not (filter_lsass or filter_known_legitimate)
+level: medium
 ```
 
 **2. Administrator Password Reset via SAM API**
-Detects password change events (4723/4724) targeting the local Administrator account from non-machine accounts, corresponding to BlueHammer's password reset and restore cycle.
+Detects password change events (4723/4724) targeting the local Administrator account from non-machine accounts. Caveat: LAPS and manual rotation will trigger this rule; correlate with samlib load and VSS access for higher fidelity.
 - Status: Compiled (Splunk + LogScale)
 - Confidence: **medium** — Administrator password changes can occur legitimately (LAPS, manual rotation)
 - File: `rules/sigma/windows-bluehammer-rapid-password-change-restore.yml`
@@ -152,7 +163,7 @@ level: medium
 ```
 
 **3. Cloud Files Sync Root Registration by Untrusted Process**
-Detects loading of cldapi.dll by processes outside known cloud storage providers and system directories, identifying potential Cloud Files API abuse for stalling Defender.
+Detects cldapi.dll loaded by processes outside known cloud storage providers and system directories. Caveat: requires tuning per environment to whitelist additional cloud providers.
 - Status: Compiled (Splunk + LogScale)
 - Confidence: **medium** — Requires tuning for environment-specific cloud providers
 - File: `rules/sigma/windows-bluehammer-cloud-files-syncroot-abuse.yml`
@@ -181,9 +192,9 @@ level: medium
 ```
 
 **4. VSS Shadow Copy Hive Enumeration**
-Detects file access to registry hives (SAM, SYSTEM, SECURITY) via Volume Shadow Copy device paths, a key step in BlueHammer's credential extraction.
+Detects file access to registry hives (SAM, SYSTEM, SECURITY) via Volume Shadow Copy device paths, a key credential extraction indicator. Caveat: requires Sysmon with FileAccess logging (Event ID 2) or equivalent EDR telemetry; without this configuration the rule will not fire.
 - Status: Compiled (Splunk + LogScale)
-- Confidence: **high** — Accessing VSS hives directly is a strong indicator of credential theft
+- Confidence: **medium** — strong signal when telemetry is available, but file_access logging is not enabled by default
 - File: `rules/sigma/windows-bluehammer-vss-shadow-copy-enumeration.yml`
 
 ```yaml
@@ -198,11 +209,11 @@ detection:
             - '\Windows\System32\Config\SYSTEM'
             - '\Windows\System32\Config\SECURITY'
     condition: selection
-level: high
+level: medium
 ```
 
 **5. RstrtMgr.dll Exclusive Handle in Temp Directory**
-Detects file events involving RstrtMgr.dll in user temporary directories, matching the oplock tripwire technique used by BlueHammer to pause Defender.
+Detects RstrtMgr.dll file events in user AppData temp directories, matching the oplock tripwire technique. Caveat: scoped to `\Users\*\AppData\Local\Temp\` to reduce false positives from other `\Users\` subpaths.
 - Status: Compiled (Splunk + LogScale)
 - Confidence: **high** — RstrtMgr.dll copied to user temp paths is highly unusual
 - File: `rules/sigma/windows-bluehammer-rstrtmgr-oplock-tripwire.yml`
@@ -216,14 +227,13 @@ detection:
         TargetFilename|endswith: '\RstrtMgr.dll'
     selection_temp_path:
         TargetFilename|contains:
-            - '\AppData\Local\Temp\'
-            - '\Users\'
+            - '\Users\*\AppData\Local\Temp\'
     condition: selection_rstrtmgr and selection_temp_path
 level: high
 ```
 
 **6. GUID-Named Temporary Service Creation**
-Detects Windows service installation events where the service name matches a GUID pattern, as used in BlueHammer's final SYSTEM execution step.
+Detects service installation (Event ID 7045) where the service name matches a GUID pattern, as used in BlueHammer's SYSTEM execution step. Caveat: Windows Update and MSI-based installers can create GUID-named services legitimately.
 - Status: Compiled (Splunk + LogScale)
 - Confidence: **medium** — Some legitimate software uses GUID-named services
 - File: `rules/sigma/windows-bluehammer-guid-temp-service-creation.yml`
@@ -240,30 +250,10 @@ detection:
 level: medium
 ```
 
-**7. EICAR Trigger File in Temp Directory**
-Detects creation of a file named `foo.exe` in temporary directories, matching the EICAR test file drop used by BlueHammer to trigger Defender remediation.
-- Status: Compiled (Splunk + LogScale)
-- Confidence: **medium** — The filename `foo.exe` is generic but its presence in temp directories alongside other indicators is suspicious
-- File: `rules/sigma/windows-bluehammer-eicar-drop-with-junction.yml`
-
-```yaml
-logsource:
-    category: file_event
-    product: windows
-detection:
-    selection:
-        TargetFilename|endswith: '\foo.exe'
-        TargetFilename|contains:
-            - '\AppData\Local\Temp\'
-            - '\Temp\'
-    condition: selection
-level: medium
-```
-
 ### YARA Rule
 
 **BlueHammer Exploit Binary Detection**
-Detects the BlueHammer exploit binary or variants via distinctive strings including the hardcoded Administrator password, SAM API function names, Cloud Files API references, VSS hive paths, and LSA boot key registry subkeys.
+Detects BlueHammer exploit binaries via distinctive strings including the hardcoded Administrator password, SAM API + Cloud Files API combinations, and VSS hive + LSA key extraction patterns. Caveat: variants that change the hardcoded password will only match the multi-string condition branches.
 - Status: Compiled (yarac exit 0)
 - Confidence: **high** — Keyed on exploit-specific strings (`$PWNed666!!!WDFAIL`, `SamiChangePasswordUser` + Cloud Files APIs)
 - File: `rules/yara/windows_bluehammer.yar`

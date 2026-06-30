@@ -14,14 +14,14 @@ references:
 author: Actioner
 date: 2026-06-30
 tags:
-    - attack.t1195.002
+    - attack.t1195.001
     - attack.t1059.006
     - attack.t1074.001
 logsource:
     category: process_creation
 detection:
     selection_windows:
-        Image|contains: '\Programs\Python\Python3127\'
+        Image|contains: '\Programs\Python\Python31'
     selection_nix:
         Image|contains: '/tmp/.npm'
         Image|endswith:
@@ -30,4 +30,4 @@ detection:
     condition: selection_windows or selection_nix
 falsepositives:
     - Developers who have intentionally installed Python to the exact Python3127 directory under LOCALAPPDATA
-level: high
+level: medium

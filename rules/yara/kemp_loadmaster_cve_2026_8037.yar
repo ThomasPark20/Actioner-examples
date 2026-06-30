@@ -5,7 +5,7 @@ rule Exploit_CVE_2026_8037_LoadMaster_AccessV2_Payload
         author = "Actioner"
         date = "2026-06-30"
         reference = "https://thehackernews.com/2026/06/progress-kemp-loadmaster-flaw-could-let.html"
-        reference2 = "https://labs.watchtowr.com/enterprise-tech-in-shell-out-progress-kemp-loadmaster-uninitialized-heap-to-pre-auth-rce-cve-2026-8037/"
+        reference_watchtower = "https://labs.watchtowr.com/enterprise-tech-in-shell-out-progress-kemp-loadmaster-uninitialized-heap-to-pre-auth-rce-cve-2026-8037/"
         cve = "CVE-2026-8037"
         severity = "critical"
 
@@ -49,7 +49,7 @@ rule Exploit_CVE_2026_8037_LoadMaster_AccessV2_Payload
 rule Exploit_CVE_2026_8037_LoadMaster_PostExploit_Webshell
 {
     meta:
-        description = "Detects potential web shell or backdoor scripts that may be deployed on a compromised Progress Kemp LoadMaster appliance following CVE-2026-8037 exploitation. Since LoadMaster runs a Linux-based OS, post-exploitation shells typically use Bash/Python/Perl for command execution. This is a broad behavioral rule and should be correlated with network indicators of /accessv2 exploitation."
+        description = "Detects potential web shell or backdoor scripts deployed on a compromised Progress Kemp LoadMaster appliance following CVE-2026-8037 exploitation. This rule requires at least one LoadMaster-specific string (Kemp paths, binaries, or CVE reference) alongside reverse shell or persistence indicators to reduce false positives on generic admin scripts."
         author = "Actioner"
         date = "2026-06-30"
         reference = "https://thehackernews.com/2026/06/progress-kemp-loadmaster-flaw-could-let.html"
@@ -63,20 +63,19 @@ rule Exploit_CVE_2026_8037_LoadMaster_PostExploit_Webshell
         $sh3 = "#!/usr/bin/env python" ascii
         $sh4 = "#!/usr/bin/perl" ascii
 
-        // Common post-exploitation commands on LoadMaster
-        $cmd1 = "cat /etc/shadow" ascii
-        $cmd2 = "cat /etc/passwd" ascii
-        $cmd3 = "/opt/kemp/" ascii
-        $cmd4 = "loadbalancer" ascii nocase
-        $cmd5 = "balcfg" ascii
-        $cmd6 = "lmadmin" ascii
+        // LoadMaster / CVE-specific strings (required to anchor to this CVE)
+        $kemp1 = "/opt/kemp/" ascii
+        $kemp2 = "balcfg" ascii
+        $kemp3 = "lmadmin" ascii
+        $kemp4 = "accessv2" ascii nocase
+        $kemp5 = "CVE-2026-8037" ascii nocase
+        $kemp6 = "loadmaster" ascii nocase
 
         // Reverse shell patterns
         $rev1 = "bash -i >& /dev/tcp/" ascii
         $rev2 = "nc -e /bin/" ascii
         $rev3 = "python -c 'import socket" ascii
         $rev4 = "mkfifo /tmp/" ascii
-        $rev5 = "/dev/tcp/" ascii
 
         // Persistence mechanisms
         $pers1 = "crontab" ascii
@@ -86,9 +85,6 @@ rule Exploit_CVE_2026_8037_LoadMaster_PostExploit_Webshell
     condition:
         filesize < 100KB and
         (1 of ($sh*)) and
-        (
-            (1 of ($cmd*) and 1 of ($rev*)) or
-            (2 of ($cmd*) and 1 of ($pers*)) or
-            (1 of ($rev*) and 1 of ($pers*))
-        )
+        (1 of ($kemp*)) and
+        (1 of ($rev*) or 1 of ($pers*))
 }

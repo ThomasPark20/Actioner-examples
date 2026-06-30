@@ -24,4 +24,4 @@ detection:
     condition: selection
 falsepositives:
     - Database administrators performing legitimate Veeam backup database queries
-level: high
+level: medium

@@ -26,4 +26,4 @@ detection:
     condition: selection
 falsepositives:
     - Administrative scripts that manage shadow copies via WMI (uncommon)
-level: critical
+level: medium

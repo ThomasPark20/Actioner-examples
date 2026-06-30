@@ -16,15 +16,17 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection_name:
-        Image|endswith:
-            - '\locker.exe'
-            - '\win.exe'
-    selection_flags:
+    selection_locker:
+        Image|endswith: '\locker.exe'
         CommandLine|contains:
             - '-p='
             - '-n='
-    condition: selection_name and selection_flags
+    selection_locker_path:
+        Image: 'C:\ProgramData\locker.exe'
+    selection_netonly:
+        Image|endswith: '\locker.exe'
+        CommandLine|contains: 'netonly'
+    condition: selection_locker or selection_locker_path or selection_netonly
 falsepositives:
     - Legitimate software named locker.exe using similar flags (unlikely with this combination)
-level: critical
+level: medium
