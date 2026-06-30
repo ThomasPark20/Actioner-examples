@@ -1,0 +1,26 @@
+title: AdaptixC2 Agent Injection via Renamed WAB.exe (AdgNsy.exe)
+id: a8b9c0d1-e2f3-4a4b-5c6d-7e8f90123456
+status: experimental
+description: >
+    Detects execution of AdgNsy.exe from AppData\Local, a renamed Windows Address Book
+    binary (WAB.exe) used by the threat actor for AdaptixC2 shellcode injection in the
+    Bumblebee/AdaptixC2/Akira intrusion (DFIR Report case TB36726). This is the most
+    distinctive host artifact of the AdaptixC2 agent deployment phase.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1055
+    - attack.t1036
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\AdgNsy.exe'
+        Image|contains: '\AppData\Local\'
+    condition: selection
+falsepositives:
+    - None expected; AdgNsy.exe is not a legitimate Windows binary name
+level: high

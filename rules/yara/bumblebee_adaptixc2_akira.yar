@@ -77,5 +77,5 @@ rule akira_ransomware_locker
         $shadow = "Win32_Shadowcopy" ascii wide
         $onion = ".onion" ascii
     condition:
-        $mz at 0 and (($arg_path and $arg_threads) or ($ransom1 and ($shadow or $onion)) or $ransom2 or $arg_netonly)
+        $mz at 0 and (($arg_path and $arg_threads and ($ransom1 or $ransom2 or $onion)) or ($ransom1 and ($shadow or $onion)) or $ransom2 or ($arg_netonly and ($ransom1 or $ransom2 or $onion)))
 }
