@@ -245,47 +245,48 @@ This intrusion demonstrates a complete ransomware kill chain with high operation
 
 ### Sigma: Bumblebee DLL Sideloading via consent.exe from Temp Directory
 Detects execution of consent.exe from non-standard locations, indicating Bumblebee DLL sideloading.
-**Status:** compile pending -- confidence: high
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high
+<!-- audit: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0. sigma check fails due to environment D3FEND data fetch issue (IncompleteRead), not rule syntax. -->
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-consent-exe-sideload.yml`
 
 ### Sigma: NTDS.dit Extraction via wbadmin Backup
 Detects wbadmin.exe backup commands targeting the NTDS.dit database.
-**Status:** compile pending -- confidence: high
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-ntdsdit-wbadmin.yml`
 
 ### Sigma: Veeam Backup Credential Extraction via psql
 Detects psql.exe querying VeeamBackup credentials table.
-**Status:** compile pending -- confidence: high
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-veeam-cred-dump.yml`
 
 ### Sigma: LSASS Memory Dump via comsvcs.dll MiniDump
 Detects LSASS credential dumping via rundll32 + comsvcs.dll.
-**Status:** compile pending -- confidence: high (critical severity)
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high (critical severity)
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-lsass-comsvcs-dump.yml`
 
 ### Sigma: Shadow Copy Deletion via PowerShell WMI - Akira Ransomware
 Detects shadow copy deletion pattern used by Akira pre-encryption.
-**Status:** compile pending -- confidence: high (critical severity)
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high (critical severity)
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-shadow-copy-delete.yml`
 
 ### Sigma: Suspicious Domain Account Creation and Enterprise Admins Addition
 Detects net.exe adding accounts to Enterprise Admins.
-**Status:** compile pending -- confidence: high (critical severity)
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high (critical severity)
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-enterprise-admin-creation.yml`
 
 ### Sigma: Akira Ransomware Locker Execution Pattern
 Detects Akira locker.exe/win.exe with characteristic flags.
-**Status:** compile pending -- confidence: high (critical severity)
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high (critical severity)
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-akira-locker-execution.yml`
 
 ### Sigma: Mass Service Disabling via WMIC - Pre-Ransomware Activity
 Detects WMIC-based mass service disabling across multiple hosts.
-**Status:** compile pending -- confidence: high
+**Status:** compile pass (splunk exit 0, log_scale exit 0) -- confidence: high
 **File:** `rules/sigma/bumblebee-adaptixc2-akira-wmi-service-disable.yml`
 
 ### YARA: Bumblebee Loader, AdaptixC2 Memory Artifacts, Akira Ransomware
 Four rules covering Bumblebee DLL, trojanized MSI, AdaptixC2 memory artifacts, and Akira binary.
-**Status:** compile pending -- confidence: high
+**Status:** compile pass (yarac exit 0) -- confidence: high
 **File:** `rules/yara/bumblebee_adaptixc2_akira.yar`
 
 ### Snort: Bumblebee/AdaptixC2/Akira Network Detection

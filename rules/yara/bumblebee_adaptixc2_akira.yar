@@ -7,7 +7,7 @@ rule bumblebee_loader_msimg32_dll
         reference = "https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/"
         hash = "a6df0b49a5ef9ffd6513bfe061fb60f6d2941a440038e2de8a7aeb1914945331"
     strings:
-        $mz = "MZ" at 0
+        $mz = "MZ"
         $dga1 = "ev2sirbd269o5j.org" ascii wide
         $dga2 = "2rxyt8yrhq0bgj.org" ascii wide
         $dga3 = "d1hmxkpwby0d4s.org" ascii wide
@@ -18,7 +18,7 @@ rule bumblebee_loader_msimg32_dll
         $export = "msimg32" ascii
         $sideload = "consent.exe" ascii wide
     condition:
-        $mz and (2 of ($dga*) or ($export and $sideload))
+        $mz at 0 and (2 of ($dga*) or ($export and $sideload))
 }
 
 rule bumblebee_msi_installer
@@ -68,7 +68,7 @@ rule akira_ransomware_locker
         reference = "https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/"
         hash = "de730d969854c3697fd0e0803826b4222f3a14efe47e4c60ed749fff6edce19d"
     strings:
-        $mz = "MZ" at 0
+        $mz = "MZ"
         $arg_path = "-p=" ascii
         $arg_threads = "-n=" ascii
         $arg_netonly = "netonly" ascii
@@ -77,5 +77,5 @@ rule akira_ransomware_locker
         $shadow = "Win32_Shadowcopy" ascii wide
         $onion = ".onion" ascii
     condition:
-        $mz and (($arg_path and $arg_threads) or ($ransom1 and ($shadow or $onion)) or ($ransom2 and $mz))
+        $mz at 0 and (($arg_path and $arg_threads) or ($ransom1 and ($shadow or $onion)) or $ransom2 or $arg_netonly)
 }
