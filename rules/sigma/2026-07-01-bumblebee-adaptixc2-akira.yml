@@ -1,0 +1,319 @@
+# Sigma rules for BumbleBee / AdaptixC2 / Akira ransomware incident
+# Source: https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+# Generated: 2026-07-01 v2 (REVISED)
+---
+title: BumbleBee Loader - consent.exe DLL Sideloading From Non-System Directory
+id: a1b2c3d4-1111-4aaa-bbbb-000000000001
+status: experimental
+description: Detects consent.exe executing from a non-standard directory (e.g., AppData or Temp), indicating DLL sideloading of msimg32.dll used by the BumbleBee loader as observed in DFIR Report Bumblebee/AdaptixC2/Akira incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.defense_evasion
+    - attack.t1574.001
+    - attack.execution
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\consent.exe'
+    filter_legitimate:
+        Image|startswith: 'C:\Windows\System32\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate consent.exe copies placed by administrators for testing purposes
+level: high
+---
+title: AdaptixC2 Beacon - Suspicious WmiPrvSE Child Process With Renamed WAB.exe
+id: a1b2c3d4-2222-4aaa-bbbb-000000000002
+status: experimental
+description: Detects WmiPrvSE.exe spawning a renamed Windows Address Book binary (AdgNsy.exe or similar), indicating AdaptixC2 shellcode injection as observed in the DFIR Report Bumblebee/AdaptixC2/Akira ransomware incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.execution
+    - attack.t1047
+    - attack.defense_evasion
+    - attack.t1055
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\WmiPrvSE.exe'
+    selection_child_name:
+        Image|endswith: '\AdgNsy.exe'
+    selection_child_ofn:
+        OriginalFileName: 'wab.exe'
+    condition: selection_parent and (selection_child_name or selection_child_ofn)
+falsepositives:
+    - Legitimate use of Windows Address Book via WMI is extremely rare
+level: high
+---
+title: Veeam Backup Credential Extraction via psql
+id: a1b2c3d4-3333-4aaa-bbbb-000000000003
+status: experimental
+description: Detects psql.exe querying the VeeamBackup database credentials table, a technique used by Akira ransomware operators to harvest stored credentials from Veeam Backup infrastructure.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.credential_access
+    - attack.t1555
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\psql.exe'
+        CommandLine|contains|all:
+            - 'VeeamBackup'
+            - 'credentials'
+    condition: selection
+falsepositives:
+    - Legitimate Veeam database administration querying the credentials table
+level: critical
+---
+title: NTDS.dit Extraction via wbadmin Backup
+id: a1b2c3d4-4444-4aaa-bbbb-000000000004
+status: experimental
+description: Detects wbadmin.exe creating a backup that includes ntds.dit with the backup target set to localhost (127.0.0.1), a technique used for Active Directory credential extraction in the BumbleBee/Akira ransomware incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.credential_access
+    - attack.t1003.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\wbadmin.exe'
+        CommandLine|contains|all:
+            - 'start'
+            - 'backup'
+            - 'ntds.dit'
+    condition: selection
+falsepositives:
+    - Legitimate Active Directory backup procedures may trigger this rule but rarely include ntds.dit in the command line explicitly
+level: high
+---
+title: LSASS Memory Dump via comsvcs.dll MiniDump With Obfuscated Export
+id: a1b2c3d4-5555-4aaa-bbbb-000000000005
+status: experimental
+description: Detects LSASS credential dumping via rundll32 loading comsvcs.dll with ordinal-based export call (#+000024), as used by lsassy tool in the BumbleBee/AdaptixC2/Akira ransomware incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.credential_access
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\rundll32.exe'
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - ',#'
+    condition: selection
+falsepositives:
+    - Very rare legitimate use of comsvcs.dll MiniDump export
+level: critical
+---
+title: Account Added to Enterprise Admins Group via net.exe
+id: a1b2c3d4-6666-4aaa-bbbb-000000000006
+status: experimental
+description: Detects the addition of a user account to the Enterprise Admins group using net.exe, a high-severity persistence and privilege escalation technique observed in the BumbleBee/AdaptixC2/Akira ransomware incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.persistence
+    - attack.t1098
+    - attack.privilege_escalation
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+        CommandLine|contains|all:
+            - 'group'
+            - 'enterprise admins'
+            - '/add'
+    condition: selection
+falsepositives:
+    - Legitimate administrative addition of users to Enterprise Admins group
+level: critical
+---
+title: Reverse SSH Tunnel Establishment
+id: a1b2c3d4-7777-4aaa-bbbb-000000000007
+status: experimental
+description: Detects SSH reverse tunnel establishment with remote port forwarding to known Akira exfiltration infrastructure, as used in the BumbleBee/AdaptixC2/Akira incident to proxy RDP traffic through an encrypted SSH tunnel.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.command_and_control
+    - attack.t1090
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\ssh.exe'
+        CommandLine|contains|all:
+            - ' -R '
+            - '193.242.184.150'
+    condition: selection
+falsepositives:
+    - Legitimate SSH reverse tunnels to this specific IP address
+level: high
+---
+title: Akira Ransomware Execution With Encryption Parameters
+id: a1b2c3d4-8888-4aaa-bbbb-000000000008
+status: experimental
+description: Detects execution of Akira ransomware binary (locker.exe) with characteristic command-line parameters for path targeting and encryption percentage, as observed in the BumbleBee/AdaptixC2/Akira incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - '-p='
+            - '-n='
+    selection_name:
+        Image|endswith: '\locker.exe'
+    condition: selection and selection_name
+falsepositives:
+    - Very unlikely in production environments
+level: critical
+---
+title: Shadow Copy Deletion via PowerShell WMI
+id: a1b2c3d4-9999-4aaa-bbbb-000000000009
+status: experimental
+description: Detects shadow copy deletion using PowerShell Get-WmiObject and Remove-WmiObject cmdlets, as used by Akira ransomware to prevent recovery after encryption.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.impact
+    - attack.t1490
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\powershell.exe'
+        CommandLine|contains|all:
+            - 'Win32_Shadowcopy'
+            - 'Remove-WmiObject'
+    condition: selection
+falsepositives:
+    - Legitimate administrative shadow copy management is typically done via vssadmin, not PowerShell WMI
+level: critical
+---
+title: RustDesk Remote Access Tool Installation as Service
+id: a1b2c3d4-aaaa-4aaa-bbbb-00000000000a
+status: experimental
+description: Detects RustDesk remote access tool execution with service-related or tray mode flags, indicating installation for persistent remote access as observed in the BumbleBee/AdaptixC2/Akira ransomware incident.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.command_and_control
+    - attack.t1219
+    - attack.persistence
+    - attack.t1543.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\RustDesk.exe'
+        CommandLine|contains:
+            - '--tray'
+            - '--cm'
+            - '--service'
+    condition: selection
+falsepositives:
+    - Legitimate use of RustDesk in corporate environments where it is an approved remote access tool
+level: medium
+---
+title: FileZilla Installation in ProgramData for Data Exfiltration
+id: a1b2c3d4-bbbb-4aaa-bbbb-00000000000b
+status: experimental
+description: Detects FileZilla installer execution from C:\ProgramData, a staging technique observed in the BumbleBee/AdaptixC2/Akira ransomware incident where the attacker transferred the installer via RDP clipboard and used it for SFTP data exfiltration.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.exfiltration
+    - attack.t1048.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_path:
+        Image|contains: '\ProgramData\'
+    selection_name:
+        Image|contains: 'FileZilla'
+        Image|endswith: '.exe'
+    condition: selection_path and selection_name
+falsepositives:
+    - Legitimate FileZilla installation from ProgramData is uncommon but possible
+level: high
+---
+title: Active Directory Enumeration With CSV Export
+id: a1b2c3d4-cccc-4aaa-bbbb-00000000000c
+status: experimental
+description: Detects PowerShell Active Directory enumeration commands exporting results to CSV files, as used by threat actors in the BumbleBee/AdaptixC2/Akira ransomware incident for bulk domain reconnaissance.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/01
+tags:
+    - attack.discovery
+    - attack.t1087.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmdlet:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains:
+            - 'Get-ADComputer'
+            - 'Get-ADUser'
+    selection_export:
+        CommandLine|contains: 'export-csv'
+    condition: selection_cmdlet and selection_export
+falsepositives:
+    - Legitimate Active Directory administration scripts exporting data to CSV
+level: medium

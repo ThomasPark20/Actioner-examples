@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-01
-Version: 1 (DRAFT)
+Version: 2 (REVISED)
 
 ## Executive Summary
 
@@ -259,6 +259,7 @@ level: high
 ### Sigma: AdaptixC2 Beacon via Renamed WAB.exe Under WmiPrvSE
 Detects `WmiPrvSE.exe` spawning a renamed Windows Address Book binary (`AdgNsy.exe` or `OriginalFileName: wab.exe`), the specific AdaptixC2 injection vector used in this incident.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: high
+<!-- revision: split selection_child into selection_child_name and selection_child_ofn per critic fix #1 -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. The OriginalFileName check catches renames beyond AdgNsy.exe. WmiPrvSE spawning wab.exe is near-zero in benign environments. -->
 ```yaml
 title: AdaptixC2 Beacon - Suspicious WmiPrvSE Child Process With Renamed WAB.exe
@@ -280,10 +281,11 @@ logsource:
 detection:
     selection_parent:
         ParentImage|endswith: '\WmiPrvSE.exe'
-    selection_child:
-        - Image|endswith: '\AdgNsy.exe'
-        - OriginalFileName: 'wab.exe'
-    condition: selection_parent and selection_child
+    selection_child_name:
+        Image|endswith: '\AdgNsy.exe'
+    selection_child_ofn:
+        OriginalFileName: 'wab.exe'
+    condition: selection_parent and (selection_child_name or selection_child_ofn)
 falsepositives:
     - Legitimate use of Windows Address Book via WMI is extremely rare
 level: high
@@ -323,9 +325,10 @@ level: critical
 ### Sigma: NTDS.dit Extraction via wbadmin Backup
 Detects `wbadmin.exe` creating a backup that explicitly includes `ntds.dit` in the command line, a distinctive credential-dumping technique.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: high
+<!-- revision: removed "to Localhost" from title per critic fix #8 -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Legitimate wbadmin backups rarely specify ntds.dit explicitly in the command line; scheduled AD backups use different mechanisms. -->
 ```yaml
-title: NTDS.dit Extraction via wbadmin Backup to Localhost
+title: NTDS.dit Extraction via wbadmin Backup
 id: a1b2c3d4-4444-4aaa-bbbb-000000000004
 status: experimental
 description: Detects wbadmin.exe creating a backup that includes ntds.dit with the backup target set to localhost (127.0.0.1), a technique used for Active Directory credential extraction in the BumbleBee/Akira ransomware incident.
@@ -355,6 +358,7 @@ level: high
 ### Sigma: LSASS Memory Dump via comsvcs.dll Ordinal Export
 Detects `rundll32.exe` calling `comsvcs.dll` with an ordinal-based export (`#`), the specific LSASS dumping technique used by `lsassy`.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: high
+<!-- revision: tightened comsvcs match to include .dll suffix and narrowed ordinal pattern to ',#' per critic fix #2 -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. comsvcs.dll MiniDump via ordinal is a well-known credential dumping technique with very few legitimate uses. -->
 ```yaml
 title: LSASS Memory Dump via comsvcs.dll MiniDump With Obfuscated Export
@@ -375,8 +379,8 @@ detection:
     selection:
         Image|endswith: '\rundll32.exe'
         CommandLine|contains|all:
-            - 'comsvcs'
-            - '#'
+            - 'comsvcs.dll'
+            - ',#'
     condition: selection
 falsepositives:
     - Very rare legitimate use of comsvcs.dll MiniDump export
@@ -386,6 +390,7 @@ level: critical
 ### Sigma: Account Added to Enterprise Admins via net.exe
 Detects `net.exe` or `net1.exe` adding a user to the Enterprise Admins group, the specific privilege escalation observed in this incident.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: high
+<!-- revision: fixed ATT&CK tag from t1136 (Create Account) to t1098 (Account Manipulation) per critic fix #3 -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Adding accounts to Enterprise Admins via net.exe is extremely suspicious in any environment. -->
 ```yaml
 title: Account Added to Enterprise Admins Group via net.exe
@@ -398,7 +403,7 @@ author: Actioner
 date: 2026/07/01
 tags:
     - attack.persistence
-    - attack.t1136
+    - attack.t1098
     - attack.privilege_escalation
 logsource:
     category: process_creation
@@ -419,14 +424,15 @@ level: critical
 ```
 
 ### Sigma: Reverse SSH Tunnel Establishment
-Detects `ssh.exe` with `-R` flag for reverse port forwarding, the technique used to proxy RDP through an encrypted SSH tunnel bypassing firewall controls.
+Detects `ssh.exe` with `-R` flag for reverse port forwarding to the known exfil server, the technique used to proxy RDP through an encrypted SSH tunnel bypassing firewall controls.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: medium
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Medium confidence because SSH reverse tunnels have legitimate use cases; requires environmental tuning. -->
+<!-- revision: removed "for RDP Proxying" from title; added destination IP 193.242.184.150 to narrow scope per critic fix #9 -->
+<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Medium confidence because SSH reverse tunnels have legitimate use cases; narrowed with known exfil IP. -->
 ```yaml
-title: Reverse SSH Tunnel Establishment for RDP Proxying
+title: Reverse SSH Tunnel Establishment
 id: a1b2c3d4-7777-4aaa-bbbb-000000000007
 status: experimental
-description: Detects SSH reverse tunnel establishment with remote port forwarding, as used in the BumbleBee/AdaptixC2/Akira incident to proxy RDP traffic through an encrypted SSH tunnel to bypass firewall controls.
+description: Detects SSH reverse tunnel establishment with remote port forwarding to known Akira exfiltration infrastructure, as used in the BumbleBee/AdaptixC2/Akira incident to proxy RDP traffic through an encrypted SSH tunnel.
 references:
     - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
 author: Actioner
@@ -440,17 +446,20 @@ logsource:
 detection:
     selection:
         Image|endswith: '\ssh.exe'
-        CommandLine|contains: ' -R '
+        CommandLine|contains|all:
+            - ' -R '
+            - '193.242.184.150'
     condition: selection
 falsepositives:
-    - Legitimate SSH reverse tunnels used by system administrators
-level: medium
+    - Legitimate SSH reverse tunnels to this specific IP address
+level: high
 ```
 
 ### Sigma: Akira Ransomware Execution with Encryption Parameters
 Detects `locker.exe` executed with `-p=` (path) and `-n=` (encryption percentage) parameters, the specific Akira ransomware command-line pattern.
-**Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: high
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. locker.exe with -p= and -n= parameters is highly specific to Akira ransomware. -->
+**Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: medium
+<!-- revision: lowered confidence from high to medium; -p= and -n= flags alone are not unique to Akira per critic fix #10 -->
+<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. locker.exe with -p= and -n= parameters is characteristic of Akira but the flags are generic enough to warrant medium confidence. -->
 ```yaml
 title: Akira Ransomware Execution With Encryption Parameters
 id: a1b2c3d4-8888-4aaa-bbbb-000000000008
@@ -511,8 +520,9 @@ level: critical
 ```
 
 ### Sigma: RustDesk Remote Access Tool Execution
-Detects RustDesk execution with `--tray`, `--cm`, or `--service` flags indicating installation for persistent remote access.
+Detects RustDesk execution with `--tray`, `--cm`, or `--service` flags indicating installation for persistent remote access. **Note:** This is a baseline/general detection rule, not incident-specific. RustDesk is legitimate software; detection value depends on whether it is approved in the environment.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: medium
+<!-- revision: added caveat that this is a baseline/general rule, not incident-specific per critic fix #11 -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Medium confidence because RustDesk is legitimate software; detection value depends on organizational policy. -->
 ```yaml
 title: RustDesk Remote Access Tool Installation as Service
@@ -575,15 +585,16 @@ falsepositives:
 level: high
 ```
 
-### Sigma: AD Enumeration With CSV Export to ProgramData
+### Sigma: AD Enumeration With CSV Export
 Detects PowerShell AD enumeration (`Get-ADComputer` / `Get-ADUser`) with CSV export, the bulk domain reconnaissance technique used for pre-exfiltration intelligence gathering.
 **Status:** compile ✅ compiles (splunk + log_scale exit 0) · confidence: medium
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Medium confidence; legitimate AD admins may export to CSV, but the ProgramData staging path adds specificity. -->
+<!-- revision: fixed duplicate CommandLine|contains bug by splitting into selection_cmdlet and selection_export; removed "to ProgramData" from title per critic fix #4 -->
+<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Medium confidence; legitimate AD admins may export to CSV but the combination with AD enumeration cmdlets is suspicious. -->
 ```yaml
-title: Active Directory Enumeration With CSV Export to ProgramData
+title: Active Directory Enumeration With CSV Export
 id: a1b2c3d4-cccc-4aaa-bbbb-00000000000c
 status: experimental
-description: Detects PowerShell Active Directory enumeration commands exporting results to CSV files in ProgramData, as used by threat actors in the BumbleBee/AdaptixC2/Akira ransomware incident for bulk domain reconnaissance.
+description: Detects PowerShell Active Directory enumeration commands exporting results to CSV files, as used by threat actors in the BumbleBee/AdaptixC2/Akira ransomware incident for bulk domain reconnaissance.
 references:
     - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
 author: Actioner
@@ -595,15 +606,16 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection:
+    selection_cmdlet:
         Image|endswith:
             - '\powershell.exe'
             - '\pwsh.exe'
         CommandLine|contains:
             - 'Get-ADComputer'
             - 'Get-ADUser'
+    selection_export:
         CommandLine|contains: 'export-csv'
-    condition: selection
+    condition: selection_cmdlet and selection_export
 falsepositives:
     - Legitimate Active Directory administration scripts exporting data to CSV
 level: medium
@@ -637,8 +649,9 @@ rule Bumblebee_Trojanized_MSI_Installer
 ```
 
 ### YARA: BumbleBee Loader msimg32.dll
-Detects BumbleBee first-stage loader DLL with geofencing API calls and the `hasherezade_pussy` PE-sieve extraction artifact string.
+Detects BumbleBee first-stage loader DLL with geofencing API calls and dictionary-derived gibberish metadata. The `hasherezade_pussy` string is an artifact from PE-sieve memory extraction tooling, not a malware-authored string.
 **Status:** compile ✅ compiles (yarac exit 0) · confidence: high
+<!-- revision: added target meta for memory dump / unpacked sample; added BumbleBee-specific geofencing locale string to strengthen fallback condition; noted hasherezade_pussy provenance per critic fix #5 -->
 <!-- audit: yarac exit 0. The hasherezade_pussy string is from PE-sieve memory extraction and is highly specific. The API combination of GetSystemDefaultLocaleName + ExitProcess in a DLL named msimg32.dll is behaviorally distinctive. -->
 ```yara
 rule Bumblebee_Loader_msimg32_DLL
@@ -650,6 +663,7 @@ rule Bumblebee_Loader_msimg32_DLL
         reference = "https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/"
         hash_md5 = "ca8646dfc88423bb9fffda811160cebe"
         hash_sha256 = "a6df0b49a5ef9ffd6513bfe061fb60f6d2941a440038e2de8a7aeb1914945331"
+        target = "memory dump / unpacked sample"
         confidence = "high"
 
     strings:
@@ -660,11 +674,12 @@ rule Bumblebee_Loader_msimg32_DLL
         $pesieve = "hasherezade_pussy" ascii wide
         $export1 = "vSetDdrawflag" ascii
         $export2 = "GradientFill" ascii
+        $geofence = "be-BY" ascii wide
 
     condition:
         $pe_magic at 0 and $dll_name and (
             $pesieve or
-            ($api1 and $api2 and ($export1 or $export2))
+            ($api1 and $api2 and $geofence and ($export1 or $export2))
         )
 }
 ```
@@ -736,24 +751,60 @@ alert ssh $HOME_NET any -> 193.242.184.150 22 (msg:"ACTIONER Reverse SSH Tunnel 
 
 ### Suricata: BumbleBee DGA Domain Resolution Pattern
 Detects DNS queries matching BumbleBee's Wave 2 DGA pattern of 14-character alphanumeric `.org` domains.
-**Status:** ⚠️ uncompiled (structural check only) · confidence: medium
+**Status:** ⚠️ uncompiled (structural check only) · confidence: low
+<!-- revision: lowered confidence from medium to low due to high false-positive potential on legitimate 14-char .org domains per critic fix #6 -->
 <!-- audit: Structural review only. PCRE pattern may produce false positives on legitimate 14-char .org domains; recommend tuning with allowlist. -->
 ```
 alert dns $HOME_NET any -> any any (msg:"ACTIONER BumbleBee DGA Domain Resolution"; dns.query; content:".org"; endswith; pcre:"/^[a-z0-9]{14}\.org$/"; classtype:trojan-activity; sid:2026070105; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
 ```
 
 ### Suricata: FileZilla SSH Banner on Outbound Connection
-Detects the `SSH-2.0-FileZilla` client banner in outbound SSH connections, which may indicate SFTP-based data exfiltration.
+Detects the `SSH-2.0-FileZilla` client banner in outbound SSH connections, which may indicate SFTP-based data exfiltration. **Supplementary rule** -- best used in combination with other indicators or scoped to known exfil destination IPs (e.g., `185.174.100.203`). FileZilla is legitimate software; standalone alerting will produce false positives in environments where it is approved.
 **Status:** ⚠️ uncompiled (structural check only) · confidence: low
+<!-- revision: labeled as supplementary rule per critic fix #12 -->
 <!-- audit: Structural review only. Low confidence because FileZilla is legitimate software; detection value is contextual (e.g., FileZilla should not be present on servers). -->
 ```
 alert ssh $HOME_NET any -> $EXTERNAL_NET 22 (msg:"ACTIONER FileZilla SSH Client Banner - Potential SFTP Exfiltration"; flow:established,to_server; content:"SSH-2.0-FileZilla"; depth:20; classtype:policy-violation; sid:2026070106; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
 ```
 
 ### Suricata: BumbleBee Download Gateway URL Pattern
-Detects HTTP requests matching the `/Get?q=` URL pattern used by BumbleBee download gateways to deliver trojanized installers.
-**Status:** ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: Structural review only. The /Get?q= pattern is a reliable campaign pivot but may match legitimate web applications; recommend combining with domain allowlisting. -->
+Detects HTTP requests matching the `/Get?q=` URL pattern combined with known BumbleBee delivery domain names, used by BumbleBee download gateways to deliver trojanized installers.
+**Status:** ⚠️ uncompiled (structural check only) · confidence: low
+<!-- revision: combined /Get?q= with known delivery domain names to reduce false positives; lowered confidence to low per critic fix #7 -->
+<!-- audit: Structural review only. The /Get?q= pattern alone is too broad; scoped to known delivery domains for IOC-specificity. -->
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; classtype:trojan-activity; sid:2026070107; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"download-center.online"; classtype:trojan-activity; sid:2026070107; rev:2; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"download-server.online"; classtype:trojan-activity; sid:2026070108; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"soft-server.online"; classtype:trojan-activity; sid:2026070109; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"soft-hub.pro"; classtype:trojan-activity; sid:2026070110; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
 ```
+
+## Remediation Recommendations
+
+### Veeam Backup Hardening
+- **Restrict PostgreSQL access:** Limit network access to the Veeam PostgreSQL database to only the Veeam service account and authorized management hosts. Block direct `psql.exe` connections from non-Veeam systems.
+- **Credential rotation:** Rotate all credentials stored in the VeeamBackup `credentials` table. Enable encrypted credential storage if not already active.
+- **Network isolation:** Place Veeam backup infrastructure on a dedicated management VLAN with strict firewall rules preventing lateral access from general-purpose servers.
+
+### LSASS Protection
+- **Enable Credential Guard:** Deploy Windows Defender Credential Guard on all domain controllers and sensitive servers to isolate LSASS secrets in a virtualization-based security (VBS) container.
+- **Enable Protected Process Light (PPL):** Configure LSASS to run as a Protected Process Light (`RunAsPPL`) to prevent unauthorized memory access, blocking tools like `lsassy` and `comsvcs.dll` MiniDump from reading LSASS memory.
+- **Audit LSASS access:** Enable Sysmon Event ID 10 (ProcessAccess) monitoring on LSASS to detect dump attempts that bypass PPL through kernel drivers.
+
+### RDP Hardening
+- **Restrict RDP access:** Limit RDP to jump boxes or Privileged Access Workstations (PAWs) only. Block direct RDP between servers and from non-administrative endpoints.
+- **Enforce NLA:** Require Network Level Authentication (NLA) for all RDP connections.
+- **Monitor for tunneled RDP:** Alert on the IPv6 loopback indicator (`::%16777216`) in RDP event logs, which signals SSH-tunneled RDP connections.
+- **Disable clipboard redirection:** Prevent file transfer via RDP clipboard to block tool staging (as observed with the FileZilla installer).
+
+### Network Segmentation
+- **Segment domain controller traffic:** Isolate domain controllers so that only authorized administration hosts can access them on management ports (RDP/3389, WinRM/5985-5986, LDAP/389, RPC/135).
+- **Restrict outbound SSH:** Block or alert on outbound SSH (port 22) from servers that have no legitimate need for SSH connectivity, particularly domain controllers and backup servers.
+- **Restrict outbound SFTP:** Block large outbound data transfers (>1GB) over SSH/SFTP from production servers to external destinations.
+- **DNS filtering:** Implement DNS sinkholing or filtering for newly registered domains, particularly `.org` domains matching DGA patterns.
+
+### Backup Isolation
+- **Air-gap critical backups:** Maintain at least one backup copy on offline or immutable storage that cannot be accessed from the production network.
+- **Separate backup credentials:** Use dedicated service accounts for backup infrastructure that are not members of Domain Admins or Enterprise Admins groups.
+- **Monitor shadow copy deletion:** Alert on any `Win32_Shadowcopy` removal operations, especially when correlated with other indicators of compromise.
+- **Test backup restoration:** Regularly validate that backups can be restored from isolated copies to ensure recovery capability after a ransomware event.
