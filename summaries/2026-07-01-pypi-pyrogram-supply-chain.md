@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-07-01
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -218,18 +218,23 @@ The attacker uses Telegram itself as the C2 channel. A Telegram channel `hxxps:/
 
 ## Detection Rules
 
-These detections cover the campaign's durable artifacts: exact package names (Sigma, YARA), the `secret.py` backdoor file path (Sigma, YARA), behavioral shell execution from bot processes (Sigma), the backdoor's code patterns (YARA), and the attacker's Telegram C2 channel (Suricata). All Sigma rules convert cleanly to Splunk and LogScale; `sigma check` fails only due to a MITRE ATT&CK STIX data fetch error in this sandboxed environment (not a rule defect). The YARA rules compile cleanly with `yarac`. The Suricata rule is structural-only (no live compilation environment available).
+These detections cover the campaign's durable artifacts: exact package names (Sigma, YARA), the `secret.py` backdoor file path (Sigma, YARA), behavioral shell execution from bot processes (Sigma), the backdoor's code patterns (YARA), and the attacker's Telegram C2 channel (Suricata). All Sigma rules convert cleanly to Splunk and LogScale via `sigma convert`. The YARA rules compile cleanly with `yarac`. The Suricata HTTP rule is structural-only (no live compilation environment available); the TLS SNI variant was dropped (see note below).
 
 ### Sigma Rule 1: Pip Install of Malicious Pyrogram Package
 
-Detects pip install commands targeting known malicious Pyrogram fork package names. High-fidelity; the package names are unique to this campaign.
-**Status:** compile: `sigma check` -- network error (not rule defect); `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** HIGH
+<!-- revision: v1.1 -- rewritten pip detection to use CommandLine|contains patterns covering both direct pip and python -m pip invocations; added underscore-normalized package name variants -->
+
+Detects pip install commands targeting known malicious Pyrogram fork package names. Covers direct `pip install` and `python -m pip install` invocations. Includes underscore-normalized variants (e.g., `pyrogram_kelra` alongside `pyrogram-kelra`) because pip normalizes hyphens to underscores. High-fidelity; the package names are unique to this campaign.
+**Status:** `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** HIGH
 
 ```yaml
 title: Pip Install of Malicious Pyrogram Package
 id: 8a3f1c2e-5d7b-4e9a-b6c8-1f2a3d4e5f6a
 status: experimental
-description: Detects pip install commands targeting known malicious Pyrogram fork packages from Operation Navy Ghost campaign.
+description: >
+    Detects pip install commands targeting known malicious Pyrogram fork packages from
+    the Operation Navy Ghost supply chain campaign. Covers direct pip invocation and
+    python -m pip usage, with underscore-normalized package name variants.
 references:
     - https://www.bleepingcomputer.com/news/security/malicious-pypi-packages-give-hackers-control-of-telegram-bot-servers/
     - https://checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/
@@ -242,25 +247,38 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection_pip:
+    selection_pip_direct:
         Image|endswith:
             - '/pip'
             - '/pip3'
-        CommandLine|contains:
+        CommandLine|contains: 'install'
+    selection_pip_module:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+        CommandLine|contains|all:
+            - '-m'
+            - 'pip'
             - 'install'
     selection_package:
         CommandLine|contains:
             - 'vlifegram'
             - 'VLifeGram'
             - 'VLife-Gram'
+            - 'VLife_Gram'
             - 'vlife-gram'
+            - 'vlife_gram'
             - 'pyrogram-navy'
+            - 'pyrogram_navy'
             - 'pyrogram-styled'
+            - 'pyrogram_styled'
             - 'pyrogram-zeeb'
+            - 'pyrogram_zeeb'
             - 'kelragram'
             - 'sepgram'
             - 'pyrogram-kelra'
-    condition: selection_pip and selection_package
+            - 'pyrogram_kelra'
+    condition: (selection_pip_direct or selection_pip_module) and selection_package
 falsepositives:
     - Unlikely, these are known-malicious package names
 level: critical
@@ -269,7 +287,7 @@ level: critical
 ### Sigma Rule 2: Pyrogram Backdoor File secret.py Creation
 
 Detects creation of the `secret.py` backdoor file within the pyrogram helpers directory. This file does not exist in the legitimate Pyrogram package.
-**Status:** compile: `sigma check` -- network error (not rule defect); `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** HIGH
+**Status:** `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** HIGH
 
 ```yaml
 title: Pyrogram Backdoor File secret.py Creation
@@ -298,14 +316,21 @@ level: high
 
 ### Sigma Rule 3: Shell Command Execution from Python Telegram Bot Process
 
-Detects a Python process spawning `/bin/bash -c`, consistent with the backdoor's shell command handler. Behavioral heuristic -- legitimate Python applications may also invoke shell commands.
-**Status:** compile: `sigma check` -- network error (not rule defect); `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** MEDIUM
+<!-- revision: v1.1 -- added ParentCommandLine|contains filter for pyrogram-related strings to narrow overly broad Python-spawns-bash pattern; changed level from medium to low; added hunt query caveat -->
+
+Detects a Python process spawning `/bin/bash -c` where the parent command line references pyrogram-related strings, consistent with the backdoor's shell command handler. **This is a hunt query** -- Python spawning bash is common; the pyrogram/telegram parent filter narrows scope but may still produce false positives.
+**Status:** `sigma convert -t splunk` exit 0; `sigma convert -t log_scale` exit 0 | **Confidence:** MEDIUM (hunt query)
 
 ```yaml
 title: Shell Command Execution from Python Telegram Bot Process
 id: 3c5d7e9f-0a1b-2c3d-4e5f-6a7b8c9d0e1f
 status: experimental
-description: Detects a Python process spawning /bin/bash, consistent with the Operation Navy Ghost backdoor shell command handler (/asi, /wann2) executing OS commands via subprocess.run on a compromised Telegram bot server.
+description: >
+    Detects a Python process spawning /bin/bash with a pyrogram-related parent command line,
+    consistent with the Operation Navy Ghost backdoor shell command handler (/asi, /wann2)
+    executing OS commands via subprocess.run on a compromised Telegram bot server.
+    NOTE: This is a hunt query. Python spawning bash is common; the pyrogram filter
+    narrows scope but may still produce false positives in development environments.
 references:
     - https://www.bleepingcomputer.com/news/security/malicious-pypi-packages-give-hackers-control-of-telegram-bot-servers/
     - https://checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/
@@ -324,21 +349,34 @@ detection:
             - '/python3'
         Image|endswith: '/bash'
         CommandLine|contains: '-c'
-    condition: selection
+    filter_pyrogram:
+        ParentCommandLine|contains:
+            - 'pyrogram'
+            - 'vlifegram'
+            - 'kelragram'
+            - 'sepgram'
+            - 'secret.py'
+            - 'telegram'
+    condition: selection and filter_pyrogram
 falsepositives:
-    - Legitimate Python applications that invoke shell commands via subprocess
-level: medium
+    - Legitimate Python Telegram bot applications that invoke shell commands via subprocess
+    - Development and testing environments running Pyrogram-based bots
+level: low
 ```
 
 ### YARA Rule 1: Operation Navy Ghost secret.py Backdoor Detection
 
-Detects the `secret.py` backdoor file based on attacker Telegram IDs, command handler names, callback trigger strings, and behavioral code patterns. Multiple condition branches provide both high-fidelity (attacker ID matching) and behavioral (code pattern) coverage.
-**Status:** compile: `yarac` exit 0 | **Confidence:** HIGH
+<!-- revision: v1.1 -- removed standalone ($import_secret or $import_secret2) condition branch; imports now require co-occurrence with at least one campaign-specific indicator ($owner_id*, $cmd_*, $cb_*) -->
+
+Detects the `secret.py` backdoor file based on attacker Telegram IDs, command handler names, callback trigger strings, and behavioral code patterns. Multiple condition branches provide both high-fidelity (attacker ID matching) and behavioral (code pattern) coverage. The import-injection branch now requires co-occurrence with at least one campaign-specific indicator to avoid matching legitimate forks that happen to have a `secret` helper module.
+**Status:** `yarac` exit 0 | **Confidence:** HIGH
 
 ### YARA Rule 2: Operation Navy Ghost Package Metadata Detection
 
-Detects malicious Pyrogram fork package archives or installed files containing both a known-malicious package name and references to the secret module backdoor.
-**Status:** compile: `yarac` exit 0 | **Confidence:** HIGH
+<!-- revision: v1.1 -- replaced generic "secret.py" with path-qualified "helpers/secret.py" and "pyrogram/helpers/secret"; removed nocase from package name strings (metadata preserves case) -->
+
+Detects malicious Pyrogram fork package archives or installed files containing both a known-malicious package name and references to the secret module backdoor. Package name strings now match case-sensitively (metadata preserves case). The backdoor file indicator uses the path-qualified form `helpers/secret.py` instead of the generic `secret.py` to reduce false positives.
+**Status:** `yarac` exit 0 | **Confidence:** HIGH
 
 ```yara
 rule OperationNavyGhost_SecretPy_Backdoor
@@ -349,6 +387,7 @@ rule OperationNavyGhost_SecretPy_Backdoor
         date = "2026-07-01"
         reference = "https://checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/"
         severity = "CRITICAL"
+        revision = "v1.1 -- removed standalone import-only branch; imports now require co-occurrence with campaign indicators"
 
     strings:
         // Hardcoded attacker Telegram IDs
@@ -392,8 +431,8 @@ rule OperationNavyGhost_SecretPy_Backdoor
             ($cb_runtime and $cb_forceclose) or
             // Match on behavioral pattern: handler + exec + shell + exfil
             ($handler_reg and $exec_compile and ($subprocess_run or $bin_bash) and $reply_doc and $self_exclude) or
-            // Match on import injection
-            ($import_secret or $import_secret2)
+            // Match on import injection co-occurring with campaign-specific indicators
+            (($import_secret or $import_secret2) and any of ($owner_id*, $cmd_*, $cb_*))
         )
 }
 
@@ -405,40 +444,45 @@ rule OperationNavyGhost_Package_Metadata
         date = "2026-07-01"
         reference = "https://checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/"
         severity = "HIGH"
+        revision = "v1.1 -- replaced generic secret.py with path-qualified string; removed nocase from package names"
 
     strings:
-        $pkg1 = "VLifeGram" ascii nocase
-        $pkg2 = "VLife-Gram" ascii nocase
-        $pkg3 = "pyrogram-navy" ascii nocase
-        $pkg4 = "pyrogram-styled" ascii nocase
-        $pkg5 = "pyrogram-zeeb" ascii nocase
-        $pkg6 = "kelragram" ascii nocase
-        $pkg7 = "sepgram" ascii nocase
-        $pkg8 = "pyrogram-kelra" ascii nocase
+        $pkg1 = "VLifeGram" ascii
+        $pkg2 = "VLife-Gram" ascii
+        $pkg3 = "pyrogram-navy" ascii
+        $pkg4 = "pyrogram-styled" ascii
+        $pkg5 = "pyrogram-zeeb" ascii
+        $pkg6 = "kelragram" ascii
+        $pkg7 = "sepgram" ascii
+        $pkg8 = "pyrogram-kelra" ascii
 
-        // Secret module backdoor indicators
+        // Secret module backdoor indicators (path-qualified)
         $secret_init = "init_secret" ascii
-        $secret_file = "secret.py" ascii
+        $secret_path1 = "helpers/secret.py" ascii
+        $secret_path2 = "pyrogram/helpers/secret" ascii
 
     condition:
         filesize < 500KB and
         any of ($pkg*) and
-        ($secret_init or $secret_file)
+        ($secret_init or $secret_path1 or $secret_path2)
 }
 ```
 
 ### Suricata Rule: Telegram C2 Channel Access (TokoWann)
 
-Detects HTTP/TLS traffic to the attacker's Telegram C2 channel. Limited utility since Telegram traffic is encrypted, but may catch initial channel resolution or API calls containing the channel name.
-**Status:** compile: uncompiled (structural check only) | **Confidence:** LOW
+<!-- revision: v1.1 -- dropped TLS SNI variant (TokoWann is a URI path component, not a hostname; SNI only contains the hostname t.me, never the URI path). Kept HTTP variant only. -->
+
+Detects HTTP traffic to the attacker's Telegram C2 channel `TokoWann`. **The TLS SNI variant from v1.0 has been dropped** because `TokoWann` is a URI path component (`t.me/TokoWann`), not a hostname -- TLS SNI only carries the hostname (`t.me`), so the channel name would never appear in the SNI field. The HTTP variant is retained but **requires TLS inspection** (MITM proxy / SSL bump) to see decrypted HTTP traffic to `t.me`, since Telegram enforces HTTPS.
+**Status:** structural check only (no live Suricata compilation) | **Confidence:** LOW
 
 ```
-# SID range: 2026070100-2026070109 (local/custom)
 # Operation Navy Ghost - Telegram C2 channel indicators
+# SID range: 2026070100-2026070109 (local/custom)
+# revision: v1.1 -- dropped TLS SNI rule (TokoWann is a URI path component, not a hostname;
+#   SNI only contains the hostname t.me). HTTP variant retained but requires TLS inspection
+#   (MITM proxy / SSL bump) to see decrypted HTTP traffic to t.me.
 
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Operation Navy Ghost - TokoWann Telegram C2 Channel TLS SNI"; tls.sni; content:"t.me"; content:"TokoWann"; nocase; sid:2026070101; rev:1; metadata:created_at 2026_07_01, severity critical; classtype:trojan-activity; reference:url,checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Operation Navy Ghost - TokoWann Telegram C2 Channel HTTP"; flow:established,to_server; http.host; content:"t.me"; http.uri; content:"TokoWann"; nocase; sid:2026070102; rev:1; metadata:created_at 2026_07_01, severity critical; classtype:trojan-activity; reference:url,checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Operation Navy Ghost - TokoWann Telegram C2 Channel HTTP"; flow:established,to_server; http.host; content:"t.me"; http.uri; content:"TokoWann"; nocase; sid:2026070102; rev:2; metadata:created_at 2026_07_01, severity critical; classtype:trojan-activity; reference:url,checkmarx.com/zero-post/operation-navy-ghost-pyrogram-telegram-supplychain-attack/;)
 ```
 
 ## Impact Assessment
