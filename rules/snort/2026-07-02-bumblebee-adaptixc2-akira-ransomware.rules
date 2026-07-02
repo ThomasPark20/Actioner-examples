@@ -1,0 +1,7 @@
+alert tcp $HOME_NET any -> 188.40.187.145 443 (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 188.40.187.145"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100101; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
+
+alert tcp $HOME_NET any -> 109.205.195.211 443 (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 109.205.195.211"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100102; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
+
+alert tcp $HOME_NET any -> 171.22.183.43 any (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 171.22.183.43"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100103; rev:2; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
+
+alert tcp $HOME_NET any -> 194.127.178.21 any (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 194.127.178.21"; flow:established,to_server; sid:2100104; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)

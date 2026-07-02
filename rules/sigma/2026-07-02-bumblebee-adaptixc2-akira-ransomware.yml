@@ -1,0 +1,178 @@
+title: BumbleBee DLL Side-Loading via consent.exe and msimg32.dll in Temp Directory
+id: 7a1b3c4d-5e6f-4a90-b1c2-d3e4f5a6b7c8
+status: experimental
+description: >
+    Detects DLL side-loading technique used by BumbleBee loader where consent.exe
+    is placed in a temporary directory alongside a malicious msimg32.dll. The MSI
+    installer drops both files to %TEMP%\ApplicationInstallationFolder_11.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1574.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_consent:
+        Image|endswith: '\consent.exe'
+    filter_system32:
+        Image|contains: '\Windows\System32\'
+    selection_temp:
+        Image|contains:
+            - '\Temp\'
+            - '\AppData\Local\Temp\'
+            - 'ApplicationInstallationFolder'
+    condition: selection_consent and not filter_system32 and selection_temp
+falsepositives:
+    - Unlikely - consent.exe should not run from temporary directories
+level: high
+---
+title: Veeam Credential Dumping via psql Command
+id: 8b2c4d5e-6f7a-4b01-c2d3-e4f5a6b7c8d9
+status: experimental
+description: >
+    Detects the use of psql.exe to query Veeam Backup database for stored
+    credentials, a technique observed in BumbleBee/Akira intrusions to harvest
+    backup infrastructure passwords.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1555
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\psql.exe'
+        CommandLine|contains|all:
+            - 'VeeamBackup'
+            - 'credentials'
+    condition: selection
+falsepositives:
+    - Legitimate Veeam database administration querying the credentials table
+level: high
+---
+title: LSASS Memory Dump via comsvcs.dll Ordinal 24 to Temp Directory
+id: 9c3d5e6f-7a8b-4c12-d3e4-f5a6b7c8d9e0
+status: experimental
+description: >
+    Detects LSASS credential dumping using rundll32.exe to invoke comsvcs.dll
+    via obfuscated ordinal (#+000024) with output to Windows\Temp, consistent
+    with the BumbleBee/Akira campaign's specific credential harvesting pattern.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_rundll32:
+        Image|endswith: '\rundll32.exe'
+    selection_comsvcs:
+        CommandLine|contains: 'comsvcs.dll'
+    selection_ordinal:
+        CommandLine|contains: '#+000024'
+    selection_temp_output:
+        CommandLine|contains: '\Windows\Temp\'
+    condition: selection_rundll32 and selection_comsvcs and selection_ordinal and selection_temp_output
+falsepositives:
+    - Legitimate debugging operations using comsvcs.dll ordinal export with output to Windows\Temp
+level: high
+---
+title: Shadow Copy Deletion via Get-WmiObject PowerShell Command
+id: ad4e6f7a-8b9c-4d23-e4f5-a6b7c8d9e0f1
+status: experimental
+description: >
+    Detects shadow copy deletion using PowerShell Get-WmiObject Win32_Shadowcopy
+    piped to Remove-WmiObject, a technique used by Akira ransomware to inhibit
+    system recovery before encryption.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1490
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ps:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - 'Win32_Shadowcopy'
+            - 'Remove-WmiObject'
+    condition: selection_ps and selection_cmdline
+falsepositives:
+    - Legitimate administrator scripts managing shadow copies via WMI
+level: high
+---
+title: Suspicious Backup Domain Account Creation Pattern
+id: be5f7a8b-9c0d-4e34-f5a6-b7c8d9e0f1a2
+status: experimental
+description: >
+    Detects creation of domain accounts matching the backup_DA or backup_EA naming
+    pattern, consistent with BumbleBee/Akira operators creating backdoor domain
+    admin and enterprise admin accounts for persistence.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1136.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_net:
+        Image|endswith:
+            - '\net.exe'
+            - '\net1.exe'
+    selection_add:
+        CommandLine|contains: '/add'
+    selection_account:
+        CommandLine|contains:
+            - 'backup_DA'
+            - 'backup_EA'
+    condition: selection_net and selection_add and selection_account
+falsepositives:
+    - Unlikely - highly specific account naming pattern matching observed threat activity
+level: high
+---
+title: NTDS.dit Credential Theft via wbadmin Backup
+id: cf6a8b9c-0d1e-4f45-a6b7-c8d9e0f1a2b3
+status: experimental
+description: >
+    Detects the use of wbadmin.exe to create a backup of the NTDS.dit Active
+    Directory database, a credential theft technique used in BumbleBee/Akira
+    intrusions to extract domain credentials offline.
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026/07/02
+tags:
+    - attack.t1003.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\wbadmin.exe'
+        CommandLine|contains|all:
+            - 'start'
+            - 'backup'
+            - 'ntds.dit'
+    condition: selection
+falsepositives:
+    - Legitimate Active Directory backup operations that include NTDS.dit -- filter by scheduled backup windows and authorized service accounts
+level: high
