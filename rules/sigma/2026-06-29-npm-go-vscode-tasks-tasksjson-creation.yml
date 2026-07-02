@@ -1,0 +1,31 @@
+title: Suspicious VSCode tasks.json File Creation in Package Directory
+id: a1c5e3f9-4d6a-5b1c-b28e-7f0a2b3c4d5e
+status: experimental
+description: >
+    Detects creation of .vscode/tasks.json files within npm package or Go module
+    directories. The Contagious Interview campaign plants malicious tasks.json
+    files with runOn folderOpen configuration inside hijacked packages to achieve
+    automatic code execution when developers open the project in VS Code.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1195.001
+    - attack.t1059.007
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '.vscode'
+        TargetFilename|endswith: '\tasks.json'
+    filter_vscode:
+        Image|endswith:
+            - '\Code.exe'
+            - '\Code - Insiders.exe'
+    condition: selection and not filter_vscode
+falsepositives:
+    - Developers manually creating VS Code task configurations
+    - IDE plugins that generate tasks.json files
+level: medium

@@ -1,0 +1,41 @@
+title: VSCode Task Spawning Curl or Wget Piped to Shell Interpreter
+id: d4f8b6c2-7a9d-8e4f-e51b-0c3d5e6f7a81
+status: experimental
+description: >
+    Detects VS Code spawning curl or wget commands that pipe output to a shell
+    interpreter. This pattern is used by the Contagious Interview campaign where
+    malicious VS Code tasks download and execute remote payloads through shell
+    piping on macOS and Linux systems.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://opensourcemalware.com/blog/contagious-interview-vscode
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1059.004
+    - attack.t1105
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/code'
+            - '/code-insiders'
+            - '\Code.exe'
+            - '\Code - Insiders.exe'
+    selection_cmdline_download:
+        CommandLine|contains:
+            - 'curl '
+            - 'wget '
+    selection_cmdline_pipe:
+        CommandLine|contains:
+            - '| sh'
+            - '| bash'
+            - '| cmd'
+            - '|sh'
+            - '|bash'
+            - '|cmd'
+    condition: selection_parent and selection_cmdline_download and selection_cmdline_pipe
+falsepositives:
+    - Developers using VS Code tasks to run legitimate deployment scripts that pipe from curl
+level: high

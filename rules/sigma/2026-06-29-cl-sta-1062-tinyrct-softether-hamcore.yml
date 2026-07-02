@@ -1,0 +1,31 @@
+title: CL-STA-1062 Tool Combination - SoftEther Hamcore File Download
+id: a1b2c3d4-6666-4aaa-bbbb-000000000006
+status: experimental
+description: >
+    Detects creation of the SoftEther VPN configuration file hamcore.se2
+    outside of standard SoftEther installation directories. CL-STA-1062
+    deploys SoftEther components alongside other tools to establish
+    persistent tunneling into compromised networks.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1572
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\hamcore.se2'
+            - '\vpn_bridge.config'
+    filter_softether:
+        TargetFilename|contains:
+            - '\SoftEther VPN\'
+            - '\Program Files\'
+            - '\Program Files (x86)\'
+    condition: selection and not filter_softether
+falsepositives:
+    - Legitimate SoftEther VPN installations in non-standard paths
+level: high

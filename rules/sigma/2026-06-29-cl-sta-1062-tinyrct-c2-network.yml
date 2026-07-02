@@ -1,0 +1,28 @@
+title: TinyRCT C2 Network Connection to Known Infrastructure
+id: a1b2c3d4-7777-4aaa-bbbb-000000000007
+status: experimental
+description: >
+    Detects outbound network connections to known CL-STA-1062 C2
+    infrastructure IP addresses used for TinyRCT command and control
+    and payload staging.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp:
+            - '45.32.113.172'
+            - '139.180.134.221'
+            - '202.182.102.5'
+            - '45.76.210.43'
+    condition: selection
+falsepositives:
+    - Vultr cloud hosting IPs may be reused by legitimate services
+level: high

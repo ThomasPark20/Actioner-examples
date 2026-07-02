@@ -1,0 +1,37 @@
+title: SoftEther VPN Tool Masquerading as VMware Executable
+id: a1b2c3d4-5555-4aaa-bbbb-000000000005
+status: experimental
+description: >
+    Detects SoftEther VPN components disguised as VMware executables
+    (vmtools.exe, vmwared.exe) or XDR agent binaries, a technique
+    used by CL-STA-1062 for network tunneling. Legitimate VMware
+    tools are installed in VMware directories, not user-accessible paths.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1036.005
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_names:
+        Image|endswith:
+            - '\vmtools.exe'
+            - '\vmwared.exe'
+            - '\XDRAgent.exe'
+    filter_vmware:
+        Image|startswith:
+            - 'C:\Program Files\VMware\'
+            - 'C:\Program Files (x86)\VMware\'
+    filter_xdr:
+        Image|startswith:
+            - 'C:\Program Files\Palo Alto Networks\'
+            - 'C:\Program Files\CrowdStrike\'
+            - 'C:\Program Files\SentinelOne\'
+    condition: selection_names and not (filter_vmware or filter_xdr)
+falsepositives:
+    - Portable VMware tools or XDR agents installed in non-standard directories
+level: high

@@ -1,0 +1,29 @@
+title: TinyRCT Scheduled Task Persistence via GoogleUpdater Masquerade
+id: a1b2c3d4-3333-4aaa-bbbb-000000000003
+status: experimental
+description: >
+    Detects creation of a scheduled task matching the TinyRCT backdoor
+    persistence pattern that masquerades as a Google updater task. The
+    task name includes a specific GUID pattern and is set to run at
+    logon with highest privileges.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+    selection_task:
+        CommandLine|contains|all:
+            - '/create'
+            - 'GoogleUpdaterTaskSystem'
+            - 'PerfWatson2.exe'
+    condition: selection_schtasks and selection_task
+falsepositives:
+    - Unknown
+level: critical

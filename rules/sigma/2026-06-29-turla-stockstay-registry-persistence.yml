@@ -1,0 +1,33 @@
+title: STOCKSTAY MARKETMAKER Registry Run Key Persistence
+id: a1b2c3d4-2222-4aaa-bbbb-000000000002
+status: experimental
+description: >
+    Detects STOCKSTAY.MARKETMAKER establishing persistence via registry Run keys
+    pointing to known STOCKSTAY component executables. The MARKETMAKER downloader
+    sets autorun entries under HKCU Run to ensure STOCKSTAY components execute on
+    user logon.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering
+    - https://thehackernews.com/2026/06/google-details-turlas-new-stockstay.html
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|contains: '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\'
+    selection_value:
+        Details|endswith:
+            - '\StockMarketView.exe'
+            - '\SMEditor.exe'
+            - '\ViewPdf.exe'
+            - '\MSViewer.exe'
+            - '\MicrosoftUpdateOneDrive.exe'
+            - '\ConverterDDSNet.exe'
+    condition: selection_key and selection_value
+falsepositives:
+    - Unlikely in production environments
+level: high

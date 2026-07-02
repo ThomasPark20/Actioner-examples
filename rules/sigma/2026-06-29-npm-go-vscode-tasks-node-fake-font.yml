@@ -1,0 +1,31 @@
+title: Node.js Execution of Disguised Font File - Fake Font Campaign
+id: 9b4d2e8f-3c5e-4f0b-a07d-6e9f1a2b3d4c
+status: experimental
+description: >
+    Detects Node.js executing campaign-specific font file paths used by the
+    Contagious Interview Fake Font variant where malicious JavaScript is
+    disguised as public/fonts/fa-solid-400.woff2 or fa-brands-regular.woff2.
+    This is the initial execution vector triggered by malicious VS Code tasks.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1059.007
+    - attack.t1036.008
+logsource:
+    category: process_creation
+detection:
+    selection_image:
+        Image|endswith: '\node.exe'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'public/fonts/fa-solid-400.woff2'
+            - 'public/fonts/fa-brands-regular.woff2'
+            - 'public\\fonts\\fa-solid-400.woff2'
+            - 'public\\fonts\\fa-brands-regular.woff2'
+    condition: selection_image and selection_cmdline
+falsepositives:
+    - Legitimate build tools that process font files through Node.js are unlikely to execute them directly with these exact paths
+level: high

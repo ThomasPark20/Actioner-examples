@@ -1,0 +1,29 @@
+title: Contagious Interview C2 Network Connection to Known Infrastructure
+id: c3e7a5b1-6f8c-7d3e-d40a-9b2c4d5e6f70
+status: experimental
+description: >
+    Detects network connections to known C2 IP addresses associated with the
+    Contagious Interview campaign that delivers InvisibleFerret infostealer
+    through hijacked npm and Go packages. These IPs serve as command-and-control
+    for the socket.io backdoor and data exfiltration endpoints.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '166.88.134.62'
+            - '198.105.127.210'
+            - '23.27.202.27'
+            - '146.70.41.188'
+    condition: selection
+falsepositives:
+    - Unlikely; these IPs are associated with confirmed malicious infrastructure
+level: critical

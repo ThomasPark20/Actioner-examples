@@ -1,0 +1,17 @@
+# Contagious Interview C2 Communication - Suricata 7.x Rules
+# Campaign: Hijacked npm/Go packages deploying InvisibleFerret via VS Code tasks
+# Author: Actioner
+# Date: 2026-06-29
+# Reference: https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview C2 Bootstrap Request to /$/boot"; flow:established,to_server; http.uri; content:"/$/boot"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100201; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview C2 Data Exfiltration via /u/f"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/u/f"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1041; sid:2100202; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview C2 Environment Upload via /snv"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/snv"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1041; sid:2100203; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview C2 Python Runtime Download"; flow:established,to_server; http.uri; content:"/d/python"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1105; sid:2100204; rev:1;)
+
+alert http $HOME_NET any -> [166.88.134.62,198.105.127.210,23.27.202.27,146.70.41.188] any (msg:"Actioner - Contagious Interview Known C2 IP with Sec-V Header"; flow:established,to_server; http.header; content:"Sec-V"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100205; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Contagious Interview Verify Human Channel Callback"; flow:established,to_server; http.uri; content:"/verify-human/"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/; metadata:author Actioner, created_at 2026-06-29, attack_id T1071.001; sid:2100206; rev:1;)

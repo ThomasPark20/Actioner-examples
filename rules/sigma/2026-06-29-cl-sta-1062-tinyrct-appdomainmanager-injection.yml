@@ -1,0 +1,24 @@
+title: TinyRCT AppDomainManager Injection via MyAppDomainManager.dll
+id: a1b2c3d4-2222-4aaa-bbbb-000000000002
+status: experimental
+description: >
+    Detects the TinyRCT delivery chain where chrome_setup.exe is executed
+    from the Downloads directory alongside a malicious .config file and
+    MyAppDomainManager.dll. This AppDomainManager injection technique
+    (T1574.014) hijacks .NET runtime loading to execute arbitrary code.
+references:
+    - https://unit42.paloaltonetworks.com/cl-sta-1062-tinyrct-backdoor/
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1574.014
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\MyAppDomainManager.dll'
+    condition: selection
+falsepositives:
+    - Legitimate .NET applications using a DLL named MyAppDomainManager.dll (unlikely)
+level: critical

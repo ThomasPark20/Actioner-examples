@@ -1,0 +1,41 @@
+title: STOCKSTAY Backdoor Component Process Execution
+id: a1b2c3d4-1111-4aaa-bbbb-000000000001
+status: experimental
+description: >
+    Detects execution of known STOCKSTAY backdoor component filenames used by
+    Turla APT for espionage operations against Ukrainian government and military
+    targets. STOCKSTAY uses multiple executable names across campaigns including
+    stock market themed names, PDF viewer names, and Microsoft impersonation names.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering
+    - https://thehackernews.com/2026/06/google-details-turlas-new-stockstay.html
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1036.005
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\StockMarketView.exe'
+            - '\StockMarketNet.exe'
+            - '\StockMarketSystem.exe'
+            - '\StockMarketNews.exe'
+            - '\SMEditor.exe'
+            - '\SMNet.exe'
+            - '\ViewPdf.exe'
+            - '\ClientMNGR.exe'
+            - '\ClientMNGR2.exe'
+            - '\GR3.exe'
+            - '\ConverterDDSNet.exe'
+            - '\MSViewer.exe'
+            - '\MSDriver.exe'
+            - '\MSRender.exe'
+            - '\MicrosoftUpdateOneDrive.exe'
+    condition: selection
+falsepositives:
+    - Legitimate stock market software using identical filenames (unlikely)
+level: high

@@ -1,0 +1,39 @@
+title: VSCode Task Auto-Execution via folderOpen - Suspicious Child Process
+id: 8a3c1f7e-2b4d-4e9a-bf6c-5d8e0f1a2c3b
+status: experimental
+description: >
+    Detects VS Code spawning suspicious child processes via the tasks.json
+    folderOpen auto-run mechanism. The Contagious Interview campaign abuses
+    this to execute shell commands that retrieve and run malicious JavaScript
+    disguised as font files, deploying InvisibleFerret infostealer.
+references:
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+author: Actioner
+date: 2026-06-29
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\Code.exe'
+            - '\Code - Insiders.exe'
+    selection_child:
+        Image|endswith:
+            - '\node.exe'
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'fa-solid-400.woff2'
+            - 'fa-brands-regular.woff2'
+            - 'eslint-check'
+    condition: selection_parent and selection_child and selection_cmdline
+falsepositives:
+    - Legitimate VS Code tasks that reference font files in command lines
+level: high

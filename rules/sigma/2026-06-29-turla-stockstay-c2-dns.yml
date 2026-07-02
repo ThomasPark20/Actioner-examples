@@ -1,0 +1,28 @@
+title: STOCKSTAY C2 DNS Query to Known Infrastructure
+id: a1b2c3d4-3333-4aaa-bbbb-000000000003
+status: experimental
+description: >
+    Detects DNS queries to known STOCKSTAY C2 infrastructure hosted on Render
+    and Glitch platforms. Turla uses legitimate cloud hosting services for
+    WebSocket-based C2 communication.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/stockstay-turla-intelligence-gathering
+    - https://thehackernews.com/2026/06/google-details-turlas-new-stockstay.html
+author: Actioner
+date: 2026/06/29
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - 'wool-basalt-clock.glitch.me'
+            - 'weatherdataai.theworkpc.com'
+            - 'canal1zac1a.onrender.com'
+            - 'google-ai-labs-it.onrender.com'
+            - 'driverx86-adobe.onrender.com'
+    condition: selection
+falsepositives:
+    - Legitimate access to these specific subdomains (extremely unlikely)
+level: critical
