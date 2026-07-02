@@ -319,17 +319,18 @@ level: critical
 
 ### Sigma: Gradient Native Extension File Creation
 
-Detects creation of gradient.so or gradient.pyd files within Python site-packages, the native extension deployed by the skytext package.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Requires file event telemetry (e.g., auditd, Sysmon for Linux). The gradient.so name combined with site-packages/skytext path is highly distinctive. -->
+Detects creation of gradient.so or gradient.pyd files within the skytext package directory, the native extension deployed by the ChocoPoC campaign.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Requires file event telemetry (e.g., auditd, Sysmon for Linux, Sysmon on Windows). Revision: removed product:linux (gradient.pyd exists for Windows); tightened detection to require 'skytext' in path — bare 'site-packages' alternative matched any gradient.so in any package including legitimate ML packages. Downgraded to medium per critic. -->
 ```yaml
 title: ChocoPoC RAT - Gradient Native Extension File Creation
 id: 7d9f3e2c-1a4b-5c6d-8e0f-2a3b4c5d6e7f
 status: experimental
 description: >
-    Detects creation of gradient.so or gradient.pyd files associated with the
-    ChocoPoC RAT campaign. The skytext package deploys these compiled native
-    extensions that decrypt and execute embedded malicious Python code.
+    Detects creation of gradient.so or gradient.pyd files within the skytext
+    package path, associated with the ChocoPoC RAT campaign. The skytext
+    package deploys these compiled native extensions that decrypt and execute
+    embedded malicious Python code.
 references:
     - https://www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits
     - https://www.bleepingcomputer.com/news/security/new-chocopoc-malware-targets-researchers-via-trojanized-poc-exploits/
@@ -339,34 +340,34 @@ tags:
     - attack.t1195.001
 logsource:
     category: file_event
-    product: linux
 detection:
     selection:
         TargetFilename|endswith:
             - '/gradient.so'
+            - '\gradient.so'
             - '/gradient.pyd'
-        TargetFilename|contains:
-            - 'skytext'
-            - 'site-packages'
+            - '\gradient.pyd'
+        TargetFilename|contains: 'skytext'
     condition: selection
 falsepositives:
-    - Legitimate Python packages using gradient.so naming (rare; combined with site-packages path)
+    - Legitimate Python packages named skytext using gradient extensions (unlikely)
 level: high
 ```
 
 ### Sigma: Anti-Recursion Environment Variable
 
-Detects the unique anti-recursion environment variables (`ZEBUWIAKGPHOQAP006`, `JKHWQVEKRASDF12`) set by ChocoPoC to prevent re-infection.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). High-fidelity IOC: these environment variable names are unique malware-specific strings with no known legitimate use. Requires process_creation telemetry that captures environment or CommandLine containing env var references. -->
+Detects explicit shell commands referencing the ChocoPoC anti-recursion environment variables. Only catches `export`/`env`/`set` invocations -- the malware sets these via `os.environ` in Python, which does not populate CommandLine; pair with YARA for file-level detection.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Revision: removed product:linux (Windows variant exists); downgraded from high to medium — the malware sets env vars via os.environ which won't appear in CommandLine of process_creation events; this rule only fires when the vars appear in explicit shell commands (export, env, set). Still useful for shell-based investigation or bash/zsh wrapper scenarios. -->
 ```yaml
 title: ChocoPoC RAT - Anti-Recursion Environment Variable
 id: 8e0a4f3d-2b5c-6d7e-9f1a-3b4c5d6e7f8a
 status: experimental
 description: >
-    Detects the anti-recursion environment variables set by the ChocoPoC RAT
-    during execution. The malware sets ZEBUWIAKGPHOQAP006 or JKHWQVEKRASDF12
-    to prevent re-infection of already-compromised systems.
+    Detects shell commands referencing the anti-recursion environment variables
+    set by the ChocoPoC RAT. Note: the malware typically sets these via Python
+    os.environ, which does not appear in process_creation CommandLine; this rule
+    catches explicit export/env/set commands referencing these unique strings.
 references:
     - https://www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits
 author: Actioner
@@ -375,7 +376,6 @@ tags:
     - attack.t1059.006
 logsource:
     category: process_creation
-    product: linux
 detection:
     selection:
         CommandLine|contains:
@@ -384,22 +384,23 @@ detection:
     condition: selection
 falsepositives:
     - None expected - these are unique malware-specific environment variable names
-level: critical
+level: high
 ```
 
 ### Sigma: Mapbox Dataset API C2 Communication
 
-Detects outbound requests to Mapbox datasets API with the specific attacker-controlled account names used for C2 dead-drop retrieval.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Requires CommandLine containing both the Mapbox datasets URI and one of the attacker account names. FP risk very low: the AND condition combining api.mapbox.com/datasets with specific usernames is highly discriminating. -->
+Detects proxy/web log entries showing requests to Mapbox datasets API with attacker-controlled account paths used for C2 dead-drop retrieval.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Revision: changed logsource from process_creation to proxy — Python uses requests/urllib internally so the Mapbox URL never appears in CommandLine; proxy/web logs capture the actual HTTP request. Removed product:linux (cross-platform). Downgraded to medium: IOC-anchored but logsource coverage varies. -->
 ```yaml
 title: ChocoPoC RAT - Mapbox Dataset API C2 Communication
 id: 9f1b5a4e-3c6d-7e8f-0a2b-4c5d6e7f8a9b
 status: experimental
 description: >
-    Detects outbound connections to the Mapbox datasets API endpoint used by
-    ChocoPoC RAT as a dead-drop resolver for C2 payload retrieval and data
-    exfiltration. The malware uses specific Mapbox usernames and dataset IDs.
+    Detects proxy or web log entries showing requests to Mapbox datasets API
+    endpoints used by ChocoPoC RAT as a dead-drop resolver for C2 payload
+    retrieval and data exfiltration. The URL does not appear in process
+    CommandLine (Python uses requests/urllib internally); requires proxy logs.
 references:
     - https://www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits
     - https://www.bleepingcomputer.com/news/security/new-chocopoc-malware-targets-researchers-via-trojanized-poc-exploits/
@@ -409,18 +410,17 @@ tags:
     - attack.t1102
     - attack.t1071.001
 logsource:
-    category: process_creation
-    product: linux
+    category: proxy
 detection:
-    selection_mapbox:
-        CommandLine|contains: 'api.mapbox.com/datasets'
+    selection_host:
+        c-uri|contains: 'api.mapbox.com/datasets'
     selection_accounts:
-        CommandLine|contains:
-            - 'frankley'
-            - 'mattallahsaed'
-            - 'rdraa'
-            - 'james09790'
-    condition: selection_mapbox and selection_accounts
+        c-uri|contains:
+            - '/v1/frankley/'
+            - '/v1/mattallahsaed/'
+            - '/v1/rdraa/'
+            - '/v1/james09790/'
+    condition: selection_host and selection_accounts
 falsepositives:
     - Legitimate Mapbox dataset API usage by these specific accounts (extremely unlikely)
 level: critical
@@ -428,17 +428,18 @@ level: critical
 
 ### Sigma: DNS-over-HTTPS Resolver Usage from Python
 
-Detects Python processes connecting to DoH resolvers used by ChocoPoC for stealthy DNS resolution. Scope to development/researcher workstations to reduce noise.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Medium confidence because legitimate Python tools may use DoH resolvers (httpx, dnspython). The combination of Python + specific DoH domains narrows FP surface but does not eliminate it. -->
+Detects DNS queries for DoH resolver domains originating from Python processes. Hunt rule -- legitimate Python tools also use DoH; scope to researcher workstations and pair with the Mapbox C2 anchor rules.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check failed (proxy). Revision: changed logsource from process_creation to dns_query — Python DoH connections don't appear in CommandLine (uses requests/urllib internally). Removed product:linux (cross-platform). Downgraded to low: this is a behavioral TTP rule, not IOC-specific; legitimate Python tools (httpx, dnspython, doh-proxy) query these same domains. -->
 ```yaml
 title: ChocoPoC RAT - DNS-over-HTTPS Resolver Usage from Python
 id: a02c6b5f-4d7e-8f9a-1b3c-5d6e7f8a9b0c
 status: experimental
 description: >
-    Detects Python processes making connections to DNS-over-HTTPS resolvers
-    (cloudflare-dns.com, dns.alidns.com) which ChocoPoC uses to resolve
-    C2 infrastructure while evading traditional DNS monitoring.
+    Detects DNS queries for DoH resolver domains (cloudflare-dns.com,
+    dns.alidns.com) that ChocoPoC uses to resolve C2 infrastructure while
+    evading traditional DNS monitoring. Hunt rule: legitimate Python tools
+    also query these domains; pair with Mapbox C2 account-path detections.
 references:
     - https://www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits
 author: Actioner
@@ -447,30 +448,26 @@ tags:
     - attack.t1071.001
     - attack.t1573.002
 logsource:
-    category: process_creation
-    product: linux
+    category: dns_query
 detection:
-    selection_python:
-        Image|endswith:
-            - '/python'
-            - '/python3'
-    selection_doh:
-        CommandLine|contains:
+    selection:
+        QueryName|endswith:
             - 'cloudflare-dns.com'
             - 'dns.alidns.com'
-    condition: selection_python and selection_doh
+    condition: selection
 falsepositives:
-    - Python-based DNS tools or scripts using DoH resolvers
+    - Python-based DNS tools, DoH proxies, or privacy-focused applications using DoH resolvers
+    - Browser-level DoH resolution (Firefox, Chrome with DoH enabled)
 level: medium
 ```
 
 ### Suricata: ChocoPoC C2 and Exfiltration Network Detection
 
-Six rules targeting Mapbox dataset API C2 dead-drop patterns (account-specific URI paths), DNS resolution of api.mapbox.com, and HTTP exfiltration to the known upload server at 91.132.163.78:8001.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0, "Configuration provided was successfully loaded." Six rules: sid:2200001 (DNS api.mapbox.com), sid:2200002-2200004 (HTTP Mapbox dataset per account), sid:2200005 (upload endpoint URI), sid:2200006 (upload server IP:port). DNS rule for api.mapbox.com is broader (medium confidence standalone) but included as a hunt rule; the HTTP rules with account-specific URI paths are high-confidence IOC-anchored. -->
+Seven rules targeting Mapbox dataset API C2 dead-drop patterns (account-specific URI paths for all four accounts), DNS resolution of api.mapbox.com (hunt rule), and HTTP exfiltration to the known upload server at 91.132.163.78:8001. Per-rule confidence: sid:2200001 (DNS api.mapbox.com) is **low/hunt** -- fires on any api.mapbox.com DNS query including legitimate Mapbox SDK usage, and ChocoPoC uses DoH so this misses the actual malware; sid:2200002-2200004,2200007 (account-specific HTTP) are **high**; sid:2200005-2200006 (upload server) are **high** (IP will age).
+**Status:** compile ✅ compiles · confidence: high (per-account HTTP rules), low (DNS hunt rule)
+<!-- audit: suricata -T exit 0. Revision: added sid:2200007 for rdraa account (was missing); broke out per-rule confidence — sid:2200001 explicitly labeled hunt/low (fires on all api.mapbox.com DNS, thousands/day in Mapbox-using orgs, and ChocoPoC uses DoH bypassing DNS entirely). -->
 ```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - ChocoPoC RAT Mapbox C2 Dataset API Query"; flow:to_server; dns.query; content:"api.mapbox.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02; sid:2200001; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChocoPoC RAT Mapbox C2 Dataset API Query [HUNT]"; flow:to_server; dns.query; content:"api.mapbox.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02, confidence low, hunt true; sid:2200001; rev:2;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChocoPoC RAT Mapbox Dataset C2 Retrieval (frankley)"; flow:established,to_server; http.uri; content:"/datasets/v1/frankley/"; fast_pattern; http.host; content:"api.mapbox.com"; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02; sid:2200002; rev:1;)
 
@@ -481,13 +478,15 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChocoPoC RAT Mapb
 alert http $HOME_NET any -> 91.132.163.78 any (msg:"Actioner - ChocoPoC RAT Exfiltration to Upload Server"; flow:established,to_server; http.uri; content:"/assets/static/bundle.ext.min.de5b2bc9.js"; fast_pattern; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02; sid:2200005; rev:1;)
 
 alert http $HOME_NET any -> 91.132.163.78 8001 (msg:"Actioner - ChocoPoC RAT Upload Server Connection"; flow:established,to_server; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02; sid:2200006; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChocoPoC RAT Mapbox Dataset C2 Retrieval (rdraa)"; flow:established,to_server; http.uri; content:"/datasets/v1/rdraa/"; fast_pattern; http.host; content:"api.mapbox.com"; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits; metadata:author Actioner, created_at 2026-07-02; sid:2200007; rev:1;)
 ```
 
 ### Snort: ChocoPoC C2 and Exfiltration Detection
 
-Five rules targeting the known upload server IP:port, exfiltration URI path, and Mapbox dataset account-specific C2 patterns.
+Six rules targeting the known upload server IP:port, exfiltration URI path, and Mapbox dataset account-specific C2 patterns for all four accounts. All IOC-anchored, high confidence.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -T with included rules exit 0, "Snort successfully validated the configuration!" Five rules: sid:2100001 (upload endpoint), sid:2100002-2100004 (Mapbox per-account dead drop), sid:2100005 (upload server IP:port). All IOC-anchored. -->
+<!-- audit: snort -T exit 0. Revision: added sid:2100006 for rdraa account (was missing). All six rules IOC-anchored. -->
 ```snort
 alert tcp $HOME_NET any -> 91.132.163.78 8001 (msg:"ChocoPoC RAT - Exfiltration to Known Upload Server"; flow:established,to_server; content:"/assets/static/bundle.ext.min.de5b2bc9.js"; fast_pattern; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits;)
 
@@ -498,13 +497,15 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ChocoPoC RAT - Mapbox
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ChocoPoC RAT - Mapbox Dataset C2 Dead Drop (james09790)"; flow:established,to_server; content:"api.mapbox.com"; content:"/datasets/v1/james09790/"; fast_pattern; sid:2100004; rev:1; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits;)
 
 alert tcp $HOME_NET any -> 91.132.163.78 8001 (msg:"ChocoPoC RAT - Connection to Known Upload Server IP"; flow:established,to_server; sid:2100005; rev:1; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"ChocoPoC RAT - Mapbox Dataset C2 Dead Drop (rdraa)"; flow:established,to_server; content:"api.mapbox.com"; content:"/datasets/v1/rdraa/"; fast_pattern; sid:2100006; rev:1; classtype:trojan-activity; reference:url,www.sekoia.com/blog/dont-eat-the-chocopocs-how-vulnerability-researchers-were-repeatedly-targeted-by-trojanised-exploits;)
 ```
 
 ### YARA: ChocoPoC RAT and Gradient Extension Detection
 
-Two rules: Rule 1 detects ChocoPoC RAT scripts/components via anti-recursion markers, Spanish command names, Mapbox identifiers, and C2 infrastructure strings. Rule 2 detects the gradient.so/gradient.pyd native extension via XOR key and anti-debugging artifacts.
+Two rules: Rule 1 detects ChocoPoC RAT scripts/components via anti-recursion markers, Spanish command names (anchored with a non-Spanish string), Mapbox identifiers, and C2 infrastructure strings. Rule 2 detects the gradient.so/gradient.pyd native extension via XOR key and anti-debugging artifacts.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive file with ZEBUWIAKGPHOQAP006+PTsjBGKQUxZorq2+JKHWQVEKRASDF12+JKHKJ23VAS8DF9 matched Malware_Python_ChocoPoC_RAT; negative benign Python script produced no output. Positive sample constructed from published IOC strings (anti-recursion env vars from Sekoia report). Rule 1 uses combinatorial logic: 2-of anti-recursion, OR Spanish commands combo, OR Mapbox dataset/feature IDs, OR C2 upload combo, OR 4-of-any. Rule 2 restricted to ELF/PE files with XOR key + anti-debug artifacts. -->
+<!-- audit: yarac exit 0. Sample re-tested after condition tightening. Revision: (1) $cmd_hola+$cmd_dormir were common Spanish words — now requires $cmd_browserdata as a third non-Spanish anchor; (2) raised "4 of them" to "6 of them" to reduce false positives from coincidental partial matches across 20+ strings. Rule 2 unchanged (KEEP). -->
 ```yara
 rule Malware_Python_ChocoPoC_RAT
 {
@@ -552,13 +553,12 @@ rule Malware_Python_ChocoPoC_RAT
         filesize < 5MB and
         (
             (2 of ($env_anti1, $env_anti2, $env_val1, $env_val2)) or
-            ($cmd_hola and $cmd_dormir) or
-            ($cmd_browserdata and 1 of ($cmd_hola, $cmd_dormir)) or
+            ($cmd_hola and $cmd_dormir and $cmd_browserdata) or
             (1 of ($mapbox_dataset, $mapbox_feature)) or
             ($c2_upload and $c2_path) or
             ($xor_key and 1 of ($pkg_skytext, $pkg_frint, $stage2)) or
             ($distutils_hook and 1 of ($env_anti*, $cmd_*, $mapbox_*)) or
-            (4 of them)
+            (6 of them)
         )
 }
 
