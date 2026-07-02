@@ -1,0 +1,27 @@
+# Suricata rules for BumbleBee / AdaptixC2 / Akira ransomware incident
+# Source: https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+# Generated: 2026-07-01 v2 (REVISED)
+
+# AdaptixC2 C2 Beacon (IOC-based, high confidence)
+alert http $HOME_NET any -> 172.96.137.160 any (msg:"ACTIONER AdaptixC2 C2 Beacon to Known Infrastructure"; flow:established,to_server; classtype:trojan-activity; sid:2026070101; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# BumbleBee C2 TLS (IOC-based, high confidence)
+alert tls $HOME_NET any -> [188.40.187.145,109.205.195.211,171.22.183.43,194.127.178.21,192.121.22.94] 443 (msg:"ACTIONER BumbleBee C2 TLS Connection to Known Infrastructure"; flow:established,to_server; classtype:trojan-activity; sid:2026070102; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# SFTP Exfiltration (IOC-based, high confidence)
+alert ssh $HOME_NET any -> 185.174.100.203 22 (msg:"ACTIONER Akira Exfiltration SFTP Connection to Known Server"; flow:established,to_server; classtype:trojan-activity; sid:2026070103; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# Reverse SSH Tunnel (IOC-based, high confidence)
+alert ssh $HOME_NET any -> 193.242.184.150 22 (msg:"ACTIONER Reverse SSH Tunnel to Known Akira Exfil Server"; flow:established,to_server; classtype:trojan-activity; sid:2026070104; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# BumbleBee DGA Pattern (behavioral, low confidence -- high FP potential)
+alert dns $HOME_NET any -> any any (msg:"ACTIONER BumbleBee DGA Domain Resolution"; dns.query; content:".org"; endswith; pcre:"/^[a-z0-9]{14}\.org$/"; classtype:trojan-activity; sid:2026070105; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# FileZilla SSH Banner (supplementary, low confidence)
+alert ssh $HOME_NET any -> $EXTERNAL_NET 22 (msg:"ACTIONER FileZilla SSH Client Banner - Potential SFTP Exfiltration"; flow:established,to_server; content:"SSH-2.0-FileZilla"; depth:20; classtype:policy-violation; sid:2026070106; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+
+# BumbleBee Download Gateway on Known Domains (IOC-based, low confidence)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"download-center.online"; classtype:trojan-activity; sid:2026070107; rev:2; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"download-server.online"; classtype:trojan-activity; sid:2026070108; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"soft-server.online"; classtype:trojan-activity; sid:2026070109; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ACTIONER BumbleBee Download Gateway URL Pattern on Known Domain"; flow:established,to_server; http.uri; content:"/Get?q="; startswith; http.host; content:"soft-hub.pro"; classtype:trojan-activity; sid:2026070110; rev:1; metadata:created_at 2026_07_01, updated_at 2026_07_01;)
