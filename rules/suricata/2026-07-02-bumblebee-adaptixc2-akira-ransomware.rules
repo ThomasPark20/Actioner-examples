@@ -1,0 +1,13 @@
+alert tcp $HOME_NET any -> 172.96.137.160 any (msg:"Actioner - AdaptixC2 Beacon to Known C2 Server 172.96.137.160"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200001; rev:1;)
+
+alert tcp $HOME_NET any -> 188.40.187.145 443 (msg:"Actioner - BumbleBee C2 to Known Infrastructure 188.40.187.145"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200002; rev:1;)
+
+alert tcp $HOME_NET any -> 109.205.195.211 443 (msg:"Actioner - BumbleBee C2 to Known Infrastructure 109.205.195.211"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200003; rev:1;)
+
+alert tcp $HOME_NET any -> 171.22.183.43 any (msg:"Actioner - BumbleBee C2 to Known Infrastructure 171.22.183.43"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200004; rev:1;)
+
+alert tcp $HOME_NET any -> 194.127.178.21 any (msg:"Actioner - BumbleBee C2 to Known Infrastructure 194.127.178.21"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200005; rev:1;)
+
+alert tcp $HOME_NET any -> 185.174.100.203 22 (msg:"Actioner - Akira Data Exfiltration to Known SFTP Server 185.174.100.203"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200006; rev:1;)
+
+alert tcp $HOME_NET any -> 193.242.184.150 any (msg:"Actioner - BumbleBee/Akira SSH Tunnel Exfil to 193.242.184.150"; flow:established,to_server; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/; metadata:author Actioner, created_at 2026-07-02; sid:2200007; rev:1;)

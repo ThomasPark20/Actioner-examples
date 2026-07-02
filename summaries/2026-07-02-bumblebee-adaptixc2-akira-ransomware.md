@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-02
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -182,7 +182,7 @@ powershell.exe -Command "Get-WmiObject Win32_Shadowcopy | Remove-WmiObject"
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1189 | Drive-by Compromise | SEO poisoning via Bing search directing to lookalike domains |
+| T1608.006 | Stage Capabilities: SEO Poisoning | SEO poisoning via Bing search directing to lookalike domains |
 | T1204.002 | User Execution: Malicious File | Victim downloads and executes trojanized MSI installer |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | consent.exe side-loads malicious msimg32.dll from temp directory |
 | T1055 | Process Injection | BumbleBee injects AdaptixC2 shellcode into AdgNsy.exe |
@@ -219,9 +219,8 @@ The approximately 77 GB exfiltration preceding encryption confirms the double-ex
 4. Search for rundll32.exe invoking comsvcs.dll with MiniDump or ordinal #24
 5. Search network logs for connections to the BumbleBee C2 IPs: 188[.]40[.]187[.]145, 109[.]205[.]195[.]211, 171[.]22[.]183[.]43, 194[.]127[.]178[.]21
 6. Search for connections to AdaptixC2 at 172[.]96[.]137[.]160
-7. Search DNS for DGA domains matching 14-character .org pattern
-8. Search for domain account creation with names containing "backup_DA" or "backup_EA"
-9. Search for FileZilla SFTP connections to 185[.]174[.]100[.]203
+7. Search for domain account creation with names containing "backup_DA" or "backup_EA"
+8. Search for FileZilla SFTP connections to 185[.]174[.]100[.]203
 
 ### Remediation
 
@@ -243,7 +242,9 @@ The approximately 77 GB exfiltration preceding encryption confirms the double-ex
 
 ## Detection Rules
 
-These 15 rules (6 Sigma, 5 Snort, 7 Suricata, 2 YARA) target the BumbleBee/AdaptixC2/Akira intrusion chain across host, file, and network telemetry. Sigma rules cover the distinctive host-side artifacts (DLL side-loading path, Veeam credential theft, LSASS dumping, shadow copy deletion, account creation, NTDS theft). Snort and Suricata rules cover C2 and exfiltration network indicators. YARA rules target the BumbleBee loader and Akira ransomware file-level indicators. IOC-based rules are high confidence but rotate with infrastructure; compile status reflects that `sigma check` failed due to a network issue (MITRE ATT&CK data fetch blocked by proxy) -- the portability oracles (Splunk + LogScale convert) passed cleanly for all Sigma rules.
+<!-- revision: v2.0 FINAL — applied critic verdict. Dropped: Snort DGA rule SID 2100105 (matched ANY 14-char .org DNS query, massive FP). Fixed: LSASS rule narrowed to campaign-specific #+000024 + \Windows\Temp\, confidence medium, level high. Shadow copy rule confidence medium, level high. NTDS rule confidence medium, FPs acknowledged. YARA BumbleBee: removed dead $msi_hash, tightened condition. YARA Akira: removed $shadow strings (PowerShell artifacts, not in binary), added speculative caveat. Fixed rule count 15→19. Fixed T1189→T1608.006. Added content match to Snort SID 2100103. -->
+
+These 19 rules (6 Sigma, 4 Snort, 7 Suricata, 2 YARA) target the BumbleBee/AdaptixC2/Akira intrusion chain across host, file, and network telemetry. IOC-based network rules are high confidence but rotate with infrastructure; three TTP-layer Sigma rules (comsvcs, shadow copy, NTDS) are capped at medium confidence. Compiles does not equal fires -- verify in your pipeline.
 
 ### Sigma: BumbleBee DLL Side-Loading via consent.exe in Temp Directory
 
@@ -251,7 +252,7 @@ Detects consent.exe executing from a temporary directory path (not System32), th
 
 **Status:** compile ✅ compiles (convert) | Confidence: high
 
-<!-- audit: sigma check failed (network: MITRE ATT&CK data fetch 403 via proxy — not a rule issue). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Consent.exe outside System32 is highly distinctive; the temp path filter further narrows to this campaign's delivery mechanism. FP risk: near-zero — consent.exe is a system binary that should never run from temp dirs. -->
+<!-- audit: sigma check failed (network: MITRE ATT&CK data fetch 403 via proxy -- not a rule issue). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Consent.exe outside System32 is highly distinctive; the temp path filter further narrows to this campaign's delivery mechanism. FP risk: near-zero -- consent.exe is a system binary that should never run from temp dirs. -->
 
 ```yaml
 title: BumbleBee DLL Side-Loading via consent.exe and msimg32.dll in Temp Directory
@@ -293,7 +294,7 @@ Detects psql.exe querying the VeeamBackup database credentials table, a techniqu
 
 **Status:** compile ✅ compiles (convert) | Confidence: high
 
-<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Highly specific: psql targeting VeeamBackup + credentials table is not legitimate workflow from non-Veeam contexts. FP: legitimate Veeam DB admins querying creds table — extremely rare in practice. -->
+<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Highly specific: psql targeting VeeamBackup + credentials table is not legitimate workflow from non-Veeam contexts. FP: legitimate Veeam DB admins querying creds table -- extremely rare in practice. -->
 
 ```yaml
 title: Veeam Credential Dumping via psql Command
@@ -324,22 +325,23 @@ falsepositives:
 level: high
 ```
 
-### Sigma: LSASS Memory Dump via comsvcs.dll MiniDump
+### Sigma: LSASS Memory Dump via comsvcs.dll Ordinal 24 to Temp Directory
 
-Detects LSASS credential dumping via rundll32.exe invoking comsvcs.dll with MiniDump or ordinal #+000024 and output to Windows\Temp.
+Detects comsvcs.dll credential dumping via the campaign-specific #+000024 ordinal with output to \Windows\Temp\. Well-known TTP narrowed to this campaign's exact invocation pattern.
 
-**Status:** compile ✅ compiles (convert) | Confidence: high
+**Status:** compile ✅ compiles (convert) | Confidence: medium
 
-<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Well-documented credential dumping technique. Ordinal #24 and #+000024 both covered. FP: legitimate debugging via comsvcs MiniDump — very rare in enterprise. Overlaps with community Sigma rules for comsvcs abuse. -->
+<!-- revision: narrowed from generic comsvcs detection (MiniDump/#24/#+000024 OR) to campaign-specific #+000024 AND \Windows\Temp\ output path. Confidence high→medium, level critical→high. Altitude violation fix: generic comsvcs.dll MiniDump abuse is covered by community Sigma rules (e.g. proc_creation_win_lolbin_rundll32_comsvcs_dump); this rule adds value only by narrowing to the campaign's exact ordinal+output combination. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. FP: legitimate debugging via comsvcs.dll ordinal export to Windows\Temp -- near-zero in practice. -->
 
 ```yaml
-title: LSASS Memory Dump via comsvcs.dll MiniDump
+title: LSASS Memory Dump via comsvcs.dll Ordinal 24 to Temp Directory
 id: 9c3d5e6f-7a8b-4c12-d3e4-f5a6b7c8d9e0
 status: experimental
 description: >
     Detects LSASS credential dumping using rundll32.exe to invoke comsvcs.dll
-    MiniDump export with obfuscated ordinal (#+000024) and output to Windows\Temp,
-    consistent with BumbleBee/Akira credential harvesting.
+    via obfuscated ordinal (#+000024) with output to Windows\Temp, consistent
+    with the BumbleBee/Akira campaign's specific credential harvesting pattern.
 references:
     - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
 author: Actioner
@@ -354,24 +356,24 @@ detection:
         Image|endswith: '\rundll32.exe'
     selection_comsvcs:
         CommandLine|contains: 'comsvcs.dll'
-    selection_dump:
-        CommandLine|contains:
-            - 'MiniDump'
-            - '#24'
-            - '#+000024'
-    condition: selection_rundll32 and selection_comsvcs and selection_dump
+    selection_ordinal:
+        CommandLine|contains: '#+000024'
+    selection_temp_output:
+        CommandLine|contains: '\Windows\Temp\'
+    condition: selection_rundll32 and selection_comsvcs and selection_ordinal and selection_temp_output
 falsepositives:
-    - Legitimate debugging operations using comsvcs.dll MiniDump function
-level: critical
+    - Legitimate debugging operations using comsvcs.dll ordinal export with output to Windows\Temp
+level: high
 ```
 
-### Sigma: Shadow Copy Deletion via Get-WmiObject PowerShell
+### Sigma: Shadow Copy Deletion via Get-WmiObject PowerShell Command
 
-Detects the specific Akira ransomware technique of deleting shadow copies via `Get-WmiObject Win32_Shadowcopy | Remove-WmiObject` rather than the more common vssadmin approach.
+Detects shadow copy deletion using PowerShell WMI cmdlets, a TTP used by multiple ransomware families including Akira.
 
-**Status:** compile ✅ compiles (convert) | Confidence: high
+**Status:** compile ✅ compiles (convert) | Confidence: medium
 
-<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. This WMI-based shadow deletion is less commonly detected than vssadmin/wmic approaches. FP: admin scripts managing shadow copies via WMI — possible but uncommon. -->
+<!-- revision: confidence high→medium, level critical→high. Altitude violation: WMI-based shadow copy deletion is used by multiple ransomware families (Akira, BlackBasta, Royal), not unique to this campaign. Rule remains valuable as the WMI variant is less commonly detected than vssadmin approaches. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. FP: admin scripts managing shadow copies via WMI -- possible but uncommon. -->
 
 ```yaml
 title: Shadow Copy Deletion via Get-WmiObject PowerShell Command
@@ -402,7 +404,7 @@ detection:
     condition: selection_ps and selection_cmdline
 falsepositives:
     - Legitimate administrator scripts managing shadow copies via WMI
-level: critical
+level: high
 ```
 
 ### Sigma: Suspicious Backup Domain Account Creation Pattern
@@ -411,7 +413,7 @@ Detects creation of domain accounts matching the backup_DA/backup_EA naming conv
 
 **Status:** compile ✅ compiles (convert) | Confidence: high
 
-<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Highly specific account naming pattern. FP: organizations using identical naming convention for legitimate backup accounts — unlikely but verify naming standards. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Highly specific account naming pattern. FP: organizations using identical naming convention for legitimate backup accounts -- unlikely but verify naming standards. -->
 
 ```yaml
 title: Suspicious Backup Domain Account Creation Pattern
@@ -449,11 +451,12 @@ level: high
 
 ### Sigma: NTDS.dit Credential Theft via wbadmin Backup
 
-Detects wbadmin.exe creating a backup that includes the NTDS.dit Active Directory database for offline credential extraction.
+Detects wbadmin.exe creating a backup that includes the NTDS.dit Active Directory database for offline credential extraction. Well-known TTP; filter by scheduled backup windows and authorized service accounts to reduce FPs.
 
-**Status:** compile ✅ compiles (convert) | Confidence: high
+**Status:** compile ✅ compiles (convert) | Confidence: medium
 
-<!-- audit: sigma check failed (network). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. wbadmin backup targeting ntds.dit is a well-documented credential theft technique. FP: legitimate AD backup operations — can be filtered by backup schedule or service account context. -->
+<!-- revision: confidence high→medium. Altitude violation: wbadmin+ntds.dit backup is a well-documented credential theft technique (T1003.003) used across many campaigns. Legitimate AD backup operations will match -- organizations with scheduled NTDS backups via wbadmin should create environment-specific exclusions for their backup service accounts and schedule windows. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. FP: legitimate AD backup operations that include NTDS.dit -- filter by backup schedule or service account context. -->
 
 ```yaml
 title: NTDS.dit Credential Theft via wbadmin Backup
@@ -481,28 +484,27 @@ detection:
             - 'ntds.dit'
     condition: selection
 falsepositives:
-    - Legitimate Active Directory backup operations that include NTDS.dit
+    - Legitimate Active Directory backup operations that include NTDS.dit -- filter by scheduled backup windows and authorized service accounts
 level: high
 ```
 
 ### Snort: BumbleBee C2 Communication to Known Infrastructure
 
-Five Snort rules covering BumbleBee C2 IPs (four rules) and DGA domain DNS query patterns (one rule). IOC-based with limited shelf life as infrastructure rotates.
+Four Snort rules covering BumbleBee C2 IPs. IOC-based with limited shelf life as infrastructure rotates.
 
-**Status:** compile ✅ compiles (snort -T exit 0, 5 rules read) | Confidence: high (IOC-specific)
+**Status:** compile ✅ compiles (snort -T exit 0, 4 rules read) | Confidence: high (IOC-specific)
 
-<!-- audit: snort -c /etc/snort/snort-test.conf -T exit 0 with "5 Snort rules read, 5 detection rules". sigma check n/a. SID range 2100101-2100105. DGA rule (2100105) matches DNS query structure for 14-char label followed by .org TLD via byte-level DNS wire format matching. FP: DGA rule may fire on legitimate 14-char .org domains — use as supporting indicator. IP rules are IOC-specific with near-zero FP. -->
+<!-- revision: dropped SID 2100105 (DGA domain query pattern) -- matched ANY 14-char .org DNS query via byte-level length prefix, producing massive FP volume on legitimate domains. Added TLS handshake content:|16 03| to SID 2100103 (171.22.183.43) for consistency; bumped to rev:2. SID 2100104 (194.127.178.21) retains no content match intentionally: source did not specify protocol or port for this IP, and adding an assumption would risk missing non-TLS C2 variants. -->
+<!-- audit: snort -c /etc/snort/snort.conf -R <file> -T exit 0. SID range 2100101-2100104. IP rules are IOC-specific with near-zero FP. -->
 
 ```snort
 alert tcp $HOME_NET any -> 188.40.187.145 443 (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 188.40.187.145"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100101; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
 
 alert tcp $HOME_NET any -> 109.205.195.211 443 (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 109.205.195.211"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100102; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
 
-alert tcp $HOME_NET any -> 171.22.183.43 any (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 171.22.183.43"; flow:established,to_server; sid:2100103; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
+alert tcp $HOME_NET any -> 171.22.183.43 any (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 171.22.183.43"; flow:established,to_server; content:"|16 03|"; depth:2; sid:2100103; rev:2; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
 
 alert tcp $HOME_NET any -> 194.127.178.21 any (msg:"BUMBLEBEE C2 Communication to Known Infrastructure 194.127.178.21"; flow:established,to_server; sid:2100104; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
-
-alert udp $HOME_NET any -> any 53 (msg:"BUMBLEBEE DGA Domain Query Pattern (.org 14-char)"; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:10; offset:2; content:"|0e|"; distance:0; content:"|03|org|00|"; distance:14; within:6; sid:2100105; rev:1; classtype:trojan-activity; reference:url,thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/;)
 ```
 
 ### Suricata: BumbleBee/AdaptixC2/Akira Network Indicators
@@ -531,11 +533,12 @@ alert tcp $HOME_NET any -> 193.242.184.150 any (msg:"Actioner - BumbleBee/Akira 
 
 ### YARA: BumbleBee Loader and Akira Ransomware File Detection
 
-Two YARA rules targeting the BumbleBee loader DLL (msimg32.dll with side-loading artifacts) and Akira ransomware executable (locker.exe with command-line parameters and shadow copy deletion strings). Without access to the actual malware samples, these rules key on documented strings and known hashes.
+Two YARA rules targeting the BumbleBee loader DLL (msimg32.dll with side-loading artifacts) and Akira ransomware executable (locker.exe). Without access to the actual malware samples, these rules key on documented strings and known hashes.
 
 **Status:** compile ✅ compiles (yarac exit 0) | Confidence: medium (string-based without sample verification)
 
-<!-- audit: yarac exit 0. No sample available for fire test — confidence capped at medium. BumbleBee rule keys on side-loading folder name, DLL name, and renamed WAB binary name. Akira rule keys on CLI parameters (-p=, -n=) combined with ransomware-associated strings. Both require PE header (MZ) as base condition. -->
+<!-- revision: BumbleBee rule: removed $msi_hash (dead code -- SHA256 hash bytes of the MSI would not appear inside the DLL they describe). Tightened condition: now requires at least one campaign-specific string ($folder or $wab) AND at least one DLL-context string ($dll_name or $side_load), preventing 2-of-4 combinations that lack campaign specificity. Akira rule: removed $shadow1/$shadow2 (Win32_Shadowcopy and Remove-WmiObject are PowerShell command-line strings executed separately, not embedded in the locker.exe binary). Simplified to single branch requiring both CLI params and Akira-specific string. Added speculative caveat in meta: rule built from documented behavioral artifacts without access to the actual sample. -->
+<!-- audit: yarac exit 0. No sample available for fire test -- confidence capped at medium. -->
 
 ```yara
 rule BumbleBee_Loader_msimg32
@@ -554,40 +557,34 @@ rule BumbleBee_Loader_msimg32
         $side_load = "consent.exe" ascii wide
         $folder = "ApplicationInstallationFolder" ascii wide
         $wab = "AdgNsy.exe" ascii wide
-        $msi_hash = { 18 6b 26 df 63 df 3b 73 34 04 3b 47 65 9c ba 41 }
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 5MB and
-        (2 of ($dll_name, $side_load, $folder, $wab) or $msi_hash)
+        (1 of ($folder, $wab)) and (1 of ($dll_name, $side_load))
 }
 
 rule Akira_Ransomware_Locker
 {
     meta:
-        description = "Detects Akira ransomware locker executable based on command-line patterns and behavioral strings"
+        description = "Detects Akira ransomware locker executable based on command-line patterns and Akira-specific strings. Speculative: built from documented behavioral artifacts without access to the actual sample binary."
         author = "Actioner"
         date = "2026-07-02"
         reference = "https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/"
         hash = "de730d969854c3697fd0e0803826b4222f3a14efe47e4c60ed749fff6edce19d"
         tlp = "WHITE"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $param_p = "-p=" ascii
         $param_n = "-n=" ascii
         $akira1 = "akira" ascii nocase
-        $shadow1 = "Win32_Shadowcopy" ascii wide
-        $shadow2 = "Remove-WmiObject" ascii wide
         $ext = ".akira" ascii wide
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 10MB and
-        (
-            ($param_p and $param_n and (1 of ($akira*, $ext))) or
-            (1 of ($akira*, $ext) and all of ($shadow*))
-        )
+        (1 of ($akira*, $ext)) and ($param_p and $param_n)
 }
 ```
 
