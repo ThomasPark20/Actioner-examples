@@ -1,0 +1,30 @@
+title: Bumblebee DLL Sideloading via consent.exe from Temp Directory
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
+status: experimental
+description: >
+    Detects execution of consent.exe from a temporary or user-writable directory,
+    indicative of the Bumblebee loader DLL sideloading technique observed in DFIR Report
+    case TB36726. The legitimate consent.exe lives in System32; execution from AppData or
+    Temp directories signals trojanized MSI payload extraction and DLL sideloading
+    (consent.exe loading a malicious msimg32.dll).
+references:
+    - https://thedfirreport.com/2026/06/29/from-bing-search-to-ransomware-bumblebee-and-adaptixc2-deliver-akira-3/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1574.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\consent.exe'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate software installers that bundle a binary named consent.exe outside System32
+level: high

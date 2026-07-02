@@ -1,0 +1,33 @@
+title: Python Execution from InvisibleFerret Staging Path
+id: 7878df10-8599-4eaf-87c5-30f0864a6f77
+status: experimental
+description: >
+    Detects Python being installed or executed from unusual staging paths used by the
+    InvisibleFerret infostealer. On Windows the malware drops a full Python runtime
+    under %LOCALAPPDATA%\Programs\Python\Python3127, while on Linux/macOS it stages
+    under /tmp/.npm. These paths are used to run the final-stage Python infostealer
+    that harvests browser credentials, crypto wallets, SSH keys, and cloud storage
+    metadata. Part of the North Korea "Fake Font" / Contagious Interview campaign.
+references:
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1195.001
+    - attack.t1059.006
+    - attack.t1074.001
+logsource:
+    category: process_creation
+detection:
+    selection_windows:
+        Image|contains: '\Programs\Python\Python31'
+    selection_nix:
+        Image|contains: '/tmp/.npm'
+        Image|endswith:
+            - '/python'
+            - '/python3'
+    condition: selection_windows or selection_nix
+falsepositives:
+    - Developers who have intentionally installed Python to the exact Python3127 directory under LOCALAPPDATA
+level: medium

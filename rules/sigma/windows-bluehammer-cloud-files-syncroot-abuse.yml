@@ -1,0 +1,44 @@
+title: BlueHammer - Cloud Files Sync Root Registration by Untrusted Process
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects processes calling CfRegisterSyncRoot or CfConnectSyncRoot APIs outside of
+    known cloud storage providers. The BlueHammer exploit (CVE-2026-33825) abuses the
+    Windows Cloud Files API to register a directory as a sync root, then uses
+    CfCallbackFetchPlaceHolders callbacks to stall the WinDefend service process during
+    its TOCTOU race condition exploitation.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/
+    - https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer
+    - https://github.com/Nightmare-Eclipse/BlueHammer
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.defense_evasion
+    - attack.t1562
+    - cve.2026-33825
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\cldapi.dll'
+    filter_known_providers:
+        Image|endswith:
+            - '\OneDrive.exe'
+            - '\OneDriveSetup.exe'
+            - '\iCloudDrive.exe'
+            - '\Dropbox.exe'
+            - '\GoogleDriveFS.exe'
+            - '\FileCoAuth.exe'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection and not (filter_known_providers or filter_system)
+falsepositives:
+    - Third-party cloud storage providers not in the allowlist
+    - Custom sync applications using the Cloud Files API
+level: medium

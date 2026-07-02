@@ -1,0 +1,41 @@
+title: Blockchain Dead Drop DNS Query from Development Tool (InvisibleFerret)
+id: e907b566-01ee-4159-90dc-599b6a1c8dcb
+status: experimental
+description: >
+    Detects DNS queries to blockchain API endpoints (api.trongrid.io,
+    fullnode.mainnet.aptoslabs.com) originating from development tool processes
+    such as Node.js, VS Code, or Cursor IDE. The InvisibleFerret backdoor uses
+    TronGrid and Aptos blockchain transactions as dead drops to retrieve C2
+    configuration and payload URLs, a technique that abuses legitimate blockchain
+    infrastructure for covert command distribution. Part of the North Korea
+    "Fake Font" / Contagious Interview campaign.
+references:
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1195.001
+    - attack.t1071.001
+    - attack.t1102.001
+logsource:
+    category: dns_query
+detection:
+    selection_domain:
+        QueryName|endswith:
+            - 'api.trongrid.io'
+            - 'fullnode.mainnet.aptoslabs.com'
+            - 'bsc-dataseed.binance.org'
+            - 'bsc-rpc.publicnode.com'
+    selection_process:
+        Image|endswith:
+            - '\node.exe'
+            - '\code.exe'
+            - '\cursor.exe'
+            - '/node'
+            - '/code'
+            - '/cursor'
+    condition: selection_domain and selection_process
+falsepositives:
+    - Web3 / blockchain developers legitimately querying TronGrid or Aptos from Node.js
+level: high

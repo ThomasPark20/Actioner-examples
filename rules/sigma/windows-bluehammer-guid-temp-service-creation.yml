@@ -1,0 +1,35 @@
+title: BlueHammer - GUID-Named Temporary Service Creation
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c
+status: experimental
+description: >
+    Detects creation of a Windows service with a GUID-style name, as used by the
+    BlueHammer exploit (CVE-2026-33825) in its final privilege escalation step.
+    After obtaining a SYSTEM token via LogonUserEx() and token duplication, the exploit
+    creates a malicious Windows Service via CreateService() with a random GUID name
+    to execute code as SYSTEM.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-windows-bluehammer-flaw-now-exploited-by-ransomware-gangs/
+    - https://www.cyderes.com/howler-cell/windows-zero-day-bluehammer
+    - https://github.com/Nightmare-Eclipse/BlueHammer
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.persistence
+    - attack.t1543.003
+    - cve.2026-33825
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName|re: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    condition: selection
+falsepositives:
+    - Some legitimate software installers create GUID-named services temporarily
+    - Container runtime services
+    - Windows Update
+    - MSI-based installers
+level: medium

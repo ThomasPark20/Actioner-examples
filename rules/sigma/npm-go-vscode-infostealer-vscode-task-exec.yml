@@ -1,0 +1,38 @@
+title: VS Code / Cursor IDE Task Executes Font-Disguised JavaScript (InvisibleFerret)
+id: 24420264-3863-424b-8097-cd6f224b44b2
+status: experimental
+description: >
+    Detects VS Code or Cursor IDE spawning Node.js to execute a file disguised as a
+    web font (fa-solid-400.woff2). Compromised npm packages (html-to-gutenberg,
+    fetch-page-assets) and Go modules ship a .vscode/tasks.json with a task named
+    "eslint-check" configured with runOn: folderOpen that silently launches the
+    malicious payload on project open. This is part of the North Korea "Fake Font" /
+    Contagious Interview campaign delivering the InvisibleFerret backdoor.
+references:
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+    - attack.t1036.008
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\code.exe'
+            - '/code'
+            - '\cursor.exe'
+            - '/cursor'
+    selection_cmd_node:
+        CommandLine|contains: 'node'
+    selection_cmd_woff:
+        CommandLine|contains:
+            - 'fa-solid-400.woff2'
+            - '.woff2'
+    condition: selection_parent and selection_cmd_node and selection_cmd_woff
+falsepositives:
+    - Unlikely - executing .woff2 files via Node.js from VS Code tasks is not normal behavior
+level: critical

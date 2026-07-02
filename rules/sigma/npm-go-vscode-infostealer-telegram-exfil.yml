@@ -1,0 +1,30 @@
+title: InvisibleFerret Telegram Bot Exfiltration via Proxy
+id: b5c4fd68-22e9-4db1-b4be-82395082cccc
+status: experimental
+description: >
+    Detects HTTP requests to the Telegram Bot API sendDocument endpoint used by the
+    InvisibleFerret infostealer to exfiltrate stolen data via Telegram bot 7699029999.
+    Stolen browser credentials, crypto wallets, SSH keys, and cloud storage metadata
+    are sent as document uploads through the Telegram API. Part of the North Korea
+    "Fake Font" / Contagious Interview campaign.
+references:
+    - https://thehackernews.com/2026/06/hijacked-npm-and-go-packages-use-vs.html
+    - https://research.jfrog.com/post/hijacked-npm-vscode-tasks-blockchain/
+author: Actioner
+date: 2026-06-30
+tags:
+    - attack.t1567
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_telegram:
+        c-uri|contains|all:
+            - 'api.telegram.org'
+            - 'sendDocument'
+    selection_bot:
+        c-uri|contains: '7699029999'
+    condition: selection_telegram and selection_bot
+falsepositives:
+    - Legitimate use of the specific Telegram bot ID 7699029999, which is unlikely
+level: medium
