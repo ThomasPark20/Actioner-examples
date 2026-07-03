@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-03
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -321,13 +321,16 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ARToken C2 Domai
 
 ### Suricata: DNS and TLS Detection for ARToken Infrastructure
 
-Three rules detecting DNS resolution and TLS handshakes to ARToken C2 and phishing domains. Scope to egress monitoring points.
+Five rules detecting DNS resolution and TLS handshakes to ARToken C2 and phishing domains. Scope to egress monitoring points.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata 7.0.3 -T exit 0. Three rules: SID 2200001 (DNS pamconj.com), SID 2200002 (DNS Workers parent), SID 2200003 (TLS SNI pamconj.com). dns.query buffer provides normalized domain name — endswith matches apex + subdomains. tls.sni matches SNI in ClientHello. All values real. -->
+<!-- audit: suricata 7.0.3 -T exit 0. Five rules: SID 2200001 (DNS pamconj.com), SID 2200002 (DNS Workers parent clear90489058903-document), SID 2200003 (TLS SNI pamconj.com), SID 2200004 (DNS Workers parent reynoldsjace5), SID 2200005 (DNS spoofed SharePoint tenant mononapfpcom). dns.query buffer provides normalized domain name — endswith matches apex + subdomains. tls.sni matches SNI in ClientHello. All values real. -->
+<!-- revision: added SID 2200004 (reynoldsjace5.workers.dev) and SID 2200005 (mononapfpcom.sharepoint.com) to close Sigma parity gap flagged by critic. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ARToken C2 Domain pamconj.com"; flow:to_server; dns.query; content:"pamconj.com"; endswith; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-03; sid:2200001; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ARToken Workers Phishing Infrastructure"; flow:to_server; dns.query; content:"clear90489058903-document.workers.dev"; endswith; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-03; sid:2200002; rev:1;)
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to ARToken C2 Domain pamconj.com"; flow:established,to_server; tls.sni; content:"pamconj.com"; endswith; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-03; sid:2200003; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ARToken Workers Phishing Infrastructure reynoldsjace5"; flow:to_server; dns.query; content:"reynoldsjace5.workers.dev"; endswith; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-03; sid:2200004; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ARToken Spoofed SharePoint Tenant"; flow:to_server; dns.query; content:"mononapfpcom.sharepoint.com"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-03; sid:2200005; rev:1;)
 ```
 
 ### YARA: ARToken EvilTokens Phishing Payload
