@@ -1,0 +1,95 @@
+title: DNS Query to PolinRider Vercel C2 Domain
+id: 7a3e8c1d-4f2b-4e9a-b5d6-1c8f0a3e7b2d
+status: experimental
+description: >
+    Detects DNS queries to known PolinRider campaign Vercel-hosted C2 subdomains
+    used to deliver OS-specific payloads via weaponized VS Code tasks.json files.
+    These domains serve as the initial C2 callback for the TasksJacker vector.
+references:
+    - https://opensourcemalware.com/blog/polinrider-attack
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+    - https://github.com/OpenSourceMalware/PolinRider
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1071.001
+    - attack.t1102.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.vercel.app'
+        QueryName|contains:
+            - '260120'
+            - 'default-configuration'
+            - 'vscode-settings-bootstrap'
+            - 'vscode-settings-config'
+            - 'vscode-bootstrapper'
+            - 'vscode-load-config'
+    condition: selection
+falsepositives:
+    - Legitimate use of identically named Vercel deployments is extremely unlikely
+level: high
+---
+title: PolinRider Propagation Script Execution
+id: 2b4d6e8f-1a3c-5e7d-9f0b-2d4e6a8c0f1b
+status: experimental
+description: >
+    Detects execution of temp_auto_push.bat, the PolinRider campaign propagation
+    script that rewrites git commit history with spoofed timestamps and force-pushes
+    to spread malicious payloads. 100% true-positive rate in threat research.
+references:
+    - https://opensourcemalware.com/blog/polinrider-attack
+    - https://github.com/OpenSourceMalware/PolinRider
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_script:
+        CommandLine|contains: 'temp_auto_push.bat'
+    condition: selection_script
+falsepositives:
+    - Legitimate developer scripts named temp_auto_push.bat are implausible
+level: critical
+---
+title: VS Code Task Spawning Curl to PolinRider C2
+id: 9c1b3e5d-7a2f-4d6e-8b0c-3f5a7d9e1b4c
+status: experimental
+description: >
+    Detects VS Code spawning curl or wget processes targeting known PolinRider
+    Vercel C2 endpoints. The campaign uses weaponized .vscode/tasks.json with
+    runOn folderOpen to execute curl piped to shell on project open.
+references:
+    - https://opensourcemalware.com/blog/polinrider-attack
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1059.004
+    - attack.t1204.002
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\code.exe'
+            - '/code'
+            - '\code - insiders.exe'
+            - '/code-insiders'
+    selection_curl:
+        CommandLine|contains:
+            - 'default-configuration.vercel.app'
+            - 'vscode-settings-bootstrap.vercel.app'
+            - 'vscode-settings-config.vercel.app'
+            - 'vscode-bootstrapper.vercel.app'
+            - 'vscode-load-config.vercel.app'
+            - '260120.vercel.app'
+    condition: selection_parent and selection_curl
+falsepositives:
+    - None expected; these domains are known malicious C2 infrastructure
+level: critical
