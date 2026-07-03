@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-03
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -186,7 +186,7 @@ PamStealer is macOS-exclusive and specifically targets Apple Silicon (arm64) Mac
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1566.003 | Phishing: Spearphishing via Service | Fake Maccy download sites (maccyapp[.]com/net) impersonating legitimate maccy[.]app |
+| T1583.001 | Acquire Infrastructure: Domains | Typosquatted domains maccyapp[.]com and maccyapp[.]net registered to impersonate legitimate maccy[.]app |
 | T1204.002 | User Execution: Malicious File | User instructed to open Maccy.scpt in Script Editor and press Run |
 | T1059.002 | Command and Scripting Interpreter: AppleScript | Compiled AppleScript wrapping JXA payload executed in Script Editor |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | JXA (JavaScript for Automation) dropper using NSURLSession |
@@ -194,7 +194,7 @@ PamStealer is macOS-exclusive and specifically targets Apple Silicon (arm64) Mac
 | T1553.002 | Subvert Trust Controls: Code Signing | Ad-hoc code signing (codesign -fs - --deep) of malicious bundle |
 | T1547.015 | Boot or Logon Autostart Execution: Login Items | Dual persistence via SMAppService (modern) and LSSharedFileListInsertItemURL (legacy) |
 | T1056.002 | Input Capture: GUI Input Capture | Native NSAlert password prompt styled as system authorization dialog |
-| T1556.003 | Modify Authentication Process: Pluggable Authentication Modules | PAM API calls (pam_start/pam_authenticate/pam_end) to validate stolen password |
+<!-- revision: dropped T1556.003 — PamStealer calls PAM API to validate a captured password, it does not modify PAM modules or configuration. Credential capture is covered by T1056.002 (GUI Input Capture). -->
 | T1115 | Clipboard Data | Repeated pbpaste spawning at 10-30 second intervals |
 | T1555.001 | Credentials from Password Stores: Keychain | Security.framework loaded at runtime for Keychain access |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | SQLite-based browser credential database access |

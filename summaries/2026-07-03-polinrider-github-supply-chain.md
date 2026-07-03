@@ -64,9 +64,9 @@ Both variants use an identical 4-layer shuffle-cipher deobfuscation architecture
 
 After deobfuscation, the loader follows this execution chain:
 
-1. Queries TRON blockchain account transaction history via `https://api.trongrid.io/v1/accounts/<address>/transactions`
-2. Falls back to Aptos blockchain via `https://fullnode.mainnet.aptoslabs.com/v1/accounts/<hash>/transactions` if TRON fails
-3. Falls back to BSC RPC nodes (`bsc-dataseed.binance.org`, `bsc-rpc.publicnode.com`)
+1. Queries TRON blockchain account transaction history via `hxxps://api[.]trongrid[.]io/v1/accounts/<address>/transactions`
+2. Falls back to Aptos blockchain via `hxxps://fullnode[.]mainnet[.]aptoslabs[.]com/v1/accounts/<hash>/transactions` if TRON fails
+3. Falls back to BSC RPC nodes (`bsc-dataseed[.]binance[.]org`, `bsc-rpc[.]publicnode[.]com`)
 4. Extracts encrypted payload material from immutable blockchain transactions
 5. XOR-decrypts using hardcoded keys (`2[gWfGj;<:-93Z^C` or `m6:tTh^D)cBz?NM]`)
 6. Executes decrypted code via `eval()`
@@ -328,7 +328,8 @@ level: high
 
 Detects execution of `temp_auto_push.bat`, the campaign's git history rewriting propagation script (100% true-positive rate in threat research).
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. process_creation + windows logsource. temp_auto_push.bat filename is unique to PolinRider (101 confirmed repos, 100% TP). Second selection covers behavioral pattern of git commit --amend --no-verify used by the bat script. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. process_creation + windows logsource. temp_auto_push.bat filename is unique to PolinRider (101 confirmed repos, 100% TP). -->
+<!-- revision: dropped selection_image (git commit --amend --no-verify) — generic TTP fires on any developer using that git pattern; altitude mismatch at specific/strict. -->
 ```yaml
 title: PolinRider Propagation Script Execution
 id: 2b4d6e8f-1a3c-5e7d-9f0b-2d4e6a8c0f1b
@@ -350,13 +351,7 @@ logsource:
 detection:
     selection_script:
         CommandLine|contains: 'temp_auto_push.bat'
-    selection_image:
-        Image|endswith: '\cmd.exe'
-        CommandLine|contains|all:
-            - 'git commit'
-            - '--amend'
-            - '--no-verify'
-    condition: selection_script or selection_image
+    condition: selection_script
 falsepositives:
     - Legitimate developer scripts named temp_auto_push.bat are implausible
 level: critical
