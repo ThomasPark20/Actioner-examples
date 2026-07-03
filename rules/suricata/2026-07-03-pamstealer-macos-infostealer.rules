@@ -1,0 +1,8 @@
+# Actioner - PamStealer macOS Infostealer Suricata Rules
+# Date: 2026-07-03
+# Reference: https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+# Note: HTTP C2 rule requires TLS inspection or decrypted mirror to fire on HTTPS sessions.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PamStealer C2 Exfiltration to avenger-sync.live"; flow:established,to_server; http.host; content:"avenger-sync.live"; http.uri; content:"/api/sync"; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200010; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for Fake Maccy Distribution Site (maccyapp.com)"; flow:to_server; dns.query; content:"maccyapp.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200011; rev:2;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for Fake Maccy Distribution Site (maccyapp.net)"; flow:to_server; dns.query; content:"maccyapp.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200013; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for C2 Domain avenger-sync.live"; flow:to_server; dns.query; content:"avenger-sync.live"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200012; rev:1;)

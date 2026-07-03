@@ -211,7 +211,7 @@ Get-AzureADMSConditionalAccessPolicy | Where-Object {$_.Conditions.ClientAppType
 
 1. **Immediate:** Revoke all refresh tokens and active sessions for compromised accounts via `Revoke-AzureADUserAllRefreshToken`
 2. **Immediate:** Search for and remove malicious inbox rules (forwarding, auto-delete) created by the attacker
-3. **Immediate:** Block known C2 domains (`pamconj.com`, Workers subdomains) at the proxy/DNS level
+3. **Immediate:** Block known C2 domains (`pamconj[.]com`, Workers subdomains) at the proxy/DNS level
 4. **Short-term:** Audit SharePoint/OneDrive access logs for unauthorized file downloads or permission changes
 5. **Short-term:** Review sent emails from compromised accounts for BEC/invoice fraud activity
 6. **Short-term:** Notify downstream vendors/partners if vendor impersonation was observed
@@ -333,8 +333,9 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to ARToken
 ### YARA: ARToken EvilTokens Phishing Payload
 
 Detects the ARToken phishing JavaScript payload via the hardcoded operator UUID, `artoken_jwt` localStorage key, C2 domain strings, XOR decryption key bytes, or the device code API endpoint pattern combined with PRT lifecycle paths.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara positive test: fired on file containing published UUID + artoken_jwt + spx.pamconj.com. yara negative test: quiet on benign JS. Positive sample constructed from source-published strings (UUID, localStorage key, C2 domain) — grounded in Talos blog. XOR key bytes E9 45 E0 DB 35 30 D5 A5 77 F3 4D 97 65 94 0F E3 from source (decimal [233,69,224,219,53,48,213,165,119,243,77,151,101,148,15,227] converted). $xor_key requires co-occurrence with API/config string to avoid 16-byte FP on arbitrary binaries. Each top-level OR branch is individually distinctive. -->
+**Status:** compile ✅ compiles · confidence: high · synthetic-test: fired ✓ (constructed from Talos-published strings)
+<!-- audit: yarac exit 0. yara positive test: fired on synthetic file containing published UUID + artoken_jwt + spx.pamconj.com — constructed from Talos blog strings, not a captured sample. yara negative test: quiet on benign JS. XOR key bytes E9 45 E0 DB 35 30 D5 A5 77 F3 4D 97 65 94 0F E3 from source (decimal [233,69,224,219,53,48,213,165,119,243,77,151,101,148,15,227] converted). $xor_key requires co-occurrence with API/config string to avoid 16-byte FP on arbitrary binaries. $img_artifact ("pumber.png") requires co-occurrence with at least one other string to avoid standalone FP on unrelated files containing that filename. Each top-level OR branch is individually distinctive. -->
+<!-- revision: (1) relabeled "sample: fired" to "synthetic-test: fired" — test used constructed file, not captured payload. (2) $img_artifact now requires co-occurrence with 1 of other strings to prevent standalone FP. (3) ATT&CK T1531→T1564.008. (4) defanged bare pamconj.com in remediation. -->
 ```yara
 rule PhaaS_ARToken_EvilTokens_Phishing_Payload
 {
@@ -366,7 +367,7 @@ rule PhaaS_ARToken_EvilTokens_Phishing_Payload
             $jwt_key or
             $c2_domain or
             $dashboard or
-            $img_artifact or
+            ($img_artifact and 1 of ($uuid, $jwt_key, $c2_domain, $dashboard, $api_endpoint, $client_mode)) or
             ($xor_key and 1 of ($api_endpoint, $client_mode, $uuid, $jwt_key)) or
             ($api_endpoint and $client_mode and 1 of ($prt_*))
         )

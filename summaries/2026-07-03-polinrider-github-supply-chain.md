@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-03
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
 
 ## Executive Summary
 
@@ -579,7 +579,7 @@ rule PolinRider_TempAutoPush_Propagation
 
     condition:
         filesize < 50KB and
-        4 of them
+        (1 of ($s1, $s2)) and 3 of ($s3, $s4, $s5, $s6, $s7, $s8)
 }
 ```
 
