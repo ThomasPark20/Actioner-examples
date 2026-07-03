@@ -170,7 +170,7 @@ The phishing payload is encrypted at delivery and decrypted client-side at runti
 | T1550.001 | Use Alternate Authentication Material: Application Access Token | Stolen tokens used to access Outlook, SharePoint, OneDrive APIs |
 | T1098.001 | Account Manipulation: Additional Cloud Credentials | PRT persistence binding to maintain access across password changes |
 | T1114.002 | Email Collection: Remote Email Collection | Full inbox read access and keyword-based cross-account monitoring |
-| T1531 | Account Access Removal | Inbox rule creation for auto-deletion of security notifications |
+| T1564.008 | Hide Artifacts: Email Hiding Rules | Inbox rule creation for auto-deletion of security notifications |
 | T1583.006 | Acquire Infrastructure: Web Services | Cloudflare Workers and spoofed SharePoint tenants for attack infrastructure |
 | T1027 | Obfuscated Files or Information | XOR-encrypted payloads with client-side decryption |
 | T1497.001 | Virtualization/Sandbox Evasion: System Checks | Seven-layer anti-analysis with browser fingerprinting, interaction telemetry, timing gates |

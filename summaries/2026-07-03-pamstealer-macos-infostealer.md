@@ -184,6 +184,7 @@ PamStealer is macOS-exclusive and specifically targets Apple Silicon (arm64) Mac
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: replaced T1566.003 (Spearphishing via Service) with T1583.001 (Acquire Infrastructure: Domains) — PamStealer uses attacker-registered typosquatted websites, not third-party services. -->
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1583.001 | Acquire Infrastructure: Domains | Typosquatted domains maccyapp[.]com and maccyapp[.]net registered to impersonate legitimate maccy[.]app |
@@ -364,29 +365,33 @@ level: critical
 
 ### Snort: PamStealer C2 Exfiltration to avenger-sync.live
 
-Detects HTTP traffic to the PamStealer C2 domain avenger-sync.live with the /api/sync exfiltration URI.
+Detects HTTP traffic to the PamStealer C2 domain avenger-sync.live with the /api/sync exfiltration URI. Requires TLS inspection or decrypted mirror to fire on HTTPS sessions.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -c /etc/snort/snort.conf (Snort 2.9.20) with rule in local.rules: "Snort successfully validated the configuration!" Host header + URI path conjunction; domain IOC is campaign-specific with no benign overlap. -->
+<!-- revision: added TLS inspection caveat — C2 is HTTPS/Cloudflare-fronted, rule requires decrypted traffic. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PamStealer C2 Exfiltration to avenger-sync.live"; flow:established,to_server; content:"avenger-sync.live"; http_header; fast_pattern; content:"/api/sync"; http_uri; sid:2100010; rev:1; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/;)
 ```
 
 ### Suricata: PamStealer C2 Exfiltration to avenger-sync.live
 
-Detects HTTP traffic to avenger-sync.live/api/sync using Suricata's dot-notation sticky buffers for precise host and URI matching.
+Detects HTTP traffic to avenger-sync.live/api/sync using Suricata's dot-notation sticky buffers for precise host and URI matching. Requires TLS inspection or decrypted mirror to fire on HTTPS sessions.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T -S exit 0, Suricata 7.0.3. http.host + http.uri dot-notation buffers; campaign-specific domain IOC. -->
+<!-- revision: added TLS inspection caveat — C2 is HTTPS/Cloudflare-fronted, rule requires decrypted traffic. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PamStealer C2 Exfiltration to avenger-sync.live"; flow:established,to_server; http.host; content:"avenger-sync.live"; http.uri; content:"/api/sync"; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200010; rev:1;)
 ```
 
-### Suricata: PamStealer DNS Query for Fake Maccy Site
+### Suricata: PamStealer DNS Query for Fake Maccy Sites
 
-Detects DNS queries for the fake Maccy distribution domain maccyapp.com used to deliver the PamStealer dropper.
+Detects DNS queries for the fake Maccy distribution domains maccyapp.com and maccyapp.net used to deliver the PamStealer dropper.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0, Suricata 7.0.3. dns.query buffer with campaign-specific typosquat domain. -->
+<!-- audit: suricata -T -S exit 0, Suricata 7.0.3. dns.query buffer with campaign-specific typosquat domains. -->
+<!-- revision: added second rule for maccyapp.net — report documents both distribution domains; updated msg to disambiguate; bumped rev on .com rule. -->
 ```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for Fake Maccy Distribution Site"; flow:to_server; dns.query; content:"maccyapp.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200011; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for Fake Maccy Distribution Site (maccyapp.com)"; flow:to_server; dns.query; content:"maccyapp.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200011; rev:2;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for Fake Maccy Distribution Site (maccyapp.net)"; flow:to_server; dns.query; content:"maccyapp.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200013; rev:1;)
 ```
 
 ### Suricata: PamStealer DNS Query for C2 Domain
@@ -398,16 +403,17 @@ Detects DNS queries for the PamStealer C2 domain avenger-sync.live.
 alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer DNS Query for C2 Domain avenger-sync.live"; flow:to_server; dns.query; content:"avenger-sync.live"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-03; sid:2200012; rev:1;)
 ```
 
-### YARA: PamStealer macOS AppleScript Dropper
+### YARA: PamStealer macOS Campaign Indicators
 
-Detects PamStealer dropper or stealer binaries via distinctive string artifacts including the `MacOSapp1` C2 marker, `avenger-config-v2` config identifier, and PAM API strings combined with fake Apple bundle identifiers.
+Detects PamStealer campaign artifacts via distinctive string indicators including C2 markers, config identifiers, and fake Apple bundle paths.
 **Status:** compile ✅ compiles · confidence: medium · sample: fired (constructed positive from published strings)
-<!-- audit: yarac exit 0. Two rules in file: PamStealer_macOS_AppleScript_Dropper (generic file, no Mach-O gate) and PamStealer_macOS_Rust_Stealer (Mach-O gated via magic bytes). Constructed positive test file containing published strings: fired on PamStealer_macOS_AppleScript_Dropper rule; quiet on negative. Confidence medium because no sample hashes published by Jamf, so string presence is inferred from analysis text rather than verified against a known sample. -->
+<!-- audit: yarac exit 0, re-validated after revision. Two rules in file: PamStealer_macOS_Campaign_Indicators (generic file, no Mach-O gate) and PamStealer_macOS_Rust_Stealer (Mach-O gated via magic bytes). Confidence medium because no sample hashes published by Jamf. -->
+<!-- revision: renamed from PamStealer_macOS_AppleScript_Dropper — title said "AppleScript Dropper" and description claimed "Mach-O markers" but rule has neither gate. Now "Campaign Indicators". Fixed FP: $marker2 alone could fire on threat-intel reports/blog caches; now requires at least one co-occurring campaign indicator. -->
 ```yara
-rule PamStealer_macOS_AppleScript_Dropper
+rule PamStealer_macOS_Campaign_Indicators
 {
     meta:
-        description = "Detects PamStealer compiled AppleScript dropper via distinctive strings and Mach-O markers"
+        description = "Detects PamStealer campaign artifacts via distinctive string indicators including C2 markers, config identifiers, and fake Apple bundle paths"
         author = "Actioner"
         date = "2026-07-03"
         reference = "https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/"
@@ -430,7 +436,7 @@ rule PamStealer_macOS_AppleScript_Dropper
         filesize < 10MB and
         (
             ($marker1 and $c2_path) or
-            ($marker2) or
+            ($marker2 and ($marker1 or $marker3 or 1 of ($pam*) or 1 of ($bundle*))) or
             (2 of ($pam*) and 1 of ($bundle*)) or
             ($marker3 and 1 of ($bundle*)) or
             ($helper and 1 of ($bundle*))

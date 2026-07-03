@@ -405,7 +405,8 @@ level: critical
 
 Detects HTTP requests to known PolinRider Vercel C2 subdomains with `/settings/` URI path used for OS-specific payload delivery.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R t.rules -T exit 0 (Snort 2.9.20). Six rules covering each known C2 subdomain. http_header matches Host, http_uri matches path. SIDs 2100001-2100006. All values real (not defanged). -->
+<!-- audit: snort -c /etc/snort/snort.conf -R t.rules -T exit 0 (Snort 2.9.20). Twelve rules covering each known C2 subdomain with both /settings/ and /task/ URI paths. http_header matches Host, http_uri matches path. SIDs 2100001-2100012. All values real (not defanged). -->
+<!-- revision: added /task/ URI variants (SIDs 2100007-2100012) for parity with Suricata rules. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 default-configuration.vercel.app"; flow:established,to_server; content:"default-configuration.vercel.app"; http_header; fast_pattern; content:"/settings/"; http_uri; sid:2100001; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; reference:url,github.com/OpenSourceMalware/PolinRider;)
 
@@ -418,6 +419,18 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Reque
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-settings-config.vercel.app"; flow:established,to_server; content:"vscode-settings-config.vercel.app"; http_header; fast_pattern; content:"/settings/"; http_uri; sid:2100005; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-load-config.vercel.app"; flow:established,to_server; content:"vscode-load-config.vercel.app"; http_header; fast_pattern; content:"/settings/"; http_uri; sid:2100006; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 default-configuration.vercel.app /task/"; flow:established,to_server; content:"default-configuration.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100007; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; reference:url,github.com/OpenSourceMalware/PolinRider;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 260120.vercel.app /task/"; flow:established,to_server; content:"260120.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100008; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-settings-bootstrap.vercel.app /task/"; flow:established,to_server; content:"vscode-settings-bootstrap.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100009; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-bootstrapper.vercel.app /task/"; flow:established,to_server; content:"vscode-bootstrapper.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100010; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-settings-config.vercel.app /task/"; flow:established,to_server; content:"vscode-settings-config.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100011; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to PolinRider Vercel C2 vscode-load-config.vercel.app /task/"; flow:established,to_server; content:"vscode-load-config.vercel.app"; http_header; fast_pattern; content:"/task/"; http_uri; sid:2100012; rev:1; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack;)
 ```
 
 ### Suricata: DNS Query to PolinRider C2 Domains
@@ -443,11 +456,32 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PolinRider C2 D
 
 Detects HTTP requests to PolinRider Vercel C2 with `/settings/` or `/task/` URI paths that deliver OS-specific payloads.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S polinrider-http.rules -l /tmp/actioner exit 0 (Suricata 7.0.3). http.host and http.uri dot-notation buffers. pcre validates OS selector in URI. SIDs 2200007-2200008. -->
+<!-- audit: suricata -T -S polinrider-http.rules -l /tmp/actioner exit 0 (Suricata 7.0.3). http.host and http.uri dot-notation buffers. pcre validates OS selector in URI. SIDs 2200007-2200018. -->
+<!-- revision: replaced generic vercel.app http.host match with per-subdomain rules for each of the six known C2 domains — generic match fired on any *.vercel.app deployment. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to PolinRider Vercel C2 Settings Endpoint"; flow:established,to_server; http.host; content:"vercel.app"; endswith; http.uri; content:"/settings/"; fast_pattern; pcre:"/\/settings\/(mac|linux|win)/"; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; reference:url,github.com/OpenSourceMalware/PolinRider; metadata:author Actioner, created_at 2026-07-03; sid:2200007; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 default-configuration.vercel.app /settings/"; flow:established,to_server; http.host; content:"default-configuration.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200007; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to PolinRider Vercel C2 Task Endpoint"; flow:established,to_server; http.host; content:"vercel.app"; endswith; http.uri; content:"/task/"; fast_pattern; pcre:"/\/task\/(mac|linux|win)/"; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200008; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 default-configuration.vercel.app /task/"; flow:established,to_server; http.host; content:"default-configuration.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200008; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 260120.vercel.app /settings/"; flow:established,to_server; http.host; content:"260120.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200009; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 260120.vercel.app /task/"; flow:established,to_server; http.host; content:"260120.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200010; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-settings-bootstrap.vercel.app /settings/"; flow:established,to_server; http.host; content:"vscode-settings-bootstrap.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200011; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-settings-bootstrap.vercel.app /task/"; flow:established,to_server; http.host; content:"vscode-settings-bootstrap.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200012; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-settings-config.vercel.app /settings/"; flow:established,to_server; http.host; content:"vscode-settings-config.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200013; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-settings-config.vercel.app /task/"; flow:established,to_server; http.host; content:"vscode-settings-config.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200014; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-bootstrapper.vercel.app /settings/"; flow:established,to_server; http.host; content:"vscode-bootstrapper.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200015; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-bootstrapper.vercel.app /task/"; flow:established,to_server; http.host; content:"vscode-bootstrapper.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200016; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-load-config.vercel.app /settings/"; flow:established,to_server; http.host; content:"vscode-load-config.vercel.app"; http.uri; content:"/settings/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200017; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP to PolinRider C2 vscode-load-config.vercel.app /task/"; flow:established,to_server; http.host; content:"vscode-load-config.vercel.app"; http.uri; content:"/task/"; fast_pattern; classtype:trojan-activity; reference:url,opensourcemalware.com/blog/polinrider-attack; metadata:author Actioner, created_at 2026-07-03; sid:2200018; rev:1;)
 ```
 
 ### YARA: PolinRider Multi-Variant JavaScript Obfuscator
@@ -521,6 +555,7 @@ rule PolinRider_JavaScript_Obfuscator_MultiVariant
 Detects the batch script that rewrites git history with spoofed timestamps by matching its distinctive variable names (`LAST_COMMIT_DATE`, `LAST_COMMIT_TIME`) and git force-push patterns.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
 <!-- audit: yarac exit 0. yara positive: pos_bat.bat (containing LAST_COMMIT_DATE/TIME + git commit --amend --no-verify + git push -uf + git log -1) matched PolinRider_TempAutoPush_Propagation. neg.js silent. Positive sample uses published artifact structure from OSM research (filename:temp_auto_push.bat search pivot, 101 repos, 100% TP). -->
+<!-- revision: tightened condition from '4 of them' to require at least one campaign-specific string ($s1 LAST_COMMIT_DATE or $s2 LAST_COMMIT_TIME) plus 3 of the remaining generic git strings — prevents FP on generic git helper scripts. -->
 ```yara
 rule PolinRider_TempAutoPush_Propagation
 {
