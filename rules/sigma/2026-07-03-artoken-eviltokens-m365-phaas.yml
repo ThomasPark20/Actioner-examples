@@ -1,0 +1,71 @@
+# Sigma rules for ARToken/EvilTokens Microsoft 365 PhaaS
+# Source: https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+# Generated: 2026-07-03 by Actioner
+
+---
+title: DNS Query to ARToken EvilTokens C2 and Phishing Infrastructure
+id: f7a3e1b2-4c5d-4e6f-8a9b-1c2d3e4f5a6b
+status: experimental
+description: >
+    Detects DNS queries to known ARToken/EvilTokens phishing-as-a-service C2 domains
+    and Cloudflare Workers phishing infrastructure identified by Cisco Talos. Covers the
+    management panel (dashboard-bl.pamconj.com), API endpoint (spx.pamconj.com), and
+    phishing delivery Workers subdomains.
+references:
+    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+    - https://github.com/Cisco-Talos/IOCs/tree/main/2026/07
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1566.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection_c2:
+        QueryName|endswith:
+            - 'pamconj.com'
+    selection_workers:
+        QueryName|endswith:
+            - 'clear90489058903-document.workers.dev'
+            - 'reynoldsjace5.workers.dev'
+    selection_spoof_tenant:
+        QueryName:
+            - 'mononapfpcom.sharepoint.com'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - pamconj.com and associated Workers domains are attacker-controlled infrastructure
+level: high
+---
+title: Web Request to ARToken EvilTokens Phishing Infrastructure
+id: a8b4c7d2-3e5f-4a1b-9c6d-7e8f0a1b2c3d
+status: experimental
+description: >
+    Detects web proxy requests to known ARToken/EvilTokens C2 and phishing infrastructure.
+    Matches the operator panel, C2 API endpoint, Cloudflare Workers phishing pages, and
+    the spoofed SharePoint vendor-impersonation tenant.
+references:
+    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+    - https://github.com/Cisco-Talos/IOCs/tree/main/2026/07
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1566.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_c2:
+        cs-host|endswith:
+            - 'pamconj.com'
+    selection_workers:
+        cs-host|endswith:
+            - 'clear90489058903-document.workers.dev'
+            - 'reynoldsjace5.workers.dev'
+    selection_spoof_tenant:
+        cs-host:
+            - 'mononapfpcom.sharepoint.com'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - pamconj.com and associated Workers domains are attacker-controlled infrastructure
+level: high

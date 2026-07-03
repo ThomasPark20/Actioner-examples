@@ -1,0 +1,5 @@
+# Snort rules for ARToken/EvilTokens Microsoft 365 PhaaS
+# Source: https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+# Generated: 2026-07-03 by Actioner
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ARToken C2 Domain pamconj.com"; flow:to_server; content:"|07|pamconj|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; sid:2100001; rev:1;)
