@@ -1,0 +1,29 @@
+title: PamStealer macOS Infostealer - C2 Communication to avenger-sync Domain
+id: e0f57d41-9ab7-4c86-de35-6b1c47a90f23
+status: experimental
+description: >
+    Detects process command lines containing the PamStealer C2 domain
+    avenger-sync.live. The malware exfiltrates stolen credentials, browser data,
+    keychain contents, and clipboard data to this endpoint via HTTPS POST requests
+    with ChaCha20-Poly1305 encrypted JSON payloads. The C2 is fronted by Cloudflare.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        CommandLine|contains:
+            - 'avenger-sync.live'
+            - 'sync-master.online'
+            - 'avngr.netlify.app'
+    condition: selection
+falsepositives:
+    - None expected - these are confirmed malicious C2 domains
+level: critical

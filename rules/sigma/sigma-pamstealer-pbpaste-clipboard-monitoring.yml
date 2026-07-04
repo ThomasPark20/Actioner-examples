@@ -1,0 +1,32 @@
+title: PamStealer macOS Infostealer - Repeated pbpaste Clipboard Monitoring
+id: c8d35b2f-7e95-4a64-bc13-4f9a25e78d01
+status: experimental
+description: >
+    Detects repeated invocation of the pbpaste utility by a non-standard parent
+    process. PamStealer spawns pbpaste at 10-30 second intervals to harvest
+    clipboard contents. While pbpaste is a legitimate macOS utility, repeated
+    invocation by a process masquerading as Finder or from the com.apple.finder.core
+    path is highly suspicious.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1115
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_pbpaste:
+        Image|endswith: '/pbpaste'
+    selection_suspicious_parent:
+        ParentImage|contains:
+            - 'com.apple.finder.core'
+            - 'com.apple.finder.monitor'
+            - 'com.apple.security.daemon'
+            - '/77617EA0'
+    condition: selection_pbpaste and selection_suspicious_parent
+falsepositives:
+    - Clipboard manager applications that invoke pbpaste programmatically
+level: high

@@ -1,0 +1,11 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS Query to C2 Domain avenger-sync.live"; flow:to_server; dns.query; content:"avenger-sync.live"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100201; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS Query to C2 Domain sync-master.online"; flow:to_server; dns.query; content:"sync-master.online"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100202; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS Query to Fake Maccy Distribution Domain maccyapp.com"; flow:to_server; dns.query; content:"maccyapp.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100203; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS Query to Fake Maccy Distribution Domain maccyapp.net"; flow:to_server; dns.query; content:"maccyapp.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100204; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PamStealer macOS Stealer C2 Exfiltration POST to /api/sync"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/sync"; fast_pattern; http.host; content:"avenger-sync.live"; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100205; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS Query to Netlify C2 avngr.netlify.app"; flow:to_server; dns.query; content:"avngr.netlify.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/; metadata:author Actioner, created_at 2026-07-04; sid:2100206; rev:1;)
