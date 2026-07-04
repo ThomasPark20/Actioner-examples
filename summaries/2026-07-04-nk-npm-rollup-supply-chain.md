@@ -3,7 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-04
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+
+<!-- revision: v1.1 — CUT Sigma #2 (Base64 stealth flags, altitude violation / redundant with #1) and Sigma #4 (credential file access, altitude violation / high FP on generic paths). FIX Sigma #5: require vhost.ctl as mandatory anchor or constrain temp-file payloads to /tmp/ paths to eliminate catastrophic /pack false-positive. FIX Sigma #6: downgrade from high to medium and add note that dns_query cannot match URL path /b/3P9BF. FIX YARA OtterCookie_Rollup_Polyfill_Payload: removed standalone $c2_ip and standalone (3 of ($evasion*)) branches from OR chain; require $c2_ip alongside evasion checks. FIX Suricata sid:2026070402 and sid:2026070403: changed alert tcp to alert http so HTTP sticky buffers (http_method, http_uri) activate on non-standard ports 4806/4809. FIX MITRE T1056.001 (Keylogging) replaced with T1219 (Remote Access Software) — nut-tree-fork/nut-js provides keyboard/mouse CONTROL, not keylogging. Added platform note that all Sigma rules are linux-only while malware also targets Windows. -->
 
 ## Executive Summary
 
@@ -193,7 +195,7 @@ The C2 API uses the endpoint `/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68` for
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Chrome, Edge, Brave, Opera credential extraction |
 | T1115 | Clipboard Data | Periodic clipboard content capture for tokens and seed phrases |
 | T1113 | Screen Capture | Screenshot functionality via screenshot-desktop library |
-| T1056.001 | Input Capture: Keylogging | Keyboard input capture via @nut-tree-fork/nut-js |
+| T1219 | Remote Access Software | Remote keyboard/mouse control via @nut-tree-fork/nut-js |
 | T1082 | System Information Discovery | Environment variable checks for sandbox/cloud detection |
 | T1083 | File and Directory Discovery | Enumeration of credential files, editor history, and config directories |
 | T1657 | Financial Theft | Cryptocurrency wallet data and seed phrase exfiltration |
@@ -220,6 +222,8 @@ The C2 API uses the endpoint `/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68` for
 ## Detection Rules
 
 ### Sigma Rules
+
+> **Platform note:** The Sigma rules below use `product: linux` as their primary log source. The OtterCookie malware also targets Windows (e.g., mouse/keyboard control via `@nut-tree-fork/nut-js` is Windows-specific). Defenders should adapt these rules for Windows `process_creation` and `file_event` log sources as appropriate for their environment.
 
 #### 1. Malicious Rollup Polyfill npm Package Installation
 
@@ -263,43 +267,7 @@ falsepositives:
 level: critical
 ```
 
-#### 2. Base64 Encoded npm Install Command Execution
-
-```yaml
-title: Base64 Encoded npm Install Command Execution
-id: 8b4c2d5e-6e7f-4b9c-0d3e-4f5a6b7c8d9e
-status: experimental
-description: >
-    Detects execution of base64-decoded npm install commands with stealth flags (--no-save --silent
-    --no-audit --no-fund) as used by the Lazarus/Contagious Interview rollup polyfill supply chain
-    attack to silently install second-stage malware packages.
-references:
-    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
-    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
-author: Actioner
-date: 2026/07/04
-tags:
-    - attack.t1059.007
-    - attack.t1027
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_npm:
-        Image|endswith: '/npm'
-    selection_stealth_flags:
-        CommandLine|contains|all:
-            - '--no-save'
-            - '--silent'
-            - '--no-audit'
-            - '--no-fund'
-    condition: selection_npm and selection_stealth_flags
-falsepositives:
-    - CI/CD pipelines that use all four flags simultaneously for clean output
-level: high
-```
-
-#### 3. OtterCookie C2 Connection to Known Lazarus Infrastructure
+#### 2. OtterCookie C2 Connection to Known Lazarus Infrastructure
 
 ```yaml
 title: OtterCookie C2 Connection to Known Lazarus Infrastructure
@@ -335,47 +303,7 @@ falsepositives:
 level: critical
 ```
 
-#### 4. OtterCookie Developer Credential and Configuration File Access
-
-```yaml
-title: OtterCookie Developer Credential and Configuration File Access
-id: 0d6e4f7a-8a9b-4d1e-2f5a-6b7c8d9e0f1a
-status: experimental
-description: >
-    Detects Node.js processes accessing sensitive developer credential files and AI tool
-    configurations targeted by the OtterCookie malware from the Lazarus rollup polyfill campaign.
-    The malware harvests AWS, Azure, SSH, editor history, and AI API key configurations.
-references:
-    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
-    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
-author: Actioner
-date: 2026/07/04
-tags:
-    - attack.t1005
-    - attack.t1555.003
-logsource:
-    category: file_access
-    product: linux
-detection:
-    selection_process:
-        Image|endswith: '/node'
-    selection_paths:
-        TargetFilename|contains:
-            - '/.aws/credentials'
-            - '/.azure/'
-            - '/.ssh/id_'
-            - '/.gnupg/'
-            - '/.claude/'
-            - '/.windsurf/'
-            - 'Code/User/History'
-            - 'Cursor/User/History'
-    condition: selection_process and selection_paths
-falsepositives:
-    - Legitimate Node.js developer tools that read SSH or cloud credentials
-level: high
-```
-
-#### 5. OtterCookie Malware Payload Temp File Creation
+#### 3. OtterCookie Malware Payload Temp File Creation
 
 ```yaml
 title: OtterCookie Malware Payload Temp File Creation
@@ -399,28 +327,32 @@ logsource:
 detection:
     selection_process:
         Image|endswith: '/node'
-    selection_files:
+    selection_marker:
+        TargetFilename|endswith: '/vhost.ctl'
+    selection_tmpdir:
+        TargetFilename|contains: '/tmp/'
+    selection_payloads:
         TargetFilename|endswith:
             - '/pack'
             - '/scdata'
             - '/ldata'
-            - '/vhost.ctl'
-    condition: selection_process and selection_files
+    condition: selection_process and (selection_marker or (selection_tmpdir and selection_payloads))
 falsepositives:
-    - Generic filenames may match unrelated processes; correlate with node.js parent process
+    - Unlikely - vhost.ctl is a distinctive OtterCookie process marker; temp-dir payloads require /tmp/ path constraint
 level: medium
 ```
 
-#### 6. Suspicious JSONKeeper Payload Fetch by Node.js Process
+#### 4. Suspicious JSONKeeper Payload Fetch by Node.js Process
 
 ```yaml
 title: Suspicious JSONKeeper Payload Fetch by Node.js Process
 id: 2f8a6b9c-0c1d-4f3a-4b7c-8d9e0f1a2b3c
 status: experimental
 description: >
-    Detects Node.js processes making DNS queries or HTTP connections to jsonkeeper.com, a paste-style
-    service abused by the Contagious Interview campaign to host malicious JavaScript payloads that
-    are fetched and executed via eval(). Used in the rollup polyfill supply chain attack.
+    Detects Node.js processes resolving jsonkeeper.com via DNS, a paste-style service abused by
+    the Contagious Interview campaign to host malicious JavaScript payloads executed via eval().
+    Note: This is a domain-level indicator only; the dns_query log source cannot match the specific
+    malicious URL path (/b/3P9BF). Correlate with proxy or HTTP logs for higher fidelity.
 references:
     - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
     - https://research.jfrog.com/post/rollup-polyfill-masquerading/
@@ -439,8 +371,8 @@ detection:
         Image|endswith: '/node'
     condition: selection
 falsepositives:
-    - Legitimate applications using jsonkeeper.com for configuration storage
-level: high
+    - Legitimate applications using jsonkeeper.com for data storage or configuration
+level: medium
 ```
 
 ### YARA Rules
@@ -517,13 +449,12 @@ rule OtterCookie_Rollup_Polyfill_Payload {
         $exfil3 = "/cldbs" ascii
 
     condition:
-        $c2_ip or
-        (3 of ($evasion*)) or
         ($socketio and $screenshot and $clipboard) or
         ($nuttree and $c2_ip) or
         (2 of ($metamask_ext, $ext2, $ext3) and $c2_ip) or
         (any of ($exfil*) and $c2_ip) or
-        ($tmpfile1 and $c2_ip)
+        ($tmpfile1 and $c2_ip) or
+        (3 of ($evasion*) and $c2_ip)
 }
 ```
 
@@ -532,9 +463,9 @@ rule OtterCookie_Rollup_Polyfill_Payload {
 ```
 alert tcp $HOME_NET any -> 216.126.236.244 4801 (msg:"MALWARE OtterCookie C2 Socket.IO Communication to Lazarus Infrastructure"; flow:established,to_server; content:"socket.io"; nocase; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070401; rev:1;)
 
-alert tcp $HOME_NET any -> 216.126.236.244 4806 (msg:"MALWARE OtterCookie File Upload to Lazarus C2 Server"; flow:established,to_server; content:"POST"; http_method; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070402; rev:1;)
+alert http $HOME_NET any -> 216.126.236.244 4806 (msg:"MALWARE OtterCookie File Upload to Lazarus C2 Server"; flow:established,to_server; content:"POST"; http_method; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070402; rev:2;)
 
-alert tcp $HOME_NET any -> 216.126.236.244 4809 (msg:"MALWARE OtterCookie Browser/Wallet Data Exfil to Lazarus C2"; flow:established,to_server; content:"/cldbs"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070403; rev:1;)
+alert http $HOME_NET any -> 216.126.236.244 4809 (msg:"MALWARE OtterCookie Browser/Wallet Data Exfil to Lazarus C2"; flow:established,to_server; content:"/cldbs"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070403; rev:2;)
 
 alert http $HOME_NET any -> any any (msg:"MALWARE OtterCookie Payload Fetch from JSONKeeper"; flow:established,to_server; content:"jsonkeeper.com"; http_host; content:"/b/3P9BF"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070404; rev:1;)
 

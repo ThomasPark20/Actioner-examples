@@ -1,0 +1,28 @@
+title: Suspicious JSONKeeper Payload Fetch by Node.js Process
+id: 2f8a6b9c-0c1d-4f3a-4b7c-8d9e0f1a2b3c
+status: experimental
+description: >
+    Detects Node.js processes resolving jsonkeeper.com via DNS, a paste-style service abused by
+    the Contagious Interview campaign to host malicious JavaScript payloads executed via eval().
+    Note: This is a domain-level indicator only; the dns_query log source cannot match the specific
+    malicious URL path (/b/3P9BF). Correlate with proxy or HTTP logs for higher fidelity.
+references:
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://blog.nviso.eu/2025/11/13/contagious-interview-actors-now-utilize-json-storage-services-for-malware-delivery/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1059.007
+    - attack.t1102.001
+logsource:
+    category: dns_query
+    product: linux
+detection:
+    selection:
+        QueryName|endswith: 'jsonkeeper.com'
+        Image|endswith: '/node'
+    condition: selection
+falsepositives:
+    - Legitimate applications using jsonkeeper.com for data storage or configuration
+level: medium

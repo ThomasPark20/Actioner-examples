@@ -1,0 +1,31 @@
+title: OtterCookie C2 Connection to Known Lazarus Infrastructure
+id: 9c5d3e6f-7f8a-4c0d-1e4f-5a6b7c8d9e0f
+status: experimental
+description: >
+    Detects network connections to the known C2 IP address 216.126.236.244 used by the OtterCookie
+    malware deployed through malicious rollup polyfill npm packages linked to North Korea's
+    Contagious Interview campaign. The C2 uses ports 4801 (Socket.IO), 4806 (file upload), and
+    4809 (browser/wallet data exfiltration).
+references:
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection_ip:
+        DestinationIp: '216.126.236.244'
+    selection_ports:
+        DestinationPort:
+            - 4801
+            - 4806
+            - 4809
+    condition: selection_ip and selection_ports
+falsepositives:
+    - None known - this is a confirmed malicious C2 endpoint
+level: critical

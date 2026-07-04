@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-04
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -184,9 +184,9 @@ The persistence helper masquerades as macOS System Settings, which legitimately 
 | T1041 | Exfiltration Over C2 Channel | ChaCha20-Poly1305 encrypted data exfiltrated via HTTPS POST |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS POST to /api/sync with JSON-wrapped encrypted payloads |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | ChaCha20-Poly1305 encryption for C2 communications |
-| T1497.001 | Virtualization/Sandbox Evasion: System Checks | Regional exclusion via timezone, locale, and keyboard layout checks |
+| T1614.001 | System Location Discovery: System Language Discovery | Regional exclusion via timezone, locale, and keyboard layout checks |
 | T1140 | Deobfuscate/Decode Files or Information | Machine-keyed config decryption on qualifying hosts |
-| T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | Homoglyph obfuscation in lure text; encrypted config blob |
+| T1036 | Masquerading | Homoglyph obfuscation in lure text using Cyrillic and Greek lookalike characters |
 
 ## Impact Assessment
 
@@ -245,53 +245,9 @@ sfltool dumpbtm 2>/dev/null | grep -i "finder.core\|security.daemon\|finder.moni
 
 ## Detection Rules
 
-The following rules target specific artifacts and behaviors documented in the Jamf Threat Labs analysis of the PamStealer macOS infostealer. Host-based rules cover Script Editor abuse, persistence mechanisms, clipboard monitoring, C2 communication, and infection markers. Network rules target the known C2 domains and distribution infrastructure. Note: macOS-specific Sigma rules require endpoint telemetry that logs process creation events with parent-child relationships (e.g., via Endpoint Security Framework, osquery, or a macOS EDR agent).
+The following rules target specific artifacts and behaviors documented in the Jamf Threat Labs analysis of the PamStealer macOS infostealer. Host-based rules cover persistence mechanisms, clipboard monitoring, and infection markers. Network rules target the known C2 domains and distribution infrastructure. Note: macOS-specific Sigma rules require endpoint telemetry that logs process creation events with parent-child relationships (e.g., via Endpoint Security Framework, osquery, or a macOS EDR agent).
 
-### Sigma Rule 1: Script Editor Executing Maccy AppleScript Dropper
-
-Detects Script Editor launching curl, bash, sh, zsh, or osascript child processes -- the primary execution technique used by PamStealer's AppleScript dropper.
-
-compile: sigma check pass (0 errors, excluding ATT&CK tag validator due to network restriction) | splunk pass | log_scale pass | confidence: medium (TTP-level; Script Editor can be used legitimately for automation)
-
-```yaml
-title: PamStealer macOS Infostealer - Script Editor Executing Maccy AppleScript Dropper
-id: a4e17c3d-8b92-4f61-ae5d-1c9f02b83e47
-status: experimental
-description: >
-    Detects macOS Script Editor executing the PamStealer dropper delivered as
-    Maccy.scpt. The malware arrives inside a disk image impersonating the legitimate
-    Maccy clipboard manager. When the user opens the .scpt file and presses Run,
-    Script Editor executes embedded JavaScript for Automation (JXA) code that
-    downloads the second-stage Rust-based payload via NSURLSession.
-references:
-    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
-    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
-author: Actioner
-date: 2026/07/04
-tags:
-    - attack.t1059.002
-    - attack.t1204.002
-logsource:
-    category: process_creation
-    product: macos
-detection:
-    selection_parent:
-        ParentImage|endswith: '/Script Editor'
-    selection_child:
-        Image|endswith:
-            - '/curl'
-            - '/bash'
-            - '/sh'
-            - '/zsh'
-            - '/osascript'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate automation workflows using Script Editor
-    - Developer scripts executed interactively via Script Editor
-level: high
-```
-
-### Sigma Rule 2: Fake Finder App Bundle Persistence
+### Sigma Rule 1: Fake Finder App Bundle Persistence
 
 Detects file creation in the fake `com.apple.finder.core` application support directory or the presence of the `77617EA0` payload binary -- both unique to PamStealer.
 
@@ -329,14 +285,14 @@ falsepositives:
 level: critical
 ```
 
-### Sigma Rule 3: Repeated pbpaste Clipboard Monitoring
+### Sigma Rule 2: Suspicious pbpaste Clipboard Monitoring
 
 Detects pbpaste invocations from suspicious parent processes associated with PamStealer's clipboard harvesting.
 
 compile: sigma check pass (0 errors) | splunk pass | log_scale pass | confidence: high (pbpaste from fake Finder/security daemon parent is not legitimate)
 
 ```yaml
-title: PamStealer macOS Infostealer - Repeated pbpaste Clipboard Monitoring
+title: PamStealer macOS Infostealer - Suspicious pbpaste Clipboard Monitoring
 id: c8d35b2f-7e95-4a64-bc13-4f9a25e78d01
 status: experimental
 description: >
@@ -370,7 +326,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma Rule 4: Persistence Helper in Private Tmp
+### Sigma Rule 3: Persistence Helper in Private Tmp
 
 Detects execution of the PamStealer persistence helper binary from `/private/tmp/System Settings`.
 
@@ -406,45 +362,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma Rule 5: C2 Communication to avenger-sync Domain
-
-Detects process command lines containing known PamStealer C2 domains.
-
-compile: sigma check pass (0 errors) | splunk pass | log_scale pass | confidence: high (confirmed malicious C2 domains)
-
-```yaml
-title: PamStealer macOS Infostealer - C2 Communication to avenger-sync Domain
-id: e0f57d41-9ab7-4c86-de35-6b1c47a90f23
-status: experimental
-description: >
-    Detects process command lines containing the PamStealer C2 domain
-    avenger-sync.live. The malware exfiltrates stolen credentials, browser data,
-    keychain contents, and clipboard data to this endpoint via HTTPS POST requests
-    with ChaCha20-Poly1305 encrypted JSON payloads. The C2 is fronted by Cloudflare.
-references:
-    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
-    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
-author: Actioner
-date: 2026/07/04
-tags:
-    - attack.t1041
-    - attack.t1071.001
-logsource:
-    category: process_creation
-    product: macos
-detection:
-    selection:
-        CommandLine|contains:
-            - 'avenger-sync.live'
-            - 'sync-master.online'
-            - 'avngr.netlify.app'
-    condition: selection
-falsepositives:
-    - None expected - these are confirmed malicious C2 domains
-level: critical
-```
-
-### Sigma Rule 6: Maccy Marker and Cache File Creation
+### Sigma Rule 4: Maccy Marker and Config File Creation
 
 Detects creation of the `.Maccy` infection marker or PamStealer-specific cache directories.
 
@@ -465,7 +383,7 @@ references:
 author: Actioner
 date: 2026/07/04
 tags:
-    - attack.t1027
+    - attack.t1036.005
 logsource:
     category: file_event
     product: macos
@@ -610,6 +528,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - PamStealer macOS Stealer DNS
 - [PCRisk: PamStealer Malware (Mac) - Removal steps](https://www.pcrisk.com/removal-guides/35543-pamstealer-malware-mac) -- SHA256 hash and AV detection names
 - [CyberInsider: New macOS malware PamStealer uses PAM to validate stolen data](https://cyberinsider.com/new-macos-malware-pamstealer-uses-pam-to-validate-stolen-data/) -- additional technical details and evasion techniques
 - [Cryptika: PamStealer Mimics Maccy Clipboard Manager](https://www.cryptika.com/pamstealer-mimics-maccy-clipboard-manager-silently-harvests-data-and-clipboard-contents/) -- alternative C2 domain `api.sync-master[.]online` and `avngr.netlify[.]app` infrastructure details
+
+<!-- revision: v1.1 2026-07-04 — CUT 2 Sigma rules (Script Editor TTP-level dropper, broken C2 CommandLine detection); FIX Maccy marker tag T1027→T1036.005; FIX pbpaste title Repeated→Suspicious; FIX MITRE T1497.001→T1614.001, T1027.013→T1036; FIX heading Cache→Config. Final: 4 Sigma, 2 YARA, 6 Suricata. -->
 
 ---
 *Report generated by Actioner*

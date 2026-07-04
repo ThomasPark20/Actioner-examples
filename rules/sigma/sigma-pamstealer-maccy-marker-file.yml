@@ -12,7 +12,7 @@ references:
 author: Actioner
 date: 2026/07/04
 tags:
-    - attack.t1027
+    - attack.t1036.005
 logsource:
     category: file_event
     product: macos
