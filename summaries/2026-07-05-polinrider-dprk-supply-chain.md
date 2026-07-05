@@ -1,7 +1,7 @@
 # PolinRider Campaign -- DPRK Supply Chain Attack Across npm, Packagist, Go, and Chrome
 
 **Date:** 2026-07-05
-**Status:** DRAFT
+**Status:** FINAL
 **Threat Actor:** Contagious Interview (G1052) / Lazarus / Famous Chollima / DPRK-attributed
 **Campaign:** PolinRider
 
@@ -185,7 +185,7 @@ PostCSS config files account for approximately 62% of infected repositories.
 | T1005 | Data from Local System | Harvesting credentials, wallets, SSH keys, cloud configs |
 | T1555 | Credentials from Password Stores | Browser credential theft (Chrome, Firefox, Brave, Edge) |
 | T1074.001 | Data Staged: Local Data Staging | Staging in tmp/pack, tmp/scdata, tmp/ldata |
-| T1070.004 | Indicator Removal: File Deletion | Git history rewriting with force pushes and anti-dated commits |
+| T1070 | Indicator Removal | Git history rewriting with force pushes and anti-dated commits to obscure injection timing |
 | T1219 | Remote Access Tools | DEV#POPPER RAT via socket.io backdoor |
 | T1657 | Financial Theft | Cryptocurrency wallet theft and seed phrase harvesting |
 
@@ -240,6 +240,7 @@ level: critical
 
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0; yaml schema valid -->
 **Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** HIGH
+**Coverage Note:** Windows process telemetry only. Linux/macOS coverage requires equivalent Sysmon-for-Linux or Endpoint agent rules.
 
 ---
 
