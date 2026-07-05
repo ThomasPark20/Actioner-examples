@@ -1,0 +1,27 @@
+title: Symlink Creation Targeting Cursor Sandbox Helper on Linux
+id: e5b7a2c4-1f8d-4e3b-f9a5-b2c6d7e0f8a1
+status: experimental
+description: Detects creation of symbolic links pointing at the cursorsandbox helper binary on Linux, indicative of CVE-2026-50549 exploitation.
+references:
+    - https://www.catonetworks.com/blog/duneslide-two-critical-rce-vulnerabilities/
+    - https://github.com/cursor/cursor/security/advisories/GHSA-3v8f-48vw-3mjx
+author: Actioner CTI
+date: 2026-07-05
+tags:
+    - attack.defense-evasion
+    - attack.t1562.001
+    - cve.2026-50549
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/ln'
+        CommandLine|contains|all:
+            - '-s'
+            - 'cursorsandbox'
+    condition: selection
+falsepositives:
+    - Administrative troubleshooting of Cursor IDE installation
+level: high

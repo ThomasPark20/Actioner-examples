@@ -1,0 +1,26 @@
+title: Outbound Connection to PolinRider C2 Server 216.126.236.244
+id: b3c4d5e6-7f8a-9b0c-1d2e-3f4a5b6c7d8e
+status: experimental
+description: >
+    Detects network connections to the known PolinRider C2 server at
+    216.126.236.244, used for payload delivery, socket.io backdoor
+    communication, and data exfiltration across multiple ports.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+author: Actioner
+date: 2026-07-05
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '216.126.236.244'
+        Initiated: 'true'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to this IP is unlikely in most environments
+level: critical

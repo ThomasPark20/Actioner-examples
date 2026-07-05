@@ -1,0 +1,36 @@
+title: Obfuscated npm Package Install via Base64 - PolinRider Campaign
+id: f1a2b3c4-5d6e-7f8a-9b0c-1d2e3f4a5b6c
+status: experimental
+description: >
+    Detects Node.js or npm processes executing base64-encoded install commands
+    for known PolinRider malicious packages (swift-parse-stream, quirky-token).
+    These packages masquerade as Rollup polyfill utilities and deliver a RAT
+    via JSONKeeper payload retrieval.
+references:
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+author: Actioner
+date: 2026-07-05
+tags:
+    - attack.t1059.007
+    - attack.t1204.005
+    - attack.t1027.010
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\node.exe'
+            - '\npm.cmd'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'swift-parse-stream'
+            - 'quirky-token'
+            - 'c3dpZnQtcGFyc2Utc3RyZWFt'
+            - 'rollup-packages-polyfill-core'
+            - 'rollup-runtime-polyfill-core'
+    condition: selection_parent and selection_cmdline
+falsepositives:
+    - Legitimate use of identically named packages is extremely unlikely
+level: critical

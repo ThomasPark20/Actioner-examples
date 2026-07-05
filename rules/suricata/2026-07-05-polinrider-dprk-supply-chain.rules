@@ -1,0 +1,23 @@
+# PolinRider DPRK Supply Chain Campaign - Suricata Rules
+# Date: 2026-07-05
+# Author: Actioner
+# Threat Actor: Contagious Interview / Lazarus / Famous Chollima / DPRK-attributed
+# Campaign: PolinRider
+
+# Rule 10: C2 Server Connection
+alert tcp $HOME_NET any -> 216.126.236.244 any (msg:"POLINRIDER C2 Connection to 216.126.236.244"; flow:to_server,established; sid:2026070501; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+
+# Rule 11: C2 API Payload Retrieval
+alert http $HOME_NET any -> any any (msg:"POLINRIDER C2 API Path /api/service/ Payload Retrieval"; flow:to_server,established; content:"/api/service/"; http_uri; content:"98cb54c0b4ac259d30c9c1ca1ae87c68"; http_uri; sid:2026070502; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+
+# Rule 12: C2 Beacon Makelog (destination-constrained)
+alert http $HOME_NET any -> 216.126.236.244 any (msg:"POLINRIDER C2 Beacon /api/service/makelog"; flow:to_server,established; content:"/api/service/makelog"; http_uri; sid:2026070503; rev:2; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+
+# Rule 13: Socket.IO Backdoor Port 4801
+alert tcp $HOME_NET any -> 216.126.236.244 4801 (msg:"POLINRIDER Socket.IO Backdoor Connection Port 4801"; flow:to_server,established; sid:2026070504; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+
+# Rule 14: JSONKeeper Payload Retrieval
+alert http $HOME_NET any -> any any (msg:"POLINRIDER JSONKeeper Payload Retrieval"; flow:to_server,established; content:"jsonkeeper.com"; http_host; content:"/b/3P9BF"; http_uri; sid:2026070506; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+
+# Rule 15: Vercel C2 DNS Query
+alert dns $HOME_NET any -> any any (msg:"POLINRIDER Vercel C2 Subdomain DNS Query"; content:"vscode-settings"; nocase; content:"vercel"; nocase; sid:2026070507; rev:1; classtype:trojan-activity; reference:url,github.com/OpenSourceMalware/PolinRider;)

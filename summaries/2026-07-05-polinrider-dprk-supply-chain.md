@@ -270,15 +270,18 @@ detection:
     selection:
         QueryName|endswith:
             - '.jsonkeeper.com'
+            - 'jsonkeeper.com'
         Image|endswith:
             - '\node.exe'
             - '/node'
     condition: selection
 falsepositives:
     - Developers using JSONKeeper as a legitimate JSON hosting service
+    - Development environments where JSONKeeper is used for JSON mocking or prototyping
 level: medium
 ```
 
+<!-- revision: Added bare 'jsonkeeper.com' to QueryName endswith list. Added dev environment false positive caveat. -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0; yaml schema valid -->
 **Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** MEDIUM
 
@@ -319,56 +322,11 @@ level: critical
 
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0; yaml schema valid -->
 **Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** HIGH
+**Coverage Note:** Windows network telemetry only. Linux/macOS coverage requires equivalent network connection logging rules.
 
 ---
 
-#### 4. Developer Config File Modification by Node.js - PolinRider Injection
-
-Detects Node.js modifying build configuration files commonly targeted for JavaScript loader injection.
-
-```yaml
-title: Developer Config File Modification by Node.js - PolinRider Injection
-id: c4d5e6f7-8a9b-0c1d-2e3f-4a5b6c7d8e9f
-status: experimental
-description: >
-    Detects Node.js modifying developer configuration files commonly targeted
-    by the PolinRider campaign for JavaScript loader injection. The campaign
-    appends obfuscated payloads to postcss.config.mjs, tailwind.config.js,
-    eslint.config.mjs, next.config.mjs, and similar build config files.
-references:
-    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
-    - https://thehackernews.com/2026/07/north-korean-hackers-publish-108.html
-author: Actioner
-date: 2026-07-05
-tags:
-    - attack.t1195.001
-    - attack.t1059.007
-logsource:
-    category: file_change
-detection:
-    selection_process:
-        Image|endswith:
-            - '\node.exe'
-            - '/node'
-    selection_file:
-        TargetFilename|endswith:
-            - 'postcss.config.mjs'
-            - 'postcss.config.js'
-            - 'tailwind.config.js'
-            - 'eslint.config.mjs'
-            - 'next.config.mjs'
-            - 'vite.config.js'
-            - 'vite.config.mjs'
-    condition: selection_process and selection_file
-falsepositives:
-    - Legitimate build tools and PostCSS/Tailwind plugins may modify these files during compilation
-level: medium
-```
-
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0; yaml schema valid -->
-**Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** MEDIUM
-
----
+<!-- revision: dropped -- Normal build behavior (PostCSS, Tailwind, Vite all write config files during compilation). The TTP operates at a higher altitude than file_change telemetry can distinguish without unacceptable false positives. -->
 
 #### 5. DNS Query to PolinRider Vercel C2 Subdomains
 
@@ -413,17 +371,16 @@ level: critical
 
 #### 6. PolinRider Staging File Creation in Temp Directory
 
-Detects creation of known PolinRider staging artifacts (pack, scdata, ldata, vhost.ctl).
+Detects creation of known PolinRider staging artifacts (scdata, .npm/vhost.ctl).
 
 ```yaml
 title: PolinRider Staging File Creation in Temp Directory
 id: e6f7a8b9-0c1d-2e3f-4a5b-6c7d8e9f0a1b
 status: experimental
 description: >
-    Detects creation of known PolinRider staging artifacts in temporary
-    directories, including the AES-wrapped loader (pack), remote access
-    component (scdata), browser stealer (ldata), and process marker
-    (.npm/vhost.ctl).
+    Detects creation of PolinRider staging artifacts in temporary
+    directories: the remote access component (scdata) and the npm
+    process marker (.npm/vhost.ctl).
 references:
     - https://research.jfrog.com/post/rollup-polyfill-masquerading/
     - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
@@ -436,23 +393,22 @@ logsource:
     category: file_event
     product: windows
 detection:
-    selection:
-        TargetFilename|contains:
-            - '\pack'
+    selection_scdata:
+        TargetFilename|endswith:
             - '\scdata'
-            - '\ldata'
+    selection_vhost:
+        TargetFilename|contains:
             - '\.npm\vhost.ctl'
-    filter_npm_legitimate:
-        Image|endswith:
-            - '\npm.exe'
-    condition: selection and not filter_npm_legitimate
+    condition: selection_scdata or selection_vhost
 falsepositives:
-    - Files named pack or ldata created by unrelated software
-level: medium
+    - Legitimate software creating files named scdata in temp directories
+level: low
 ```
 
+<!-- revision: Removed \pack and \ldata patterns (too generic, high false-positive risk). Switched \scdata to endswith. Kept \.npm\vhost.ctl with contains. Downgraded to LOW. -->
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0; yaml schema valid -->
-**Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** MEDIUM
+**Compile Status:** PASSED (Splunk + LogScale) | **Confidence:** LOW
+**Coverage Note:** Windows file event telemetry only. Linux/macOS coverage requires equivalent file monitoring rules.
 
 ---
 
@@ -466,7 +422,7 @@ Detects both the original (`rmcej%otb%`) and new (`Cot%3t=shtP`) shuffle-cipher 
 rule PolinRider_JS_Obfuscator_Variants
 {
     meta:
-        description = "Detects PolinRider shuffle-cipher JavaScript payloads injected into config files. Covers both original (rmcej%otb%) and new (Cot%3t=shtP) obfuscator variants with their decoder seeds and global markers."
+        description = "Detects PolinRider shuffle-cipher JavaScript payloads injected into developer config files. Covers both the original and new obfuscator variants."
         author = "Actioner"
         date = "2026-07-05"
         reference = "https://github.com/OpenSourceMalware/PolinRider"
@@ -584,15 +540,15 @@ rule PolinRider_VSCode_Task_Weaponized
         $task_label = "eslint-check" ascii
         $woff2_exec = ".woff2" ascii
         $node_cmd = "node" ascii
-        $hide_task = "\"hide\"" ascii
 
     condition:
         filesize < 50KB and
         $auto_run and $run_on and
-        ($task_label or ($woff2_exec and $node_cmd) or $hide_task)
+        ($task_label or ($woff2_exec and $node_cmd))
 }
 ```
 
+<!-- revision: Removed $hide_task from OR condition -- "hide" is a standard VS Code tasks.json presentation value, too broad for detection. -->
 <!-- audit: yarac exit 0 -->
 **Compile Status:** PASSED (yarac) | **Confidence:** MEDIUM
 
@@ -623,10 +579,11 @@ alert http $HOME_NET any -> any any (msg:"POLINRIDER C2 API Path /api/service/ P
 #### 12. PolinRider C2 Beacon Makelog
 
 ```
-alert http $HOME_NET any -> any any (msg:"POLINRIDER C2 Beacon /api/service/makelog"; flow:to_server,established; content:"/api/service/makelog"; http_uri; sid:2026070503; rev:1; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
+alert http $HOME_NET any -> 216.126.236.244 any (msg:"POLINRIDER C2 Beacon /api/service/makelog"; flow:to_server,established; content:"/api/service/makelog"; http_uri; sid:2026070503; rev:2; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/;)
 ```
 
-**Compile Status:** Uncompiled (structural check only) | **Confidence:** HIGH
+<!-- revision: Added 216.126.236.244 destination constraint to reduce false positives from generic /api/service/makelog paths. Bumped rev to 2. -->
+**Compile Status:** Uncompiled (structural check only) | **Confidence:** MEDIUM
 
 ---
 
