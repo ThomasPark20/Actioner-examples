@@ -1,0 +1,26 @@
+title: HTTP Request with EvilTokens X-Antibot-Token Header
+id: d5e1c7a9-3f8b-4e2d-9a6c-1b0f4d7e8c3a
+status: experimental
+description: >
+    Detects outbound HTTP requests containing the X-Antibot-Token header, a distinctive
+    indicator of EvilTokens phishing infrastructure. This header carries a SHA-256 hash
+    computed from a shared secret, Unix timestamp, and the string _antibot, with a 5-minute
+    validity window. Requires proxy telemetry that logs individual request header names
+    (cs-header-names field).
+references:
+    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+    - https://www.sekoia.com/blog/new-widespread-eviltokens-kit-device-code-phishing-as-a-service-part-1
+author: Actioner
+date: 2026-07-06
+modified: 2026-07-06
+tags:
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-header-names|contains: 'X-Antibot-Token'
+    condition: selection
+falsepositives:
+    - Unlikely; this header name is specific to EvilTokens infrastructure
+level: high

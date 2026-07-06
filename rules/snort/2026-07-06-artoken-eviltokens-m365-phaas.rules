@@ -1,0 +1,6 @@
+# Actioner - ARToken/EvilTokens M365 PhaaS Detection Rules
+# Date: 2026-07-06
+# Reference: https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - EvilTokens Device Code Phishing API /api/device/start"; flow:established,to_server; content:"POST"; http_method; content:"/api/device/start"; http_uri; fast_pattern; content:"clientMode"; http_client_body; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created 2026-07-06; sid:2100101; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - EvilTokens X-Antibot-Token Header Detected"; flow:established,to_server; content:"X-Antibot-Token"; http_header; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created 2026-07-06; sid:2100102; rev:1;)

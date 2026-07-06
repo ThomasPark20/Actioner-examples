@@ -1,0 +1,57 @@
+title: HTTP Request to EvilTokens Device Code Phishing API Endpoints
+id: b2f8a1c3-5d7e-4a9b-8c6f-3e0d1b4a7f2e
+status: experimental
+description: >
+    Detects HTTP requests to the distinctive API endpoints used by the EvilTokens/ARToken
+    phishing platform for device code authentication initiation, status polling, and Primary
+    Refresh Token management. Device API paths are constrained to known C2 destination
+    domains to reduce false positives; PRT paths fire standalone.
+references:
+    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
+    - https://www.sekoia.com/blog/new-widespread-eviltokens-kit-device-code-phishing-as-a-service-part-1
+author: Actioner
+date: 2026-07-06
+modified: 2026-07-06
+tags:
+    - attack.t1078.004
+    - attack.t1550.001
+logsource:
+    category: proxy
+detection:
+    selection_device_api:
+        cs-uri-stem|contains:
+            - '/api/device/start'
+            - '/api/device/status/'
+            - '/api/device/sessions'
+    selection_c2_dest:
+        cs-host|endswith:
+            - '.pamconj.com'
+            - '.authdocspro.com'
+            - '.notificationsmanagersec.com'
+            - '.serenitygovsupplys.com'
+            - '.eventcalender-schedule.com'
+            - '.framebound.cloud'
+            - '.suctwocesonesstory.com'
+            - '.mirsanotolastik.com'
+            - '.smstltle.net'
+            - '.topbuysella.com'
+            - '.totalhomesafe.com'
+            - '.youremplregroup.com'
+            - '.infinitechai.org'
+            - '.evobothub.org'
+            - '.newmobilepolojean.com'
+            - '.macmamo.com'
+            - '.prcservis.com'
+    selection_prt_api:
+        cs-uri-stem|contains:
+            - '/api/prt/convert'
+            - '/api/prt/refresh'
+            - '/api/prt/exchange'
+            - '/api/prt/cookie'
+            - '/api/prt/owa-session'
+            - '/api/prt/recon'
+            - '/api/prt/azure'
+    condition: (selection_device_api and selection_c2_dest) or selection_prt_api
+falsepositives:
+    - Custom internal applications using similar API path naming conventions (mitigated by C2 destination constraint for device paths)
+level: medium
