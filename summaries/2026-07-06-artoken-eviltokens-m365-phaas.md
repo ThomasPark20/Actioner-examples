@@ -180,10 +180,12 @@ After obtaining tokens, operators have access to:
 | URL Pattern | `/api/device/status/{sessionId}` | Authentication status polling |
 | URL Pattern | `/api/prt/*` | PRT management endpoints |
 | HTTP Header | `X-Antibot-Token` | EvilTokens anti-analysis header (SHA-256 hash) |
-| IP Range | 162[.]220[.]232[.]0/24 | Railway.com sign-in infrastructure |
-| IP Range | 162[.]220[.]234[.]0/24 | Railway.com sign-in infrastructure |
-| IP Range | 89[.]150[.]45[.]0/24 | HZ Hosting sign-in infrastructure |
-| IP Range | 185[.]81[.]113[.]0/24 | HZ Hosting sign-in infrastructure |
+| IP Range | 162[.]220[.]232[.]0/24 | Railway.com sign-in infrastructure (shared hosting -- correlation only) |
+| IP Range | 162[.]220[.]234[.]0/24 | Railway.com sign-in infrastructure (shared hosting -- correlation only) |
+| IP Range | 89[.]150[.]45[.]0/24 | HZ Hosting sign-in infrastructure (shared hosting -- correlation only) |
+| IP Range | 185[.]81[.]113[.]0/24 | HZ Hosting sign-in infrastructure (shared hosting -- correlation only) |
+
+> **Caveat:** The /24 IP ranges above are shared hosting infrastructure used by many legitimate tenants. Do **not** block these ranges at the perimeter. Use them for correlation and enrichment only -- flag sign-in events from these ranges for analyst review when combined with other indicators.
 
 ### File System
 
@@ -275,7 +277,7 @@ CloudAppEvents
 
 ### Long-Term Hardening
 
-1. **Block Device Code Flow:** Configure Conditional Access policies to block device code authentication where possible; apply restrictions for necessary scenarios
+1. **Block Device Code Flow:** Configure Conditional Access policies to block device code authentication where possible; apply restrictions for necessary scenarios. **Note:** Conditional Access policies require Azure AD Premium P1 or P2 licensing; organizations on free/basic tiers must use alternative controls (e.g., tenant-wide toggle via PowerShell `Set-MsolDomainAuthentication` or security defaults)
 2. **Phishing-Resistant MFA:** Deploy FIDO2 security keys or Microsoft Authenticator with passkeys; avoid telephony-based MFA
 3. **Conditional Access:** Implement sign-in risk policies forcing re-authentication for high-risk detections; block legacy authentication protocols
 4. **Safe Links:** Enable Microsoft Defender for Office 365 Safe Links, which generates "high confidence Device Code phishing alerts"
