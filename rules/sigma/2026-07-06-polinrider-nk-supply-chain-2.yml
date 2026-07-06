@@ -1,0 +1,24 @@
+title: Network Connection to PolinRider C2 IP Address
+id: bf2e0607-3cbd-4254-8bf7-bb2051ce693c
+status: experimental
+description: >
+    Detects outbound network connections to the known PolinRider campaign
+    C2 server IP address 216.126.236.244 used for payload delivery,
+    remote access, and data exfiltration.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '216.126.236.244'
+    condition: selection
+falsepositives:
+    - Unlikely - this IP is a confirmed C2 endpoint
+level: critical

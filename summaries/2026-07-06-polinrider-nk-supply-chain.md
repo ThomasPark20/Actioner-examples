@@ -5,6 +5,8 @@ Classification: TLP:WHITE
 Date: 2026-07-06
 Version: 1.0
 
+<!-- revision: v1.0 finalized from 1.0-DRAFT after critic review. Changes: T1056.001→T1056 (desktop automation, not keylogging); T1070.004→T1070 (force-push, not file deletion); Sigma JSONKeeper removed attack.t1059.007, added correlation-only caveat; Snort SID 2100011 merged split content into single http_uri match (rev 2); YARA TaskJacker downgraded to low, alt branch tightened with campaign C2 strings, FP note added; remediation: blockchain RPC caveat added; npm audit signatures description corrected to "registry signature verification". -->
+
 ## Executive Summary
 
 North Korean threat actors operating under the Contagious Interview / Famous Chollima cluster have published 108 unique malicious packages across 162 release artifacts spanning npm, Packagist (Composer), Go modules, and the Chrome Web Store as part of the **PolinRider** campaign. First identified by OpenSourceMalware in March 2026 and subsequently analyzed by Socket Security and JFrog, the campaign uses typosquatted packages, compromised maintainer accounts, and fake recruitment projects to inject obfuscated JavaScript loaders into developer environments. These loaders communicate with blockchain-based dead-drop C2 infrastructure (TRON, Aptos, BNB Smart Chain) and Vercel-hosted HTTP endpoints to deliver second-stage payloads including BeaverTail, DEV#POPPER/InvisibleFerret RAT, and OmniStealer. A related cluster of six Rollup polyfill masquerading packages (discovered by JFrog) uses a distinct C2 at 216.126.236[.]244 with JSONKeeper for staging. As of early July 2026, the campaign has compromised 1,951 public GitHub repositories belonging to 1,047 unique owners and remains actively ongoing.
@@ -281,11 +283,11 @@ ls -la /tmp/.npm/vhost.ctl 2>/dev/null
 
 ### Long-Term Hardening
 
-- Enable package lockfile integrity checking (`npm audit signatures`)
+- Enable registry signature verification (`npm audit signatures`)
 - Use allowlists for approved packages in CI/CD
 - Enable VS Code `security.workspace.trust` to prevent auto-execution of workspace tasks
 - Monitor for unexpected network connections from development environments
-- Implement egress filtering to block connections to blockchain RPC endpoints from development machines
+- Implement egress filtering to block connections to blockchain RPC endpoints from development machines (unless the team develops blockchain applications)
 - Use Socket.dev or similar supply chain security tooling for dependency monitoring
 
 ## Detection Rules

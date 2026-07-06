@@ -1,0 +1,27 @@
+title: Node.js Execution of Fake WOFF2 Font File - PolinRider
+id: dbdae443-7829-406d-98f3-7cdb5e19ddc4
+status: experimental
+description: >
+    Detects Node.js executing a .woff2 file, a technique used by the PolinRider
+    campaign to disguise malicious JavaScript payloads as font files that are
+    then executed via VS Code tasks or npm scripts.
+references:
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+    - https://github.com/OpenSourceMalware/PolinRider
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1059.007
+    - attack.t1036.008
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+        CommandLine|contains: '.woff2'
+    condition: selection
+falsepositives:
+    - Legitimate tooling that processes font files via Node.js (uncommon)
+level: high

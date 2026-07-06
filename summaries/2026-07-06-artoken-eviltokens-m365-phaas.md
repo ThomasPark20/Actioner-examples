@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-06
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -36,7 +36,7 @@ The attack begins with targeted spearphishing emails that impersonate legitimate
 
 Key email characteristics:
 - Real vendor domain in the From header with Reply-To redirecting to an attacker-controlled domain
-- SPF, DKIM (body-hash mismatch), and DMARC all fail; `compauth=none reason=405`
+- SPF, DKIM (body-hash mismatch), and DMARC all fail; `compauth=none reason=405` indicates Microsoft's composite authentication determined the message was not authenticated (`none`) because the domain's DMARC policy was not enforced by the receiving tenant (`reason=405` -- implicit email authentication failure, no DMARC reject/quarantine action taken)
 - Short random hex strings and inline signature images (`pumber.png`) for per-message mutation
 - Visible anchor text spoofs legitimate SharePoint URLs while the actual href points to attacker-controlled lookalike domains
 - Geo-dynamic template placeholders (`{city}`, `{country_code}`, `{state}`) resolve based on victim geolocation
