@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-06
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -186,8 +186,10 @@ Get-ChildItem -Path "C:\Program Files\Common Files\Microsoft Shared\Web Server E
 ### Remediation
 
 1. **Apply security updates immediately:** Install KB5002863 (Subscription Edition), KB5002870 (2019), or KB5002868 (2016)
-2. **Restart IIS** on all SharePoint servers post-patching to clear any cached cryptographic material from memory
-3. **Enable AMSI in Full Mode** on SharePoint servers for runtime protection
+2. **Restart IIS** on all SharePoint servers post-patching to ensure patched assemblies are loaded by worker processes
+<!-- revision: reworded IIS restart rationale — "ensure patched assemblies are loaded" replaces "clear cached cryptographic material" -->
+3. **Enable AMSI in Full Mode** on SharePoint servers for runtime protection (after performance validation in a non-production environment)
+<!-- revision: added AMSI performance validation caveat -->
 4. **Hunt for indicators of prior compromise:** Check for webshells, suspicious ASPX files, unauthorized scheduled tasks, and evidence of credential harvesting
 5. **Review authentication logs** for any suspicious Site Member activity preceding the patch application
 6. **Rotate credentials** for SharePoint service accounts and any accounts that may have been compromised
@@ -199,9 +201,13 @@ Get-ChildItem -Path "C:\Program Files\Common Files\Microsoft Shared\Web Server E
 - Enable Sysmon or EDR monitoring on SharePoint servers to capture process creation trees from `w3wp.exe`
 - Implement file integrity monitoring on SharePoint TEMPLATE directories
 - Apply principle of least privilege for SharePoint site membership
-- Monitor for Microsoft Defender XDR signatures: `Exploit:Script/SuspSignoutReq.A`, `Trojan:Win32/HijackSharePointServer.A`, `Trojan:PowerShell/MachineKeyFinder.DA!amsi`
+- Monitor for Microsoft Defender XDR signatures: `Exploit:Script/SuspSignoutReq.A`, `Trojan:Win32/HijackSharePointServer.A`, `Trojan:PowerShell/MachineKeyFinder.DA!amsi` (from related SharePoint exploitation campaigns; verify current applicability -- these are not CVE-2026-45659-specific)
+<!-- revision: added Defender XDR signatures provenance caveat -->
 
 ## Detection Rules
+
+<!-- revision: added altitude mismatch note — requested "specific" detections but delivered "behavioral" since no public PoC exists -->
+> **Altitude note:** The original request called for CVE-specific detection signatures. Because no public proof-of-concept or detailed exploit chain for CVE-2026-45659 has been published, all rules below are **behavioral / TTP-derived** rather than exploit-string-specific. They detect the *class* of activity (SharePoint deserialization RCE exploitation and Storm-2603 post-exploitation) rather than a unique CVE-2026-45659 artifact. If a PoC surfaces, network rules should be updated with exact payload signatures.
 
 These detections target SharePoint deserialization exploitation patterns (CVE-2026-45659) at two layers: endpoint behavioral indicators (w3wp.exe child processes, webshell drops, post-exploitation tools) and network-level serialized payload markers. All rules are behavioral/TTP-derived since no public PoC with exact exploit strings exists; confidence is medium. Compiles does not equal fires -- verify in your SIEM/IDS pipeline with SharePoint telemetry.
 
@@ -256,8 +262,9 @@ falsepositives:
     - Legitimate SharePoint administration tasks that spawn command interpreters
     - SharePoint health monitoring scripts
     - Custom SharePoint solutions with server-side code execution
-level: high
+level: medium
 ```
+<!-- revision: level high→medium per critic (behavioral rule, similar rules exist in SigmaHQ) -->
 
 ### Sigma: Suspicious ASPX File Creation in SharePoint Layouts Directory
 
@@ -294,13 +301,14 @@ detection:
     condition: selection_path and selection_layouts and selection_ext
 falsepositives:
     - Legitimate SharePoint feature deployment or solution installation
-    - SharePoint cumulative update installation
-level: high
+    - SharePoint cumulative update installation creating ASPX files in LAYOUTS directories
+level: medium
 ```
+<!-- revision: level high→medium per critic; expanded FP entry for cumulative updates creating ASPX files -->
 
 ### Sigma: Storm-2603 Post-Exploitation Tool Execution on SharePoint Server
 
-Detects execution of remote access and enumeration tools associated with Storm-2603 post-exploitation following SharePoint compromise. Hunt-oriented; pair with the w3wp child process rule as the anchor signal.
+Detects execution of remote access and enumeration tools associated with Storm-2603 post-exploitation following SharePoint compromise. Hunt-oriented; pair with the w3wp child process rule as the anchor signal. **Caveat:** Operators should evaluate each selection independently -- consider disabling `selection_cloudflared` and `selection_zohoassist` in environments where Cloudflare tunnels or Zoho Assist are authorized, or split into per-tool-family rules to reduce noise.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. TTP rule targeting post-exploitation tool execution, not CVE-specific. FP risk: cloudflared.exe with tunnel args may be legitimate; ZohoAssist may be authorized IT support; xd.exe filename collision possible. SharpHostInfo.x64.exe is distinctive. Recommend scoping to SharePoint server assets. -->
 ```yaml

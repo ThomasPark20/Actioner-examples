@@ -1,0 +1,25 @@
+title: Langflow CVE-2025-3248 Code Validation Endpoint Exploitation
+id: 9c5d1e3a-6f7b-8c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects HTTP POST requests to Langflow's vulnerable /api/v1/validate/code
+    endpoint, exploited by JadePuffer for unauthenticated remote code
+    execution (CVE-2025-3248, CVSS 9.8).
+references:
+    - https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+    - https://nvd.nist.gov/vuln/detail/CVE-2025-3248
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1190
+    - attack.t1059.006
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/api/v1/validate/code'
+        cs-method: 'POST'
+    condition: selection
+falsepositives:
+    - Legitimate Langflow development and testing activity using the code validation API
+level: high

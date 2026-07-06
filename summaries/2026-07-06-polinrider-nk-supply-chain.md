@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-06
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -234,8 +234,8 @@ Decrypted payload is written to `<tmp>/pack`. Additional dropped scripts:
 | T1005 | Data from Local System | AWS/Azure/SSH/GPG keys, shell history, editor history, Keychain |
 | T1113 | Screen Capture | screenshot-desktop dependency for screen capture |
 | T1115 | Clipboard Data | Clipboard monitoring via pbpaste/Get-Clipboard |
-| T1056.001 | Input Capture: Keylogging | @nut-tree-fork/nut-js for input device control (Windows) |
-| T1070.004 | Indicator Removal: File Deletion | Git history rewriting via temp_auto_push.bat |
+| T1056 | Input Capture | @nut-tree-fork/nut-js for desktop automation input control (Windows) |
+| T1070 | Indicator Removal | Git history rewriting and force-push via temp_auto_push.bat |
 
 ## Impact Assessment
 
@@ -396,17 +396,19 @@ level: high
 ```
 
 ### Sigma: DNS Query to JSONKeeper Staging Domain
-Detects DNS queries to jsonkeeper[.]com, used by the campaign for second-stage payload hosting. Scope to developer workstations/CI runners; JSONKeeper has some legitimate (albeit niche) use.
+Detects DNS queries to jsonkeeper[.]com, used by the campaign for second-stage payload hosting. Scope to developer workstations/CI runners; JSONKeeper has some legitimate (albeit niche) use. This rule is intended for correlation with other PolinRider indicators, not as a standalone alert.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check -x attacktag 0; splunk convert 0; log_scale convert 0. JSONKeeper is a legitimate service (false positive risk), but queries from developer machines in context of other PolinRider indicators are high-signal. Medium confidence due to benign overlap. -->
+<!-- revision: removed attack.t1059.007 tag — DNS query does not observe JS execution; added correlation-only caveat -->
 ```yaml
 title: DNS Query to JSONKeeper - Potential PolinRider Payload Staging
 id: 955cb601-f031-4ea4-bdab-a6699c107974
 status: experimental
 description: >
     Detects DNS queries to jsonkeeper.com which is used by the PolinRider
-    campaign to host second-stage JavaScript payloads that are fetched
-    and executed via eval().
+    campaign to host second-stage JavaScript payloads. This is a
+    correlation-only indicator; pair with other PolinRider detections
+    before escalating.
 references:
     - https://research.jfrog.com/post/rollup-polyfill-masquerading/
     - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
@@ -414,7 +416,6 @@ author: Actioner
 date: 2026-07-06
 tags:
     - attack.t1102
-    - attack.t1059.007
 logsource:
     category: dns_query
 detection:
@@ -438,8 +439,9 @@ alert tcp $HOME_NET any -> 216.126.236.244 any (msg:"Actioner - PolinRider C2 Co
 Detects HTTP requests to the PolinRider-specific C2 API path containing the campaign's AES key identifier.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -c /etc/snort/snort.conf (via include) -T exit 0. Snort 2.9.20. URI path + 32-char hex identifier is highly specific. -->
+<!-- revision: added http_uri to second content match — without it distance:0 is a no-op across buffer boundaries; rev bumped to 2 -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PolinRider C2 API Service Endpoint"; flow:established,to_server; content:"/api/service/"; http_uri; content:"98cb54c0b4ac259d30c9c1ca1ae87c68"; distance:0; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100011; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PolinRider C2 API Service Endpoint"; flow:established,to_server; content:"/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68"; http_uri; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100011; rev:2;)
 ```
 
 ### Snort: PolinRider Data Exfiltration Upload
@@ -573,8 +575,9 @@ rule PolinRider_Rollup_Polyfill_Masquerade
 
 ### YARA: PolinRider VS Code TaskJacker
 Detects malicious VS Code tasks.json files with the `folderOpen` auto-run trigger used by the TaskJacker variant.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. folderOpen + runOn in a tasks.json is suspicious but not impossible in legitimate VS Code configs; medium confidence. Rule targets files under 100KB to reduce noise on large JSON blobs. -->
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: yarac exit 0. folderOpen + runOn in a tasks.json is suspicious but not impossible in legitimate VS Code configs; low confidence. Rule targets files under 100KB to reduce noise on large JSON blobs. -->
+<!-- revision: downgraded severity from high to low; tightened alternative branch with campaign-specific C2 string to reduce FP on legitimate tasks.json files; added FP entry -->
 ```yara
 rule PolinRider_VSCode_TaskJacker
 {
@@ -584,19 +587,26 @@ rule PolinRider_VSCode_TaskJacker
         date = "2026-07-06"
         reference = "https://github.com/OpenSourceMalware/PolinRider"
         tlp = "WHITE"
-        severity = "high"
+        severity = "low"
 
     strings:
         $run_on = "folderOpen" ascii
         $woff2_exec = ".woff2" ascii
-        $tasks_label = "tasks" ascii
         $run_on_key = "runOn" ascii
         $node_exec = "node " ascii
+        $c2_vscode1 = "vscode-settings-bootstrap" ascii
+        $c2_vscode2 = "vscode-bootstrapper" ascii
+        $c2_vscode3 = "vscode-load-config" ascii
+        $c2_vscode4 = "vscode-settings-config" ascii
+        $font_path = "fa-solid-400" ascii
 
     condition:
         filesize < 100KB and
         $run_on and $run_on_key and
-        ($woff2_exec or ($node_exec and $tasks_label))
+        ($woff2_exec or $font_path or ($node_exec and 1 of ($c2_vscode*)))
+
+    /* FP note: legitimate VS Code tasks.json files using runOn:folderOpen
+       exist but rarely reference .woff2 or these C2 subdomains */
 }
 ```
 

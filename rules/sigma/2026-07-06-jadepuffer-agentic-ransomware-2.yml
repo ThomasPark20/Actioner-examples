@@ -1,0 +1,29 @@
+title: JadePuffer Cron Beacon Persistence via Python urllib
+id: 8b4c0d2f-5e6a-7b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects process creation matching JadePuffer's cron-based persistence
+    mechanism that uses python3 with urllib.request to beacon to C2
+    infrastructure on port 4444.
+references:
+    - https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+    - https://www.bleepingcomputer.com/news/security/jadepuffer-ransomware-used-ai-agent-to-automate-entire-attack/
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1053.003
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'python3'
+            - 'urllib.request'
+            - 'urlopen'
+            - '4444/beacon'
+    condition: selection
+falsepositives:
+    - Custom health-check scripts using python3 urllib to call a /beacon endpoint on port 4444
+level: high

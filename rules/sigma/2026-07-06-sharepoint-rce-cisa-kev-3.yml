@@ -1,0 +1,38 @@
+title: Storm-2603 Post-Exploitation Tool Execution on SharePoint Server
+id: 5f1d8c3a-2e7b-4d9f-a0c6-8b4e3f2d1a95
+status: experimental
+description: >
+    Detects execution of tools associated with Storm-2603 post-exploitation activity
+    following SharePoint compromise. The group establishes persistence via Cloudflare
+    tunnels, Zoho Assist remote access, and reverse proxies after exploiting
+    CVE-2026-45659 and similar SharePoint deserialization vulnerabilities.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-microsoft-sharepoint-rce-flaw-now-actively-exploited/
+    - https://thehackernews.com/2026/07/sharepoint-rce-cve-2026-45659-added-to.html
+    - https://www.microsoft.com/en-us/security/blog/2025/07/22/disrupting-active-exploitation-of-on-premises-sharepoint-vulnerabilities/
+author: Actioner
+date: 2026/07/06
+tags:
+    - attack.t1219
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cloudflared:
+        Image|endswith: '\cloudflared.exe'
+        CommandLine|contains: 'tunnel'
+    selection_zohoassist:
+        Image|endswith:
+            - '\ZohoMeeting.exe'
+            - '\ZohoAssist.exe'
+            - '\ZA_Connect.exe'
+    selection_sharphost:
+        Image|endswith: '\SharpHostInfo.x64.exe'
+    selection_xd_proxy:
+        Image|endswith: '\xd.exe'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate Cloudflare tunnel usage for authorized remote access
+    - Authorized Zoho Assist remote support sessions
+level: medium
