@@ -286,50 +286,11 @@ CloudAppEvents
 
 ## Detection Rules
 
-These detections target ARToken/EvilTokens infrastructure and device code phishing TTPs at the PoC/advisory-specific altitude. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify all rules against your telemetry pipeline before production deployment.
+These detections target ARToken/EvilTokens infrastructure at the advisory-specific altitude, keying on IOCs and platform-specific artifacts rather than generic TTPs. Three Sigma rules, two Snort rules, six Suricata rules, and two YARA rules are provided. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify all rules against your telemetry pipeline before production deployment.
 
-### Sigma: Azure AD Device Code Flow Authentication from Suspicious Source
+<!-- revision: v1.1 — dropped 2 behavioral/TTP Sigma rules (device code flow auth, inbox rule creation) that lacked ARToken-specific artifacts; retained 3 IOC/artifact-specific Sigma rules; added 9 affiliate domains to DNS Sigma rule; constrained HTTP API device paths to known C2 destinations; added telemetry prerequisite for X-Antibot-Token rule; expanded Suricata DNS coverage; added IP range correlation caveat; added Azure AD P1/P2 licensing caveat; explained compauth=none reason=405. -->
 
-Detects successful device code flow authentication in Azure AD sign-in logs, the primary initial access vector for ARToken/EvilTokens.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed due to MITRE ATT&CK data download blocked by proxy (403), not a rule issue. sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Device code flow has legitimate uses (Azure CLI, IoT); filter_known_apps reduces but does not eliminate FPs. Behavioral rule — medium confidence ceiling. -->
-
-```yaml
-title: Azure AD Device Code Flow Authentication from Suspicious Source
-id: 7a3e8f2d-c1b4-4d6e-9f5a-2b8c0e7d3a1f
-status: experimental
-description: >
-    Detects successful device code flow authentication in Azure AD/Entra ID sign-in logs,
-    which is the primary initial access vector used by ARToken/EvilTokens phishing-as-a-service
-    platform. Device code phishing tricks victims into entering a code at microsoft.com/devicelogin,
-    granting attackers access tokens that bypass MFA.
-references:
-    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
-    - https://www.microsoft.com/en-us/security/blog/2026/04/06/ai-enabled-device-code-phishing-campaign-april-2026/
-author: Actioner
-date: 2026-07-06
-tags:
-    - attack.t1078.004
-    - attack.t1550.001
-logsource:
-    product: azure
-    service: signinlogs
-detection:
-    selection:
-        AuthenticationProtocol: 'deviceCode'
-        ResultType: 0
-    filter_known_apps:
-        AppDisplayName:
-            - 'Azure CLI'
-            - 'Azure PowerShell'
-            - 'Microsoft Azure PowerShell'
-            - 'Azure IoT Hub'
-    condition: selection and not filter_known_apps
-falsepositives:
-    - Legitimate device code authentication from IoT devices, smart TVs, or CLI tools
-    - Azure DevOps pipeline authentication
-level: medium
-```
+<!-- revision: DROPPED "Azure AD Device Code Flow Authentication from Suspicious Source" (id: 7a3e8f2d) — pure behavioral/TTP rule with no ARToken-specific artifacts; every major SIEM vendor already ships device code flow detections. -->
 
 ### Sigma: DNS Query to ARToken EvilTokens C2 Infrastructure
 
@@ -365,6 +326,15 @@ detection:
             - '.framebound.cloud'
             - '.suctwocesonesstory.com'
             - '.mirsanotolastik.com'
+            - '.smstltle.net'
+            - '.topbuysella.com'
+            - '.totalhomesafe.com'
+            - '.youremplregroup.com'
+            - '.infinitechai.org'
+            - '.evobothub.org'
+            - '.newmobilepolojean.com'
+            - '.macmamo.com'
+            - '.prcservis.com'
     condition: selection
 falsepositives:
     - Unlikely; these are known malicious infrastructure domains
@@ -374,8 +344,9 @@ level: high
 ### Sigma: HTTP Request to EvilTokens Device Code Phishing API Endpoints
 
 Detects HTTP requests to the distinctive `/api/device/start`, `/api/device/status/`, and `/api/prt/*` API endpoints used by the EvilTokens platform.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. API path patterns are distinctive to EvilTokens but could theoretically collide with internal apps using similar REST naming. The combination of /api/device/start + /api/prt/* is highly specific. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. v1.1: device API paths constrained to known C2 destinations to reduce FP from internal apps with similar REST naming. PRT paths remain standalone (sufficiently distinctive). Downgraded to medium per review. -->
+<!-- revision: constrained selection_device_api with selection_c2_dest (known C2 domains) to reduce false positives from internal apps using similar /api/device/* REST patterns; downgraded level from high to medium. -->
 
 ```yaml
 title: HTTP Request to EvilTokens Device Code Phishing API Endpoints
@@ -384,12 +355,14 @@ status: experimental
 description: >
     Detects HTTP requests to the distinctive API endpoints used by the EvilTokens/ARToken
     phishing platform for device code authentication initiation, status polling, and Primary
-    Refresh Token management. These endpoints are exposed by the attacker backend infrastructure.
+    Refresh Token management. Device API paths are constrained to known C2 destination
+    domains to reduce false positives; PRT paths fire standalone.
 references:
     - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
     - https://www.sekoia.com/blog/new-widespread-eviltokens-kit-device-code-phishing-as-a-service-part-1
 author: Actioner
 date: 2026-07-06
+modified: 2026-07-06
 tags:
     - attack.t1078.004
     - attack.t1550.001
@@ -401,6 +374,25 @@ detection:
             - '/api/device/start'
             - '/api/device/status/'
             - '/api/device/sessions'
+    selection_c2_dest:
+        cs-host|endswith:
+            - '.pamconj.com'
+            - '.authdocspro.com'
+            - '.notificationsmanagersec.com'
+            - '.serenitygovsupplys.com'
+            - '.eventcalender-schedule.com'
+            - '.framebound.cloud'
+            - '.suctwocesonesstory.com'
+            - '.mirsanotolastik.com'
+            - '.smstltle.net'
+            - '.topbuysella.com'
+            - '.totalhomesafe.com'
+            - '.youremplregroup.com'
+            - '.infinitechai.org'
+            - '.evobothub.org'
+            - '.newmobilepolojean.com'
+            - '.macmamo.com'
+            - '.prcservis.com'
     selection_prt_api:
         cs-uri-stem|contains:
             - '/api/prt/convert'
@@ -410,17 +402,19 @@ detection:
             - '/api/prt/owa-session'
             - '/api/prt/recon'
             - '/api/prt/azure'
-    condition: selection_device_api or selection_prt_api
+    condition: (selection_device_api and selection_c2_dest) or selection_prt_api
 falsepositives:
-    - Custom internal applications using similar API path naming conventions
-level: high
+    - Custom internal applications using similar API path naming conventions (mitigated by C2 destination constraint for device paths)
+level: medium
 ```
 
 ### Sigma: HTTP Request with EvilTokens X-Antibot-Token Header
 
 Detects outbound HTTP requests containing the `X-Antibot-Token` header, a distinctive EvilTokens infrastructure indicator observed in 900+ instances.
 **Status:** compile ✅ compiles · confidence: high
+**Telemetry prerequisite:** The `cs-header-names` field requires a proxy that logs individual HTTP request header names (e.g., Zscaler, Palo Alto NGFW with enhanced logging, Squid with custom format). Most default proxy configurations do **not** capture per-header names. Verify your proxy logs this field before deploying.
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. The cs-header-names field requires proxy logs that capture request header names (e.g., Zscaler, Palo Alto). Not all proxies log individual header names. IOC-specific — X-Antibot-Token is distinctive to EvilTokens. -->
+<!-- revision: flagged cs-header-names as telemetry prerequisite (vendor-specific field); downgraded level from critical to high — critical implies immediate action, but this is a retroactive IOC match. -->
 
 ```yaml
 title: HTTP Request with EvilTokens X-Antibot-Token Header
@@ -430,12 +424,14 @@ description: >
     Detects outbound HTTP requests containing the X-Antibot-Token header, a distinctive
     indicator of EvilTokens phishing infrastructure. This header carries a SHA-256 hash
     computed from a shared secret, Unix timestamp, and the string _antibot, with a 5-minute
-    validity window.
+    validity window. Requires proxy telemetry that logs individual request header names
+    (cs-header-names field).
 references:
     - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
     - https://www.sekoia.com/blog/new-widespread-eviltokens-kit-device-code-phishing-as-a-service-part-1
 author: Actioner
 date: 2026-07-06
+modified: 2026-07-06
 tags:
     - attack.t1071.001
 logsource:
@@ -446,52 +442,10 @@ detection:
     condition: selection
 falsepositives:
     - Unlikely; this header name is specific to EvilTokens infrastructure
-level: critical
+level: high
 ```
 
-### Sigma: Suspicious Inbox Rule Creation via Microsoft Graph API
-
-Detects creation of inbox rules that forward or delete emails, consistent with post-compromise BEC operations by ARToken/EvilTokens operators.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Behavioral rule — inbox rule creation is common in legitimate use. The combination with ForwardTo/DeleteMessage is more suspicious but not unique to EvilTokens. Medium confidence. -->
-
-```yaml
-title: Suspicious Inbox Rule Creation via Microsoft Graph API
-id: e8a3f6b2-4c1d-4e7a-9b5f-2d0c8a3e6f1b
-status: experimental
-description: >
-    Detects creation of inbox rules that forward or delete emails, consistent with post-compromise
-    BEC operations conducted by ARToken/EvilTokens operators. After obtaining tokens via device
-    code phishing, operators create inbox rules to suppress victim notifications and forward
-    sensitive communications.
-references:
-    - https://blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/
-    - https://www.microsoft.com/en-us/security/blog/2026/04/06/ai-enabled-device-code-phishing-campaign-april-2026/
-author: Actioner
-date: 2026-07-06
-tags:
-    - attack.t1114.003
-    - attack.t1564.008
-logsource:
-    product: m365
-    service: threat_management
-detection:
-    selection_action:
-        Operation:
-            - 'New-InboxRule'
-            - 'Set-InboxRule'
-    selection_suspicious:
-        Parameters|contains:
-            - 'ForwardTo'
-            - 'ForwardAsAttachmentTo'
-            - 'RedirectTo'
-            - 'DeleteMessage'
-    condition: selection_action and selection_suspicious
-falsepositives:
-    - Legitimate inbox rules created by users for email management
-    - Automated email workflows configured by IT administrators
-level: medium
-```
+<!-- revision: DROPPED "Suspicious Inbox Rule Creation via Microsoft Graph API" (id: e8a3f6b2) — pure behavioral rule with zero ARToken-specific artifacts; inbox rule monitoring is a baseline SOC detection shipped by all major SIEM vendors. -->
 
 ### Snort: EvilTokens Device Code API and X-Antibot-Token Header
 
@@ -506,13 +460,18 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - EvilTokens
 
 ### Suricata: DNS Queries to ARToken/EvilTokens C2 Domains
 
-Detects DNS queries to the ARToken C2 domain `pamconj.com` and the EvilTokens affiliate domain `authdocspro.com`.
+Detects DNS queries to known ARToken C2 and EvilTokens affiliate infrastructure domains. A representative subset is included below; see the IOC table above for the full domain list. Operators should add additional domains from future reporting as the infrastructure rotates.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0 (Suricata 7.0.3). IOC-specific DNS detection. Will age as infrastructure rotates. -->
+<!-- revision: added 4 high-value affiliate domains (notificationsmanagersec.com, serenitygovsupplys.com, eventcalender-schedule.com, framebound.cloud) and note directing operators to IOC table for full list. -->
 
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ARToken C2 Domain pamconj.com"; flow:to_server; dns.query; content:"pamconj.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200101; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to EvilTokens Affiliate Domain authdocspro.com"; flow:to_server; dns.query; content:"authdocspro.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200102; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to EvilTokens Affiliate Domain notificationsmanagersec.com"; flow:to_server; dns.query; content:"notificationsmanagersec.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200106; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to EvilTokens Affiliate Domain serenitygovsupplys.com"; flow:to_server; dns.query; content:"serenitygovsupplys.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200107; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to EvilTokens Affiliate Domain eventcalender-schedule.com"; flow:to_server; dns.query; content:"eventcalender-schedule.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200108; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to EvilTokens Affiliate Domain framebound.cloud"; flow:to_server; dns.query; content:"framebound.cloud"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/artoken-inside-an-eviltokens-affiliate-panel-targeting-microsoft-365/; metadata:author Actioner, created_at 2026-07-06; sid:2200109; rev:1;)
 ```
 
 ### Suricata: EvilTokens HTTP API Endpoints and X-Antibot-Token Header
