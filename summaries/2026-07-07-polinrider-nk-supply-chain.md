@@ -352,7 +352,7 @@ These detections target PolinRider campaign-specific artifacts: the distinctive 
 
 Detects Node.js executing `.woff2` files from `public/fonts/` directories, a distinctive PolinRider/TaskJacker delivery technique.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on the .woff2+public/fonts/ combination which is highly campaign-specific; legitimate node invocations never load font files. FP risk: near-zero outside deliberate reproduction. -->
+<!-- audit: sigma check blocked (MITRE ATT&CK data proxy); splunk convert 0; log_scale convert 0. Keys on the .woff2+public/fonts/ combination which is highly campaign-specific; legitimate node invocations never load font files. FP risk: near-zero outside deliberate reproduction. -->
 ```yaml
 title: PolinRider Node.js Execution of Fake Font Payload
 id: 7a3e1f29-4c8b-4d5a-9e2f-1b6c8d7a0e34
@@ -392,7 +392,7 @@ level: high
 
 Detects file creation or modification events writing known PolinRider obfuscation markers to JavaScript configuration files.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Markers rmcej%otb% and Cot%3t=shtP are unique campaign signatures with zero benign occurrence. file_event category is broadly supported. -->
+<!-- audit: sigma check blocked (MITRE ATT&CK data proxy); splunk convert 0; log_scale convert 0. Markers rmcej%otb% and Cot%3t=shtP are unique campaign signatures with zero benign occurrence. file_event category is broadly supported. Note: this rule keys on filename only (no content inspection); medium confidence because benign config file edits match -- pair with YARA for content confirmation. -->
 ```yaml
 title: PolinRider Obfuscation Marker in Config Files
 id: 2d8c4a67-9f1e-4b3c-a5d8-6e0f7c2b1a94
@@ -433,7 +433,7 @@ level: medium
 
 Detects npm install commands using the distinctive PolinRider flag combination (`--no-save --silent --no-audit --no-fund`) to silently install second-stage packages.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. The four-flag combination (--no-save --silent --no-audit --no-fund) is campaign-distinctive; legitimate npm usage rarely combines all four suppression flags in a single install command. -->
+<!-- audit: sigma check blocked (MITRE ATT&CK data proxy); splunk convert 0; log_scale convert 0. The four-flag combination (--no-save --silent --no-audit --no-fund) is campaign-distinctive; legitimate npm usage rarely combines all four suppression flags in a single install command. -->
 ```yaml
 title: PolinRider Silent npm Package Installation
 id: 9b4e2c18-7d6f-4a3e-8c1b-5f0d9a2e7b63
@@ -471,7 +471,7 @@ level: high
 
 Detects outbound network connections to known PolinRider C2 IP addresses on campaign-associated ports.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. IOC-based detection on confirmed C2 IPs. Will age out as infrastructure rotates; high confidence while active. -->
+<!-- audit: sigma check blocked (MITRE ATT&CK data proxy); splunk convert 0; log_scale convert 0. IOC-based detection on confirmed C2 IPs. Will age out as infrastructure rotates; high confidence while active. -->
 ```yaml
 title: PolinRider C2 Network Connection to Known Infrastructure
 id: 4f1a8d35-6c2e-4b9f-a7d3-8e5c0f1b2a46
@@ -510,7 +510,7 @@ level: high
 
 Detects HTTP requests to the PolinRider/Rollup polyfill C2 endpoint serving AES-256-CBC encrypted payloads via the distinctive API path containing the scrypt passphrase.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R 0; exit 0. Keys on the unique /api/service/98cb54c0b4ac259d30c9c1ca1ae87c68 URI path which contains the AES scrypt passphrase. Zero benign overlap. -->
+<!-- audit: snort -T 0 (Snort 2.9.20, validated successfully). Keys on the unique /api/service/98cb54c0b4ac259d30c9c1ca1ae87c68 URI path which contains the AES scrypt passphrase. Zero benign overlap. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider AES Payload Retrieval via Scrypt Passphrase URI"; flow:established,to_server; content:"/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100101; rev:1;)
 ```
@@ -519,7 +519,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider AES Pay
 
 Detects HTTP requests to the PolinRider C2 clipboard exfiltration endpoint `/api/service/makelog`.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf -R 0; exit 0. /api/service/makelog is used across multiple Contagious Interview variants; medium confidence due to possible benign API paths with similar naming. Scope to known C2 IPs for higher precision. -->
+<!-- audit: snort -T 0 (Snort 2.9.20, validated successfully). /api/service/makelog is used across multiple Contagious Interview variants; medium confidence due to possible benign API paths with similar naming. Scope to known C2 IPs for higher precision. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider C2 Clipboard Exfiltration Endpoint"; flow:established,to_server; content:"/api/service/makelog"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100102; rev:1;)
 ```
@@ -528,7 +528,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider C2 Clip
 
 Detects DNS queries to known PolinRider Vercel-hosted C2 subdomains used for payload bootstrapping and SSH key distribution.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T 0. C2 subdomains are campaign-specific (default-configuration, vscode-settings-bootstrap, etc.). DNS query matching is robust. Will age out if Vercel takes down the subdomains. -->
+<!-- audit: suricata -T 0 (Suricata 7.0.3). C2 subdomains are campaign-specific (default-configuration, vscode-settings-bootstrap, etc.). DNS query matching is robust. Will age out if Vercel takes down the subdomains. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to Vercel C2 Subdomain"; flow:to_server; dns.query; content:"default-configuration.vercel.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands; metadata:author Actioner, created_at 2026-07-07; sid:2200101; rev:1;)
 ```
@@ -537,7 +537,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to Verc
 
 Detects DNS queries to the `vscode-settings-bootstrap` Vercel C2 subdomain used for initial payload delivery.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T 0. Campaign-specific subdomain. -->
+<!-- audit: suricata -T 0 (Suricata 7.0.3). Campaign-specific subdomain. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to VSCode Settings Bootstrap C2"; flow:to_server; dns.query; content:"vscode-settings-bootstrap.vercel.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands; metadata:author Actioner, created_at 2026-07-07; sid:2200102; rev:1;)
 ```
@@ -546,7 +546,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to VSCo
 
 Detects HTTP requests to the known PolinRider JSONKeeper payload staging URL used to retrieve initial JavaScript loaders.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T 0. The specific JSONKeeper path /b/3P9BF is campaign-unique. -->
+<!-- audit: suricata -T 0 (Suricata 7.0.3). The specific JSONKeeper path /b/3P9BF is campaign-unique. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider JSONKeeper Payload Staging Retrieval"; flow:established,to_server; http.host; content:"jsonkeeper.com"; fast_pattern; http.uri; content:"/b/3P9BF"; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; metadata:author Actioner, created_at 2026-07-07; sid:2200103; rev:1;)
 ```
@@ -555,7 +555,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider JSONKe
 
 Detects PolinRider JavaScript loader files by their distinctive obfuscation markers, shuffle seeds, and decoder function names across both known variants.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0; positive test fired on published marker strings; negative (benign JS config) quiet. Markers are unique to the campaign with zero known benign occurrence. -->
+<!-- audit: yarac 0; yara pos-markers.js fired PolinRider_JS_Loader_Obfuscation_Markers; yara neg-markers.js quiet. Positive built from published marker strings (rmcej%otb%, 2857687, _$_1e42, global['!'], 2[gWfGj;<:-93Z^C). Markers are unique to the campaign with zero known benign occurrence. -->
 ```yara
 rule PolinRider_JS_Loader_Obfuscation_Markers
 {
@@ -599,7 +599,7 @@ rule PolinRider_JS_Loader_Obfuscation_Markers
 
 Detects the Rollup polyfill sub-campaign's AES-256-CBC loader by the distinctive scrypt passphrase and decryption pattern.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0; positive test fired on published scrypt passphrase + C2 IP combination; negative (benign crypto module) quiet. The 32-char hex passphrase is unique to this campaign. -->
+<!-- audit: yarac 0; yara pos-rollup.js fired PolinRider_Rollup_AES_Loader; yara neg-rollup.js (benign crypto.scryptSync with different passphrase) quiet. Positive built from published scrypt passphrase 98cb54c0b4ac259d30c9c1ca1ae87c68 + C2 IP 216.126.236.244. The 32-char hex passphrase is unique to this campaign. -->
 ```yara
 rule PolinRider_Rollup_AES_Loader
 {
