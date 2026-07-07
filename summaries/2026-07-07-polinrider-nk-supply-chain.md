@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-07
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
@@ -272,7 +272,6 @@ OS release strings containing "aws" also trigger early exit. Virtual machine det
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP/Socket.IO C2 communication; blockchain RPC as dead-drop |
 | T1571 | Non-Standard Port | C2 on ports 1244, 4801, 4806, 4809, 5976, 6211 |
 | T1005 | Data from Local System | Credential harvesting from .env, .pem, .key, wallet files, browser profiles |
-| T1056.004 | Input Capture: Credential API Hooking | Clipboard monitoring via pbpaste/Get-Clipboard |
 | T1113 | Screen Capture | Screenshot capture every 4 seconds via screenshot-desktop |
 | T1115 | Clipboard Data | Periodic clipboard harvesting and exfiltration |
 | T1098.004 | Account Manipulation: SSH Authorized Keys | SSH key injection for persistent access (Cluster F) |
@@ -388,46 +387,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: PolinRider Obfuscation Marker in Config Files
-
-Detects file creation or modification events writing known PolinRider obfuscation markers to JavaScript configuration files.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (MITRE ATT&CK data proxy); splunk convert 0; log_scale convert 0. Markers rmcej%otb% and Cot%3t=shtP are unique campaign signatures with zero benign occurrence. file_event category is broadly supported. Note: this rule keys on filename only (no content inspection); medium confidence because benign config file edits match -- pair with YARA for content confirmation. -->
-```yaml
-title: PolinRider Obfuscation Marker in Config Files
-id: 2d8c4a67-9f1e-4b3c-a5d8-6e0f7c2b1a94
-status: experimental
-description: >
-    Detects file events containing known PolinRider JavaScript obfuscation markers
-    (rmcej%otb% or Cot%3t=shtP) in developer configuration files, indicating
-    config file injection by the DPRK PolinRider campaign.
-references:
-    - https://github.com/OpenSourceMalware/PolinRider
-    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
-author: Actioner
-date: 2026/07/07
-tags:
-    - attack.t1195.001
-    - attack.t1027
-logsource:
-    category: file_event
-detection:
-    selection_files:
-        TargetFilename|endswith:
-            - 'postcss.config.mjs'
-            - 'postcss.config.js'
-            - 'tailwind.config.js'
-            - 'tailwind.config.mjs'
-            - 'eslint.config.mjs'
-            - 'eslint.config.js'
-            - 'next.config.mjs'
-            - 'vite.config.js'
-            - 'vite.config.mjs'
-    condition: selection_files
-falsepositives:
-    - Legitimate developer activity modifying these configuration files (requires content inspection for marker confirmation)
-level: medium
-```
+<!-- revision: DROPPED "Sigma: PolinRider Obfuscation Marker in Config Files" — keys only on filename, zero content inspection; every front-end dev saving postcss.config.mjs triggers it. YARA rule PolinRider_JS_Loader_Obfuscation_Markers already covers marker detection with content-level precision. -->
 
 ### Sigma: PolinRider Silent npm Install with Suppressed Output
 
@@ -517,11 +477,11 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider AES Pay
 
 ### Snort: PolinRider C2 Clipboard Exfiltration Endpoint
 
-Detects HTTP requests to the PolinRider C2 clipboard exfiltration endpoint `/api/service/makelog`.
+Detects HTTP requests to the PolinRider C2 clipboard exfiltration endpoint `/api/service/makelog`, scoped to known campaign C2 IPs.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -T 0 (Snort 2.9.20, validated successfully). /api/service/makelog is used across multiple Contagious Interview variants; medium confidence due to possible benign API paths with similar naming. Scope to known C2 IPs for higher precision. -->
+<!-- audit: snort -T 0 (Snort 2.9.20). revision: scoped destination to known C2 IPs [216.126.236.244,216.126.237.71,216.126.224.220] per critic — /api/service/makelog alone is not unique enough unscoped. Confidence remains medium. rev bumped to 2. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider C2 Clipboard Exfiltration Endpoint"; flow:established,to_server; content:"/api/service/makelog"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100102; rev:1;)
+alert tcp $HOME_NET any -> [216.126.236.244,216.126.237.71,216.126.224.220] any (msg:"Actioner - PolinRider C2 Clipboard Exfiltration Endpoint"; flow:established,to_server; content:"/api/service/makelog"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100102; rev:2;)
 ```
 
 ### Suricata: PolinRider DNS Query to Vercel C2 Subdomains
@@ -554,8 +514,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider JSONKe
 ### YARA: PolinRider JavaScript Loader Obfuscation Markers
 
 Detects PolinRider JavaScript loader files by their distinctive obfuscation markers, shuffle seeds, and decoder function names across both known variants.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0; yara pos-markers.js fired PolinRider_JS_Loader_Obfuscation_Markers; yara neg-markers.js quiet. Positive built from published marker strings (rmcej%otb%, 2857687, _$_1e42, global['!'], 2[gWfGj;<:-93Z^C). Markers are unique to the campaign with zero known benign occurrence. -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic positive from published markers
+<!-- audit: yarac 0; yara pos-markers.js fired PolinRider_JS_Loader_Obfuscation_Markers; yara neg-markers.js quiet. revision: relabeled from "sample: fired" — positive was constructed from published marker strings (rmcej%otb%, 2857687, _$_1e42, global['!'], 2[gWfGj;<:-93Z^C), not a real malware sample. Markers are unique to the campaign with zero known benign occurrence. -->
 ```yara
 rule PolinRider_JS_Loader_Obfuscation_Markers
 {
@@ -598,8 +558,8 @@ rule PolinRider_JS_Loader_Obfuscation_Markers
 ### YARA: PolinRider Rollup Polyfill AES Loader
 
 Detects the Rollup polyfill sub-campaign's AES-256-CBC loader by the distinctive scrypt passphrase and decryption pattern.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0; yara pos-rollup.js fired PolinRider_Rollup_AES_Loader; yara neg-rollup.js (benign crypto.scryptSync with different passphrase) quiet. Positive built from published scrypt passphrase 98cb54c0b4ac259d30c9c1ca1ae87c68 + C2 IP 216.126.236.244. The 32-char hex passphrase is unique to this campaign. -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic positive from published markers
+<!-- audit: yarac 0; yara pos-rollup.js fired PolinRider_Rollup_AES_Loader; yara neg-rollup.js (benign crypto.scryptSync with different passphrase) quiet. revision: relabeled from "sample: fired" — positive was constructed from published scrypt passphrase 98cb54c0b4ac259d30c9c1ca1ae87c68 + C2 IP 216.126.236.244, not a real malware sample. The 32-char hex passphrase is unique to this campaign. -->
 ```yara
 rule PolinRider_Rollup_AES_Loader
 {
