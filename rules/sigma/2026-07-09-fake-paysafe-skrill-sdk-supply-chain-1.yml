@@ -1,0 +1,45 @@
+title: Malicious Paysafe/Skrill/Neteller NPM Package Installation
+id: 9c3e7a12-4b8f-4d2e-a1c6-5f9e0d3b7a48
+status: experimental
+description: >
+    Detects npm install commands targeting known malicious packages from the July 2026
+    Paysafe/Skrill/Neteller typosquatting campaign that steal credentials and API keys.
+references:
+    - https://socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps
+    - https://www.bleepingcomputer.com/news/security/fake-paysafe-skrill-sdks-on-npm-and-pypi-steal-credentials/
+author: Actioner
+date: 2026/07/09
+tags:
+    - attack.t1195.001
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_npm:
+        Image|endswith:
+            - '\npm.cmd'
+            - '\npm.exe'
+        CommandLine|contains:
+            - 'install'
+            - 'i '
+            - 'add '
+    selection_packages:
+        CommandLine|contains:
+            - 'paysafe-checkout'
+            - 'paysafe-vault'
+            - 'paysafe-js'
+            - 'paysafe-api'
+            - 'paysafe-node'
+            - 'paysafe-cards'
+            - 'paysafe-fraud'
+            - 'paysafe-kyc'
+            - 'paysafe-payments'
+            - 'skrill-payments'
+            - 'skrill-sdk'
+            - 'neteller'
+            - 'skrill'
+    condition: selection_npm and selection_packages
+falsepositives:
+    - Unlikely - these package names are known malicious typosquats with no legitimate use
+level: critical

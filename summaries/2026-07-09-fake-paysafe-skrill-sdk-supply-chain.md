@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-09
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -219,6 +219,7 @@ grep "caliber-spinner-finishing" /var/log/proxy* /var/log/firewall* 2>/dev/null
 These detections target the July 2026 Paysafe/Skrill/Neteller typosquatting campaign at PoC/advisory-specific altitude. Rules key on concrete package names, the known C2 domain, and distinctive malware strings. Compiles does not equal fires -- verify each rule against your telemetry pipeline before production deployment.
 
 ### Sigma: Malicious Paysafe/Skrill NPM Package Installation
+<!-- revision: added missing 'neteller' and 'skrill' to selection_packages (was 11/13, now 13/13 matching IOC table) -->
 Detects npm install commands targeting the 13 known malicious Paysafe/Skrill/Neteller typosquatting packages by their distinctive names.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed due to environment issue (MITRE ATT&CK data URL blocked by proxy, HTTP 403 -- not a rule issue); splunk convert exit 0; log_scale convert exit 0. Package names are campaign-unique, no legitimate use. -->
@@ -262,6 +263,8 @@ detection:
             - 'paysafe-payments'
             - 'skrill-payments'
             - 'skrill-sdk'
+            - 'neteller'
+            - 'skrill'
     condition: selection_npm and selection_packages
 falsepositives:
     - Unlikely - these package names are known malicious typosquats with no legitimate use
@@ -269,7 +272,8 @@ level: critical
 ```
 
 ### Sigma: Malicious Paysafe PyPI Package Installation
-Detects pip install commands targeting the 4 known malicious PyPI Paysafe packages, which auto-execute credential theft on import.
+<!-- revision: added load-bearing caveat — rule is Windows-only but PyPI threat surface is primarily Linux/macOS CI/CD -->
+Detects pip install commands targeting the 4 known malicious PyPI Paysafe packages, which auto-execute credential theft on import. Windows-only; add Linux Image paths (`/usr/bin/pip`, `/usr/bin/pip3`, `/usr/local/bin/pip`) for CI/CD coverage.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed (env issue -- MITRE data blocked); splunk convert exit 0; log_scale convert exit 0. Package names are unique to the campaign. Note: pip install on Linux would use different Image paths (pip, pip3 without backslash prefix); add Linux variant if needed. -->
 ```yaml
@@ -399,8 +403,8 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Paysafe
 
 ### YARA: Malicious Paysafe/Skrill SDK Script
 Detects malicious JavaScript or Python files from the campaign via the unique XOR obfuscation key, C2 domain string, or the combination of fake SDK class + exfiltration function + targeted env vars.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive file (containing campaign XOR key + PaysafeClient class + exfiltrate function) matched; negative file (benign payment SDK) did not match. Positive sample constructed from published Socket report code excerpts. Condition logic: any single anchor string (XOR key or C2 domain) is sufficient; otherwise requires combination of class name + exfil function + env var targeting, or multiple fake SDK names + exfil function, or fake response + exfil + sandbox checks. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Sample test: positive file (containing campaign XOR key + PaysafeClient class + exfiltrate function) matched; negative file (benign payment SDK) did not match. Positive sample constructed from published Socket report code excerpts (not a real source-published artifact). Condition logic: any single anchor string (XOR key or C2 domain) is sufficient; otherwise requires combination of class name + exfil function + env var targeting, or multiple fake SDK names + exfil function, or fake response + exfil + sandbox checks. -->
 ```yara
 rule Supply_Chain_Paysafe_Skrill_Malicious_SDK
 {

@@ -1,0 +1,33 @@
+title: Malicious Paysafe PyPI Package Installation
+id: b7d4e2f1-6a9c-4e3b-8f5d-2c1a0e7b9d36
+status: experimental
+description: >
+    Detects pip install commands targeting known malicious PyPI packages from the July 2026
+    Paysafe typosquatting campaign. PyPI variants auto-execute credential theft on import.
+references:
+    - https://socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps
+    - https://www.bleepingcomputer.com/news/security/fake-paysafe-skrill-sdks-on-npm-and-pypi-steal-credentials/
+author: Actioner
+date: 2026/07/09
+tags:
+    - attack.t1195.001
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_pip:
+        Image|endswith:
+            - '\pip.exe'
+            - '\pip3.exe'
+        CommandLine|contains: 'install'
+    selection_packages:
+        CommandLine|contains:
+            - 'paysafe-kyc'
+            - 'paysafe-payments'
+            - 'paysafe-sdk'
+            - 'paysafe-api'
+    condition: selection_pip and selection_packages
+falsepositives:
+    - Unlikely - these package names are known malicious typosquats
+level: critical

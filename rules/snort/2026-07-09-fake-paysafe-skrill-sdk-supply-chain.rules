@@ -1,0 +1,1 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to Paysafe SDK Campaign C2 caliber-spinner-finishing.ngrok-free.dev"; flow:to_server; content:"|18|caliber-spinner-finishing|0a|ngrok-free|03|dev|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps; sid:2100101; rev:1;)
