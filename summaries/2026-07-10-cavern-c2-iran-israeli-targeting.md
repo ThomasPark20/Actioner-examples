@@ -396,17 +396,18 @@ level: critical
 
 ### Sigma: Cavern Manticore Module File Creation
 
-Detects creation of known Cavern Manticore post-exploitation module DLLs with distinctive names (n-HTCommp.dll, n-ten.dll, n-sws.dll). Modules mhm.dll, db.dll, and ode.dll are included but are generic enough to warrant triage rather than immediate escalation.
+Detects creation of known Cavern Manticore post-exploitation module DLLs with distinctive `n-` prefixed names (n-HTCommp.dll, n-ten.dll, n-sws.dll). Generic module names (db.dll, ode.dll, mhm.dll) were removed to avoid false positives from unrelated software.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Field: TargetFilename (endswith) on file_event/windows — Sysmon EID 11. The n-prefixed modules are distinctive; mhm.dll/db.dll/ode.dll are less unique and may produce FPs from unrelated software. -->
+<!-- revision: removed generic filenames \db.dll, \ode.dll, \mhm.dll per critic — too generic, will fire on unrelated software; kept only the three n-prefixed modules which are genuinely distinctive -->
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Field: TargetFilename (endswith) on file_event/windows — Sysmon EID 11. The n-prefixed modules are distinctive. -->
 ```yaml
 title: Cavern Manticore Module File Creation
 id: ad5e6f7a-8b9c-4dbe-cf3a-5b6c7d8e9f0a
 status: experimental
 description: >
     Detects creation of known Cavern Manticore post-exploitation module DLLs
-    (n-HTCommp.dll, n-ten.dll, n-sws.dll, mhm.dll, db.dll, ode.dll) which are
-    distinctive module names used exclusively by this framework.
+    (n-HTCommp.dll, n-ten.dll, n-sws.dll) which use a distinctive n- prefix
+    naming convention exclusive to this framework.
 references:
     - https://research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/
     - https://thehackernews.com/2026/07/iran-linked-hackers-use-new-cavern-c2.html
@@ -423,19 +424,17 @@ detection:
             - '\n-HTCommp.dll'
             - '\n-ten.dll'
             - '\n-sws.dll'
-            - '\mhm.dll'
-            - '\db.dll'
-            - '\ode.dll'
     condition: selection
 falsepositives:
-    - Legitimate software using identically named DLLs (mhm.dll, db.dll are generic enough to warrant investigation)
+    - Legitimate software using identically named DLLs with n- prefix (very unlikely)
 level: medium
 ```
 
 ### Snort: Cavern Manticore C2 Beacon to /profile with X-User-token
 
 Detects HTTP GET to /profile with the custom X-User-token header characteristic of Cavern Manticore C2 beacon check-ins.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
+**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
+<!-- revision: capped confidence from high to medium — Snort not installed, cannot verify compilation -->
 <!-- audit: Snort is NOT installed in this environment; structural validation only. Rule uses http service, http_method + http_uri + http_header sticky buffers. content:"/profile" at offset 0 depth 8 is tight. X-User-token is a non-standard HTTP header highly distinctive to this framework. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Cavern Manticore C2 Beacon to /profile with X-User-token"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/profile", fast_pattern, offset 0, depth 8; http_header; content:"X-User-token"; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/; metadata:author Actioner, created 2026-07-10; sid:2100001; rev:1;)
@@ -444,7 +443,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Cavern Manticore 
 ### Snort: Cavern Manticore C2 Exfil to /gallery with X-User-token
 
 Detects HTTP POST to /gallery with the custom X-User-token header used by Cavern Manticore for data exfiltration and command result upload.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
+**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
+<!-- revision: capped confidence from high to medium — Snort not installed, cannot verify compilation -->
 <!-- audit: Snort is NOT installed in this environment; structural validation only. Same pattern as /profile rule but POST method + /gallery endpoint. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Cavern Manticore C2 Exfil to /gallery with X-User-token"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/gallery", fast_pattern, offset 0, depth 8; http_header; content:"X-User-token"; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/; metadata:author Actioner, created 2026-07-10; sid:2100002; rev:1;)
