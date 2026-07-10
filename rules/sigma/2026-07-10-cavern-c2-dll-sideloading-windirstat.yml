@@ -1,0 +1,25 @@
+title: Cavern Manticore DLL Side-Loading via WinDirStat from ProgramData
+id: 7a2b3c4d-5e6f-4a8b-9c1d-2e3f4a5b6c7d
+status: experimental
+description: >
+    Detects execution of WinDirStat.exe from the non-standard path
+    C:\ProgramData\WinDir\, used by Cavern Manticore for DLL side-loading
+    of the trojanized uxtheme.dll agent.
+references:
+    - https://research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/
+    - https://thehackernews.com/2026/07/iran-linked-hackers-use-new-cavern-c2.html
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\WinDirStat.exe'
+        Image|contains: '\ProgramData\WinDir\'
+    condition: selection
+falsepositives:
+    - Legitimate WinDirStat installation in non-standard ProgramData path (unlikely)
+level: high

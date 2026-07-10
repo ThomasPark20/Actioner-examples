@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-10
-Version: 1.0-DRAFT
+Version: 1.1-REVISED
 
 ## Executive Summary
 
@@ -220,8 +220,8 @@ All observed activity is Windows-only. The framework targets Windows environment
 | T1106 | Native API | P/Invoke to WNetAddConnection2, NetShareEnum, NetLocalGroupGetMembers via runtime descriptor resolution |
 | T1105 | Ingress Tool Transfer | On-the-fly module download from C2 via self-command 002 (GZip+Base64) |
 | T1129 | Shared Modules | DLL versioning scheme with automatic highest-version loading; module dispatch via naming convention |
-| T1059 | Command and Scripting Interpreter | SQL query execution via db.dll module |
-| T1048.003 | Exfiltration Over Unencrypted/Obfuscated Non-C2 Protocol | WebSocket tunneling and SOCKS5 proxy via n-sws.dll |
+| T1213 | Data from Information Repositories | SQL database enumeration, browsing, and export via db.dll module |
+| T1572 | Protocol Tunneling | SOCKS5 proxy and WebSocket tunneling via n-sws.dll |
 | T1018 | Remote System Discovery | NetServerEnum via n-ten.dll for domain computer enumeration |
 | T1555 | Credentials from Password Stores | DPAPI decryption via ProtectedData.Unprotect (mhm.dll command 102) |
 
@@ -286,8 +286,8 @@ b630c96d3763182533d4fb9b614134382bd644cb02c6c1c3ade848b6ecc31e86
 - Enable and monitor Sysmon Event ID 7 (Image Loaded) for DLL side-loading detection in security-critical environments
 - Segment RMM/MSP network access using zero-trust principles; require MFA for all administrative RMM operations
 - Monitor for .NET AppDomain creation/teardown anomalies via ETW (Event Tracing for Windows)
-- Block or alert on DNS queries to newly registered domains with Iranian hosting providers
-- Deploy TLS inspection to identify XOR-encoded payloads within HTTPS traffic where feasible
+- Block or alert on DNS queries to domains registered through known MOIS-associated infrastructure providers (maintain a threat-intel blocklist)
+- Deploy TLS inspection on egress to enable network-layer Suricata/Snort rules to inspect decrypted C2 traffic
 
 ## Detection Rules
 
@@ -544,7 +544,8 @@ rule APT_Cavern_Manticore_Agent : cavern iran
 
 Detects the Cavern Manticore communication module (n-HTCommp.dll) via C2 endpoint URI patterns, the custom X-User-token header, fixed User-Agent string, and developer typos embedded in the NativeAOT binary.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. No sample test for this rule (CommModule rule did not fire on Agent-focused positive; would need a separate n-HTCommp.dll sample). The User-Agent string (Chrome/146+Edg/146) is distinctive but may appear in legitimate Edge browser traffic — the combination with X-User-token + /profile + /gallery is what makes the rule specific. The CAV3RN namespace string and typos ("receivecd", "handeling") are published verbatim by CPR and are highly unlikely in benign software. Condition: PE + filesize <10MB + (header+uri OR ua OR typo OR cfg+uri OR namespace). -->
+<!-- revision: changed standalone $ua branch to ($ua and 1 of ($uri*, $hdr)) to prevent FP on Electron apps and browser helpers that embed the same Chrome/Edge UA string; capped confidence from high to medium per critic -->
+<!-- audit: yarac exit 0. UA string alone is not distinctive enough (Electron, browser helpers). Combined with C2 URI or header it becomes specific. Typos and namespace remain solo triggers as they are verbatim from CPR and not in benign software. Condition: PE + filesize <10MB + (header+uri OR ua+uri/hdr OR typo OR cfg+uri OR namespace). -->
 ```yara
 import "pe"
 
@@ -576,7 +577,7 @@ rule APT_Cavern_Manticore_CommModule : cavern iran
         filesize < 10MB and
         (
             ($hdr and 1 of ($uri*)) or
-            $ua or
+            ($ua and 1 of ($uri*, $hdr)) or
             any of ($typo*) or
             (1 of ($cfg*) and 1 of ($uri*)) or
             $ns

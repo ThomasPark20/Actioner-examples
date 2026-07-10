@@ -1,0 +1,26 @@
+title: DNS Query to Cavern Manticore C2 Domains
+id: 9c4d5e6f-7a8b-4cad-be2f-4a5b6c7d8e9f
+status: experimental
+description: >
+    Detects DNS queries to known Cavern Manticore C2 domains including
+    hospitalinstallation.com and its subdomains, as well as legacy
+    Cav3rn infrastructure domains adserviceupdate.com and hygienehistory.com.
+references:
+    - https://research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/
+    - https://thehackernews.com/2026/07/iran-linked-hackers-use-new-cavern-c2.html
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'hospitalinstallation.com'
+            - 'adserviceupdate.com'
+            - 'hygienehistory.com'
+    condition: selection
+falsepositives:
+    - None expected for these specific domains
+level: critical

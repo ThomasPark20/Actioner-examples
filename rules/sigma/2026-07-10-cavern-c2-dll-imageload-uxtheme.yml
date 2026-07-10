@@ -1,0 +1,26 @@
+title: Cavern Agent DLL Loaded by WinDirStat from ProgramData
+id: 8b3c4d5e-6f7a-4b9c-ad1e-3f4a5b6c7d8e
+status: experimental
+description: >
+    Detects WinDirStat.exe loading uxtheme.dll from C:\ProgramData\WinDir\,
+    consistent with Cavern Manticore DLL side-loading chain where the
+    trojanized uxtheme.dll contains the Cavern backdoor agent.
+references:
+    - https://research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/
+    - https://thehackernews.com/2026/07/iran-linked-hackers-use-new-cavern-c2.html
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\WinDirStat.exe'
+        ImageLoaded|endswith: '\uxtheme.dll'
+        ImageLoaded|contains: '\ProgramData\WinDir\'
+    condition: selection
+falsepositives:
+    - None expected in this specific path combination
+level: critical

@@ -1,0 +1,27 @@
+title: Cavern Manticore Module File Creation
+id: ad5e6f7a-8b9c-4dbe-cf3a-5b6c7d8e9f0a
+status: experimental
+description: >
+    Detects creation of known Cavern Manticore post-exploitation module DLLs
+    (n-HTCommp.dll, n-ten.dll, n-sws.dll) which use a distinctive n- prefix
+    naming convention exclusive to this framework.
+references:
+    - https://research.checkpoint.com/2026/cavern-manticore-exposing-iran-linked-modular-c2-framework/
+    - https://thehackernews.com/2026/07/iran-linked-hackers-use-new-cavern-c2.html
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\n-HTCommp.dll'
+            - '\n-ten.dll'
+            - '\n-sws.dll'
+    condition: selection
+falsepositives:
+    - Legitimate software using identically named DLLs with n- prefix (very unlikely)
+level: medium
