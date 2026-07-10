@@ -148,7 +148,7 @@ GigaWiper creates a scheduled task named "OneDrive Update" configured to run eve
 | T1518.001 | Software Discovery: Security Software Discovery | WMI query for AntivirusProduct in SecurityCenter2 |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | PowerShell command execution (command 7) |
 | T1113 | Screen Capture | Screenshots (command 9) and screen recording (command 10) |
-| T1021 | Remote Services | VNC-like remote desktop server (command 20) |
+| T1021.005 | Remote Services: VNC | VNC-like remote desktop server (command 20) |
 | T1057 | Process Discovery | Process management (command 16) |
 | T1012 | Query Registry | Registry management and querying (command 18) |
 | T1007 | System Service Discovery | Service management (command 16/17) |
@@ -201,7 +201,7 @@ Get-NetFirewallRule | Where-Object { $_.DisplayName -like '*CloudExperienceHost*
 - Monitor for AMQP (RabbitMQ) and Redis traffic on non-standard ports to external IPs
 - Implement application whitelisting to prevent unauthorized Go binaries from executing
 - Enable PowerShell Script Block Logging and monitor for WMI SecurityCenter2 queries
-- Restrict schtasks.exe execution to authorized administrative processes
+- Restrict schtasks.exe execution to authorized administrative processes (config-dependent: verify that existing automation and GPO-managed tasks are exempted before enforcing)
 - Monitor for bulk file rename operations (`.candy` extension) as an early indicator of encryption activity
 
 ## Detection Rules
@@ -279,9 +279,10 @@ level: medium
 
 ### Sigma: GigaWiper Firewall Rule Masquerading as CloudExperienceHost
 
-Detects PowerShell `Add-NetFirewallRule` creating a firewall rule with DisplayName containing "CloudExperienceHost", used by GigaWiper command 20 to allow VNC-like inbound TCP.
+Detects PowerShell `Add-NetFirewallRule` creating a firewall rule with DisplayName containing "CloudExperienceHost", used by GigaWiper command 20 to allow VNC-like inbound TCP. Requires PowerShell Script Block Logging (EID 4104) to be enabled.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. ps_script/windows logsource requires PowerShell Script Block Logging (EID 4104). Combination of Add-NetFirewallRule + CloudExperienceHost in script block is highly distinctive. -->
+<!-- revision: added Script Block Logging (EID 4104) dependency note to user-facing description and falsepositives (critic finding) -->
 ```yaml
 title: GigaWiper Firewall Rule Masquerading as CloudExperienceHost
 id: a7c4d9e2-3b51-4f8a-b6c5-8d2e1f3a0b7c
@@ -290,6 +291,7 @@ description: >
     Detects PowerShell Add-NetFirewallRule with DisplayName containing
     Microsoft.Windows.CloudExperienceHost, a masquerading technique used
     by GigaWiper command 20 (VNC-like remote access) to allow inbound TCP.
+    Requires PowerShell Script Block Logging (EID 4104) to be enabled.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
 author: Actioner
@@ -307,52 +309,22 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate Windows Cloud Experience Host firewall configuration
+    - This rule requires PowerShell Script Block Logging (EID 4104) to be enabled; it will not fire without this logging configuration
 level: high
 ```
 
-### Sigma: GigaWiper Antivirus Enumeration via WMI
-
-Detects the specific PowerShell WMI pattern querying `SecurityCenter2\AntivirusProduct` with JSON output, as used by GigaWiper for security software discovery.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. Medium confidence: legitimate security monitoring scripts may use the same WMI query pattern with ConvertTo-Json. The three-term AND narrows FPs vs a single-term match. -->
-```yaml
-title: GigaWiper Antivirus Enumeration via WMI
-id: e5f1a3b7-2c84-4d96-a9e8-6b0d3f7c2e1a
-status: experimental
-description: >
-    Detects the specific PowerShell WMI query to SecurityCenter2 AntivirusProduct
-    class with JSON output conversion, as used by GigaWiper for defense discovery.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
-author: Actioner
-date: 2026/07/10
-tags:
-    - attack.t1518.001
-logsource:
-    category: ps_script
-    product: windows
-detection:
-    selection:
-        ScriptBlockText|contains|all:
-            - 'SecurityCenter2'
-            - 'AntivirusProduct'
-            - 'ConvertTo-Json'
-    condition: selection
-falsepositives:
-    - Security monitoring scripts that enumerate installed antivirus products
-    - IT asset management tools
-level: medium
-```
+<!-- revision: Dropped: WMI antivirus enumeration rule — altitude violation (behavioral TTP, not GigaWiper-specific artifact). -->
 
 ### Suricata: GigaWiper AMQP/Redis C2 Communication
 
-Detects TCP connections to GigaWiper's known C2 infrastructure: AMQP on `185.182.193[.]21:5544`, Redis on `185.182.193[.]21:7542`, and any connection to `212.8.248[.]104`.
+Detects TCP connections to GigaWiper's known C2 infrastructure: AMQP on `185.182.193[.]21:5544`, Redis on `185.182.193[.]21:7542`, and any connection to `212.8.248[.]104`. IP-based rules have a 90-day review window (expires 2026-10-08); re-evaluate whether infrastructure is still active before renewing.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0. Three rules: sid 2200001 (AMQP with AMQP header content match), sid 2200002 (Redis with RESP protocol content match), sid 2200003 (secondary C2 IP any port). IP-based rules are high confidence but time-limited; infrastructure will rotate. Values are real (not defanged). -->
+<!-- revision: added 90-day expiry/review note per critic; added metadata review_by 2026-10-08 to all three sids -->
 ```suricata
-alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper AMQP C2 Communication to Known Infrastructure"; flow:established,to_server; content:"AMQP"; depth:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10; sid:2200001; rev:1;)
-alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper Redis C2 Communication to Known Infrastructure"; flow:established,to_server; content:"*"; depth:1; content:"|0d 0a|"; distance:0; within:10; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10; sid:2200002; rev:1;)
-alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Communication to Known IP 212.8.248.104"; flow:established,to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10; sid:2200003; rev:1;)
+alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper AMQP C2 Communication to Known Infrastructure"; flow:established,to_server; content:"AMQP"; depth:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200001; rev:1;)
+alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper Redis C2 Communication to Known Infrastructure"; flow:established,to_server; content:"*"; depth:1; content:"|0d 0a|"; distance:0; within:10; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200002; rev:1;)
+alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Communication to Known IP 212.8.248.104"; flow:established,to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200003; rev:1;)
 ```
 
 ### Snort: N/A

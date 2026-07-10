@@ -1,0 +1,7 @@
+# GigaWiper C2 Communication Rules
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+# Review by: 2026-10-08 (90-day expiry window for IP-based rules)
+
+alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper AMQP C2 Communication to Known Infrastructure"; flow:established,to_server; content:"AMQP"; depth:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200001; rev:1;)
+alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper Redis C2 Communication to Known Infrastructure"; flow:established,to_server; content:"*"; depth:1; content:"|0d 0a|"; distance:0; within:10; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200002; rev:1;)
+alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Communication to Known IP 212.8.248.104"; flow:established,to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-10, review_by 2026-10-08; sid:2200003; rev:1;)
