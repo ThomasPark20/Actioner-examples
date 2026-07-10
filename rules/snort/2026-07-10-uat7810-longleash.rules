@@ -1,0 +1,1 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-7810 LONGLEASH HTTP C2 User-Agent"; flow:established, to_server; http_header; content:"Chrome/122.0.6261.95", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-10; sid:2100001; rev:1;)

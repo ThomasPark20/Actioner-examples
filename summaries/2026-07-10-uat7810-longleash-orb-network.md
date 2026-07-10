@@ -249,13 +249,13 @@ All C2 servers host multiple malware variants compiled for different architectur
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Exploitation of n-day vulnerabilities in Ruckus wireless routers (CVE-2020-22653, CVE-2020-22658, CVE-2023-25717) and ASUS AiCloud routers (CVE-2025-2492) |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | DOGLEASH executes commands via `/bin/sh -c`; shell scripts used for malware deployment |
-| T1547 | Boot or Logon Autostart Execution | iptables rules configured to persist backdoor network access across reboots |
+| T1562.004 | Impair Defenses: Disable or Modify System Firewall | iptables rules modified post-compromise to permit traffic on backdoor listening ports |
 | T1571 | Non-Standard Port | C2 communications on ports 99, 2222, and 8088 |
 | T1090 | Proxy | LONGLEASH operates HTTP, DNS, SOCKS, TCP, ICMP, and UDP proxy servers; ORB network relays traffic for secondary APT actors |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP-based C2 with hardcoded User-Agent and protobuf payloads |
 | T1573.002 | Encrypted Channel: Asymmetric Cryptography | TLS-encrypted C2 using MbedTLS with distinctive "exploit" certificates |
-| T1027 | Obfuscated Files or Information | Base58, Base64, and custom password-based encoding for C2 traffic and command decoding |
-| T1055 | Process Injection | DOGLEASH default command handler executes arbitrary code in memory |
+| T1132 | Data Encoding | Base58, Base64, and custom password-based encoding applied to C2 network traffic and command payloads |
+| T1620 | Reflective Code Loading | DOGLEASH default command handler receives and executes shellcode in its own process memory |
 | T1082 | System Information Discovery | DOGLEASH command 0x3450 retrieves OS release, version, hardware ID, and node name |
 | T1005 | Data from Local System | DOGLEASH command 0x2266 reads files from the compromised device |
 | T1070.004 | Indicator Removal: File Deletion | LONGLEASH self-deletion capability upon suspicious activity detection |
