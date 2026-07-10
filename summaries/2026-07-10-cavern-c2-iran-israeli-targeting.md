@@ -498,8 +498,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Cavern Manticor
 ### YARA: Cavern Manticore Agent Detection
 
 Detects the Cavern Manticore backdoor agent (uxtheme.dll) via distinctive mutex names (MYMUTEX123HELLP*), PDB path referencing developer username "rick", and developer frustration strings embedded in the binary.
-**Status:** compile ✅ compiles · confidence: high · sample: constructed
-<!-- audit: yarac exit 0. yara fired on constructed positive (MYMUTEX123HELLP02 + n-HTCommp.dll + config.txt + EnableThemeDialogTexture + delimiters from published CPR report); quiet on negative. Mutex strings are unique and not used by any known legitimate software. PDB path C:\Users\rick\Desktop\Modules\cavern\ is highly specific. Error strings are verbatim from CPR analysis. Condition: PE + filesize <10MB + (any mutex OR pdb OR error OR 2-of module/delim/export). -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- revision: raised last-branch threshold from 2-of to 3-of ($mod*, $delim*, $export) to avoid FP from config.txt + _,_ or config.txt + EnableThemeDialogTexture matching benign PEs; capped confidence from high to medium per critic -->
+<!-- audit: yarac exit 0. Mutex strings are unique. PDB path is highly specific. Error strings are verbatim from CPR analysis. Condition: PE + filesize <10MB + (any mutex OR pdb OR error OR 3-of module/delim/export). -->
 ```yara
 import "pe"
 
@@ -534,7 +535,7 @@ rule APT_Cavern_Manticore_Agent : cavern iran
             any of ($mutex*) or
             $pdb or
             (1 of ($err*)) or
-            (2 of ($mod*, $delim*, $export))
+            (3 of ($mod*, $delim*, $export))
         )
 }
 ```
