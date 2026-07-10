@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-10
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -213,6 +213,7 @@ These detections target GigaWiper-specific artifacts at advisory-specific altitu
 Detects creation of the "OneDrive Update" scheduled task via schtasks.exe, the persistence mechanism used by GigaWiper.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed (MITRE data fetch 403 via proxy); sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0; splunk_windows pipeline exit 0. Field names standard for process_creation/windows. Values not defanged. -->
+<!-- revision: added CommandLine|contains '/create' to selection to avoid firing on /query and /delete invocations (critic FIX verdict) -->
 ```yaml
 title: GigaWiper Scheduled Task Persistence - OneDrive Update
 id: d8a1e7c3-4f52-4b9a-8c6d-1e3f5a7b9d0e
@@ -232,9 +233,11 @@ logsource:
 detection:
     selection_binary:
         Image|endswith: '\schtasks.exe'
+    selection_create:
+        CommandLine|contains: '/create'
     selection_taskname:
         CommandLine|contains: 'OneDrive Update'
-    condition: selection_binary and selection_taskname
+    condition: selection_binary and selection_create and selection_taskname
 falsepositives:
     - Legitimate OneDrive update mechanisms using identically named scheduled tasks
 level: high
