@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -166,8 +166,7 @@ A comprehensive credential harvesting toolkit was staged at `%USERPROFILE%\Music
 |-----|-----------|-------------------|
 | T1219 | Remote Access Software | AnyDesk deployed for persistent remote access with unattended configuration |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Defense evasion tool named `symantec.exe` to impersonate legitimate Symantec product |
-| T1014 | Rootkit | PoisonX kernel driver loaded to operate at Ring 0 for defense impairment |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | PoisonX driver terminates security processes; PowerShell disables Defender real-time monitoring |
+| T1562.001 | Impair Defenses: Disable or Modify Tools | PoisonX driver terminates security processes at kernel level; PowerShell disables Defender real-time monitoring |
 | T1003.001 | OS Credential Dumping: LSASS Memory | Mimikatz deployment for credential extraction |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | NirSoft toolkit (ChromePass, WebBrowserPassView, PasswordFox, OperaPassView) for browser credential theft |
 | T1021.002 | Remote Services: SMB/Windows Admin Shares | Mounting administrative C$ shares with stolen credentials for lateral movement |
@@ -223,7 +222,7 @@ Get-NetTCPConnection | Where-Object {$_.RemoteAddress -in @('15.235.230.188','18
 
 ### Long-Term Hardening
 
-- **WDAC/HVCI**: Enable Hypervisor-protected Code Integrity and Windows Defender Application Control to block unsigned or known-malicious kernel drivers.
+- **WDAC/HVCI**: Enable Hypervisor-protected Code Integrity (HVCI) and Windows Defender Application Control (WDAC). Note: HVCI blocks unsigned drivers only; since PoisonX carries a valid Microsoft signature, it will not be blocked by HVCI alone. To prevent loading of signed-but-malicious drivers like PoisonX, deploy an explicit hash-deny rule via WDAC policy targeting the known PoisonX driver hash.
 - **Microsoft Vulnerable Driver Blocklist**: Ensure the Microsoft driver blocklist is enabled and updated to include the PoisonX driver hash.
 - **Credential hygiene**: Deploy LAPS for local admin passwords. Implement tiered administration. Monitor for NirSoft tool execution.
 - **Remote access governance**: Maintain an allowlist of authorized remote access tools. Alert on AnyDesk installations outside sanctioned channels.
@@ -231,16 +230,19 @@ Get-NetTCPConnection | Where-Object {$_.RemoteAddress -in @('15.235.230.188','18
 
 ## Detection Rules
 
-These detections cover the GodDamn/Hyadina intrusion chain: PoisonX driver loading, ransomware execution, defense evasion masquerading, AnyDesk persistence, NirSoft toolkit deployment, and network infrastructure. All Sigma rules convert to both Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline before production deployment.
+These detections cover the GodDamn/Hyadina intrusion chain: PoisonX driver loading, ransomware execution, defense evasion masquerading, AnyDesk persistence, credential harvesting toolkit deployment, and network infrastructure. All Sigma rules convert to both Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline before production deployment. Detection rules intentionally use live (non-defanged) IOC values for functional matching; defanged notation is used only in the prose IOC tables above.
+
+<!-- revision: v1.1 — removed T1014 (Rootkit) tag (PoisonX kills processes, does not hide them); rewrote HVCI guidance to clarify signed-driver gap; added campaign anchors to AnyDesk rule; dropped generic filename arm from credential-harvesting rule and renamed title; regenerated all Sigma UUIDs; added defanging convention note. -->
 
 ### Sigma: PoisonX Malicious Kernel Driver Load (g11.sys)
 
 Detects loading of the PoisonX kernel driver by image path or SHA-256 hash.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag — proxy blocks MITRE API); splunk 0, log_scale 0. driver_load category → Sysmon EID 6. ImageLoaded endswith and Hashes contains are standard fields. Hash is the published Broadcom IOC. No encoding issues (Windows paths, hex hashes). -->
+<!-- revision: removed T1014 tag (PoisonX kills processes, does not conceal them); regenerated UUID. -->
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. driver_load category -> Sysmon EID 6. Hash is the published Broadcom IOC. -->
 ```yaml
 title: PoisonX Malicious Kernel Driver Load (g11.sys)
-id: 8a3b7c1e-4d2f-4e9a-b5c6-d7e8f9012345
+id: f832c397-8bb5-43e0-b784-f2d31d62d466
 status: experimental
 description: >
     Detects the loading of the PoisonX malicious kernel driver (g11.sys) used by the Hyadina
@@ -253,7 +255,6 @@ references:
 author: Actioner
 date: 2026/07/10
 tags:
-    - attack.t1014
     - attack.t1562.001
 logsource:
     category: driver_load
@@ -273,10 +274,11 @@ level: critical
 
 Detects execution of the GodDamn ransomware binary by distinctive filename or SHA-256 hash.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. process_creation category. Filename "encrypter-windows-gui-x86.exe" is highly distinctive — unlikely benign collision. Hash from Broadcom bulletin. -->
+<!-- revision: regenerated UUID. -->
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. process_creation category. Filename highly distinctive. Hash from Broadcom bulletin. -->
 ```yaml
 title: GodDamn Ransomware Binary Execution
-id: 2f4a8b1c-6d3e-4f7a-9c5b-e1d2f3a4b567
+id: 22fdef53-aa14-4987-886b-4e47399ebf0d
 status: experimental
 description: >
     Detects execution of the GodDamn ransomware binary (encrypter-windows-gui-x86.exe)
@@ -307,10 +309,11 @@ level: critical
 
 Detects the Hyadina defense evasion dropper (`symantec.exe`) by hash, or by filename when launched from atypical user profile directories.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. Hash-based selection is high-confidence anchor; path-based selection requires both filename AND suspicious directory (AND logic in selection_path) to reduce FP on legitimate Symantec executables. -->
+<!-- revision: regenerated UUID. -->
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. Hash anchor + path AND logic reduces FP on legitimate Symantec. -->
 ```yaml
 title: Hyadina Defense Evasion Tool Masquerading as Symantec Product
-id: 9c5d7e2f-1a3b-4c6d-8e9f-0a1b2c3d4e56
+id: 2514556e-94d9-4f89-b014-8c5fa41011c4
 status: experimental
 description: >
     Detects execution of the Hyadina defense evasion dropper disguised as symantec.exe,
@@ -343,19 +346,20 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Suspicious AnyDesk Service Installation with Custom Data Directory
+### Sigma: Hyadina Campaign AnyDesk Persistence with Custom Data Directory
 
-Detects creation of AnyDesk services with custom `--conf-dir` and `--data-dir` flags, a persistence pattern specific to the Hyadina campaign.
+Detects AnyDesk service installation by campaign-specific binary hash or by the `ad_data` directory path unique to this Hyadina campaign.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. CommandLine contains|all produces AND logic. Enterprise AnyDesk may use custom dirs — FP possible in managed deployments; tune per environment. -->
+<!-- revision: added campaign-specific anchors (AnyDesk hash, ad_data path); dropped generic --conf-dir/--data-dir arm; capped level at medium; regenerated UUID. -->
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. Hash arm anchors to campaign binary; cmdline arm requires ad_data directory name. -->
 ```yaml
-title: Suspicious AnyDesk Service Installation with Custom Data Directory
-id: 3e7f9a1b-2c4d-5e6f-a8b9-c0d1e2f3a456
+title: Hyadina Campaign AnyDesk Persistence with Custom Data Directory
+id: 82df7434-c54e-4f65-8317-5ac2a7511966
 status: experimental
 description: >
-    Detects creation of AnyDesk services with custom configuration and data directories
-    (--conf-dir and --data-dir flags), a persistence technique used by the Hyadina threat
-    group during GodDamn ransomware deployments to establish unattended remote access.
+    Detects AnyDesk service installation with the campaign-specific data directory (ad_data)
+    used by the Hyadina threat group during GodDamn ransomware deployments, or by the
+    campaign-specific AnyDesk binary hash.
 references:
     - https://securityaffairs.com/195042/malware/goddamn-ransomware-uses-poisonx-to-blind-security-software.html
     - https://www.broadcom.com/support/security-center/protection-bulletin/goddamn-ransomware-latest-beast-rebrand-uses-malicious-driver-to-disable-defenses
@@ -368,31 +372,33 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection:
+    selection_hash:
+        Hashes|contains: '45126297c07c6ef56b51440cd0dc30acf7b3b938e2e9e656334886fe2f81f220'
+    selection_cmdline:
         CommandLine|contains|all:
             - 'anydesk'
             - '--service'
-            - '--conf-dir'
-            - '--data-dir'
-    condition: selection
+            - 'ad_data'
+    condition: selection_hash or selection_cmdline
 falsepositives:
-    - Enterprise AnyDesk deployments using custom data directories for centralized management
-level: high
+    - Enterprise AnyDesk deployments coincidentally using an ad_data directory name
+level: medium
 ```
 
-### Sigma: NirSoft Credential Harvesting Toolkit Execution
+### Sigma: Credential Harvesting Toolkit Execution (Hyadina Campaign)
 
-Detects execution of NirSoft credential harvesting tools by campaign-specific hashes or by known tool filenames from the Hyadina toolkit.
+Detects execution of credential harvesting tools (NirSoft suite and Mimikatz) by campaign-specific SHA-256 hashes from the Broadcom-documented Hyadina intrusion.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. Hash-based selection uses 14 campaign-specific hashes from Broadcom bulletin. Filename-based selection covers the renamed/original NirSoft tool names observed. Individual NirSoft tools are legitimate — combined deployment is suspicious. FP: IT administrators using NirSoft for password recovery. -->
+<!-- revision: renamed title (includes Mimikatz, not NirSoft-only); dropped generic selection_names arm (stock filenames too noisy); hash-only detection at proper altitude; regenerated UUID. -->
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0, log_scale 0. 14 campaign-specific hashes from Broadcom bulletin. Hash-only arm avoids generic filename FP. -->
 ```yaml
-title: NirSoft Credential Harvesting Toolkit Execution
-id: 4f8a0b2c-3d5e-6f7a-b9c0-d1e2f3a4b567
+title: Credential Harvesting Toolkit Execution (Hyadina Campaign)
+id: d3b93842-4192-4cd7-a6e6-337fe7d3641d
 status: experimental
 description: >
-    Detects execution of NirSoft credential harvesting tools used by the Hyadina threat group
-    for credential access during GodDamn ransomware operations. Matches known tool hashes
-    from the observed campaign and common NirSoft tool filenames.
+    Detects execution of credential harvesting tools used by the Hyadina threat group
+    during GodDamn ransomware operations by campaign-specific SHA-256 hashes. Covers
+    14 NirSoft tools and Mimikatz observed in the Broadcom-documented intrusion.
 references:
     - https://securityaffairs.com/195042/malware/goddamn-ransomware-uses-poisonx-to-blind-security-software.html
     - https://www.broadcom.com/support/security-center/protection-bulletin/goddamn-ransomware-latest-beast-rebrand-uses-malicious-driver-to-disable-defenses
@@ -421,25 +427,9 @@ detection:
             - 'ece33e4b7e2d26eeca8ad9db4439f9801a7a77e332611116156738b1b0316046'
             - '5e85446910e732111ca9ac90f9ed8b1dee13c3314d2c5117dcf672994ce73bd6'
             - '17fb52476016677db5a93505c4a1c356984bc1f6a4456870f920ac90a7846180'
-    selection_names:
-        Image|endswith:
-            - '\mimik.exe'
-            - '\chromepass.exe'
-            - '\webbrowserpassview64.exe'
-            - '\passwordfox64.exe'
-            - '\mspass.exe'
-            - '\vncpassview.exe'
-            - '\mailpv.exe'
-            - '\sniffpass64.exe'
-            - '\operapassview.exe'
-            - '\credentialsfileview64.exe'
-            - '\wirelesskeyview64.exe'
-            - '\extpassword.exe'
-            - '\pstpassword.exe'
-            - '\netpass64.exe'
-    condition: selection_hashes or selection_names
+    condition: selection_hashes
 falsepositives:
-    - Legitimate use of individual NirSoft tools by system administrators for password recovery
+    - Legitimate use of NirSoft tools matching these exact hashes is unlikely but possible in IT environments
 level: high
 ```
 
