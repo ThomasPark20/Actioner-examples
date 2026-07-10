@@ -1,0 +1,30 @@
+title: Hyadina Campaign AnyDesk Persistence with Custom Data Directory
+id: 82df7434-c54e-4f65-8317-5ac2a7511966
+status: experimental
+description: >
+    Detects AnyDesk service installation with the campaign-specific data directory (ad_data)
+    used by the Hyadina threat group during GodDamn ransomware deployments, or by the
+    campaign-specific AnyDesk binary hash.
+references:
+    - https://securityaffairs.com/195042/malware/goddamn-ransomware-uses-poisonx-to-blind-security-software.html
+    - https://www.broadcom.com/support/security-center/protection-bulletin/goddamn-ransomware-latest-beast-rebrand-uses-malicious-driver-to-disable-defenses
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1543.003
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains: '45126297c07c6ef56b51440cd0dc30acf7b3b938e2e9e656334886fe2f81f220'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - 'anydesk'
+            - '--service'
+            - 'ad_data'
+    condition: selection_hash or selection_cmdline
+falsepositives:
+    - Enterprise AnyDesk deployments coincidentally using an ad_data directory name
+level: medium
