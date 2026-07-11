@@ -1,0 +1,89 @@
+title: UAT-7810 LONGLEASH/DOGLEASH C2 Communication to Known Infrastructure
+id: a1e2f3d4-5b6c-4a7d-8e9f-0a1b2c3d4e5f
+status: experimental
+description: >
+    Detects network connections to UAT-7810 C2 infrastructure on distinctive
+    non-standard ports (8088, 2222, 99) used by LONGLEASH and DOGLEASH backdoors
+    for command-and-control communication within the ORB relay network.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1090.003
+    - attack.t1071.001
+logsource:
+    category: firewall
+detection:
+    selection_dst_ip:
+        dst_ip:
+            - '194.233.92.26'
+            - '217.15.160.247'
+            - '217.15.164.147'
+            - '95.182.100.231'
+    selection_port:
+        dst_port:
+            - 8088
+            - 2222
+            - 99
+    condition: selection_dst_ip and selection_port
+falsepositives:
+    - None expected; combination of specific IPs and unusual ports is highly distinctive
+level: critical
+---
+title: UAT-7810 TLS Certificate with Exploit Subject Fields
+id: b2f3a4e5-6c7d-4b8e-9f0a-1b2c3d4e5f6a
+status: experimental
+description: >
+    Detects TLS connections using the distinctive certificate observed in UAT-7810
+    infrastructure where all subject DN fields (C, ST, L, O, OU, CN) are set to
+    the value "exploit", a unique fingerprint for this threat actor's C2 infrastructure.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1071.001
+    - attack.t1573.002
+logsource:
+    category: network_connection
+    product: zeek
+detection:
+    selection_tls_subject:
+        tls.server.subject|contains|all:
+            - 'CN=exploit'
+            - 'O=exploit'
+            - 'C=exploit'
+    condition: selection_tls_subject
+falsepositives:
+    - Security testing using certificates with "exploit" in subject fields
+level: critical
+---
+title: UAT-7810 LONGLEASH User-Agent String in HTTP Traffic
+id: c3a4b5e6-7d8e-4c9f-0a1b-2c3d4e5f6a7b
+status: experimental
+description: >
+    Detects HTTP traffic containing the specific Chrome 122.0.6261.95 User-Agent
+    string used by LONGLEASH malware for C2 communication, originating from
+    non-Windows or edge device systems where this browser version is unexpected.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_ua:
+        c-useragent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.6261.95 Safari/537.36'
+    selection_dst:
+        dst_ip:
+            - '194.233.92.26'
+            - '217.15.160.247'
+            - '217.15.164.147'
+            - '95.182.100.231'
+    condition: selection_ua and selection_dst
+falsepositives:
+    - Legitimate Chrome 122.0.6261.95 users connecting to the same IPs (extremely unlikely)
+level: critical
