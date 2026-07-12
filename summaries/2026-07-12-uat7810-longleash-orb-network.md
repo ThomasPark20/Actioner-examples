@@ -320,21 +320,23 @@ falsepositives:
 level: high
 ```
 
-#### 3. Ruckus Router Exploitation Attempt via Known CVE URI Paths
+#### 3. Ruckus Router Known CVE URI Path Access (Supplementary)
 
-Detects web requests targeting Ruckus management endpoints used in CVE-2020-22653, CVE-2020-22658, and CVE-2023-25717 exploitation.
-- Compile: sigma convert pass -- Confidence: medium
+Supplementary awareness rule that detects web requests to Ruckus management URI paths associated with CVE-2020-22653, CVE-2020-22658, and CVE-2023-25717. These paths are also used during normal administrator access, so this rule serves as a low-confidence enrichment signal rather than a standalone alert.
+- Compile: sigma convert pass -- Confidence: low
 
-<!-- audit: URI paths are common Ruckus admin endpoints. FPs expected from legitimate admin access; filter by source IP if admin ranges are known. webserver category requires web server logs from Ruckus devices or a reverse proxy in front of them. -->
+<!-- audit: URI paths are common Ruckus admin endpoints. FPs WILL fire from legitimate admin access; this is a supplementary awareness rule, not a UAT-7810-specific detection. Downgraded to low confidence and medium level per review. webserver category requires web server logs from Ruckus devices or a reverse proxy in front of them. -->
 
 ```yaml
-title: Ruckus Router Exploitation Attempt via Known CVE URI Paths
+title: Ruckus Router Known CVE URI Path Access (Supplementary)
 id: d3f11c2f-61df-4811-8c00-6691060ba4c4
 status: experimental
 description: >
-    Detects web requests matching known exploitation patterns for Ruckus
-    router vulnerabilities CVE-2020-22653, CVE-2020-22658, and CVE-2023-25717
-    used by UAT-7810 for initial access to build ORB networks.
+    Supplementary awareness rule detecting web requests to Ruckus router
+    management URI paths associated with CVE-2020-22653, CVE-2020-22658,
+    and CVE-2023-25717. These paths are not specific to UAT-7810 exploitation
+    and WILL fire on legitimate administrator access. Use as an enrichment
+    signal in combination with other UAT-7810 indicators, not as a standalone alert.
 references:
     - https://blog.talosintelligence.com/uat-7810/
     - https://nvd.nist.gov/vuln/detail/CVE-2023-25717
@@ -352,51 +354,11 @@ detection:
             - '/admin/wlan_config.jsp'
     condition: selection
 falsepositives:
-    - Legitimate Ruckus admin panel access (verify source IP against known admin ranges)
-level: high
-```
-
-#### 4. ASUS AiCloud CVE-2025-2492 Exploitation Attempt
-
-Detects POST/PUT requests to ASUS AiCloud endpoints consistent with CVE-2025-2492 exploitation.
-- Compile: sigma convert pass -- Confidence: medium
-
-<!-- audit: AiCloud endpoint paths are generic (/aicloud, /aidisk, /smb). POST/PUT filter reduces FPs but legitimate AiCloud usage will trigger. Best deployed on networks where ASUS routers should not receive external web requests. -->
-
-```yaml
-title: ASUS AiCloud CVE-2025-2492 Exploitation Attempt
-id: d4d8cb80-eed0-45b3-b1fc-2117e7846ed9
-status: experimental
-description: >
-    Detects web requests targeting ASUS AiCloud router endpoints consistent
-    with CVE-2025-2492 exploitation, used by UAT-7810 for initial access
-    to networking devices for ORB network expansion.
-references:
-    - https://blog.talosintelligence.com/uat-7810/
-    - https://nvd.nist.gov/vuln/detail/CVE-2025-2492
-author: Actioner
-date: 2026-07-12
-tags:
-    - attack.t1190
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-uri-stem|contains:
-            - '/aicloud'
-            - '/aidisk'
-            - '/smb'
-    selection_method:
-        cs-method:
-            - 'POST'
-            - 'PUT'
-    condition: selection and selection_method
-falsepositives:
-    - Legitimate ASUS AiCloud usage by device owners
+    - Legitimate Ruckus admin panel access WILL trigger this rule -- filter by source IP against known admin ranges or use only as a correlation signal
 level: medium
 ```
 
-#### 5. Firewall Traffic to UAT-7810 C2 Infrastructure
+#### 4. Firewall Traffic to UAT-7810 C2 Infrastructure
 
 Detects firewall log entries for any traffic to the four known UAT-7810 C2 IPs, regardless of port.
 - Compile: sigma convert pass -- Confidence: high
@@ -435,7 +397,7 @@ level: high
 
 ### YARA
 
-#### 6. APT_UAT7810_DOGLEASH_Backdoor
+#### 5. APT_UAT7810_DOGLEASH_Backdoor
 
 Detects DOGLEASH ELF backdoor binaries via the combination of shell execution pattern and characteristic command dispatch codes (0x2268, 0x2267, 0x2266, 0x2271, 0x3450).
 - Compile: yarac pass -- Confidence: high
@@ -475,7 +437,7 @@ rule APT_UAT7810_DOGLEASH_Backdoor
 }
 ```
 
-#### 7. APT_UAT7810_LONGLEASH_Backdoor
+#### 6. APT_UAT7810_LONGLEASH_Backdoor
 
 Detects LONGLEASH ELF binaries via project identifiers (nz1.0, ff-agent), linked libraries (Boost, Nanopb, MbedTLS), and the hardcoded Chrome/122 User-Agent.
 - Compile: yarac pass -- Confidence: high
@@ -517,7 +479,7 @@ rule APT_UAT7810_LONGLEASH_Backdoor
 }
 ```
 
-#### 8. APT_UAT7810_JARLEASH_Backdoor
+#### 7. APT_UAT7810_JARLEASH_Backdoor
 
 Detects JARLEASH JAR-packaged Java backdoor via the combination of ZIP/JAR magic bytes, Java class markers, and server capability strings (FTP, SFTP, Netcat).
 - Compile: yarac pass -- Confidence: medium
@@ -557,12 +519,12 @@ rule APT_UAT7810_JARLEASH_Backdoor
 }
 ```
 
-#### 9. APT_UAT7810_LEASHTEST_MIPS_Testing
+#### 8. APT_UAT7810_LEASHTEST_MIPS_Testing
 
 Detects the LEASHTEST MIPS testing binary via the "iot-test" internal name combined with Boost library usage and platform test function strings.
-- Compile: yarac pass -- Confidence: high
+- Compile: yarac pass -- Confidence: medium
 
-<!-- audit: "iot-test" string is the anchor. Combined with Boost and 3-of-5 platform test strings (Hello World, thread, acceptor, async, child). The "iot-test" project name is specific enough to make this high-confidence; generic test binaries do not typically combine all these strings in a MIPS ELF. -->
+<!-- audit: "iot-test" string is the anchor. Combined with Boost and 3-of-5 platform test strings (Hello World, thread, acceptor, async, child). Downgraded to medium confidence: generic strings (thread, acceptor, async, child) are present in many Boost.Asio applications; the "iot-test" project name provides the primary discrimination. -->
 
 ```yara
 rule APT_UAT7810_LEASHTEST_MIPS_Testing
@@ -593,7 +555,7 @@ rule APT_UAT7810_LEASHTEST_MIPS_Testing
 }
 ```
 
-#### 10. APT_UAT7810_TLS_Certificate_Exploit
+#### 9. APT_UAT7810_TLS_Certificate_Exploit
 
 Detects TLS certificate files with all distinguished name fields set to "exploit," a distinctive marker of UAT-7810 C2 infrastructure.
 - Compile: yarac pass -- Confidence: high
@@ -626,7 +588,7 @@ rule APT_UAT7810_TLS_Certificate_Exploit
 
 ### Snort 3
 
-#### 11. UAT-7810 Outbound C2 Traffic
+#### 10. UAT-7810 Outbound C2 Traffic
 
 Detects outbound TCP connections to the four known UAT-7810 C2 IPs on their operational ports.
 - Structural validation: pass (uncompiled) -- Confidence: high
@@ -637,42 +599,42 @@ Detects outbound TCP connections to the four known UAT-7810 C2 IPs on their oper
 alert tcp $HOME_NET any -> [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] [99,2222,8088] (msg:"Actioner - UAT-7810 Outbound C2 Traffic to Known Infrastructure"; flow:established, to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100201; rev:1;)
 ```
 
-#### 12. UAT-7810 Inbound C2 Traffic
+#### 11. UAT-7810 Inbound C2 Traffic
 
-Detects inbound connections from known UAT-7810 C2 infrastructure to the protected network.
+Detects inbound connections from known UAT-7810 C2 infrastructure to the protected network (DOGLEASH passive listener model where C2 initiates TCP to the compromised device).
 - Structural validation: pass (uncompiled) -- Confidence: high
 
-<!-- audit: Reverse direction coverage of rule 11. Catches C2 server-initiated connections (relevant for DOGLEASH passive listener model where C2 connects to the implant). -->
+<!-- audit: Reverse direction coverage of rule 10. Catches C2 server-initiated connections (relevant for DOGLEASH passive listener model where C2 connects to the implant). flow:to_server is correct: C2 IPs are the source initiating the connection, $HOME_NET is the "server" (listener). -->
 
 ```
-alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - UAT-7810 Inbound Traffic from Known C2 Infrastructure"; flow:established, to_client; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100202; rev:1;)
+alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - UAT-7810 Inbound Traffic from Known C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100202; rev:1;)
 ```
 
-#### 13. LONGLEASH C2 Beacon User-Agent
+#### 12. LONGLEASH C2 Beacon User-Agent to Non-Standard Port
 
-Detects the specific Chrome/122.0.6261.95 User-Agent string in HTTP headers, hardcoded in LONGLEASH C2 communications.
-- Structural validation: pass (uncompiled) -- Confidence: high
+Detects the specific Chrome/122.0.6261.95 User-Agent string in HTTP headers on non-standard C2 ports (99, 2222, 8088), hardcoded in LONGLEASH C2 communications.
+- Structural validation: pass (uncompiled) -- Confidence: medium
 
-<!-- audit: Uses http_header sticky buffer (Snort 3 correct, not dot-notation). Chrome/122.0.6261.95 is a specific build string. By July 2026, Chrome 122 is significantly outdated, reducing legitimate traffic overlap. http service in protocol field enables http_header buffer. -->
+<!-- audit: Uses http_header sticky buffer (Snort 3 correct, not dot-notation). Chrome/122.0.6261.95 is a specific build string. Port restriction [99,2222,8088] added to match Suricata rule 15 and align with title. By July 2026, Chrome 122 is significantly outdated, reducing legitimate traffic overlap. Downgraded to medium confidence as UA alone is not a definitive indicator. -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LONGLEASH C2 Beacon Chrome/122 UA to Non-Standard Port"; flow:established, to_server; http_header; content:"Chrome/122.0.6261.95", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100203; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET [99,2222,8088] (msg:"Actioner - LONGLEASH C2 Beacon Chrome/122 UA to Non-Standard Port"; flow:established,to_server; http_header; content:"Chrome/122.0.6261.95"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100203; rev:1;)
 ```
 
 ### Suricata
 
-#### 14. UAT-7810 C2 Traffic to Known Infrastructure
+#### 13. UAT-7810 C2 Traffic to Known Infrastructure
 
 Detects TCP connections to UAT-7810 C2 IPs on operational ports.
 - Compile: suricata -T pass -- Confidence: high
 
-<!-- audit: Mirror of Snort rule 11 for Suricata. Same IP/port logic. Uses tcp protocol (no app-layer buffers needed for IP-only matching). -->
+<!-- audit: Mirror of Snort rule 10 for Suricata. Same IP/port logic. Uses tcp protocol (no app-layer buffers needed for IP-only matching). -->
 
 ```
-alert tcp $HOME_NET any -> [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] [99,2222,8088] (msg:"Actioner - UAT-7810 C2 Traffic to Known Infrastructure IP and Port"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2100101; rev:1;)
+alert tcp $HOME_NET any -> [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] [99,2222,8088] (msg:"Actioner - UAT-7810 C2 Traffic to Known Infrastructure IP and Port"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200101; rev:1;)
 ```
 
-#### 15. UAT-7810 TLS Certificate with Exploit Subject Fields
+#### 14. UAT-7810 TLS Certificate with Exploit Subject Fields
 
 Detects TLS connections presenting certificates with the distinctive "C=exploit" and "CN=exploit" subject fields used by UAT-7810 infrastructure.
 - Compile: suricata -T pass -- Confidence: high
@@ -680,10 +642,10 @@ Detects TLS connections presenting certificates with the distinctive "C=exploit"
 <!-- audit: Uses tls.cert_subject sticky buffer (Suricata-only, correctly not used in Snort rules). Two content matches on C=exploit and CN=exploit within the subject field. Extremely low FP -- no legitimate certificates use "exploit" as the country code and common name. -->
 
 ```
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-7810 TLS Certificate with Exploit Subject Fields"; flow:established; tls.cert_subject; content:"C=exploit"; content:"CN=exploit"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2100102; rev:1;)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-7810 TLS Certificate with Exploit Subject Fields"; flow:established; tls.cert_subject; content:"C=exploit"; content:"CN=exploit"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200102; rev:1;)
 ```
 
-#### 16. LONGLEASH C2 Beacon with Chrome/122 User-Agent to Non-Standard Port
+#### 15. LONGLEASH C2 Beacon with Chrome/122 User-Agent to Non-Standard Port
 
 Detects LONGLEASH HTTP C2 beacons using the hardcoded Chrome/122 User-Agent string on non-standard ports.
 - Compile: suricata -T pass -- Confidence: high
@@ -691,40 +653,29 @@ Detects LONGLEASH HTTP C2 beacons using the hardcoded Chrome/122 User-Agent stri
 <!-- audit: Uses http.user_agent sticky buffer (Suricata dot-notation). Port restriction to [99,2222,8088] in rule header reduces FPs from legitimate Chrome 122 traffic. fast_pattern on the UA string for efficient matching. -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET [99,2222,8088] (msg:"Actioner - LONGLEASH C2 Beacon with Chrome/122 User-Agent to Non-Standard Port"; flow:established,to_server; http.user_agent; content:"Chrome/122.0.6261.95"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2100103; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET [99,2222,8088] (msg:"Actioner - LONGLEASH C2 Beacon with Chrome/122 User-Agent to Non-Standard Port"; flow:established,to_server; http.user_agent; content:"Chrome/122.0.6261.95"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200103; rev:1;)
 ```
 
-#### 17. Ruckus Router CVE-2023-25717 Exploitation via doLogin
+#### 16. Ruckus Router CVE-2023-25717 doLogin Access (Supplementary)
 
-Detects HTTP requests targeting the Ruckus `/forms/doLogin` endpoint used in CVE-2023-25717 exploitation.
-- Compile: suricata -T pass -- Confidence: medium
+Detects HTTP requests targeting the Ruckus `/forms/doLogin` endpoint associated with CVE-2023-25717. This endpoint is also used during normal administrator logins, so this rule serves as a low-confidence enrichment signal.
+- Compile: suricata -T pass -- Confidence: low
 
-<!-- audit: Uses http.uri sticky buffer. /forms/doLogin is the specific CVE-2023-25717 exploitation path. May fire on legitimate Ruckus admin logins if Ruckus management traffic traverses the sensor. Deploy with source IP filtering where possible. -->
-
-```
-alert http any any -> $HOME_NET any (msg:"Actioner - Ruckus Router CVE-2023-25717 Exploitation Attempt via doLogin"; flow:established,to_server; http.uri; content:"/forms/doLogin"; fast_pattern; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-7810/; reference:cve,2023-25717; metadata:author Actioner, created_at 2026-07-12; sid:2100104; rev:1;)
-```
-
-#### 18. ASUS AiCloud CVE-2025-2492 Exploitation
-
-Detects HTTP POST requests to the ASUS AiCloud endpoint consistent with CVE-2025-2492 exploitation.
-- Compile: suricata -T pass -- Confidence: medium
-
-<!-- audit: Uses http.method and http.uri sticky buffers. POST method + /aicloud path. May FP on legitimate AiCloud file operations; best deployed at perimeter where external-to-router traffic is visible. -->
+<!-- audit: Uses http.uri sticky buffer. /forms/doLogin is the specific CVE-2023-25717 exploitation path but is also used for legitimate Ruckus admin logins. Downgraded to low confidence per review. Deploy with source IP filtering where possible. -->
 
 ```
-alert http any any -> $HOME_NET any (msg:"Actioner - ASUS AiCloud CVE-2025-2492 Exploitation Attempt"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/aicloud"; fast_pattern; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-7810/; reference:cve,2025-2492; metadata:author Actioner, created_at 2026-07-12; sid:2100105; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - Ruckus Router CVE-2023-25717 doLogin Access (Supplementary)"; flow:established,to_server; http.uri; content:"/forms/doLogin"; fast_pattern; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-7810/; reference:cve,2023-25717; metadata:author Actioner, created_at 2026-07-12; sid:2200104; rev:1;)
 ```
 
-#### 19. Inbound Connection from UAT-7810 C2 Infrastructure
+#### 17. Inbound Connection from UAT-7810 C2 Infrastructure
 
 Detects inbound connections from known UAT-7810 C2 infrastructure, covering DOGLEASH's passive listener model where the C2 server initiates connections to compromised devices.
 - Compile: suricata -T pass -- Confidence: high
 
-<!-- audit: Reverse direction rule covering C2-to-implant connections. Relevant for DOGLEASH passive backdoor model. No port restriction on source since C2 may connect from ephemeral ports. -->
+<!-- audit: Reverse direction rule covering C2-to-implant connections. Relevant for DOGLEASH passive backdoor model. flow:to_server is correct: C2 IPs are the source initiating the connection, $HOME_NET is the "server" (listener). No port restriction on source since C2 may connect from ephemeral ports. -->
 
 ```
-alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - Inbound Connection from UAT-7810 C2 Infrastructure"; flow:established,to_client; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2100106; rev:1;)
+alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - Inbound Connection from UAT-7810 C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200106; rev:1;)
 ```
 
 ### Existing Vendor Rules

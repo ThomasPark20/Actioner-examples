@@ -1,0 +1,35 @@
+title: GodDamn Defense Evasion Tool Masquerading as Symantec
+id: a1b8c9d2-3e4f-5a6b-7c8d-9e0f1a2b3c4d
+status: experimental
+description: >
+    Detects execution of the GodDamn ransomware defense evasion tool
+    (symantec.exe) that masquerades as a legitimate Symantec product to load the
+    PoisonX kernel driver. Detection by SHA-256 hash is authoritative. Filename
+    detection is gated behind suspicious staging paths (Music, Downloads, Temp,
+    AppData) to avoid false positives from legitimate Symantec binaries.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1036
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains: 'b29f91a440527fb621d106a2048f6379fff3263c60aeda9c82ff8c1d5ae880a8'
+    selection_name_path:
+        Image|endswith: '\symantec.exe'
+        Image|contains:
+            - '\Music\'
+            - '\Downloads\'
+            - '\Temp\'
+            - '\AppData\'
+            - '\ProgramData\'
+    condition: selection_hash or selection_name_path
+falsepositives:
+    - Legitimate Symantec product binaries located in user profile directories (unlikely)
+level: critical

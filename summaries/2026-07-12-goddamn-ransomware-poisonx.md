@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-12
-Version: 1.0 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -190,7 +190,7 @@ The ransomware binary `encrypter-windows-gui-x86.exe` was deployed from `csidl_p
 | T1003 | OS Credential Dumping | Mimikatz (mimik.exe) for Windows authentication credential extraction |
 | T1036 | Masquerading | Defense evasion tool named symantec.exe to impersonate Symantec security product |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | PoisonX driver terminates EDR/AV processes; PowerShell disables Windows Defender |
-| T1068 | Exploitation for Privilege Escalation | BYOVD exploitation of Microsoft-signed PoisonX driver for kernel-level access |
+| T1553.002 | Subvert Trust Controls: Code Signing | PoisonX is a deliberately malicious driver that obtained a legitimate Microsoft signature, subverting code-signing trust rather than exploiting a software vulnerability |
 | T1569.002 | System Services: Service Execution | PsExec service installation for remote command execution |
 | T1021.002 | Remote Services: SMB/Windows Admin Shares | Administrative share mounting via `net use \\host\c$` for lateral movement |
 | T1486 | Data Encrypted for Impact | GodDamn ransomware encrypting files with .God8Damn extension |
@@ -252,7 +252,9 @@ Get-ChildItem -Path C:\ -Recurse -Filter "*.God8Damn" -ErrorAction SilentlyConti
 
 ## Detection Rules
 
-The rules below cover GodDamn's primary detection surfaces: PoisonX driver loading, masqueraded defense evasion tool, AnyDesk persistence, NirSoft credential harvesting, PsExec lateral movement, ransomware execution, and relay infrastructure communication. PoisonX is shared with GentleKiller; GodDamn-specific rules use the SHA-256 hashes from the Symantec analysis. The NirSoft filenames are legitimate tool names -- hash-gated detection is authoritative while filename detection may require tuning in environments with authorized NirSoft usage.
+The rules below cover GodDamn's primary detection surfaces: PoisonX driver loading, masqueraded defense evasion tool, AnyDesk persistence, NirSoft credential harvesting, ransomware execution, and relay infrastructure communication. PoisonX is shared with GentleKiller; GodDamn-specific rules use the SHA-256 hashes from the Symantec analysis. The NirSoft filenames are legitimate tool names -- hash-gated detection is authoritative while filename detection may require tuning in environments with authorized NirSoft usage.
+
+> **Dropped rule -- PsExec Service Installation**: A generic PsExec detection rule (keyed solely on `ServiceName: 'PSEXESVC'`) was removed during review. The default PsExec service name is used by any operator; the rule contained no GodDamn-specific artifact and does not meet the specific-altitude, strict-leniency bar for this report. Organizations should rely on their existing PsExec detection coverage.
 
 ### Sigma: PoisonX Kernel Driver Load
 
@@ -276,9 +278,9 @@ references:
     - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
     - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
 author: Actioner
-date: 2026/07/12
+date: 2026-07-12
 tags:
-    - attack.t1068
+    - attack.t1553.002
     - attack.t1562.001
 logsource:
     category: driver_load
@@ -318,7 +320,7 @@ references:
     - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
     - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
 author: Actioner
-date: 2026/07/12
+date: 2026-07-12
 tags:
     - attack.t1036
     - attack.t1562.001
@@ -363,7 +365,7 @@ references:
     - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
     - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
 author: Actioner
-date: 2026/07/12
+date: 2026-07-12
 tags:
     - attack.t1543.003
     - attack.t1219
@@ -406,7 +408,7 @@ references:
     - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
     - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
 author: Actioner
-date: 2026/07/12
+date: 2026-07-12
 tags:
     - attack.t1555.003
     - attack.t1555
@@ -450,44 +452,6 @@ falsepositives:
 level: high
 ```
 
-### Sigma: PsExec Service Installation
-
-Detects PsExec service installation via Windows System event log EID 7045, as used by GodDamn operators for lateral movement.
-
-**Status:** compile ✅ converts (splunk, log_scale) -- confidence: medium
-
-<!-- audit: sigma convert --without-pipeline -t splunk and -t log_scale both succeed. Standard PsExec detection; not GodDamn-specific but part of the observed attack chain. Service name "PSEXESVC" is the default PsExec service name. High FP rate in environments where PsExec is authorized for administrative use; level set to medium accordingly. -->
-
-```yaml
-title: PsExec Service Installation - GodDamn Ransomware Lateral Movement
-id: e5f2a3b6-7c8d-9e0f-1a2b-3c4d5e6f7a8b
-status: experimental
-description: >
-    Detects PsExec service installation on remote hosts via Windows System event
-    log service creation (EID 7045). GodDamn ransomware operators use PsExec for
-    lateral movement with all malicious commands sharing a process lineage through
-    psexesvc.exe, services.exe, and wininit.exe.
-references:
-    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
-    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
-author: Actioner
-date: 2026/07/12
-tags:
-    - attack.t1569.002
-    - attack.t1021.002
-logsource:
-    product: windows
-    service: system
-detection:
-    selection:
-        EventID: 7045
-        ServiceName: 'PSEXESVC'
-    condition: selection
-falsepositives:
-    - Legitimate PsExec usage by system administrators for remote management
-level: medium
-```
-
 ### Sigma: GodDamn Ransomware Encrypter Execution
 
 Detects execution of the GodDamn ransomware encrypter by SHA-256 hash or distinctive filename pattern.
@@ -508,7 +472,7 @@ references:
     - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
     - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
 author: Actioner
-date: 2026/07/12
+date: 2026-07-12
 tags:
     - attack.t1486
 logsource:
@@ -531,11 +495,9 @@ Detects GodDamn ransomware encrypter PE binaries via the distinctive `.God8Damn`
 
 **Status:** compile ✅ yarac -- confidence: medium
 
-<!-- audit: yarac exit code 0. Detection keys on the ".God8Damn" extension string which must be embedded in the ransomware binary to append it during encryption. $ext2 with fullword modifier catches "God8Damn" without the leading dot. Condition requires MZ header + size < 10MB. May not detect samples where the extension is dynamically configured (variant using victim name as extension). -->
+<!-- audit: yarac exit code 0. Unused `import "pe"` removed (MZ check uses raw uint16, filesize is a built-in; no pe module features used). Detection keys on the ".God8Damn" extension string which must be embedded in the ransomware binary to append it during encryption. $ext2 with fullword modifier catches "God8Damn" without the leading dot. Condition requires MZ header + size < 10MB. May not detect samples where the extension is dynamically configured (variant using victim name as extension). -->
 
 ```yara
-import "pe"
-
 rule Ransomware_GodDamn_Encrypter
 {
     meta:
@@ -612,7 +574,7 @@ Detects outbound TCP connections to known GodDamn AnyDesk relay infrastructure I
 <!-- audit: suricata -T -S exit code 0 (Suricata 7.0.3). Rule uses tcp protocol with flow:established,to_server. Dot-notation not required as no app-layer sticky buffers are used. Relay IPs may be shared AnyDesk infrastructure; verify against legitimate relay IP ranges before deploying to avoid FP. -->
 
 ```
-alert tcp $HOME_NET any -> [15.235.230.188,185.229.191.39,141.95.145.210,162.19.171.150] any (msg:"Actioner - GodDamn Ransomware AnyDesk Relay Infrastructure Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand; metadata:author Actioner, created_at 2026-07-12; sid:2100010; rev:1;)
+alert tcp $HOME_NET any -> [15.235.230.188,185.229.191.39,141.95.145.210,162.19.171.150] any (msg:"Actioner - GodDamn Ransomware AnyDesk Relay Infrastructure Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand; metadata:author Actioner, created_at 2026-07-12; sid:2200010; rev:1;)
 ```
 
 ## Lessons Learned

@@ -1,0 +1,32 @@
+title: Suspicious AnyDesk Service Installation - GodDamn Ransomware Persistence
+id: b2c9d0e3-4f5a-6b7c-8d9e-0f1a2b3c4d5e
+status: experimental
+description: >
+    Detects creation of AnyDesk services with non-standard names or custom
+    configuration directories as observed in GodDamn ransomware deployments. The
+    attacker creates services named AnyDesk_D or services with --conf-dir flags
+    pointing to non-standard locations for unattended remote access persistence.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1543.003
+    - attack.t1219
+logsource:
+    product: windows
+    service: system
+detection:
+    selection_custom_service:
+        EventID: 7045
+        ServiceName|contains: 'AnyDesk_'
+    selection_custom_config:
+        EventID: 7045
+        ImagePath|contains|all:
+            - 'anydesk'
+            - '--conf-dir'
+    condition: selection_custom_service or selection_custom_config
+falsepositives:
+    - Legitimate AnyDesk Enterprise deployments with custom configuration directories managed by IT
+level: high
