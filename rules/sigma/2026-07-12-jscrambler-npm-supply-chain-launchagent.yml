@@ -1,0 +1,29 @@
+title: Suspicious LaunchAgent Creation From Node Process
+id: 8b4e6a13-7c2d-49f5-a3d8-1e0f5c9b27a4
+status: experimental
+description: >
+    Detects a Node.js process creating a LaunchAgent plist file in the user
+    LaunchAgents directory, consistent with the macOS persistence mechanism
+    used by the jscrambler npm supply chain infostealer.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://socket.dev/blog/jscrambler-supply-chain-attack
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1543.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        Image|endswith:
+            - '/node'
+            - '/bin/node'
+        TargetFilename|contains: '/Library/LaunchAgents/'
+        TargetFilename|endswith: '.plist'
+    condition: selection
+falsepositives:
+    - Legitimate Node.js applications that install macOS LaunchAgents
+    - Electron-based applications such as VS Code update helpers and nw.js apps
+level: medium

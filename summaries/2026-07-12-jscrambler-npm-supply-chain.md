@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-12
-Version: 1.0-draft
+Version: 1.0
 
 ## Executive Summary
 
@@ -121,7 +121,6 @@ The Windows PE contains an 80KB encrypted blob in the `.rdata` section at offset
   - `{"t":"done","id":"..."}` (completion signal)
 - HTTP templates include `Authorization: Bearer` headers
 - Constructs API queries against cloud services using harvested credentials
-- Public DNS resolvers `1.1.1.1` and `8.8.8.8` used for resolution
 
 ### 5. Platform-Specific Behavior
 
@@ -195,7 +194,6 @@ The Windows PE contains an 80KB encrypted blob in the `.rdata` section at offset
 | IP | `57.128.246[.]79` | C2 / exfiltration server |
 | Domain | `check.torproject[.]org` | Tor connectivity check (`/api/ip` endpoint) |
 | Domain | `archive.torproject[.]org` | Tor binary download |
-| DNS | `1.1.1.1`, `8.8.8.8` | Public DNS resolvers used by payload |
 
 ### Behavioral
 
@@ -203,10 +201,8 @@ The Windows PE contains an 80KB encrypted blob in the `.rdata` section at offset
 - 7.8 MB `dist/intro.js` file with binary magic header `1B 43 53 49 01` in `node_modules/jscrambler/`
 - Hidden Windows scheduled tasks with one-minute restart intervals
 - Unfamiliar LaunchAgent plists in `~/Library/LaunchAgents/` with `KeepAlive` and 30-second intervals
-- Non-browser processes accessing Chrome/Chromium `Login Data`, `Cookies`, or `Web Data` SQLite files
 - Processes loading `libbpf.so.1` and calling eBPF attachment functions
 - Multipart/form-data POST exfiltration over TLS to known C2 IPs
-- Outbound DNS queries or TLS connections to `check.torproject[.]org`
 
 ## MITRE ATT&CK Mapping
 
@@ -218,7 +214,7 @@ The Windows PE contains an 80KB encrypted blob in the `.rdata` section at offset
 | T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | ChaCha20-Poly1305 encryption of ~2,421 strings; AES-encrypted config blob |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Windows persistence via hidden scheduled task (PT1M interval, count 999) |
 | T1543.001 | Create or Modify System Process: Launch Agent | macOS persistence via LaunchAgent with RunAtLoad and KeepAlive |
-| T1068 | Exploitation for Privilege Escalation | Linux: `sudo -S -p` and `systemd-run --system --no-ask-password` |
+| T1548.003 | Abuse Elevation Control Mechanism: Sudo and Sudo Caching | Linux: `sudo -S -p` and `systemd-run --system --no-ask-password` |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | SQLite/LevelDB access to Chrome, Brave, Edge, Firefox credential stores |
 | T1555 | Credentials from Password Stores | Bitwarden vault extraction via browser extension LevelDB |
 | T1539 | Steal Web Session Cookie | Browser cookie theft, Discord/Slack/Telegram/Steam session token theft |
@@ -302,7 +298,13 @@ sha256sum /tmp/.* 2>/dev/null
 
 ## Detection Rules
 
-These rules cover the jscrambler supply chain attack across four detection surfaces: host-level process/file telemetry (Sigma), file-based payload identification (YARA), and network-level C2 communication (Snort, Suricata). The primary caveat is that the C2 IP-based rules have a limited shelf life as infrastructure rotates; the behavioral Sigma rules and YARA file signatures provide more durable detection. All YARA and Suricata rules compiled successfully; Sigma rules validated via backend conversion (sigma check could not reach the MITRE ATT&CK API in this environment for tag validation, but all rules converted cleanly to Splunk and LogScale).
+These rules cover the jscrambler supply chain attack across four detection surfaces: host-level process/file telemetry (Sigma), file-based payload identification (YARA), and network-level C2 communication (Snort, Suricata).
+
+**Encryption caveat:** The Rust infostealer encrypts all ~2,421 sensitive strings with ChaCha20-Poly1305. YARA rules targeting the Linux and Windows binaries (rules 3-4 below) rely partly on strings that may be encrypted in at-rest binaries; those rules may require memory-scanning deployment for reliable detection. The eBPF dynamic-linker imports (Linux) and Windows API imports survive encryption, anchoring the rules, but runtime string matches are not guaranteed on disk.
+
+**Dropped rules:** Seven candidate rules were evaluated and excluded from this report during review: a Windows scheduled-task Sigma rule (the task is likely created via COM API or Task Scheduler XML import rather than `schtasks /SC MINUTE` CLI flags, making process_creation detection unreliable); a generic browser-credential-access Sigma rule (purely behavioral with no jscrambler-specific markers, high FP rate from password managers, backup tools, and forensic utilities); a generic cross-platform YARA rule (all matched strings are ChaCha20-encrypted at rest, yielding near-zero match probability); a Snort multipart-exfiltration rule (exfiltration uses TLS, so cleartext content matches never fire); and three Suricata rules for Tor-related TLS SNI/DNS (not jscrambler-specific, massive false-positive rate from legitimate Tor users).
+
+The primary caveat for the surviving rules is that the C2 IP-based rules have a limited shelf life as infrastructure rotates; the behavioral Sigma rules and YARA file signatures provide more durable detection. All YARA and Suricata rules compiled successfully; Sigma rules validated via backend conversion to Splunk and LogScale.
 
 ### Sigma Rules
 
@@ -350,54 +352,11 @@ level: high
 
 <!-- audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale. sigma check fails due to unreachable MITRE ATT&CK API (environment issue, not rule issue). Regex patterns match the documented dropper behavior of writing hidden dotfiles to temp directories. No defanged values in detection fields. Field names (ParentImage, Image) are standard process_creation schema. -->
 
-#### 2. Jscrambler Infostealer Hidden Scheduled Task Persistence
-
-Detects hidden scheduled task creation with minute-level intervals -- the Windows persistence mechanism.
-
-**Compile:** validated via `sigma convert` to Splunk + LogScale | **Confidence:** high
-
-```yaml
-title: Jscrambler Infostealer Hidden Scheduled Task Persistence
-id: 5d1b9e72-4f3a-48c6-b0a7-e9c2f1d68b53
-status: experimental
-description: >
-    Detects creation of a hidden scheduled task with a one-minute restart interval,
-    consistent with the Windows persistence mechanism used by the jscrambler npm
-    supply chain infostealer.
-references:
-    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
-    - https://socket.dev/blog/jscrambler-supply-chain-attack
-author: Actioner
-date: 2026-07-12
-tags:
-    - attack.t1053.005
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_schtasks:
-        Image|endswith: '\schtasks.exe'
-        CommandLine|contains|all:
-            - '/Create'
-            - '/SC'
-            - 'MINUTE'
-    selection_hidden:
-        CommandLine|contains:
-            - '/RL HIGHEST'
-            - 'Hidden'
-    condition: selection_schtasks and selection_hidden
-falsepositives:
-    - Legitimate software creating hidden scheduled tasks with minute-level intervals
-level: high
-```
-
-<!-- audit: Validated via sigma convert to Splunk and LogScale. Targets schtasks.exe process creation with command-line indicators matching documented Task Scheduler XML persistence (Hidden=true, PT1M interval). Field names match Windows process_creation schema. -->
-
-#### 3. Suspicious LaunchAgent Creation From Node Process
+#### 2. Suspicious LaunchAgent Creation From Node Process
 
 Detects Node.js writing a LaunchAgent plist -- the macOS persistence mechanism.
 
-**Compile:** validated via `sigma convert` to Splunk + LogScale | **Confidence:** high
+**Compile:** validated via `sigma convert` to Splunk + LogScale | **Confidence:** medium
 
 ```yaml
 title: Suspicious LaunchAgent Creation From Node Process
@@ -427,12 +386,13 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate Node.js applications that install macOS LaunchAgents
-level: high
+    - Electron-based applications such as VS Code update helpers and nw.js apps
+level: medium
 ```
 
-<!-- audit: Validated via sigma convert to Splunk and LogScale. Targets file_event category with macOS product. Uses Image and TargetFilename fields consistent with Sysmon-for-macOS and Endpoint Security Framework telemetry. -->
+<!-- audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale. Downgraded from high to medium confidence due to Electron-based false positives. Targets file_event category with macOS product. Uses Image and TargetFilename fields consistent with Sysmon-for-macOS and Endpoint Security Framework telemetry. -->
 
-#### 4. Network Connection to Jscrambler Infostealer C2 Infrastructure
+#### 3. Network Connection to Jscrambler Infostealer C2 Infrastructure
 
 Detects outbound connections to known C2 IPs.
 
@@ -468,93 +428,33 @@ level: critical
 
 <!-- audit: Validated via sigma convert. IOC values are real (not defanged) per logsource-encoding guidance. DestinationIp field is standard Sysmon EID 3 / network_connection schema. Limited shelf life as C2 infrastructure rotates. -->
 
-#### 5. Suspicious Access to Browser Credential Stores by Non-Browser Process
-
-Detects non-browser processes accessing Chromium credential databases -- the credential theft behavior.
-
-**Compile:** validated via `sigma convert` to Splunk + LogScale | **Confidence:** medium
-
-```yaml
-title: Suspicious Access to Browser Credential Stores by Non-Browser Process
-id: 9e0a5b34-2d8c-4f17-b6a1-c3e7d9f45082
-status: experimental
-description: >
-    Detects non-browser processes accessing Chrome/Chromium Login Data or Cookies
-    SQLite databases, consistent with the credential theft behavior of the
-    jscrambler npm supply chain infostealer.
-references:
-    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
-    - https://socket.dev/blog/jscrambler-supply-chain-attack
-author: Actioner
-date: 2026-07-12
-tags:
-    - attack.t1555.003
-logsource:
-    category: file_event
-detection:
-    selection:
-        TargetFilename|contains:
-            - 'Chrome'
-            - 'BraveSoftware'
-            - 'Microsoft\Edge'
-            - 'Chromium'
-            - 'Vivaldi'
-            - 'Opera'
-        TargetFilename|endswith:
-            - '\Login Data'
-            - '/Login Data'
-            - '\Cookies'
-            - '/Cookies'
-            - '\Web Data'
-            - '/Web Data'
-    filter_browsers:
-        Image|endswith:
-            - '\chrome.exe'
-            - '\brave.exe'
-            - '\msedge.exe'
-            - '/chrome'
-            - '/brave'
-            - '/chromium'
-    condition: selection and not filter_browsers
-falsepositives:
-    - Legitimate password managers and browser backup tools
-    - Security scanning software
-level: medium
-```
-
-<!-- audit: Validated via sigma convert. Broader behavioral rule not specific to jscrambler -- will detect any non-browser credential store access. Filter excludes known browser processes. Medium confidence due to legitimate tools that access these files. -->
-
 ### YARA Rules
 
-#### 6. Jscrambler Binary Container (dist/intro.js)
+**Important:** The Rust infostealer uses ChaCha20-Poly1305 to encrypt all ~2,421 runtime strings. Rules 3 and 4 below anchor on OS-level API imports and dynamic-linker symbols that survive encryption, but some matched strings (`$mid*`, `$rustls`, `$tor` in rule 3; `$cred*`, `$wallet`, `$steam`, `$sched1` in rule 4) are runtime strings that may be encrypted in at-rest binaries. These rules compiled successfully via `yarac` but have not been validated against known samples; memory-scanning deployment is recommended for reliable detection of the platform-specific payloads.
+
+#### 1. Jscrambler Binary Container (dist/intro.js)
 
 Detects the custom CSI binary container by its magic header and size characteristics.
 
 **Compile:** yarac validated | **Confidence:** high
 
-#### 7. Jscrambler Setup.js Dropper
+#### 2. Jscrambler Setup.js Dropper
 
 Detects the dropper script via characteristic string combination.
 
 **Compile:** yarac validated | **Confidence:** high
 
-#### 8. Jscrambler Rust Infostealer -- Linux ELF
+#### 3. Jscrambler Rust Infostealer -- Linux ELF
 
 Detects the Linux payload via eBPF imports, machine fingerprinting, and rustls strings.
 
-**Compile:** yarac validated | **Confidence:** high
+**Compile:** yarac validated | **Confidence:** medium (some target strings may be encrypted at rest; recommended for memory scanning)
 
-#### 9. Jscrambler Rust Infostealer -- Windows PE
+#### 4. Jscrambler Rust Infostealer -- Windows PE
 
 Detects the Windows payload via anti-debug APIs, credential theft, and scheduler strings.
 
-**Compile:** yarac validated | **Confidence:** high
-
-#### 10. Jscrambler Rust Infostealer -- Generic Cross-Platform
-
-Generic detection via exfiltration targets and crypto wallet indicators across all platforms.
-
-**Compile:** yarac validated | **Confidence:** medium
+**Compile:** yarac validated | **Confidence:** medium (some target strings may be encrypted at rest; recommended for memory scanning)
 
 ```yara
 rule SupplyChain_Jscrambler_IntroJS_Container
@@ -601,12 +501,12 @@ rule SupplyChain_Jscrambler_SetupJS_Dropper
 rule Malware_Jscrambler_Rust_Infostealer_Linux
 {
     meta:
-        description = "Detects the Linux ELF payload of the jscrambler Rust infostealer via build fingerprint and capability strings"
+        description = "Detects the Linux ELF payload of the jscrambler Rust infostealer via eBPF dynamic imports and machine fingerprinting paths. Note: $mid* and $rustls/$tor strings may be ChaCha20-Poly1305 encrypted in at-rest binaries; consider memory-scanning deployment for reliable detection."
         author = "Actioner"
         date = "2026-07-12"
         reference = "https://socket.dev/blog/jscrambler-supply-chain-attack"
         hash = "fbbcf4d8f98168f78f5c0c47a9ae56d59ec8ac84a7c9ca6b797fedfb8d62d2bd"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $elf = { 7F 45 4C 46 }
@@ -632,12 +532,12 @@ rule Malware_Jscrambler_Rust_Infostealer_Linux
 rule Malware_Jscrambler_Rust_Infostealer_Windows
 {
     meta:
-        description = "Detects the Windows PE payload of the jscrambler Rust infostealer via anti-debug and credential-theft indicators"
+        description = "Detects the Windows PE payload of the jscrambler Rust infostealer via anti-debug APIs and credential-theft indicators. Note: $cred*, $wallet, $steam, and $sched1 are runtime strings likely encrypted by ChaCha20-Poly1305 in at-rest binaries; consider memory-scanning deployment for reliable detection."
         author = "Actioner"
         date = "2026-07-12"
         reference = "https://socket.dev/blog/jscrambler-supply-chain-attack"
         hash = "b7ca95d1b23c8e67416a25cedf741de0917c2096bbc9d24649eea7853d054903"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $mz = { 4D 5A }
@@ -657,117 +557,53 @@ rule Malware_Jscrambler_Rust_Infostealer_Windows
         $rust and
         2 of ($cred*, $wallet, $steam, $sched1)
 }
-
-rule Malware_Jscrambler_Rust_Infostealer_Generic
-{
-    meta:
-        description = "Generic detection for jscrambler Rust infostealer across all platforms based on exfiltration targets and crypto wallet indicators"
-        author = "Actioner"
-        date = "2026-07-12"
-        reference = "https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html"
-        severity = "high"
-
-    strings:
-        $wallet1 = "nngceckbapebfimnlniiiahkandclblb" ascii
-        $wallet2 = "mnemonic" ascii fullword
-        $wallet3 = "seedPhrase" ascii fullword
-        $wallet4 = "recoveryPhrase" ascii fullword
-        $ai1 = "claude_desktop_config.json" ascii
-        $ai2 = "mcp.json" ascii
-        $ai3 = "mcp_config.json" ascii
-        $cloud1 = "GOOGLE_APPLICATION_CREDENTIALS" ascii
-        $cloud2 = "AWS_SECRET_ACCESS_KEY" ascii
-        $steam = "steamLoginSecure" ascii
-        $tor = "check.torproject.org" ascii
-        $rustls = "rustls" ascii
-
-    condition:
-        filesize < 20MB and
-        $rustls and
-        3 of ($wallet*) and
-        2 of ($ai*) and
-        1 of ($cloud*) and
-        ($steam or $tor)
-}
 ```
 
-<!-- audit: All 5 YARA rules compiled successfully via yarac (exit code 0). Rules use real domain/string values per logsource-encoding guidance. CSI container rule uses magic-at-0 anchor for precision. Linux rule combines eBPF imports with machine fingerprinting for high specificity. Windows rule chains anti-debug APIs with credential theft indicators. Generic rule requires convergence of multiple indicator categories to limit false positives. -->
+<!-- audit: All 4 YARA rules compiled successfully via yarac (exit code 0). Rules have NOT been validated against known samples (no sample access in this environment). Rules use real domain/string values per logsource-encoding guidance. CSI container rule uses magic-at-0 anchor for precision. Linux rule anchors on eBPF dynamic-linker imports (survive encryption) plus machine fingerprinting paths and rustls/tor strings (may be encrypted). Windows rule anchors on Windows API imports (survive encryption) plus credential-theft strings (may be encrypted). Rules 3-4 downgraded to medium confidence and severity high due to ChaCha20-Poly1305 string encryption; memory-scanning deployment recommended. -->
 
 ### Snort Rules
 
-#### 11. Jscrambler C2 Communication to 37.27.122[.]124
+#### 1. Jscrambler C2 Communication to 37.27.122[.]124
 
 IP-based C2 detection for the first known exfiltration server.
 
 **Compile:** uncompiled (structural check only) | **Confidence:** high (IP-specific, short shelf life)
 
-#### 12. Jscrambler C2 Communication to 57.128.246[.]79
+#### 2. Jscrambler C2 Communication to 57.128.246[.]79
 
 IP-based C2 detection for the second known exfiltration server.
 
 **Compile:** uncompiled (structural check only) | **Confidence:** high (IP-specific, short shelf life)
 
-#### 13. Jscrambler Infostealer Multipart Exfiltration
-
-Detects multipart/form-data exfiltration with rustls TLS library fingerprint.
-
-**Compile:** uncompiled (structural check only) | **Confidence:** low (generic content match)
-
 ```
-alert ip $HOME_NET any -> 37.27.122.124 any (msg:"Actioner - Jscrambler Infostealer C2 Communication to 37.27.122[.]124"; flow:established, to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created 2026-07-12; sid:2100101; rev:1;)
+alert ip $HOME_NET any -> 37.27.122.124 any (msg:"Actioner - Jscrambler Infostealer C2 Communication to 37.27.122[.]124"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created 2026-07-12; sid:2100101; rev:1;)
 
-alert ip $HOME_NET any -> 57.128.246.79 any (msg:"Actioner - Jscrambler Infostealer C2 Communication to 57.128.246[.]79"; flow:established, to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created 2026-07-12; sid:2100102; rev:1;)
-
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Jscrambler Infostealer Multipart Exfiltration via TLS"; flow:established, to_server; content:"multipart/form-data"; content:"rustls"; classtype:trojan-activity; reference:url,socket.dev/blog/jscrambler-supply-chain-attack; metadata:author Actioner, created 2026-07-12; sid:2100103; rev:1;)
+alert ip $HOME_NET any -> 57.128.246.79 any (msg:"Actioner - Jscrambler Infostealer C2 Communication to 57.128.246[.]79"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created 2026-07-12; sid:2100102; rev:1;)
 ```
 
-<!-- audit: Structural check only -- snort binary not installed in this environment. Rules use Snort 3 syntax: ip protocol for IP-based rules (no app-layer buffers needed), tcp with content match for exfil rule. All rules have msg, sid, rev, classtype, flow. No Suricata-only keywords used (no dot-notation buffers, no tls.sni). SID range 2100101-2100103 avoids conflicts. Rule 3 (multipart exfil) carries low confidence as "rustls" may not appear in cleartext in TLS-encrypted traffic. -->
+<!-- audit: Structural check only -- snort binary not installed in this environment. Rules use ip protocol for IP-based C2 detection (no app-layer buffers needed). All rules have msg, sid, rev, classtype, flow with correct syntax (no space after comma in flow keyword). SID range 2100101-2100102 avoids conflicts. Dropped rule 2100103 (multipart exfil via TLS) -- content matches cannot fire inside TLS-encrypted traffic. -->
 
 ### Suricata Rules
 
-#### 14. Jscrambler C2 to 37.27.122[.]124
+#### 1. Jscrambler C2 to 37.27.122[.]124
 
 IP-based C2 detection.
 
 **Compile:** suricata -T validated | **Confidence:** high (IP-specific, short shelf life)
 
-#### 15. Jscrambler C2 to 57.128.246[.]79
+#### 2. Jscrambler C2 to 57.128.246[.]79
 
 IP-based C2 detection.
 
 **Compile:** suricata -T validated | **Confidence:** high (IP-specific, short shelf life)
-
-#### 16. TLS SNI to check.torproject[.]org
-
-Detects TLS connections to the Tor connectivity check endpoint used by the infostealer.
-
-**Compile:** suricata -T validated | **Confidence:** medium (Tor usage may be legitimate)
-
-#### 17. TLS SNI to archive.torproject[.]org
-
-Detects TLS connections to the Tor download endpoint.
-
-**Compile:** suricata -T validated | **Confidence:** medium (Tor usage may be legitimate)
-
-#### 18. DNS Query for check.torproject[.]org
-
-Detects DNS resolution of the Tor check domain.
-
-**Compile:** suricata -T validated | **Confidence:** medium (Tor usage may be legitimate)
 
 ```
 alert ip $HOME_NET any -> 37.27.122.124 any (msg:"Actioner - Jscrambler Infostealer C2 to 37.27.122[.]124"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created_at 2026-07-12; sid:2100201; rev:1;)
 
 alert ip $HOME_NET any -> 57.128.246.79 any (msg:"Actioner - Jscrambler Infostealer C2 to 57.128.246[.]79"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created_at 2026-07-12; sid:2100202; rev:1;)
-
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to check.torproject.org Tor Connectivity Check"; flow:established,to_server; tls.sni; content:"check.torproject.org"; nocase; classtype:trojan-activity; reference:url,socket.dev/blog/jscrambler-supply-chain-attack; metadata:author Actioner, created_at 2026-07-12; sid:2100203; rev:1;)
-
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to archive.torproject.org Tor Download"; flow:established,to_server; tls.sni; content:"archive.torproject.org"; nocase; classtype:trojan-activity; reference:url,socket.dev/blog/jscrambler-supply-chain-attack; metadata:author Actioner, created_at 2026-07-12; sid:2100204; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query for check.torproject.org Tor Check"; dns.query; content:"check.torproject.org"; nocase; classtype:trojan-activity; reference:url,socket.dev/blog/jscrambler-supply-chain-attack; metadata:author Actioner, created_at 2026-07-12; sid:2100205; rev:1;)
 ```
 
-<!-- audit: All 5 Suricata rules validated via suricata -T -S (exit code 0, "Configuration provided was successfully loaded"). Rules use Suricata dot-notation buffers (tls.sni, dns.query). Content values use real (non-defanged) domains per logsource-encoding guidance. TLS rules use tls protocol with tls.sni buffer. DNS rule uses dns protocol with dns.query buffer. IP rules use ip protocol for raw IP matching. SID range 2100201-2100205 avoids conflicts with Snort rules. Tor-related rules carry medium confidence due to legitimate Tor usage; recommend correlating with other jscrambler indicators. -->
+<!-- audit: Both Suricata rules validated via suricata -T -S (exit code 0, "Configuration provided was successfully loaded"). Rules use ip protocol for raw IP matching. SID range 2100201-2100202. Dropped rules 2100203-2100205 (TLS SNI to check/archive.torproject.org and DNS query for check.torproject.org) -- not jscrambler-specific, massive false-positive rate from legitimate Tor users. -->
 
 ## Lessons Learned
 

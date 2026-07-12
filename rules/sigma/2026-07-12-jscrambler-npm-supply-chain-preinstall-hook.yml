@@ -1,0 +1,33 @@
+title: Suspicious NPM Preinstall Hook Executing Hidden Binary From Temp Directory
+id: 7a2c8f41-3e9d-4b6a-a1c5-d0f8e2b94a37
+status: experimental
+description: >
+    Detects Node.js spawning a hidden executable from a system temp directory,
+    consistent with the jscrambler npm supply chain attack where dist/setup.js
+    drops and executes a Rust infostealer as a randomly-named dotfile.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://socket.dev/blog/jscrambler-supply-chain-attack
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\node.exe'
+            - '/node'
+            - '/bin/node'
+    selection_child_linux:
+        Image|re: '^/tmp/\.[a-z0-9]{6,}$'
+    selection_child_windows:
+        Image|re: '(?i)\\(Temp|tmp)\\\.[a-z0-9]{6,}\.exe$'
+    selection_child_macos:
+        Image|re: '^/var/folders/.*/\.[a-z0-9]{6,}$'
+    condition: selection_parent and (selection_child_linux or selection_child_windows or selection_child_macos)
+falsepositives:
+    - Legitimate npm packages that extract and execute native binaries from temp directories during install
+level: high

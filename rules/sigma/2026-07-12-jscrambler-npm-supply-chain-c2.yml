@@ -1,0 +1,25 @@
+title: Network Connection to Jscrambler Infostealer C2 Infrastructure
+id: 3c7f2d95-6a1e-4b8c-9d0f-e5a4b3c81f26
+status: experimental
+description: >
+    Detects outbound network connections to known C2 IP addresses used by the
+    jscrambler npm supply chain infostealer for credential exfiltration.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://socket.dev/blog/jscrambler-supply-chain-attack
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp:
+            - '37.27.122.124'
+            - '57.128.246.79'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on these IP addresses
+level: critical
