@@ -1,0 +1,25 @@
+title: DNS Query to Injective Labs Exfiltration Domain
+id: 2b7e9f1a-4c3d-4e8b-a5f6-0d1c2e3b4a5f
+status: experimental
+description: >
+    Detects DNS queries to the exfiltration domain used by the compromised
+    @injectivelabs/sdk-ts package to steal cryptocurrency private keys and
+    mnemonic seed phrases. The domain mimics legitimate Injective Labs
+    infrastructure naming conventions.
+references:
+    - https://thehackernews.com/2026/07/injective-labs-github-compromise-pushes.html
+    - https://www.bleepingcomputer.com/news/security/injective-sdk-on-npm-infected-with-cryptocurrency-wallet-stealer/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'testnet.archival.chain.grpc-web.injective.network'
+    condition: selection
+falsepositives:
+    - Unlikely. This specific subdomain structure was created for exfiltration and is not legitimate Injective Labs infrastructure.
+level: critical

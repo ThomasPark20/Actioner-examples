@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-12
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -149,9 +149,9 @@ The 18 compromised packages (1 primary SDK + 17 wallet packages):
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Attacker compromised the GitHub account of a trusted maintainer and used the project's OIDC trusted-publisher pipeline to publish malicious package versions to npm |
-| T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Stolen private keys and seed phrases exfiltrated via HTTPS POST to an attacker-controlled subdomain of the legitimate injective.network domain |
+| T1041 | Exfiltration Over C2 Channel | Stolen private keys and seed phrases exfiltrated via HTTPS POST to an attacker-controlled subdomain of the legitimate injective.network domain |
 | T1552.004 | Unsecured Credentials: Private Keys | Malware specifically targeted cryptocurrency private keys in hex format and BIP-39 mnemonic seed phrases |
-| T1036.004 | Masquerading: Masquerade as Legitimate Application | Exfiltration function disguised as SDK telemetry ("trackKeyDerivation") and domain mimicked legitimate Injective infrastructure |
+| T1036.005 | Masquerading: Match Legitimate Name or Location | Exfiltration function disguised as SDK telemetry ("trackKeyDerivation") and domain mimicked legitimate Injective infrastructure |
 
 ## Impact Assessment
 
@@ -185,8 +185,8 @@ grep -A2 "@injectivelabs" yarn.lock | grep "1.20.21" && echo "COMPROMISED" || ec
 # Search for the malicious function in node_modules
 grep -rl "trackKeyDerivation" node_modules/@injectivelabs/ 2>/dev/null && echo "COMPROMISED" || echo "Clean"
 
-# Check DNS logs for the exfiltration domain
-grep "testnet.archival.chain.grpc-web.injective.network" /var/log/dns* /var/log/syslog 2>/dev/null
+# Check DNS logs for the exfiltration domain (refang before use: s/[.]/./g)
+grep "testnet\.archival\.chain\.grpc-web\.injective[.]network" /var/log/dns* /var/log/syslog 2>/dev/null
 ```
 
 ### Remediation
@@ -222,76 +222,7 @@ grep "testnet.archival.chain.grpc-web.injective.network" /var/log/dns* /var/log/
 
 ## Detection Rules
 
-The following rules detect network indicators (exfiltration domain) and endpoint activity (npm package installation) associated with the Injective Labs supply chain compromise. All rules target specific, high-fidelity IOCs; the exfiltration domain is the primary network pivot. The Sigma process-creation rule will fire on any installation of @injectivelabs packages (not just the malicious version) and should be tuned or used for retroactive hunting rather than real-time alerting in environments that legitimately use these packages.
-
-### Sigma: NPM Install of Malicious Injective Labs Packages
-
-Detects npm/yarn commands installing @injectivelabs packages associated with the supply chain compromise.
-compile: sigma convert pass | confidence: medium
-
-```yaml
-title: NPM Install of Malicious Injective Labs Packages
-id: 8a3c1d4e-5f6b-4a2c-9e7d-1b0f3c8a5d2e
-status: experimental
-description: >
-    Detects npm or yarn commands installing known malicious versions of
-    @injectivelabs packages compromised in the July 2026 supply chain attack.
-    The malicious version 1.20.21 contained a trackKeyDerivation function that
-    exfiltrated cryptocurrency private keys and mnemonic seed phrases.
-references:
-    - https://thehackernews.com/2026/07/injective-labs-github-compromise-pushes.html
-    - https://www.bleepingcomputer.com/news/security/injective-sdk-on-npm-infected-with-cryptocurrency-wallet-stealer/
-author: Actioner
-date: 2026-07-12
-tags:
-    - attack.t1195.001
-    - attack.t1059.007
-logsource:
-    category: process_creation
-detection:
-    selection_package_manager:
-        Image|endswith:
-            - '/npm'
-            - '/yarn'
-            - '\npm.cmd'
-            - '\yarn.cmd'
-            - '/npx'
-            - '\npx.cmd'
-        CommandLine|contains:
-            - '@injectivelabs/sdk-ts'
-            - '@injectivelabs/wallet-base'
-            - '@injectivelabs/wallet-core'
-            - '@injectivelabs/wallet-cosmos'
-            - '@injectivelabs/wallet-private-key'
-            - '@injectivelabs/wallet-evm'
-            - '@injectivelabs/wallet-trezor'
-            - '@injectivelabs/wallet-cosmostation'
-            - '@injectivelabs/wallet-ledger'
-            - '@injectivelabs/wallet-wallet-connect'
-            - '@injectivelabs/wallet-magic'
-            - '@injectivelabs/wallet-strategy'
-            - '@injectivelabs/wallet-turnkey'
-            - '@injectivelabs/wallet-cosmos-strategy'
-    condition: selection_package_manager
-falsepositives:
-    - Legitimate installations of non-malicious versions of these packages
-    - The clean version 1.20.23 and later are safe but will also trigger this rule
-level: medium
-```
-
-<!--
-AUDIT: Sigma rule 8a3c1d4e — NPM Install Detection
-- Validation: `sigma convert --without-pipeline -t splunk` passed (exit 0). `sigma check` failed due to network
-  restrictions fetching MITRE ATT&CK data (HTTP 403) — not a rule syntax issue.
-- Encoding: Field values are not defanged; package names match real npm scope/package format.
-- Logsource: process_creation is appropriate for npm CLI invocations. Image|endswith covers both Unix
-  (/usr/bin/npm) and Windows (npm.cmd) path forms.
-- FP note: Cannot distinguish malicious version 1.20.21 from clean versions via command-line alone because
-  `npm install @injectivelabs/sdk-ts` resolves to latest. Use as a hunting rule in environments that do not
-  normally install these packages, or correlate with lockfile audits.
-- Tag provenance: T1195.001 (Supply Chain Compromise) is the primary technique. T1059.007 (JavaScript)
-  covers the npm/Node.js execution context.
--->
+The following rules detect network indicators (exfiltration domain) and file-level artifacts associated with the Injective Labs supply chain compromise. All rules target specific, high-fidelity IOCs; the exfiltration domain is the primary network pivot. Dropped: npm install rule (fires on legitimate package installs, not version-specific).
 
 ### Sigma: DNS Query to Injective Labs Exfiltration Domain
 
@@ -313,7 +244,7 @@ references:
 author: Actioner
 date: 2026-07-12
 tags:
-    - attack.t1567.002
+    - attack.t1041
 logsource:
     category: dns_query
 detection:
@@ -356,7 +287,7 @@ references:
 author: Actioner
 date: 2026-07-12
 tags:
-    - attack.t1567.002
+    - attack.t1041
 logsource:
     category: network_connection
 detection:
@@ -411,10 +342,8 @@ rule SupplyChain_Injective_SDK_KeyStealer
     condition:
         filesize < 10MB and
         (
-            ($func1 or $func2) and ($domain1 or $domain2)
-        ) or
-        (
-            ($func1 or $func2) and 2 of ($telemetry*) and 2 of ($key_indicator*)
+            (($func1 or $func2) and ($domain1 or $domain2)) or
+            (($func1 or $func2) and 2 of ($telemetry*) and 2 of ($key_indicator*))
         )
 }
 ```
@@ -562,6 +491,8 @@ AUDIT: Suricata rule sid:2100202 — TLS SNI Detection
 
 - [The Hacker News](https://thehackernews.com/2026/07/injective-labs-github-compromise-pushes.html) --- primary reporting on the supply chain compromise, technical details of the trackKeyDerivation function, exfiltration mechanism, and affected package list
 - [BleepingComputer](https://www.bleepingcomputer.com/news/security/injective-sdk-on-npm-infected-with-cryptocurrency-wallet-stealer/) --- additional technical details including download counts, detection timeline, base64 encoding of exfiltrated data, and HTTP header-based exfiltration method
+
+<!-- revision: v1.1 — dropped npm-install Sigma rule (noise on legitimate installs); fixed YARA KeyStealer operator-precedence bug (filesize guard now covers both or-branches); corrected ATT&CK tags T1567.002→T1041, T1036.004→T1036.005; defanged bare domain in grep command -->
 
 ---
 *Report generated by Actioner*
