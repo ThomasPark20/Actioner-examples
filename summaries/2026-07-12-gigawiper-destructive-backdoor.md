@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-12
-Version: 1.0 DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -155,7 +155,7 @@ GigaWiper uses a dual-channel C2 architecture leveraging legitimate enterprise m
 | T1486 | Data Encrypted for Impact | AES-CBC encryption with unsaved keys, .candy extension (command 3) |
 | T1529 | System Shutdown/Reboot | Forced reboot after disk wipe; BSOD trigger (command 2) |
 | T1070.001 | Clear Windows Event Logs | wevtutil.exe clearing + Security.evtx deletion (command 19) |
-| T1036.004 | Masquerade Task or Service | Firewall rules named "Microsoft.Windows.CloudExperienceHost" |
+| T1036.005 | Match Legitimate Name or Location | Firewall rules named "Microsoft.Windows.CloudExperienceHost" |
 | T1071 | Application Layer Protocol | RabbitMQ AMQP and Redis for C2 communication |
 | T1567 | Exfiltration Over Web Service | MinIO client for data exfiltration (command 4) |
 | T1113 | Screen Capture | Screenshot and screen recording capabilities (commands 9, 10) |
@@ -297,21 +297,24 @@ falsepositives:
 level: medium
 ```
 
-#### 3. GigaWiper Event Log Clearing via Wevtutil
+#### 3. GigaWiper Bulk Event Log Clearing via Wevtutil
 
-Detects `wevtutil.exe cl` commands targeting System, Setup, Application, ForwardedEvents, and Security logs as performed by GigaWiper command 19.
+Detects 3 or more `wevtutil.exe cl` commands within a 5-minute window on the same host, matching the GigaWiper command 19 pattern of clearing System, Setup, Application, ForwardedEvents, and Security logs in rapid sequence. Implemented as a Sigma correlation rule over a base detection rule.
 
-<!-- audit: sigma convert --without-pipeline -t splunk: PASS. Output: Image="*\\wevtutil.exe" CommandLine IN ("*cl System*", "*cl Setup*", "*cl Application*", "*cl ForwardedEvents*", "*cl Security*"). sigma convert --without-pipeline -t log_scale: PASS. Note: generic event log clearing detection; GigaWiper-specific due to the combination of all five logs in sequence. -->
+<!-- audit: sigma convert --without-pipeline -t splunk (combined file): PASS. Base output: Image="*\\wevtutil.exe" CommandLine IN ("*cl System*", "*cl Setup*", "*cl Application*", "*cl ForwardedEvents*", "*cl Security*"). Correlation output: | bin _time span=5m | stats count as event_count by _time Computer | search event_count >= 3. LogScale backend does not support correlation rules; base rule alone compiles on LogScale. -->
+<!-- revision: v1.1 -- replaced single-event OR rule (fired on ANY one wevtutil cl) with base+correlation pair requiring 3+ events in 5m. Relabeled confidence medium, level medium on base; correlation level high. Fixed misleading audit comment that claimed "combination of all five logs" when OR logic matched any single log. -->
 
-compile-status: ✅ compiles (Splunk + LogScale) | confidence: **high**
+compile-status: ✅ compiles (Splunk correlation + LogScale base) | confidence: **medium**
 
 ```yaml
-title: GigaWiper Event Log Clearing via Wevtutil
-id: 9c5a3d6e-bf4a-4a7c-ad8e-3f2b5e4c7d9f
+title: GigaWiper Event Log Clearing via Wevtutil (Base)
+id: 9c5a3d6e-bf4a-4a7c-ad8e-3f2b5e4c7d9a
+name: gigawiper_wevtutil_clear
 status: experimental
 description: >
-    Detects event log clearing using wevtutil.exe targeting System, Setup,
-    Application, ForwardedEvents, and Security logs as performed by GigaWiper command 19.
+    Base rule: detects individual wevtutil.exe cl commands targeting logs cleared
+    by GigaWiper command 19. Each event matches independently (OR logic). Deploy
+    with the companion correlation rule to require 3+ clearings in 5 minutes.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
 author: Actioner
@@ -333,6 +336,31 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate system administration clearing event logs during maintenance
+level: medium
+---
+title: GigaWiper Bulk Event Log Clearing Correlation
+id: 9c5a3d6e-bf4a-4a7c-ad8e-3f2b5e4c7d9f
+status: experimental
+description: >
+    Correlates 3 or more wevtutil.exe cl events within 5 minutes on the same host,
+    matching the GigaWiper command 19 pattern of clearing multiple log channels in
+    rapid sequence. Requires the companion base rule gigawiper_wevtutil_clear.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1070.001
+type: correlation
+correlation:
+    type: event_count
+    rules:
+        - gigawiper_wevtutil_clear
+    group-by:
+        - Computer
+    timespan: 5m
+    condition:
+        gte: 3
 level: high
 ```
 
@@ -341,6 +369,7 @@ level: high
 Detects creation of firewall rules named "Microsoft.Windows.CloudExperienceHost" via netsh, used by GigaWiper to disguise VNC remote control traffic.
 
 <!-- audit: sigma convert --without-pipeline -t splunk: PASS. Output: Image="*\\netsh.exe" CommandLine="*advfirewall*" CommandLine="*add rule*" CommandLine="*Microsoft.Windows.CloudExperienceHost*". sigma convert --without-pipeline -t log_scale: PASS. No legitimate scenario creates firewall rules with this exact name via netsh. -->
+<!-- revision: v1.1 -- corrected ATT&CK tag from T1036.004 (Masquerade Task or Service) to T1036.005 (Match Legitimate Name or Location). The firewall rule uses a legitimate Windows component name, not a task/service masquerade. -->
 
 compile-status: ✅ compiles (Splunk + LogScale) | confidence: **high**
 
@@ -356,7 +385,7 @@ references:
 author: Actioner
 date: 2026-07-12
 tags:
-    - attack.t1036.004
+    - attack.t1036.005
 logsource:
     category: process_creation
     product: windows
@@ -415,7 +444,7 @@ level: critical
 
 #### 6. GigaWiper File Encryption with Candy Extension
 
-Detects mass file rename operations appending the `.candy` extension, indicating GigaWiper command 3 destructive pseudo-ransomware activity.
+Detects file rename operations appending the `.candy` extension, indicating GigaWiper command 3 destructive pseudo-ransomware activity.
 
 <!-- audit: sigma convert --without-pipeline -t splunk: PASS. Output: TargetFilename="*.candy". sigma convert --without-pipeline -t log_scale: PASS. Output: TargetFilename=/\.candy$/i. The .candy extension is not used by any known legitimate software. -->
 
@@ -426,7 +455,7 @@ title: GigaWiper File Encryption with Candy Extension
 id: cf8d6a9b-ec7d-4daf-da1b-6c5e8b7faacd
 status: experimental
 description: >
-    Detects mass file rename operations appending the .candy extension, indicating
+    Detects file rename operations appending the .candy extension, indicating
     GigaWiper command 3 destructive encryption activity.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
@@ -538,8 +567,11 @@ rule Malware_GigaWiper_Backdoor_Strings
 Detects all known GigaWiper, Crucio, and FlockWiper samples by SHA-256 hash.
 
 <!-- audit: yarac gigawiper.yar /dev/null -> EXIT CODE: 0. Requires hash module import. Pure hash-matching rule; highest confidence but zero coverage on new samples. -->
+<!-- revision: v1.1 -- added shelf-life caveat consistent with IOC-based Sigma/Snort rules. -->
 
 compile-status: ✅ compiles | confidence: **high**
+
+Caveat: IOC-based rule with limited shelf life; hashes are static and provide zero coverage on recompiled or updated samples. Behavioral YARA rules (#8, #11) provide longer-lasting detection.
 
 ```yara
 import "hash"
@@ -664,24 +696,17 @@ alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper C2 Red
 Detects any TCP connection to the secondary GigaWiper C2 IP `212.8.248[.]104`.
 
 <!-- audit: Structural validation only. Broad IP match on any port. SID 2100103. -->
+<!-- revision: v1.1 -- added shelf-life caveat. -->
 
 compile-status: ⚠️ uncompiled | confidence: **high**
+
+Caveat: IOC-based rule with limited shelf life; remove when infrastructure is confirmed decommissioned.
 
 ```
 alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Connection to 212.8.248[.]104"; flow:established, to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created 2026-07-12; sid:2100103; rev:1;)
 ```
 
-#### 15. AMQP on Non-Standard Port with RabbitMQ Pattern
-
-Detects AMQP protocol negotiation (header + version bytes) on non-standard ports, a behavioral indicator of GigaWiper-style C2.
-
-<!-- audit: Structural validation only. Matches AMQP 0-9-1 protocol header. SID 2100104. Lower confidence due to potential legitimate AMQP on non-standard ports. -->
-
-compile-status: ⚠️ uncompiled | confidence: **medium**
-
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Potential GigaWiper AMQP C2 on Non-Standard Port 5544"; flow:established, to_server; content:"AMQP"; depth:4; content:"|00 00 09 01|"; distance:0; within:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created 2026-07-12; sid:2100104; rev:1;)
-```
+<!-- revision: v1.1 -- DROPPED former Rule 15 "AMQP on Non-Standard Port with RabbitMQ Pattern" (SID 2100104). Generic AMQP detection to any external host; not GigaWiper-specific. Any legitimate RabbitMQ deployment on a non-standard port would trigger it. -->
 
 ### Suricata Rules
 
@@ -721,17 +746,7 @@ compile-status: ✅ compiles | confidence: **high**
 alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Connection to 212.8.248[.]104"; flow:established,to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-12; sid:2100203; rev:1;)
 ```
 
-#### 19. AMQP on Non-Standard Port (Suricata)
-
-Detects AMQP 0-9-1 protocol negotiation on non-standard ports, a behavioral indicator of RabbitMQ-based C2.
-
-<!-- audit: Validated as part of suricata -T batch. SID 2100204. -->
-
-compile-status: ✅ compiles | confidence: **medium**
-
-```
-alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AMQP on Non-Standard Port with RabbitMQ Exchange Pattern"; flow:established,to_server; content:"AMQP"; depth:4; fast_pattern; content:"|00 00 09 01|"; distance:0; within:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created_at 2026-07-12; sid:2100204; rev:1;)
-```
+<!-- revision: v1.1 -- DROPPED former Rule 19 "AMQP on Non-Standard Port" (SID 2100204). Same rationale as dropped Snort Rule 15: generic AMQP detection not specific to GigaWiper. -->
 
 ## Lessons Learned
 
