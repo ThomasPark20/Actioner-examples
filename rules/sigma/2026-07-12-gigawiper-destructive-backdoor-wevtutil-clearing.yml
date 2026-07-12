@@ -1,0 +1,55 @@
+title: GigaWiper Event Log Clearing via Wevtutil (Base)
+id: 9c5a3d6e-bf4a-4a7c-ad8e-3f2b5e4c7d9a
+name: gigawiper_wevtutil_clear
+status: experimental
+description: >
+    Base rule: detects individual wevtutil.exe cl commands targeting logs cleared
+    by GigaWiper command 19. Each event matches independently (OR logic). Deploy
+    with the companion correlation rule to require 3+ clearings in 5 minutes.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1070.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\wevtutil.exe'
+        CommandLine|contains:
+            - 'cl System'
+            - 'cl Setup'
+            - 'cl Application'
+            - 'cl ForwardedEvents'
+            - 'cl Security'
+    condition: selection
+falsepositives:
+    - Legitimate system administration clearing event logs during maintenance
+level: medium
+---
+title: GigaWiper Bulk Event Log Clearing Correlation
+id: 9c5a3d6e-bf4a-4a7c-ad8e-3f2b5e4c7d9f
+status: experimental
+description: >
+    Correlates 3 or more wevtutil.exe cl events within 5 minutes on the same host,
+    matching the GigaWiper command 19 pattern of clearing multiple log channels in
+    rapid sequence. Requires the companion base rule gigawiper_wevtutil_clear.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1070.001
+type: correlation
+correlation:
+    type: event_count
+    rules:
+        - gigawiper_wevtutil_clear
+    group-by:
+        - Computer
+    timespan: 5m
+    condition:
+        gte: 3
+level: high

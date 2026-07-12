@@ -3,11 +3,11 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-12
-Version: 1.0 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
-UAT-7810 is a China-nexus threat actor operating as a specialized infrastructure provider for the broader Chinese APT ecosystem. Cisco Talos disclosed on July 7, 2026, that the group has developed and deployed four custom malware families -- LONGLEASH, DOGLEASH, JARLEASH, and LEASHTEST -- to compromise internet-facing networking devices (Ruckus wireless routers, ASUS AiCloud routers) and build Operational Relay Box (ORB) networks. These ORBs serve as anonymization relays for secondary threat actors, including UAT-5918, enabling them to proxy attack traffic through legitimate regional infrastructure and evade attribution.
+UAT-7810 is a China-nexus threat actor operating as a specialized infrastructure provider for the broader Chinese APT ecosystem. Cisco Talos disclosed on July 7, 2026, that the group has developed and deployed three custom malware families -- LONGLEASH, DOGLEASH, and JARLEASH -- along with one testing utility (LEASHTEST), to compromise internet-facing networking devices (Ruckus wireless routers, ASUS AiCloud routers) and build Operational Relay Box (ORB) networks. These ORBs serve as anonymization relays for secondary threat actors, including UAT-5918, enabling them to proxy attack traffic through legitimate regional infrastructure and evade attribution.
 
 LONGLEASH represents a significant capability upgrade from its predecessor SHORTLEASH, adding multi-protocol proxy support (HTTP, DNS, SOCKS, TCP, ICMP, UDP), reverse shell access, SMTP server/client capabilities, TLS/PKI management, and self-removal on tamper detection. DOGLEASH provides a lightweight passive backdoor with arbitrary shellcode execution. JARLEASH is a Java-based administrative backdoor with file management, FTP/SFTP, and netcat capabilities. The group exploits known n-day vulnerabilities in Ruckus routers (CVE-2020-22653, CVE-2020-22658, CVE-2023-25717) and ASUS AiCloud routers (CVE-2025-2492). Four C2 IPs and a distinctive TLS certificate with all fields set to "exploit" provide high-fidelity network indicators.
 
@@ -186,7 +186,7 @@ This certificate was observed on 194.233.92[.]26 and 217.15.164[.]147.
 | T1105 | Ingress Tool Transfer | Shell scripts download DOGLEASH/LONGLEASH binaries from C2 |
 | T1082 | System Information Discovery | DOGLEASH 0x3450 command collects OS release, version, machine HW ID, nodename |
 | T1573.002 | Encrypted Channel: Asymmetric Cryptography | LONGLEASH TLS/PKI management via MbedTLS |
-| T1036.005 | Masquerading: Match Legitimate Name or Location | Windows Chrome User-Agent on Linux IoT devices |
+| T1036 | Masquerading | Windows Chrome User-Agent on Linux IoT devices to masquerade as legitimate browser traffic |
 | T1070 | Indicator Removal | LONGLEASH self-removal on tamper detection |
 
 ## Impact Assessment
@@ -236,7 +236,7 @@ ps aux | grep -i java
 
 ## Detection Rules
 
-The rules below cover network-level C2 communication (IP/port matching), TLS certificate fingerprinting, LONGLEASH User-Agent detection, exploit URI patterns for initial access, and file-level YARA signatures for all four malware families. The primary detection gap is on-device behavioral detection, which is limited by the minimal logging capabilities of embedded networking devices. Existing Cisco Talos Snort SIDs 66430-66433 and 301493 provide additional coverage.
+The rules below cover network-level C2 communication (IP/port matching), TLS certificate fingerprinting, LONGLEASH User-Agent detection, exploit URI patterns for initial access, and file-level YARA signatures for all four LEASH-family tools. Two rules targeting ASUS AiCloud CVE-2025-2492 (one Sigma, one Suricata) were removed during review because POST requests to `/aicloud` are normal AiCloud functionality with no payload-level pattern to distinguish exploitation from legitimate use. The primary detection gap is on-device behavioral detection, which is limited by the minimal logging capabilities of embedded networking devices. Existing Cisco Talos Snort SIDs 66430-66433 and 301493 provide additional coverage.
 
 ### Sigma
 
@@ -303,7 +303,7 @@ author: Actioner
 date: 2026-07-12
 tags:
     - attack.t1071.001
-    - attack.t1036.005
+    - attack.t1036
 logsource:
     category: proxy
 detection:
