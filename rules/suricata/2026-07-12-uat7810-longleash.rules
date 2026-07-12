@@ -1,0 +1,14 @@
+# UAT-7810 LONGLEASH / DOGLEASH / JARLEASH -- Suricata Rules
+# Author: Actioner
+# Date: 2026-07-12
+# Reference: https://blog.talosintelligence.com/uat-7810/
+
+alert tcp $HOME_NET any -> [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] [99,2222,8088] (msg:"Actioner - UAT-7810 C2 Traffic to Known Infrastructure IP and Port"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200101; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-7810 TLS Certificate with Exploit Subject Fields"; flow:established; tls.cert_subject; content:"C=exploit"; content:"CN=exploit"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET [99,2222,8088] (msg:"Actioner - LONGLEASH C2 Beacon with Chrome/122 User-Agent to Non-Standard Port"; flow:established,to_server; http.user_agent; content:"Chrome/122.0.6261.95"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200103; rev:1;)
+
+alert http any any -> $HOME_NET any (msg:"Actioner - Ruckus Router CVE-2023-25717 doLogin Access (Supplementary)"; flow:established,to_server; http.uri; content:"/forms/doLogin"; fast_pattern; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-7810/; reference:cve,2023-25717; metadata:author Actioner, created_at 2026-07-12; sid:2200104; rev:1;)
+
+alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - Inbound Connection from UAT-7810 C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created_at 2026-07-12; sid:2200106; rev:1;)

@@ -1,0 +1,28 @@
+title: LONGLEASH User-Agent String to Non-Standard Port
+id: 622f5c4b-4903-4c01-bca7-4f8e1a2fd1a9
+status: experimental
+description: >
+    Detects HTTP requests using the specific Chrome/122.0.6261.95 User-Agent
+    string hardcoded in LONGLEASH when destined for non-standard HTTP ports
+    (99, 2222, 8088) characteristic of UAT-7810 C2 infrastructure.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1071.001
+    - attack.t1036
+logsource:
+    category: proxy
+detection:
+    selection_ua:
+        c-useragent|contains: 'Chrome/122.0.6261.95'
+    selection_port:
+        dst_port:
+            - 99
+            - 2222
+            - 8088
+    condition: selection_ua and selection_port
+falsepositives:
+    - Legitimate Chrome 122 traffic to non-standard ports (rare)
+level: high
