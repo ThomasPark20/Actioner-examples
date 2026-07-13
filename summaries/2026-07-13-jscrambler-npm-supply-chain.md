@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-13
-Version: 1.0-draft
+Version: 1.0
 
 ## Executive Summary
 
@@ -141,8 +141,8 @@ JFrog confirmed the self-propagation code was functional but no successful secon
 |------|-------|---------|
 | IP | 37.27.122[.]124 | C2 communication (leaks victim IP) |
 | IP | 57.128.246[.]79 | C2 communication (leaks victim IP) |
-| Domain | check.torproject[.]org | Tor infrastructure contact (legitimate domain used by embedded Tor client) |
-| Domain | archive.torproject[.]org | Tor infrastructure contact (legitimate domain used by embedded Tor client) |
+| Domain | check.torproject[.]org | Contextual -- legitimate Tor Project domain used by embedded Tor client; blocking will cause collateral disruption to legitimate Tor users |
+| Domain | archive.torproject[.]org | Contextual -- legitimate Tor Project domain used by embedded Tor client; blocking will cause collateral disruption to legitimate Tor users |
 | Domain | temp[.]sh | Data exfiltration via public file host |
 
 ### Behavioral
@@ -160,7 +160,7 @@ JFrog confirmed the self-propagation code was functional but no successful secon
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious code injected into legitimate jscrambler npm package via stolen credentials |
-| T1059 | Command and Scripting Interpreter | Preinstall hook executes JavaScript dropper (setup.js/intro.js) to deploy native binary |
+| T1059.007 | Command and Scripting Interpreter: JavaScript | Preinstall hook executes JavaScript dropper (setup.js/intro.js) to deploy native binary |
 | T1204.002 | User Execution: Malicious File | Package installation triggers automatic execution via npm lifecycle hooks |
 | T1105 | Ingress Tool Transfer | Dropper script extracts and writes platform-specific binary to disk |
 | T1027 | Obfuscated Files or Information | C2 details encrypted within binary; hidden dot-prefixed filenames |
@@ -172,7 +172,7 @@ JFrog confirmed the self-propagation code was functional but no successful secon
 | T1555 | Credentials from Password Stores | Theft of Bitwarden/1Password vaults, browser-stored passwords |
 | T1539 | Steal Web Session Cookie | Theft of browser cookies, Discord/Slack/Telegram sessions |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvesting npm tokens from .npmrc, AWS/Azure/GCP key files |
-| T1496 | Resource Hijacking | Self-propagation via stolen npm tokens to infect other packages |
+| T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Self-propagation via stolen npm tokens to inject malicious preinstall scripts into other high-download packages |
 
 ## Impact Assessment
 
@@ -213,7 +213,7 @@ netstat -an | grep -E '37\.27\.122\.124|57\.128\.246\.79'
 3. Audit installation timestamps against Node child processes and temp directory execution
 4. **Rotate all credentials:** cloud keys (AWS/Azure/GCP), npm tokens, GitHub tokens, AI tool API keys
 5. **Revoke sessions:** browser, Discord, Slack, Bitwarden, cryptocurrency wallet sessions
-6. Block C2 IP addresses `37.27.122.124` and `57.128.246.79` at the network perimeter
+6. Block C2 IP addresses `37.27.122[.]124` and `57.128.246[.]79` at the network perimeter
 7. Windows: Search Task Scheduler for hidden tasks; macOS: audit `~/Library/LaunchAgents/` for unfamiliar plists
 8. Search for and terminate any running hidden binaries from temp directories
 
@@ -233,6 +233,7 @@ These detections target the jscrambler IronWorm supply chain compromise at PoC/a
 ### Sigma: Jscrambler IronWorm C2 Network Connection
 
 Detects outbound network connections to the two known C2 IPs (37.27.122[.]124, 57.128.246[.]79) used by the IronWorm infostealer.
+**Scope:** Windows/Sysmon only (`product: windows`, `category: network_connection`). Requires equivalent EDR telemetry rules for macOS and Linux coverage.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0 errors 0 issues (attacktag validator excluded due to proxy-blocked MITRE fetch, not a rule defect); splunk convert exit 0; log_scale convert exit 0. C2 IPs are distinctive, non-shared infrastructure; low FP risk. IPs will age out if attacker rotates infrastructure. -->
 
@@ -278,7 +279,7 @@ references:
 author: Actioner
 date: 2026/07/13
 tags:
-    - attack.t1059
+    - attack.t1059.007
     - attack.t1195.002
 logsource:
     category: process_creation
@@ -289,9 +290,7 @@ detection:
             - '\node.exe'
             - '\npm.cmd'
     selection_image:
-        Image|contains:
-            - '\Temp\.'
-            - '\tmp\.'
+        Image|contains: '\Temp\.'
     condition: selection_parent and selection_image
 falsepositives:
     - Legitimate npm packages executing dot-prefixed binaries from temp directories (uncommon)
@@ -373,6 +372,8 @@ rule Supply_Chain_Jscrambler_IronWorm
 
 - [The Hacker News](https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html) -- primary technical analysis with IOCs, timeline, and payload details
 - [Cyber Security News](https://cybersecuritynews.com/hackers-compromised-jscrambler/) -- secondary coverage (content not retrievable at time of analysis)
+
+<!-- revision: v1.0 (2026-07-13) — Applied critic NEEDS-REVISION fixes: (1) T1496→T1195.002 for npm self-propagation worm behavior; (2) defanged IPs in remediation step 6; (3) added Windows/Sysmon-only scope caveat to Sigma C2 rule; (4) added "Contextual — legitimate domain; blocking will cause collateral disruption" qualifier to torproject domains in IOC table; (5) removed dead Unix path logic ('\tmp\.') from Sigma Rule 2 (Windows-only rule had unreachable Unix path arm); (6) T1059→T1059.007 (JavaScript sub-technique) in MITRE table and Sigma Rule 2 tags. -->
 
 ---
 *Report generated by Actioner*

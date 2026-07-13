@@ -1,9 +1,10 @@
+<!-- revision: v1.1 2026-07-13 — Dropped generic wevtutil Sigma rule (altitude); defanged IPs in Remediation; added SID-range deployment note; added Hackread/Infosecurity Magazine/The Register to Sources. -->
 # Technical Analysis Report: GigaWiper Destructive Windows Backdoor (2026-07-13)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-13
-Version: 1.0 (Draft)
+Version: 1.1 (Final)
 
 ## Executive Summary
 
@@ -152,7 +153,7 @@ GigaWiper represents a high-severity threat combining intelligence collection an
 
 ### Remediation
 
-1. **Contain:** Immediately isolate any host with confirmed indicators. Block C2 IPs (`185.182.193.21`, `212.8.248.104`) at the network perimeter and internal firewalls.
+1. **Contain:** Immediately isolate any host with confirmed indicators. Block C2 IPs (`185.182.193[.]21`, `212.8.248[.]104`) at the network perimeter and internal firewalls.
 2. **Eradicate:** Remove the scheduled task "OneDrive Update", delete the malicious firewall rule, clean the registry key `HKCU\SOFTWARE\OneDrive\Environment`, and remove the malware binary.
 3. **Recover:** Restore any `.candy`-encrypted files from offline backups (decryption is impossible). Re-image compromised hosts where disk wiper activity is suspected.
 4. **Hunt:** Search for lateral movement indicators -- GigaWiper's service management and process injection capabilities suggest potential spread within the network.
@@ -277,42 +278,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: GigaWiper Event Log Clearing
-
-Detects wevtutil.exe used to clear Windows event logs as performed by GigaWiper command 19 (clears System, Setup, Application, ForwardedEvents, and Security logs).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. Keys on wevtutil.exe with any of the five specific "cl <logname>" patterns. Confidence medium because wevtutil.exe cl is used by some legitimate maintenance scripts, though clearing all five logs in sequence is highly suspicious. Each individual log clear may fire independently. -->
-```yaml
-title: GigaWiper Event Log Clearing via wevtutil
-id: 0f4b2e7d-6c5a-7d1b-e9f8-2a3b4c5d6e7f
-status: experimental
-description: >
-    Detects use of wevtutil.exe to clear multiple Windows event logs as performed
-    by GigaWiper command 19, which deletes System, Setup, Application,
-    ForwardedEvents, and Security logs in sequence.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
-author: Actioner
-date: 2026/07/13
-tags:
-    - attack.t1070.001
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\wevtutil.exe'
-        CommandLine|contains:
-            - 'cl System'
-            - 'cl Setup'
-            - 'cl Application'
-            - 'cl ForwardedEvents'
-            - 'cl Security'
-    condition: selection
-falsepositives:
-    - Legitimate log rotation or maintenance scripts
-level: high
-```
+Dropped: Generic event-log-clearing rule (wevtutil cl) -- too broad for PoC/advisory-specific altitude.
 
 ### Snort: GigaWiper C2 Communication to Known Infrastructure
 
@@ -324,6 +290,8 @@ alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper C2 Com
 alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper C2 Communication to Known Redis Server"; flow:established,to_server; sid:2100002; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;)
 alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Communication to Known Infrastructure"; flow:established,to_server; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;)
 ```
+
+> **Deployment note (Snort/Suricata SID ranges):** The SIDs used in these rules (Snort 2100001-2100003, Suricata 2200001-2200003) may collide with Emerging Threats (ET) or other community rulesets. If your deployment includes ET rules, rebase these SIDs into your organization's local SID range (typically 1000000+) before loading.
 
 ### Suricata: GigaWiper C2 Communication to Known Infrastructure
 
@@ -383,6 +351,9 @@ GigaWiper demonstrates the convergence of espionage and destructive capabilities
 
 - [Microsoft Security Blog](https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/) -- primary technical analysis of GigaWiper architecture, commands, and IOCs
 - [The Hacker News](https://thehackernews.com/2026/07/new-gigawiper-windows-backdoor-bundles.html) -- additional context on attribution (CyberAv3ngers/IRGC) and BLUERABBIT tracking names
+- [Hackread](https://www.hackread.com/2026/07/gigawiper-destructive-backdoor-iran/) -- reporting on GigaWiper campaign and CyberAv3ngers linkage
+- [Infosecurity Magazine](https://www.infosecurity-magazine.com/2026/07/gigawiper-wiper-ransomware-backdoor/) -- coverage of GigaWiper multi-function destructive capabilities
+- [The Register](https://www.theregister.com/2026/07/09/gigawiper_destructive_backdoor/) -- reporting on GigaWiper as IRGC-linked destructive tool
 - [CISA Advisory (December 2023)](https://www.cisa.gov/news-events/cybersecurity-advisories/aa23-335a) -- prior CyberAv3ngers activity and Crucio ransomware linkage
 
 ---

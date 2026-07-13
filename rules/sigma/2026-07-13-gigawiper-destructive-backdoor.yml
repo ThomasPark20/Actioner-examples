@@ -1,0 +1,86 @@
+title: GigaWiper Scheduled Task Persistence - OneDrive Update
+id: 7c1e9b4a-3f2d-4a8e-b6c5-9d0e1f2a3b4c
+status: experimental
+description: >
+    Detects creation of a scheduled task named "OneDrive Update" used by
+    GigaWiper for persistence. The task runs every minute and at system startup.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'OneDrive Update'
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Register-ScheduledTask'
+            - 'OneDrive Update'
+    condition: selection_schtasks or selection_powershell
+falsepositives:
+    - Legitimate Microsoft OneDrive update tasks with different naming patterns
+level: high
+---
+title: GigaWiper Registry Key - OneDrive Environment Tracking
+id: 8d2f0c5b-4a3e-5b9f-c7d6-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects modification of the HKCU\SOFTWARE\OneDrive\Environment registry key
+    used by GigaWiper to track execution count on the host.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\SOFTWARE\OneDrive\Environment'
+    filter_onedrive:
+        Image|endswith: '\OneDrive.exe'
+    condition: selection and not filter_onedrive
+falsepositives:
+    - Legitimate OneDrive software writing to a similar registry path
+level: high
+---
+title: GigaWiper Firewall Rule Masquerading as CloudExperienceHost
+id: 9e3a1d6c-5b4f-6c0a-d8e7-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects creation of a Windows Firewall rule named
+    "Microsoft.Windows.CloudExperienceHost" used by GigaWiper to allow its
+    network traffic while masquerading as a legitimate Windows component.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1562.004
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\netsh.exe'
+        CommandLine|contains|all:
+            - 'advfirewall'
+            - 'firewall'
+            - 'add'
+            - 'Microsoft.Windows.CloudExperienceHost'
+    condition: selection
+falsepositives:
+    - Unlikely - this specific firewall rule name combined with netsh is highly distinctive
+level: critical

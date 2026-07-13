@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-13
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -77,7 +77,7 @@ powershell -Command "Set-MpPreference -DisableRealtimeMonitoring $true"
 
 ### 3. Credential Harvesting
 
-A comprehensive credential harvesting toolkit comprising 14 NirSoft tools and Mimikatz was staged in `%USERPROFILE%\Music\mimik\pass\`:
+A comprehensive credential harvesting toolkit comprising 13 NirSoft tools and Mimikatz was staged in `%USERPROFILE%\Music\mimik\pass\`:
 
 | Tool | Filename | SHA-256 |
 |------|----------|---------|
@@ -210,15 +210,17 @@ Get-ChildItem -Path C:\ -Filter "*.God8Damn" -Recurse -ErrorAction SilentlyConti
 
 ### Long-Term Hardening
 
-- **WDAC (Windows Defender Application Control):** Deploy WDAC policies with HVCI (Hypervisor-protected Code Integrity) to block unsigned or known-malicious kernel drivers
+- **WDAC (Windows Defender Application Control):** Deploy WDAC policies with HVCI (Hypervisor-protected Code Integrity) to block unsigned or known-malicious kernel drivers. Requires extensive application compatibility testing before enforcement.
 - **Driver blocklist:** Maintain and enforce the Microsoft Recommended Driver Block Rules list
 - **PPL enforcement:** Ensure EDR sensors run as PPL where supported; monitor for PPL bypass attempts
 - **Remote access policy:** Block or monitor unauthorized remote access tools (AnyDesk, TeamViewer, etc.) via application control policies
-- **Credential hygiene:** Implement tiered administration, restrict LSASS access with Credential Guard, and deploy PAWs for sensitive operations
+- **Credential hygiene:** Implement tiered administration, restrict LSASS access with Credential Guard, and deploy PAWs for sensitive operations. Credential Guard requires VBS-capable hardware; may break NTLM-dependent legacy applications.
 
 ## Detection Rules
 
 These detections target the specific PoisonX driver, GodDamn defense evasion tool, ransomware encryptor, and credential harvesting toolkit using campaign-specific hashes, file names, and paths. PoC/advisory-specific altitude (default); all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify rules against your telemetry pipeline.
+
+> **Coverage gap:** 15+ PoisonX driver variants have been identified, all Microsoft-signed. This report includes only the hash observed in this intrusion. Additional variant hashes should be appended to the PoisonX Sigma and YARA rules as they become available from threat intelligence feeds.
 
 ### Sigma: PoisonX Malicious Driver Load
 
@@ -325,8 +327,8 @@ level: critical
 ### Sigma: GodDamn NirSoft Credential Harvesting Toolkit
 
 Detects execution of NirSoft credential tools or renamed Mimikatz (mimik.exe) by their campaign-specific hashes or staging path. Legitimate IT use of NirSoft tools is possible but uncommon in enterprise environments.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check exit 0 (-x attacktag); splunk/log_scale exit 0. 14 NirSoft hashes + Mimikatz hash from Symantec report. Path selection targets music\mimik staging directory. FP: IT admins legitimately using NirSoft tools -- rare in enterprise. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check exit 0 (-x attacktag); splunk/log_scale exit 0. 13 NirSoft hashes + 1 Mimikatz hash from Symantec report. Path selection targets music\mimik staging directory. FP: IT admins legitimately using NirSoft tools -- rare in enterprise. Confidence downgraded to medium because NirSoft hashes are identical to legitimate nirsoft.net downloads of the same tool versions (dual-use). -->
 ```yaml
 title: GodDamn Ransomware NirSoft Credential Harvesting Toolkit
 id: 0d6a4f3e-7b8c-1a2d-3e4f-5a6b7c8d9e0f
@@ -368,7 +370,8 @@ detection:
     condition: selection_mimikatz or selection_nirsoft_hashes or selection_path
 falsepositives:
     - Legitimate use of NirSoft password recovery tools by IT administrators
-level: high
+    - Identical hashes will match legitimate downloads of the same NirSoft tool versions from nirsoft.net
+level: medium
 ```
 
 ### Snort: N/A
@@ -443,7 +446,7 @@ rule Driver_PoisonX_EDRKiller
 
 2. **RaaS commoditization of EDR killers:** The adoption of PoisonX by The Gentlemen RaaS (via GentleKiller) demonstrates that advanced defense evasion techniques are being rapidly commoditized and distributed to affiliates. Organizations cannot assume EDR alone provides sufficient protection without kernel-level hardening (WDAC/HVCI).
 
-3. **Credential toolkit breadth:** The comprehensive 14-tool NirSoft credential harvesting kit covers virtually every credential store on a Windows host. This underscores the importance of credential hygiene, tiered administration, and Credential Guard -- a single compromised workstation can yield credentials sufficient for full domain compromise.
+3. **Credential toolkit breadth:** The comprehensive credential harvesting kit (13 NirSoft tools plus Mimikatz) covers virtually every credential store on a Windows host. This underscores the importance of credential hygiene, tiered administration, and Credential Guard -- a single compromised workstation can yield credentials sufficient for full domain compromise.
 
 ## Sources
 
@@ -452,6 +455,8 @@ rule Driver_PoisonX_EDRKiller
 - [Infosecurity Magazine -- Ransomware Removes Cybersecurity](https://www.infosecurity-magazine.com/news/ransomware-removes-cybersecurity/) -- secondary reporting confirming key findings
 - [Xcitium ThreatLabs -- Reverse-Engineering a 0-Day: PoisonX BYOVD Driver Bypasses CrowdStrike EDR](https://threatlabsnews.xcitium.com/blog/reverse-engineering-a-0-day-poisonx-byovd-driver-bypasses-crowdstrike-edr/) -- initial PoisonX driver analysis from April 2026
 - [ESET WeLiveSecurity -- Killing Me Gently: Inside Gentlemen's EDR Killer Framework](https://www.welivesecurity.com/en/eset-research/killing-me-gently-inside-gentlemens-edr-killer-framework/) -- GentleKiller framework analysis
+
+<!-- revision: v1.1 (2026-07-13) — Applied critic NEEDS-REVISION verdict. Changes: (1) Fixed factual count "14 NirSoft tools" to "13 NirSoft tools" throughout report and Lessons Learned. (2) NirSoft Sigma rule: downgraded confidence high->medium, downgraded level high->medium, added false-positive note about identical hashes matching legitimate nirsoft.net downloads, fixed audit comment "14 NirSoft hashes" to "13 NirSoft hashes + 1 Mimikatz hash". (3) Remediation: added WDAC/HVCI application-compatibility-testing caveat; added Credential Guard VBS-hardware and NTLM-dependency caveats. (4) Added coverage gap note re: additional PoisonX variant hashes. (5) Version bumped to 1.1 FINAL. -->
 
 ---
 *Report generated by Actioner*
