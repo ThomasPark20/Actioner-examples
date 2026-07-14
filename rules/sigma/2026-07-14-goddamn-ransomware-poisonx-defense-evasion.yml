@@ -1,0 +1,28 @@
+title: GodDamn Defense Evasion Tool Execution (Symantec Masquerade)
+id: 4d6e9f2a-8b3c-4a7d-be1f-3c5a7d9e0f2b
+status: experimental
+description: >
+    Detects execution of the user-mode defense evasion tool deployed alongside
+    PoisonX in GodDamn ransomware attacks. The tool masquerades as a Symantec
+    product (symantec.exe) and works in tandem with the PoisonX kernel driver
+    to disable endpoint defenses. Detection is by SHA-256 hash only to avoid
+    false positives from legitimate Symantec binaries.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/14
+tags:
+    - attack.t1562.001
+    - attack.t1036
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - 'b29f91a440527fb621d106a2048f6379fff3263c60aeda9c82ff8c1d5ae880a8'
+    condition: selection_hash
+falsepositives:
+    - None expected - hash-based detection is highly specific
+level: critical

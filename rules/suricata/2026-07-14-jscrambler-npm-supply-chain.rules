@@ -1,0 +1,5 @@
+alert ip $HOME_NET any -> 37.27.122.124 any (msg:"Actioner - Jscrambler IronWorm C2 Connection to 37.27.122.124"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created_at 2026-07-14; sid:2100100; rev:1;)
+
+alert ip $HOME_NET any -> 57.128.246.79 any (msg:"Actioner - Jscrambler IronWorm C2 Connection to 57.128.246.79"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created_at 2026-07-14; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Jscrambler IronWorm Exfiltration via temp.sh PUT"; flow:established,to_server; http.method; content:"PUT"; http.host; content:"temp.sh"; endswith; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html; metadata:author Actioner, created_at 2026-07-14; sid:2100102; rev:1;)

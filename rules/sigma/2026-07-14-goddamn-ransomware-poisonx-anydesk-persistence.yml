@@ -1,0 +1,39 @@
+title: AnyDesk Persistence Service with Custom Configuration
+id: 6f8a1b4c-0d5e-4c9f-da3b-5e7c9f1a2b4d
+status: experimental
+description: >
+    Detects creation of AnyDesk Windows services using non-standard
+    configuration and data directories, or AnyDesk interactive access consent
+    suppression. Observed in GodDamn ransomware attacks but this is a
+    BEHAVIORAL rule -- AnyDesk with custom --conf-dir is a generic TTP used
+    by multiple threat actors (including but not limited to Hyadina/GodDamn).
+    This rule is NOT specific to GodDamn and should be treated as a
+    behavioral indicator requiring additional context for attribution.
+    Organizations should tune against IT-approved AnyDesk configurations.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/14
+tags:
+    - attack.t1543.003
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_sc:
+        Image|endswith: '\sc.exe'
+        CommandLine|contains|all:
+            - 'AnyDesk'
+            - '--service'
+            - '--conf-dir='
+    selection_powershell:
+        CommandLine|contains|all:
+            - 'ad.security.interactive_access'
+            - 'interactive_access=2'
+    condition: selection_sc or selection_powershell
+falsepositives:
+    - Legitimate AnyDesk deployments using custom configuration directories
+    - IT-managed AnyDesk installations with consent suppression for unattended access
+level: low

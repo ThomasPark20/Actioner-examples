@@ -1,0 +1,28 @@
+title: CrashStealer Staging Directory File Creation
+id: 0d6f4b5c-2e7a-4c1d-d8f9-a0b3c4e5f6a7
+status: experimental
+description: >
+    Detects file creation in directories used by CrashStealer for staging
+    collected data before exfiltration. The malware uses /tmp/.CrashReporter/
+    as a hidden working directory and ~/.cache/com.apple.crashreporter/ for
+    encrypted archive storage.
+references:
+    - https://securityaffairs.com/195278/malware/crashstealer-new-macos-infostealer-uses-signed-apps-to-evade-gatekeeper.html
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_tmp:
+        TargetFilename|contains: '/tmp/.CrashReporter/'
+    selection_cache:
+        TargetFilename|contains: '/.cache/com.apple.crashreporter/'
+    selection_sysauth:
+        TargetFilename|endswith: '/.cache/.sys_auth'
+    condition: selection_tmp or selection_cache or selection_sysauth
+falsepositives:
+    - Legitimate Apple CrashReporter does not use these specific paths
+level: high

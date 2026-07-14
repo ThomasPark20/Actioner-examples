@@ -1,0 +1,27 @@
+title: GodDamn Ransomware File Encryption (.God8Damn Extension)
+id: 3c5d8e1f-7a2b-4f6c-9d0e-2b4a6c8f1d3e
+status: experimental
+description: >
+    Detects file rename operations appending the .God8Damn extension,
+    indicating active GodDamn ransomware encryption. This extension is
+    specific to the GodDamn ransomware family operated by the Hyadina group.
+    NOTE: The file_rename log source requires Sysmon v14+ (Event ID 23 for
+    FileDelete / file rename telemetry) or equivalent EDR telemetry capable
+    of logging file rename operations with target filenames.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/14
+tags:
+    - attack.t1486
+logsource:
+    category: file_rename
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.God8Damn'
+    condition: selection
+falsepositives:
+    - None expected - the .God8Damn extension is unique to this ransomware family
+level: critical

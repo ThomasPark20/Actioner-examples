@@ -1,0 +1,25 @@
+title: GigaWiper Registry Persistence at OneDrive Environment Key
+id: 7c4f1b3e-6a8d-4e2f-9d5c-3a0b8e7f1d6c
+status: experimental
+description: >
+    Detects modification of the HKCU\SOFTWARE\OneDrive\Environment registry key
+    used by GigaWiper for execution tracking and persistence state management.
+    The RunOnceRegistryMain function writes to this key using RunOnce-style
+    registry persistence.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1547.001
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\SOFTWARE\OneDrive\Environment'
+    condition: selection
+falsepositives:
+    - Legitimate OneDrive application writing to its own registry namespace
+level: medium

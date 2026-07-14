@@ -1,0 +1,28 @@
+title: GodDamn Ransomware Encryptor Execution
+id: 8a3e7c12-4f9b-4d2e-a1c6-5b8d0e3f7a9c
+status: experimental
+description: >
+    Detects execution of the GodDamn ransomware encryptor binary
+    (encrypter-windows-gui-x86.exe) by SHA-256 hash or distinctive filename.
+    GodDamn is assessed as a rebrand of Beast ransomware operated by the
+    Hyadina group. First observed May 2026.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/14
+tags:
+    - attack.t1486
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - 'e097f3b445b63b07afacde8d6a67f0be654dd51e228a3610fb0710a1f7e29a69'
+    selection_name:
+        Image|endswith: '\encrypter-windows-gui-x86.exe'
+    condition: selection_hash or selection_name
+falsepositives:
+    - Unlikely - hash detection is highly specific; filename is distinctive to the GodDamn ransomware
+level: critical

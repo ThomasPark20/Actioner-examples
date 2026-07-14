@@ -1,0 +1,25 @@
+title: GigaWiper Ransomware File Encryption with .candy Extension
+id: 9b2e4f1a-7d8c-4a3e-b5f6-0c1d2e3a4b5c
+status: experimental
+description: >
+    Detects file creation or rename events resulting in .candy file extension,
+    the signature extension used by GigaWiper's ransomware-like encryption
+    module derived from Crucio code. Note: the file_rename log source category
+    requires Sysmon (Event ID 26) or an EDR that logs file rename operations;
+    environments without these will not generate matching events.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1486
+logsource:
+    category: file_rename
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.candy'
+    condition: selection
+falsepositives:
+    - Applications or games that legitimately use .candy file extensions (e.g., CandyCrush or similar gaming software data files)
+level: high

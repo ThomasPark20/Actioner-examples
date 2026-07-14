@@ -1,0 +1,30 @@
+title: Network Connection to CrashStealer C2 Infrastructure
+id: 9c5e3a4b-1d6f-4b0c-c7e8-f9a2b3d4e5f6
+status: experimental
+description: >
+    Detects network connections to known CrashStealer command-and-control
+    infrastructure, including the primary C2 IP address and associated
+    distribution and payload domains.
+references:
+    - https://thehackernews.com/2026/07/crashstealer-macos-malware-uses.html
+    - https://securityaffairs.com/195278/malware/crashstealer-new-macos-infostealer-uses-signed-apps-to-evade-gatekeeper.html
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection_ip:
+        DestinationIp: '179.43.166.242'
+    selection_domains:
+        DestinationHostname:
+            - 'werkbit.io'
+            - 'endpoint-api-v1.com'
+            - 'cohezo.io'
+            - 'cohezo.com'
+            - 'cordinex.io'
+    condition: selection_ip or selection_domains
+falsepositives:
+    - Unlikely - these are known malicious infrastructure indicators
+level: critical

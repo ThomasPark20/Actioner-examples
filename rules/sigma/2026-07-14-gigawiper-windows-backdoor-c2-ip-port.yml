@@ -1,0 +1,29 @@
+title: GigaWiper C2 Network Connection to Known Infrastructure
+id: 8a3c1e7f-4b2d-4f6a-9e8c-1d5f0a3b7c2e
+status: experimental
+description: >
+    Detects outbound network connections to known GigaWiper command-and-control
+    IP addresses on non-standard ports used for RabbitMQ (5544) and Redis (7542)
+    C2 channels.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1071
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection_ip:
+        DestinationIp:
+            - '185.182.193.21'
+            - '212.8.248.104'
+    selection_port:
+        DestinationPort:
+            - 5544
+            - 7542
+    condition: selection_ip and selection_port
+falsepositives:
+    - Legitimate RabbitMQ or Redis traffic to these specific IPs is extremely unlikely
+level: critical
