@@ -1,0 +1,29 @@
+# Actioner — SonicWall SMA1000 CVE-2026-15409 / CVE-2026-15410
+# Reference: https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+# Generated: 2026-07-15
+
+alert http $EXTERNAL_NET any -> $HOME_NET any ( \
+    msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 Unauthorized API Login Endpoint"; \
+    flow:established, to_server; \
+    http_uri; \
+    content:"/__api__/login", fast_pattern; \
+    classtype:web-application-attack; \
+    reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008; \
+    reference:cve,2026-15409; \
+    metadata:author Actioner, created 2026-07-15; \
+    sid:2100001; \
+    rev:1; \
+)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any ( \
+    msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 Unauthorized API Logout Endpoint"; \
+    flow:established, to_server; \
+    http_uri; \
+    content:"/__api__/logout", fast_pattern; \
+    classtype:web-application-attack; \
+    reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008; \
+    reference:cve,2026-15409; \
+    metadata:author Actioner, created 2026-07-15; \
+    sid:2100002; \
+    rev:1; \
+)

@@ -1,0 +1,22 @@
+title: Miasma RAT sync.js Payload File Drop
+id: 6a5ab0e0-f62d-4bb6-8147-5e79d771d41f
+status: experimental
+description: Detects creation of the sync.js payload file in the NodeJS application data directory, a hallmark of the AsyncAPI Miasma RAT second-stage loader.
+references:
+    - https://socket.dev/blog/asyncapi-supply-chain-attack
+    - https://www.stepsecurity.io/blog/compromised-next-branch-pushes-malicious-asyncapi-generator-generator-helpers-and-generator-components-to-npm
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1105
+    - attack.t1059.007
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\NodeJS\sync.js'
+    condition: selection
+falsepositives:
+    - Custom Node.js applications using a directory named NodeJS in AppData (unlikely)
+level: high

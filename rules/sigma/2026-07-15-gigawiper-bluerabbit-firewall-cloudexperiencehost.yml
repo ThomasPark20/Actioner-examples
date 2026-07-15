@@ -1,0 +1,28 @@
+title: GigaWiper Firewall Rule Masquerading as CloudExperienceHost
+id: a1e7c5f8-2b6d-4c0e-d435-7f9b1a3e6c28
+status: experimental
+description: >
+    Detects PowerShell creation of firewall rules named
+    Microsoft.Windows.CloudExperienceHost, used by GigaWiper for VNC access.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1562.004
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'New-NetFirewallRule'
+            - 'CloudExperienceHost'
+    condition: selection
+falsepositives:
+    - Legitimate system administration creating firewall rules for CloudExperienceHost
+level: high

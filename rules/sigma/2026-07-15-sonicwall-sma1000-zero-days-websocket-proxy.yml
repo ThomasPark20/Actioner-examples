@@ -1,0 +1,28 @@
+title: SonicWall SMA1000 Exploitation - Suspicious WebSocket Proxy Request (CVE-2026-15409)
+id: 9d4f2b85-ce63-4e79-8b1f-3a9c7d5e2f84
+status: experimental
+description: >
+    Detects HTTP requests to /wsproxy endpoint on SonicWall SMA1000 appliances with HTTP 101
+    (WebSocket upgrade) status, which may indicate SSRF exploitation activity linked to
+    CVE-2026-15409/CVE-2026-15410 as documented by SonicWall PSIRT (SNWLID-2026-0008).
+    NOTE: /wsproxy is core SMA1000 remote-access functionality. The advisory does not provide
+    distinguishing host parameter values. This rule requires environment-specific baseline
+    tuning before production use.
+references:
+    - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+    - https://www.bleepingcomputer.com/news/security/sonicwall-warns-of-sma1000-flaws-exploited-in-zero-day-attacks-patch-now/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/wsproxy'
+    selection_status:
+        sc-status: 101
+    condition: selection_uri and selection_status
+falsepositives:
+    - Legitimate WebSocket proxy connections — /wsproxy is core SMA1000 remote-access functionality and will generate hits during normal operation
+level: low

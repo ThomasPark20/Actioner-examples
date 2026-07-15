@@ -1,0 +1,22 @@
+title: Network Connection to AsyncAPI Miasma C2 Server
+id: cb58f8c3-832d-4fc4-836f-de2294d02c77
+status: experimental
+description: Detects outbound network connections to IP 85.137.53.71 used as the primary C2 server in the AsyncAPI npm supply chain attack delivering the Miasma RAT framework.
+references:
+    - https://socket.dev/blog/asyncapi-supply-chain-attack
+    - https://www.stepsecurity.io/blog/compromised-next-branch-pushes-malicious-asyncapi-generator-generator-helpers-and-generator-components-to-npm
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '85.137.53.71'
+    condition: selection
+falsepositives:
+    - Unlikely - dedicated C2 infrastructure with no known legitimate services
+level: critical

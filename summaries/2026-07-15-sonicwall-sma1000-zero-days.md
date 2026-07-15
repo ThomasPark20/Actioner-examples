@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-15
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -99,7 +99,7 @@ No specific IP addresses, domains, or C2 infrastructure have been publicly attri
 | T1190 | Exploit Public-Facing Application | Exploitation of SSRF (CVE-2026-15409) in the SMA 1000 Work Place interface to gain unauthenticated access |
 | T1059 | Command and Scripting Interpreter | Code injection (CVE-2026-15410) enabling arbitrary OS command execution on the appliance |
 | T1505.003 | Server Software Component: Web Shell | Injection of unauthorized API routes (`/__api__/login`, `/__api__/logout`) into the NGINX Unit configuration, functioning as persistent backdoor endpoints |
-| T1557 | Adversary-in-the-Middle | SSRF exploitation to proxy attacker WebSocket connections (`/wsproxy`) through the appliance to internal resources |
+| T1090.001 | Proxy: Internal Proxy | SSRF exploitation to proxy attacker WebSocket connections (`/wsproxy`) through the appliance to internal resources |
 
 ## Impact Assessment
 
@@ -186,9 +186,9 @@ level: critical
 
 ### Sigma: SonicWall SMA1000 Suspicious WebSocket Proxy Request
 
-Detects `/wsproxy` requests with HTTP 101 (WebSocket upgrade) on SMA1000 appliances, indicating potential SSRF-driven proxying.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check exit 0 (excluding attacktag); splunk convert exit 0; log_scale convert exit 0. Confidence medium (not high) because legitimate /wsproxy use may exist in some SMA1000 deployments — environment-specific tuning needed. -->
+Detects `/wsproxy` requests with HTTP 101 (WebSocket upgrade) on SMA1000 appliances, indicating potential SSRF-driven proxying. **Caveat:** `/wsproxy` is core SMA1000 remote-access functionality; this rule will fire on legitimate WebSocket sessions. The advisory does not document distinguishing host parameter values. Requires environment-specific baseline tuning before production use.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check exit 0 (excluding attacktag); splunk convert exit 0; log_scale convert exit 0. Confidence low — /wsproxy is core SMA1000 functionality and the advisory provides no distinguishing host parameter values to narrow the detection. Requires environment-specific baseline tuning. -->
 ```yaml
 title: SonicWall SMA1000 Exploitation - Suspicious WebSocket Proxy Request (CVE-2026-15409)
 id: 9d4f2b85-ce63-4e79-8b1f-3a9c7d5e2f84
@@ -213,8 +213,8 @@ detection:
         sc-status: 101
     condition: selection_uri and selection_status
 falsepositives:
-    - Legitimate WebSocket proxy connections if the organization uses this SMA1000 feature
-level: high
+    - Legitimate WebSocket proxy connections — /wsproxy is core SMA1000 remote-access functionality and will generate hits during normal operation
+level: low
 ```
 
 ### Snort: SonicWall SMA1000 Unauthorized API Login Endpoint
@@ -297,31 +297,15 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (
 )
 ```
 
-### Suricata: SonicWall SMA1000 Suspicious WebSocket Proxy Request
+### ~~Suricata: SonicWall SMA1000 Suspicious WebSocket Proxy Request~~ (DROPPED)
 
-Detects inbound HTTP requests to `/wsproxy` with WebSocket upgrade behavior targeting SMA1000 appliances.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: suricata not installed; structural check: http protocol, http.uri dot-notation, content /wsproxy. Confidence medium — legitimate /wsproxy use may exist in some deployments. Note: HTTP 101 status detection is limited in network-level Suricata rules as the upgrade occurs server-side; this rule fires on the URI pattern in the initial request. -->
-```suricata
-alert http $EXTERNAL_NET any -> $HOME_NET any (
-    msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 Suspicious WebSocket Proxy Request";
-    flow:established,to_server;
-    http.uri;
-    content:"/wsproxy"; fast_pattern;
-    classtype:web-application-attack;
-    reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008;
-    reference:cve,2026-15409;
-    metadata:author Actioner, created_at 2026-07-15;
-    sid:2200003;
-    rev:1;
-)
-```
+Dropped: fires on ANY `/wsproxy` request with no status filter or narrowing condition. `/wsproxy` is the core remote-access endpoint and would generate thousands of false positives per day.
 
 ### YARA: SonicWall SMA1000 Configuration Tampering
 
 Detects SMA1000 NGINX Unit `conf.json` files containing unauthorized `/__api__/login` or `/__api__/logout` routes injected during exploitation.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on constructed positive (conf.json with /__api__/login route + "routes"/"listeners" markers); quiet on negative (conf.json with /workplace/login only). Positive was constructed from the advisory's published IOC pattern, not from a real sample. The combination of /__api__/(login|logout) + JSON config markers ("routes"/"listeners") is highly specific to this exploitation pattern. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Constructed positive (conf.json with /__api__/login route + "routes"/"listeners" markers) fired as expected; quiet on negative (conf.json with /workplace/login only). Positive was constructed from the advisory's published IOC pattern, not a real-world sample. The combination of /__api__/(login|logout) + JSON config markers ("routes"/"listeners") is highly specific to this exploitation pattern. -->
 ```yara
 rule Exploit_CVE_2026_15409_SMA1000_Config_Tampering
 {
@@ -371,3 +355,5 @@ This incident reinforces several critical themes in perimeter security:
 
 ---
 *Report generated by Actioner*
+
+<!-- revision: 2026-07-15 REVISE pass — (1) ATT&CK T1557 replaced with T1090.001 (Internal Proxy); (2) Sigma WebSocket rule confidence downgraded to low, level lowered to low, added caveat re: missing advisory-documented narrowing condition; (3) Suricata WebSocket Proxy rule DROPPED (fires on core remote-access endpoint with no narrowing); (4) YARA sample label corrected — removed dishonest "sample: fired" label (positive was constructed, not a real sample); (5) standalone rule files written to rules/. -->

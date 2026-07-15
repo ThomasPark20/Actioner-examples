@@ -1,0 +1,27 @@
+title: SonicWall SMA1000 Exploitation - Unauthorized API Endpoint Access (CVE-2026-15409)
+id: 7c3e1a94-bf52-4d68-9a0e-2f8b6c4d1e73
+status: experimental
+description: >
+    Detects HTTP requests to /__api__/login or /__api__/logout endpoints on SonicWall SMA1000 appliances
+    returning HTTP 200. These URI paths do not exist in legitimate SMA1000 configurations and indicate
+    exploitation of CVE-2026-15409 (SSRF) as documented by SonicWall PSIRT (SNWLID-2026-0008).
+references:
+    - https://psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0008
+    - https://www.bleepingcomputer.com/news/security/sonicwall-warns-of-sma1000-flaws-exploited-in-zero-day-attacks-patch-now/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains:
+            - '/__api__/login'
+            - '/__api__/logout'
+    selection_status:
+        sc-status: 200
+    condition: selection_uri and selection_status
+falsepositives:
+    - None expected - these URI paths do not exist in legitimate SMA1000 configurations
+level: critical

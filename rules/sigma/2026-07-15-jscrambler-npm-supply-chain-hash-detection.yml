@@ -1,0 +1,29 @@
+title: jscrambler IronWorm Malicious Binary Execution
+id: 4a8c1e2f-7d3b-4f6a-9e5c-1b0d8a3f2c7e
+status: experimental
+description: >
+    Detects execution of known IronWorm infostealer binaries dropped by compromised
+    jscrambler npm package versions 8.14.0-8.20.0. Matches SHA256 hashes of
+    Windows PE, macOS Mach-O, and Linux ELF payloads.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://socket.dev/blog/jscrambler-supply-chain-attack
+    - https://research.jfrog.com/post/ironworm-returns-rustier-than-ever/
+author: Actioner
+date: 2026-07-15
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - 'b7ca95d1b23c8e67416a25cedf741de0917c2096bbc9d24649eea7853d054903'
+            - 'fbbcf4d8f98168f78f5c0c47a9ae56d59ec8ac84a7c9ca6b797fedfb8d62d2bd'
+            - 'c8fd47d36bdf7c825378593ab82ed8c24d1dc52e26b507812393e24e1d5201fd'
+    condition: selection
+falsepositives:
+    - None expected — these are unique malicious binary hashes
+level: critical

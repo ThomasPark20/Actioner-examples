@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-15
-Version: DRAFT
+Version: FINAL
+<!-- revision: Applied critic verdicts. Fixed YARA Malware_Miasma_AsyncAPI_Dropper operator precedence bug (filesize constraint now applies to both condition branches). Defanged all IPs/domains in C2 Infrastructure table, ATT&CK mapping table, and detection rule prose outside code blocks (85.137.53.71, relay.damus.io, relay.nostr.com, router.bittorrent.com, dht.transmissionbt.com, wss:// URLs). Detection rule code blocks retain real values. All 7 rules KEEP per critic verdict. -->
 
 ## Executive Summary
 
@@ -88,11 +89,11 @@ The Miasma RAT implements six independent C2 channels for resilience:
 
 | Channel | Endpoint | Purpose |
 |---------|----------|---------|
-| HTTP REST | `85.137.53.71:8080` (AS43641, Netherlands) | Primary command beacon (`/api/v1/beacon`) |
-| HTTP Upload | `85.137.53.71:8081` | Credential exfiltration (`/api/v1/upload`) |
-| HTTP Proxy | `85.137.53.71:8091` | Proxy management |
-| Nostr Relay | `wss://relay.damus.io`, `wss://relay.nostr.com/` | Decentralized C2 fallback |
-| BitTorrent DHT | `router.bittorrent.com:6881`, `dht.transmissionbt.com:6881` | P2P rendezvous |
+| HTTP REST | `85[.]137[.]53[.]71:8080` (AS43641, Netherlands) | Primary command beacon (`/api/v1/beacon`) |
+| HTTP Upload | `85[.]137[.]53[.]71:8081` | Credential exfiltration (`/api/v1/upload`) |
+| HTTP Proxy | `85[.]137[.]53[.]71:8091` | Proxy management |
+| Nostr Relay | `wss://relay[.]damus[.]io`, `wss://relay[.]nostr[.]com/` | Decentralized C2 fallback |
+| BitTorrent DHT | `router[.]bittorrent[.]com:6881`, `dht[.]transmissionbt[.]com:6881` | P2P rendezvous |
 | Ethereum | Contract `0x12c37A86a0Ed0beBe5d1d6a43E42f07860eAc710` | Blockchain dead-drop |
 
 Additional channels include IPFS, libp2p GossipSub mesh, and LAN mDNS discovery. The HTTP C2 exposes endpoints at `/api/v1/beacon`, `/api/v1/file-result`, and `/api/v1/file-content/<cid>`.
@@ -193,11 +194,11 @@ The Miasma framework supports the following commands: Propagate, CollectData, Up
 | T1555 | Credentials from Password Stores | Browser credential extraction (Chrome, Brave, Firefox, Edge) |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvesting SSH keys, npm/GitHub/AWS tokens, kubeconfig |
 | T1539 | Steal Web Session Cookie | Browser cookie extraction across profiles |
-| T1071.001 | Application Layer Protocol: Web Protocols | HTTP C2 beacon to 85.137.53.71:8080 |
+| T1071.001 | Application Layer Protocol: Web Protocols | HTTP C2 beacon to 85[.]137[.]53[.]71:8080 |
 | T1571 | Non-Standard Port | C2 on ports 8080, 8081, 8091 |
 | T1102 | Web Service | Nostr relays, IPFS, Ethereum smart contract as alternative C2 |
 | T1497.001 | Virtualization/Sandbox Evasion: System Checks | VM detection, EDR detection, Russian locale check |
-| T1041 | Exfiltration Over C2 Channel | Credential upload to 85.137.53.71:8081 |
+| T1041 | Exfiltration Over C2 Channel | Credential upload to 85[.]137[.]53[.]71:8081 |
 
 ## Impact Assessment
 
@@ -262,7 +263,7 @@ These detections target the specific infrastructure, file artifacts, and persist
 
 ### Sigma: Network Connection to AsyncAPI Miasma C2 Server
 
-Detects outbound connections to the primary Miasma C2 IP `85.137.53.71` used for beacon, exfiltration, and proxy management.
+Detects outbound connections to the primary Miasma C2 IP `85[.]137[.]53[.]71` used for beacon, exfiltration, and proxy management.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed due to proxy blocking MITRE ATT&CK data fetch (network issue, not rule syntax). sigma convert splunk exit 0, log_scale exit 0. IP is a dedicated C2 with no known legitimate services (AS43641 NL). FP risk minimal. Evasion: attacker rotates IP — pair with file/persistence rules. -->
 ```yaml
@@ -351,7 +352,7 @@ level: critical
 
 ### Snort: AsyncAPI Miasma RAT HTTP C2 Beacon
 
-Detects HTTP requests to the Miasma C2 beacon endpoint at `85.137.53.71/api/v1/beacon` and upload endpoint.
+Detects HTTP requests to the Miasma C2 beacon endpoint at `85[.]137[.]53[.]71/api/v1/beacon` and upload endpoint.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
 <!-- audit: snort not installed; structural check passed (http service, flow established, http_uri sticky buffer, fast_pattern set, valid SID range 2100xxx, semicolons terminate all options). Install via /actioner:setup for full compile check. -->
 ```snort
@@ -431,8 +432,8 @@ rule Malware_Miasma_AsyncAPI_Dropper
 
     condition:
         filesize < 500KB and
-        (any of ($cid*)) or
-        ($ipfs and $unref and ($spawn or $detach or $hide))
+        ((any of ($cid*)) or
+        ($ipfs and $unref and ($spawn or $detach or $hide)))
 }
 ```
 

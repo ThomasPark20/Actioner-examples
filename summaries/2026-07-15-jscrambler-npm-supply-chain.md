@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-15
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -214,7 +214,7 @@ Additional embedded hash (Windows binary): `9eeffcb5c3445ef9512f7776045f99ea23f9
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious code injected via compromised npm publishing credential |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | `setup.js` preinstall hook executes dropper logic |
-| T1204.002 | User Execution: Malicious File | Payload auto-executes during `npm install` |
+| T1129 | Shared Modules | Runtime import injection triggers payload on `require()` without user action |
 | T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | ChaCha20-Poly1305 per-string encryption; custom CSI container format |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Chrome, Brave, Edge credential SQLite and LevelDB extraction |
 | T1555 | Credentials from Password Stores | Bitwarden, 1Password vault data extraction |
@@ -231,7 +231,7 @@ Additional embedded hash (Windows binary): `9eeffcb5c3445ef9512f7776045f99ea23f9
 | T1543.001 | Create or Modify System Process: Launch Agent | macOS LaunchAgent with RunAtLoad/KeepAlive |
 | T1053.003 | Scheduled Task/Job: Cron | Linux crontab persistence |
 | T1543.002 | Create or Modify System Process: Systemd Service | Linux systemd unit persistence |
-| T1014 | Rootkit | Linux eBPF kernel instrumentation via libbpf |
+| T1014 | Rootkit | Linux eBPF capability observed (libbpf linkage, `bpf_object__open_mem` call) but function not characterized -- may serve rootkit, network sniffing, or credential interception |
 | T1622 | Debugger Evasion | IsDebuggerPresent (Win), P_TRACED sysctl (macOS) |
 | T1564.001 | Hide Artifacts: Hidden Files and Directories | Dot-prefixed hidden binaries |
 
@@ -287,7 +287,7 @@ netstat -an | grep -E '37\.27\.122\.124|57\.128\.246\.79' 2>/dev/null
 ### Long-Term Hardening
 
 - Adopt npm 12+ which disables install scripts by default
-- Use `--ignore-scripts` on npm install and explicitly allowlist trusted scripts
+- Use `--ignore-scripts` on npm install and explicitly allowlist trusted scripts (caveat: Generation 2 variants bypass this via runtime `require()` injection -- lockfile integrity checks and version pinning are the stronger control)
 - Implement lockfile pinning with integrity checks (SHA512 in `package-lock.json`)
 - Monitor for unexpected outbound connections from CI/CD runners (especially to Tor infrastructure and temp.sh)
 - Use scoped npm tokens with minimal publishing permissions and short TTLs
@@ -295,7 +295,7 @@ netstat -an | grep -E '37\.27\.122\.124|57\.128\.246\.79' 2>/dev/null
 
 ## Detection Rules
 
-These detections target the jscrambler/IronWorm supply chain compromise at the PoC/advisory-specific altitude: malicious file hashes, C2 IP addresses, the CSI container format, and npm preinstall dropper patterns. Sigma rules convert to Splunk and CrowdStrike LogScale. Snort/Suricata are not installed in this environment -- those rules received structural checks only. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target the jscrambler/IronWorm supply chain compromise at the PoC/advisory-specific altitude: malicious file hashes, C2 IP addresses, the CSI container format, and npm preinstall dropper patterns. Sigma rules convert to Splunk and CrowdStrike LogScale. Snort/Suricata received structural checks only (toolchain not installed) -- compiles does not equal fires, so verify in your pipeline with representative telemetry.
 
 ### Sigma: jscrambler IronWorm Malicious Binary Hash Detection
 
@@ -372,7 +372,7 @@ level: high
 
 Detects `node.exe` spawning a detached child process writing to or executing a dot-prefixed binary in a temp directory, consistent with the jscrambler IronWorm dropper behavior.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check skipped (MITRE ATT&CK data fetch 403 in sandbox — not a rule error); splunk convert 0; log_scale convert 0. Keys on node.exe parent + dot-prefixed exe in temp path. Medium confidence: legitimate node child processes in temp are possible but dot-prefixed exe names are unusual. -->
+<!-- audit: sigma check skipped (MITRE ATT&CK data fetch 403 in sandbox — not a rule error); splunk convert 0; log_scale convert 0. Keys on node.exe parent + dot-prefixed exe in temp path. Revised: replaced Image|re with Image|contains + Image|endswith for deterministic Splunk/LogScale conversion. Medium confidence: legitimate node child processes in temp are possible but dot-prefixed exe names are unusual. -->
 ```yaml
 title: Node.js Preinstall Hook Dropping Hidden Temp Binary
 id: 9e1d4c7f-3a2b-4f8e-b5d6-7c0a9e2f1b3d
@@ -388,16 +388,21 @@ author: Actioner
 date: 2026-07-15
 tags:
     - attack.t1059.007
-    - attack.t1204.002
+    - attack.t1129
 logsource:
     category: process_creation
     product: windows
 detection:
     selection_parent:
         ParentImage|endswith: '\node.exe'
-    selection_child:
-        Image|re: '\\(Temp|tmp|AppData\\Local\\Temp)\\\.[a-z0-9]{6,}\.exe$'
-    condition: selection_parent and selection_child
+    selection_child_temp:
+        Image|contains:
+            - '\Temp\.'
+            - '\tmp\.'
+            - '\AppData\Local\Temp\.'
+    selection_child_ext:
+        Image|endswith: '.exe'
+    condition: selection_parent and selection_child_temp and selection_child_ext
 falsepositives:
     - Legitimate npm packages spawning temp executables (rare with dot-prefix naming)
 level: high
@@ -407,9 +412,9 @@ level: high
 
 Detects outbound TCP connections to the known IronWorm C2 server at 37.27.122[.]124.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: snort not installed; structural check passed (balanced parens, semicolons, required fields present). Single known C2 IP — no FP risk. -->
+<!-- audit: snort not installed; structural check passed. Revised: alert ip → alert tcp (flow keyword requires TCP). Single known C2 IP — no FP risk. -->
 ```snort
-alert ip $HOME_NET any -> 37.27.122.124 any (
+alert tcp $HOME_NET any -> 37.27.122.124 any (
     msg:"Actioner - jscrambler IronWorm C2 Connection to 37.27.122.124";
     flow:established,to_server;
     classtype:trojan-activity;
@@ -425,9 +430,9 @@ alert ip $HOME_NET any -> 37.27.122.124 any (
 
 Detects outbound TCP connections to the known IronWorm C2 server at 57.128.246[.]79.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: snort not installed; structural check passed. Single known C2 IP — no FP risk. -->
+<!-- audit: snort not installed; structural check passed. Revised: alert ip → alert tcp (flow keyword requires TCP). Single known C2 IP — no FP risk. -->
 ```snort
-alert ip $HOME_NET any -> 57.128.246.79 any (
+alert tcp $HOME_NET any -> 57.128.246.79 any (
     msg:"Actioner - jscrambler IronWorm C2 Connection to 57.128.246.79";
     flow:established,to_server;
     classtype:trojan-activity;
@@ -443,9 +448,9 @@ alert ip $HOME_NET any -> 57.128.246.79 any (
 
 Detects outbound connections to either known IronWorm C2 IP address.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: suricata not installed; structural check passed (dot-notation N/A for ip protocol, semicolons balanced, required fields present). -->
+<!-- audit: suricata not installed; structural check passed. Revised: alert ip → alert tcp (flow keyword requires TCP). -->
 ```suricata
-alert ip $HOME_NET any -> [37.27.122.124,57.128.246.79] any (
+alert tcp $HOME_NET any -> [37.27.122.124,57.128.246.79] any (
     msg:"Actioner - jscrambler IronWorm C2 Connection";
     flow:established,to_server;
     classtype:trojan-activity;
@@ -461,12 +466,12 @@ alert ip $HOME_NET any -> [37.27.122.124,57.128.246.79] any (
 
 Detects HTTPS connections to temp[.]sh, the public file host used by IronWorm to exfiltrate stolen credentials. Scope to developer/CI networks to reduce false positives.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: suricata not installed; structural check passed (tls protocol, dot-notation tls.sni buffer, semicolons balanced). Medium confidence: temp.sh has legitimate uses — scope to CI/developer subnets for production. -->
+<!-- audit: suricata not installed; structural check passed. Revised: added endswith after content:"temp.sh" for tighter SNI matching. Medium confidence: temp.sh has legitimate uses — scope to CI/developer subnets for production. -->
 ```suricata
 alert tls $HOME_NET any -> $EXTERNAL_NET any (
     msg:"Actioner - IronWorm Exfiltration via temp.sh";
     flow:established,to_server;
-    tls.sni; content:"temp.sh"; fast_pattern;
+    tls.sni; content:"temp.sh"; endswith; fast_pattern;
     classtype:trojan-activity;
     reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html;
     reference:url,research.jfrog.com/post/ironworm-returns-rustier-than-ever/;
@@ -479,8 +484,8 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (
 ### YARA: jscrambler IronWorm CSI Container Detection
 
 Detects the custom CSI binary container format used to package platform-specific IronWorm payloads within the malicious `intro.js` file. Keys on the unique magic header bytes and file size range.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: wrote 7-byte CSI header to pos.txt → matched; wrote "normal javascript content" to neg.txt → no match. Magic bytes 1B 43 53 49 01 are unique to this container format. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Magic bytes 1B 43 53 49 01 are unique to this container format. Note: sample test invalid — rule requires filesize > 1MB so a 7-byte test file cannot match. -->
 ```yara
 rule Supply_Chain_jscrambler_IronWorm_CSI_Container
 {
@@ -553,3 +558,4 @@ rule Supply_Chain_jscrambler_IronWorm_Dropper_JS
 
 ---
 *Report generated by Actioner*
+<!-- revision: v1.1 2026-07-15 — Critic fixes applied: (1) Sigma dropper rule: replaced Image|re with Image|contains+endswith for Splunk/LogScale portability; (2) Snort C2 rules x2 + Suricata C2 rule: alert ip → alert tcp (flow requires TCP); (3) Suricata temp.sh: added endswith; for tighter SNI matching; (4) YARA CSI: removed dishonest "sample: fired" label (filesize > 1MB gate contradicts 7-byte test); (5) ATT&CK: replaced T1204.002 with T1129 (auto-executes, no user action), added eBPF caveat to T1014; (6) Remediation: added --ignore-scripts bypass caveat for Generation 2 variants; (7) Detection Rules intro: merged to ≤3 sentences. -->

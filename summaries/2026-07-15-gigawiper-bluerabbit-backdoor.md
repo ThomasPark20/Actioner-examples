@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-15
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
+<!-- revision: v0.1→v1.0 — (1) Sigma wevtutil rule: renamed from "Bulk Event Log Clearing" to "Event Log Clearing" (title was misleading — rule matches single clears); added GigaWiper-specific log channel names (System, Setup, Application, ForwardedEvents, Security) to narrow beyond any arbitrary wevtutil cl; downgraded confidence high→medium. (2) YARA Golang Backdoor Strings: removed dishonest "sample: fired" label — original test used a fabricated text file containing published strings, not a real malware sample. -->
 
 ## Executive Summary
 
@@ -258,19 +259,20 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: GigaWiper Bulk Event Log Clearing via wevtutil
+### Sigma: GigaWiper Event Log Clearing via wevtutil
 
-Detects bulk clearing of Windows event logs via wevtutil.exe across multiple log channels, consistent with GigaWiper Command 19 anti-forensics.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check skipped (MITRE ATT&CK data URL 403 in this env); splunk convert 0; log_scale convert 0 — portability proven. Requires wevtutil.exe clearing event logs. A single "cl" is common for maintenance; this matches the specific "cl" action. For higher fidelity, correlate multiple clears within a short window (not expressible in a single Sigma rule). FP: legitimate log rotation scripts; scope to non-admin service accounts for production. -->
+Detects wevtutil.exe clearing one of the five specific event log channels targeted by GigaWiper Command 19 (System, Setup, Application, ForwardedEvents, Security). Medium confidence because each invocation clears a single log; correlate multiple clears in a short window for higher fidelity.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check skipped (MITRE ATT&CK data URL 403 in this env); splunk convert 0; log_scale convert 0 — portability proven. REVISION: renamed from "Bulk Event Log Clearing" (misleading — rule matches single clears); added GigaWiper-specific log channel names to narrow beyond any arbitrary wevtutil cl; downgraded from high to medium per critic. FP: legitimate log rotation targeting these specific channels. -->
 ```yaml
-title: GigaWiper Bulk Event Log Clearing via wevtutil
+title: GigaWiper Event Log Clearing via wevtutil
 id: e9c5a3d6-0f4b-4a8c-b213-5d7f9a1c4a06
 status: experimental
 description: >
-    Detects wevtutil.exe clearing event logs, consistent with GigaWiper
-    Command 19 anti-forensics that clears System, Setup, Application,
-    ForwardedEvents, and Security logs.
+    Detects wevtutil.exe clearing one of the five event log channels targeted
+    by GigaWiper Command 19 anti-forensics: System, Setup, Application,
+    ForwardedEvents, and Security. Each invocation clears a single channel;
+    correlate multiple hits in a short window for higher confidence.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
 author: Actioner
@@ -281,14 +283,21 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection:
+    selection_wevtutil:
         Image|endswith: '\wevtutil.exe'
         CommandLine|contains: ' cl '
-    condition: selection
+    selection_logname:
+        CommandLine|contains:
+            - 'System'
+            - 'Setup'
+            - 'Application'
+            - 'ForwardedEvents'
+            - 'Security'
+    condition: selection_wevtutil and selection_logname
 falsepositives:
-    - Legitimate log maintenance or rotation scripts
+    - Legitimate log maintenance or rotation scripts targeting these channels
     - SIEM log collection agents clearing logs after forwarding
-level: high
+level: medium
 ```
 
 ### Sigma: GigaWiper Registry Tracking Key Access
@@ -489,8 +498,8 @@ alert tcp $HOME_NET any -> 212.8.248.104 any (
 ### YARA: GigaWiper Golang Backdoor Strings
 
 Detects GigaWiper binaries via distinctive Go function names, internal strings, and framework references unique to the GRAT/BLUERABBIT tooling.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara fired on positive (pos.txt containing published strings), quiet on negative. Keys on distinctive function names and internal strings from the GRAT framework that are unique to GigaWiper family binaries. No benign Go software uses these function/package names. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Keys on distinctive function names and internal strings from the GRAT framework that are unique to GigaWiper family binaries. No benign Go software uses these function/package names. -->
 ```yara
 rule Malware_GigaWiper_BLUERABBIT_Strings
 {
