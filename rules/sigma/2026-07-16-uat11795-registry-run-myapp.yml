@@ -1,0 +1,24 @@
+title: UAT-11795 Starland RAT - Registry Run Key Persistence via MyApp
+id: 3f8a2b4c-6d7e-9f0a-b1c2-5e4d3a7f8b9c
+status: experimental
+description: >
+    Detects mshta.exe-based persistence via a registry Run key named MyApp,
+    consistent with UAT-11795 HTA persistence mechanism.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1547.001
+    - attack.t1218.005
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\MyApp'
+        Details|contains: 'mshta'
+    condition: selection
+falsepositives:
+    - Legitimate applications using the generic MyApp run key name with mshta
+level: high
