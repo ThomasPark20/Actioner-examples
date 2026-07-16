@@ -1,0 +1,27 @@
+title: TuxBot v3 Outbound Connection to C2 Server on Non-Standard Ports
+id: 4b8e2a15-6f9d-43c7-b5d1-8a0e7c3f2d96
+status: experimental
+description: >
+    Detects outbound network connections to the known TuxBot v3 C2 server
+    (209.182.237.133) on its distinctive non-standard ports (TCP 1999
+    encrypted bot protocol, TCP 31337 alternate bot protocol).
+references:
+    - https://unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1571
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp: '209.182.237.133'
+        DestinationPort:
+            - 1999
+            - 31337
+    condition: selection
+falsepositives:
+    - Unlikely given IOC-specific IP anchor
+level: high

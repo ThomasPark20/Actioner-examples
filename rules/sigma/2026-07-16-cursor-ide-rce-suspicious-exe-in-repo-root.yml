@@ -15,6 +15,7 @@ date: 2026/07/16
 tags:
     - attack.t1204.002
     - attack.t1036.005
+    - attack.t1574.008
 logsource:
     category: process_creation
     product: windows

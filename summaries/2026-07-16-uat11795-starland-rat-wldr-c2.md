@@ -1,9 +1,10 @@
+<!-- revision: v1.1 -- critic REVISE pass. CUT 7 rules: Sigma WLDR Mutex (wrong logsource), Sigma AMSI/ETW Bypass (altitude violation), Snort /feed/ (FP), Snort WLDR Polling (invalid syntax), Snort /starlandfox (invalid syntax), Suricata /feed/ (FP), YARA CastleStealer (loose condition). Fixed MITRE: T1055.001->T1055 (generic process injection), T1041->T1567.004 (Telegram exfil is web service). 11 rules survive: 5 Sigma, 4 Suricata, 2 YARA. -->
 # Technical Analysis Report: UAT-11795 Starland RAT & WLDR C2 Campaign (2026-07-16)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-16
-Version: DRAFT 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -244,7 +245,7 @@ The Starland RAT is delivered as a compiled Python loader disguised as `LICENSE.
 | T1082 | System Information Discovery | systeminfo, hardware UUID, memory capacity enumeration |
 | T1087.002 | Account Discovery: Domain Account | net user /dom, nltest /dclist for AD reconnaissance |
 | T1518.001 | Software Discovery: Security Software | Get-CimInstance AntiVirusProduct query |
-| T1055.001 | Process Injection: Dynamic-link Library Injection | VirtualAllocEx/WriteProcessMemory/CreateRemoteThread injection |
+| T1055 | Process Injection | VirtualAllocEx/WriteProcessMemory/CreateRemoteThread injection |
 | T1055.004 | Process Injection: Asynchronous Procedure Call | APC injection for shellcode execution |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | AMSI bypass (AmsiScanBuffer patch) and ETW bypass (EtwEventWrite patch) |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP/HTTPS C2 communications with Chrome UA mimicry |
@@ -254,7 +255,7 @@ The Starland RAT is delivered as a compiled Python loader disguised as `LICENSE.
 | T1005 | Data from Local System | Credential and cryptocurrency wallet theft |
 | T1115 | Clipboard Data | Clipboard monitoring for cryptocurrency addresses |
 | T1539 | Steal Web Session Cookie | Browser session and credential extraction |
-| T1041 | Exfiltration Over C2 Channel | Stolen data exfiltrated via Telegram bots |
+| T1567.004 | Exfiltration Over Web Service: Exfiltration Over Webhook | Stolen data exfiltrated via Telegram bots |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Starland RAT loader disguised as LICENSE.txt |
 
 ## Impact Assessment
@@ -453,72 +454,9 @@ falsepositives:
 level: high
 ```
 
-### Sigma: WLDR C2 Agent Mutex in Command Line
+<!-- CUT: "Sigma: WLDR C2 Agent Mutex" removed in v1.1 review -- wrong logsource; mutex creation via CreateMutex API will not appear in process_creation CommandLine events. -->
 
-Detects the hardcoded WLDR C2 agent mutex string in process command lines.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Mutex is a 33-char unique string — no benign collision expected. Note: mutex may appear in CreateMutex API call rather than command line; this rule catches it when visible in PowerShell ScriptBlock or command-line logging. -->
-```yaml
-title: UAT-11795 WLDR C2 Agent Mutex Creation
-id: 1a7b3c4d-5e6f-8a9b-d0c1-2e3f4a5b6c7d
-status: experimental
-description: >
-    Detects creation of the mutex f2j398fj239d8j23dkkskskkkkkkkkk associated
-    with the WLDR C2 agent used by UAT-11795.
-references:
-    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
-author: Actioner
-date: 2026/07/16
-tags:
-    - attack.t1106
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        CommandLine|contains: 'f2j398fj239d8j23dkkskskkkkkkkkk'
-    condition: selection
-falsepositives:
-    - None known
-level: critical
-```
-
-### Sigma: AMSI and ETW Bypass via Script Block Logging
-
-Detects PowerShell script blocks referencing AmsiScanBuffer or EtwEventWrite patching, consistent with WLDR evasion.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. AMSI/ETW bypass strings are used by multiple offensive tools (Cobalt Strike, manual red team), not exclusive to WLDR — medium confidence. -->
-```yaml
-title: UAT-11795 WLDR - AMSI and ETW Bypass Indicators
-id: 9b0c1d2e-3f4a-5b6c-7d8e-9f0a1b2c3d4e
-status: experimental
-description: >
-    Detects PowerShell script block content referencing AmsiScanBuffer or
-    EtwEventWrite patching, consistent with WLDR C2 agent evasion techniques.
-references:
-    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
-author: Actioner
-date: 2026/07/16
-tags:
-    - attack.t1562.001
-logsource:
-    category: ps_script
-    product: windows
-detection:
-    selection_amsi:
-        ScriptBlockText|contains|all:
-            - 'AmsiScanBuffer'
-            - 'amsi.dll'
-    selection_etw:
-        ScriptBlockText|contains|all:
-            - 'EtwEventWrite'
-            - 'ntdll'
-    condition: selection_amsi or selection_etw
-falsepositives:
-    - Security research and testing tools
-    - Red team exercises
-level: high
-```
+<!-- CUT: "Sigma: AMSI and ETW Bypass" removed in v1.1 review -- altitude violation; generic behavioral detection (AmsiScanBuffer/EtwEventWrite patching) is not UAT-11795-specific and belongs in a TTP-level ruleset. -->
 
 ### Sigma: DNS Query to Known UAT-11795 C2 Domains
 
@@ -558,41 +496,13 @@ falsepositives:
 level: critical
 ```
 
-### Snort: Starland RAT C2 Beacon to /feed/ Endpoint
+<!-- CUT: "Snort: Starland RAT C2 /feed/" removed in v1.1 review -- unacceptable false-positive rate; /feed/ URI path combined with Chrome UA matches normal web browsing traffic. -->
 
-Detects HTTP traffic to /feed/ with Chrome/138 User-Agent consistent with Starland RAT beaconing.
-**Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: high
-<!-- audit: snort not available in environment; structural check passed (correct service, sticky buffers, semicolons, required fields). -->
-```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon to /feed/ Endpoint"; flow:established,to_server; http_uri; content:"/feed/", fast_pattern; http_header; content:"Chrome/138.0.0.0"; sid:2100001; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/;)
-```
+<!-- CUT: "Snort: WLDR C2 Command Polling" removed in v1.1 review -- invalid Snort syntax; `field host;` is not a valid Snort keyword. -->
 
-### Snort: WLDR C2 Agent Command Polling
+<!-- CUT: "Snort: Shellcode Download /starlandfox" removed in v1.1 review -- invalid Snort syntax; `field host;` is not a valid Snort keyword. -->
 
-Detects HTTP requests to /command on the WLDR C2 domain.
-**Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: high
-<!-- audit: snort not available; structural check passed. Keys on specific C2 domain + path combination. -->
-```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 WLDR C2 Agent Command Polling"; flow:established,to_server; http_uri; content:"/command", fast_pattern; http_header; field host; content:"windowscreenrepairnearme.com"; sid:2100002; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/;)
-```
-
-### Snort: Shellcode Download from /starlandfox
-
-Detects HTTP requests to /starlandfox on the staging domain used to serve CastleStealer shellcode.
-**Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: high
-<!-- audit: snort not available; structural check passed. Highly specific URI path + domain combination. -->
-```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Shellcode Download from /starlandfox"; flow:established,to_server; http_uri; content:"/starlandfox", fast_pattern; http_header; field host; content:"web-devtools.com"; sid:2100003; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/;)
-```
-
-### Suricata: Starland RAT C2 Beacon to /feed/ Endpoint
-
-Detects HTTP traffic to /feed/ with Chrome/138 User-Agent matching Starland RAT beacon pattern.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Combination of /feed/ URI + Chrome/138.0.0.0 UA narrows to campaign traffic. -->
-```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon to /feed/ Endpoint"; flow:established,to_server; http.uri; content:"/feed/"; startswith; http.user_agent; content:"Chrome/138.0.0.0"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-16; sid:2200001; rev:1;)
-```
+<!-- CUT: "Suricata: Starland RAT C2 /feed/" removed in v1.1 review -- unacceptable false-positive rate; /feed/ URI path combined with Chrome UA matches normal web browsing traffic. -->
 
 ### Suricata: WLDR C2 Agent Command Polling
 
@@ -697,33 +607,7 @@ rule Malware_WLDR_C2_Agent
 }
 ```
 
-### YARA: CastleStealer Strings
-
-Detects CastleStealer .NET infostealer via Telegram bot identifiers and sandbox detection strings.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara fired on positive (published strings: skuefq_bot, komandastuk_bot, WDAGUtilityAccount, Chrome/138.0.0.0); quiet on negative. Hash 896185a89bd7eb0520b03fdcfb8db0be98b43cf15f14041d73b23d3988c1bcab. -->
-```yara
-rule Malware_CastleStealer_Strings
-{
-    meta:
-        description = "Detects CastleStealer .NET infostealer via characteristic Russian language artifacts and crypto wallet targeting"
-        author = "Actioner"
-        date = "2026-07-16"
-        reference = "https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/"
-        hash = "896185a89bd7eb0520b03fdcfb8db0be98b43cf15f14041d73b23d3988c1bcab"
-        severity = "high"
-
-    strings:
-        $tg_bot1 = "skuefq_bot" ascii wide
-        $tg_bot2 = "komandastuk_bot" ascii wide
-        $tg_channel = "stuk komanda" ascii wide
-        $sandbox1 = "WDAGUtilityAccount" ascii wide nocase
-        $ua = "Chrome/138.0.0.0" ascii wide
-
-    condition:
-        2 of them
-}
-```
+<!-- CUT: "YARA: CastleStealer Strings" removed in v1.1 review -- condition `2 of them` is too loose; generic strings like "WDAGUtilityAccount" and "Chrome/138.0.0.0" alone could match non-malicious binaries. -->
 
 ## Lessons Learned
 

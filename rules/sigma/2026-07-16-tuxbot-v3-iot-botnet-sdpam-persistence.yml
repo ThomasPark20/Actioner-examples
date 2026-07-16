@@ -1,0 +1,26 @@
+title: TuxBot v3 Systemd Persistence via sd-pam Service
+id: 7c3a91f2-8d4e-4b6a-a1c5-9e2f0d7b3c8a
+status: experimental
+description: >
+    Detects creation of the sd-pam.service systemd unit used by TuxBot v3 for
+    persistence. The botnet disguises its service as the legitimate sd-pam
+    PAM session helper to evade casual inspection.
+references:
+    - https://unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/sd-pam.service'
+        TargetFilename|contains:
+            - '/systemd/system/'
+            - '/systemd/user/'
+    condition: selection
+falsepositives:
+    - Legitimate sd-pam PAM helper service on some distributions (verify binary path in unit file)
+level: high

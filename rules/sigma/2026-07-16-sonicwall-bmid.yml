@@ -1,0 +1,24 @@
+title: SonicWall SMA1000 wsproxy Request with Known Exploit bmID Pattern
+id: 5a7c9e1b-3d4f-6a8c-2e0b-7f1d3c5a9b2e
+status: experimental
+description: >
+    Detects HTTP requests to the SonicWall SMA1000 /wsproxy endpoint containing
+    the bmID=-3389 parameter pattern used in the published CVE-2026-15409 PoC
+    exploit. This is a high-fidelity indicator of active exploitation attempts.
+references:
+    - https://www.rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/
+    - https://github.com/remmons-r7/rapid7-CVE-2026-15409
+author: Actioner
+date: 2026-07-16
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/wsproxy'
+        cs-uri-query|contains: 'bmID=-3389'
+    condition: selection
+falsepositives:
+    - None expected; this bmID pattern is specific to the published exploit
+level: critical

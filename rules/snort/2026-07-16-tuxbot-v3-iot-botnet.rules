@@ -1,0 +1,10 @@
+# TuxBot v3 IoT Botnet - Snort Rules
+# Reference: https://unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/
+# Author: Actioner
+# Date: 2026-07-16
+
+# C2 Handshake Magic 0xDEADBE01 on known C2 ports
+alert tcp $HOME_NET any -> $EXTERNAL_NET [1999,31337] (msg:"Actioner - TuxBot v3 C2 Handshake Magic 0xDEADBE01"; flow:established, to_server; content:"|DE AD BE 01|", offset 0, depth 4; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created 2026-07-16; sid:2100001; rev:1;)
+
+# SSH C2 Banner SSH-2.0-CNC (direction: external C2 to internal bot)
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - TuxBot v3 SSH C2 Banner SSH-2.0-CNC"; flow:established, to_client; content:"SSH-2.0-CNC"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created 2026-07-16; sid:2100002; rev:2;)

@@ -1,0 +1,24 @@
+title: UAT-11795 Starland RAT - Pythonw Executing LICENSE.txt Loader
+id: 2d9e4f1b-7a3c-5e8d-b2f1-4a6c8d7e9f0b
+status: experimental
+description: >
+    Detects pythonw.exe executing a file named LICENSE.txt, consistent with
+    Starland RAT's compiled Python loader disguised as a license file.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1059.006
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\pythonw.exe'
+        CommandLine|endswith: 'LICENSE.txt'
+    condition: selection
+falsepositives:
+    - Legitimate Python applications using LICENSE.txt as an argument is extremely uncommon
+level: high

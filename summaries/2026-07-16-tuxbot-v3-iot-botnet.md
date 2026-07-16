@@ -3,7 +3,16 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-16
-Version: DRAFT 1.0
+Version: 1.0 (revised 2026-07-16)
+
+> **Revision note (v1.0):** Post-review pass applied. Three rules cut (Sigma Shell
+> Profile Persistence -- no TuxBot-specific indicators; Suricata DGA Domain
+> Pattern -- content pre-filter `.cc` blocked 5/6 TLDs; Suricata P2P Gossip
+> Port 13337 -- port-only altitude violation). Two rules fixed (Sigma C2 Ports:
+> MITRE T1071 corrected to T1571, anchored to C2 IP 209.182.237.133; Snort SSH
+> Banner: direction corrected to $EXTERNAL_NET -> $HOME_NET, port-agnostic).
+> MITRE table: T1592 corrected to T1497.001, T1106 row removed. Seven surviving
+> rules retained. Standalone rule files written.
 
 ## Executive Summary
 
@@ -217,9 +226,8 @@ The string table uses XOR encryption with intended key `0xDEDEFB4F` (bytes: `0x4
 | T1071 | Application Layer Protocol | DNS TXT fallback, IRC, HTTP polling (partially broken) |
 | T1095 | Non-Application Layer Protocol | Raw TCP encrypted protocol with custom magic bytes |
 | T1498 | Network Denial of Service | 78 DDoS attack vectors across 6 handler functions |
-| T1592 | Gather Victim Host Information | Anti-VM scoring, hardware/environment fingerprinting |
+| T1497.001 | Virtualization/Sandbox Evasion: System Checks | Anti-VM scoring, hardware/environment fingerprinting |
 | T1105 | Ingress Tool Transfer | HTTP dropper downloads architecture-specific binaries |
-| T1106 | Native API | sendmmsg() for optimized packet flooding |
 | T1090.003 | Proxy: Multi-hop Proxy | P2P gossip mesh for C2 resilience |
 
 ## Impact Assessment
@@ -256,7 +264,7 @@ netstat -tlnp | grep -E ':(1999|31337|13337)\b'
 
 ## Detection Rules
 
-These detections target TuxBot v3 binaries (YARA), host persistence artifacts (Sigma), and C2 network traffic patterns (Suricata, Snort). PoC/advisory-specific altitude; all rules key on distinctive artifacts from the Unit 42 analysis. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+Seven detections target TuxBot v3 binaries (YARA), host persistence artifacts (Sigma), and C2 network traffic patterns (Suricata, Snort). Three rules were cut during review for altitude violations, false-positive risk, or logic bugs (see revision note). PoC/advisory-specific altitude; all surviving rules key on distinctive artifacts from the Unit 42 analysis. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: TuxBot v3 Systemd Persistence via sd-pam Service
 Detects creation of the `sd-pam.service` systemd unit file used by TuxBot v3 for persistence, disguised as the legitimate PAM session helper.
@@ -291,103 +299,41 @@ falsepositives:
 level: high
 ```
 
-### Sigma: TuxBot v3 Outbound Connection to Known C2 Ports
-Detects outbound connections to the distinctive C2 port combination (TCP 1999, 31337, 13337) used by TuxBot v3.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (MITRE ATT&CK data 403 — proxy). sigma convert --without-pipeline splunk 0, log_scale 0. Port 31337 is a known "elite" port used by multiple malware families and some legitimate tools; 1999 and 13337 less common but not unique. Filter excludes RFC1918/loopback. Medium confidence due to port overlap risk. -->
+### Sigma: TuxBot v3 Outbound Connection to C2 Server on Non-Standard Ports
+Detects outbound connections to the known TuxBot v3 C2 IP `209.182.237.133` on its distinctive ports (TCP 1999, 31337).
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check failed (MITRE ATT&CK data 403 — proxy). sigma convert --without-pipeline splunk 0, log_scale 0. REVISED per critic: MITRE tag corrected T1071→T1571 (non-standard port, not application layer protocol). Added C2 IP 209.182.237.133 to raise specificity from generic port hunt to IOC-anchored detection. Removed port 13337 (P2P Gossip rule was cut). Confidence raised to high with IP anchor. -->
 ```yaml
-title: TuxBot v3 Outbound Connection to Known C2 Ports
+title: TuxBot v3 Outbound Connection to C2 Server on Non-Standard Ports
 id: 4b8e2a15-6f9d-43c7-b5d1-8a0e7c3f2d96
 status: experimental
 description: >
-    Detects outbound network connections to the distinctive port combination
-    used by TuxBot v3 C2 infrastructure (TCP 1999 encrypted bot protocol,
-    TCP 31337 alternate bot protocol, TCP 13337 P2P gossip).
+    Detects outbound network connections to the known TuxBot v3 C2 server
+    (209.182.237.133) on its distinctive non-standard ports (TCP 1999
+    encrypted bot protocol, TCP 31337 alternate bot protocol).
 references:
     - https://unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/
 author: Actioner
 date: 2026/07/16
 tags:
-    - attack.t1071
+    - attack.t1571
 logsource:
     category: network_connection
     product: linux
 detection:
     selection:
         Initiated: 'true'
+        DestinationIp: '209.182.237.133'
         DestinationPort:
             - 1999
             - 31337
-            - 13337
-    filter_internal:
-        DestinationIp|startswith:
-            - '10.'
-            - '172.16.'
-            - '172.17.'
-            - '172.18.'
-            - '172.19.'
-            - '172.20.'
-            - '172.21.'
-            - '172.22.'
-            - '172.23.'
-            - '172.24.'
-            - '172.25.'
-            - '172.26.'
-            - '172.27.'
-            - '172.28.'
-            - '172.29.'
-            - '172.30.'
-            - '172.31.'
-            - '192.168.'
-            - '127.'
-    condition: selection and not filter_internal
+    condition: selection
 falsepositives:
-    - Port 31337 used by some legitimate applications and games
-    - Custom applications using non-standard ports
-level: medium
+    - Unlikely given IOC-specific IP anchor
+level: high
 ```
 
-### Sigma: TuxBot v3 Shell Profile Persistence Injection
-Detects modification of shell profile files (.bashrc, .profile, .zshrc) as used by TuxBot v3 for login-triggered persistence.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (MITRE ATT&CK data 403 — proxy). sigma convert --without-pipeline splunk 0, log_scale 0. Shell profile modification is a known persistence technique used by many threat families — not unique to TuxBot. Filter excludes package managers. Medium confidence: correct behavior but not distinctive enough for high. -->
-```yaml
-title: TuxBot v3 Shell Profile Persistence Injection
-id: 9f1e3b7a-5c2d-48a6-b0d4-6e8a1f5c9d27
-status: experimental
-description: >
-    Detects modification of shell profile files (.bashrc, .profile, .zshrc)
-    used by TuxBot v3 as one of its seven persistence mechanisms. The botnet
-    injects commands into these files to re-execute on user login.
-references:
-    - https://unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/
-author: Actioner
-date: 2026/07/16
-tags:
-    - attack.t1546.004
-logsource:
-    category: file_change
-    product: linux
-detection:
-    selection:
-        TargetFilename|endswith:
-            - '/.bashrc'
-            - '/.profile'
-            - '/.zshrc'
-    filter_package_manager:
-        Image|endswith:
-            - '/dpkg'
-            - '/rpm'
-            - '/apt'
-            - '/yum'
-            - '/dnf'
-    condition: selection and not filter_package_manager
-falsepositives:
-    - User customization of shell profiles
-    - System configuration management tools (Ansible, Puppet, Chef)
-    - IDE or development tool initialization
-level: medium
-```
+<!-- CUT: Sigma Shell Profile Persistence — removed per review: zero TuxBot-specific indicators, unacceptable FP rate, altitude violation. Shell profile modification is a generic technique used by many threat families. -->
 
 ### Snort: TuxBot v3 C2 Handshake Magic 0xDEADBE01
 Detects the 4-byte handshake magic `0xDEADBE01` at the start of TCP connections to TuxBot v3 C2 ports (1999, 31337).
@@ -398,11 +344,11 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET [1999,31337] (msg:"Actioner - TuxBot v3
 ```
 
 ### Snort: TuxBot v3 SSH C2 Banner SSH-2.0-CNC
-Detects the distinctive SSH banner `SSH-2.0-CNC` used by the TuxBot v3 C2 server.
+Detects the distinctive SSH banner `SSH-2.0-CNC` sent by the TuxBot v3 C2 server to an internal bot.
 **Status:** compile ⚠️ uncompiled (structural check only -- snort binary not installed) · confidence: high
-<!-- audit: snort not installed; structural check: protocol tcp, flow established to_client, content match for SSH banner, required fields present. SSH-2.0-CNC is a highly distinctive banner not used by legitimate SSH servers. -->
+<!-- audit: snort not installed; structural check: protocol tcp, flow established to_client, content match for SSH banner, required fields present. REVISED per critic: direction fixed from "any any -> $HOME_NET 2222" to "$EXTERNAL_NET any -> $HOME_NET any" — banner flows from external C2 to internal bot; port-agnostic to catch non-2222 deployments. SSH-2.0-CNC is a highly distinctive banner not used by legitimate SSH servers. -->
 ```snort
-alert tcp any any -> $HOME_NET 2222 (msg:"Actioner - TuxBot v3 SSH C2 Banner SSH-2.0-CNC"; flow:established, to_client; content:"SSH-2.0-CNC"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created 2026-07-16; sid:2100002; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - TuxBot v3 SSH C2 Banner SSH-2.0-CNC"; flow:established, to_client; content:"SSH-2.0-CNC"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created 2026-07-16; sid:2100002; rev:2;)
 ```
 
 ### Suricata: TuxBot v3 C2 Handshake Magic 0xDEADBE01
@@ -421,21 +367,9 @@ Detects the distinctive SSH banner `SSH-2.0-CNC` sent by TuxBot v3 C2 servers du
 alert ssh any any -> $HOME_NET any (msg:"Actioner - TuxBot v3 SSH C2 Banner SSH-2.0-CNC"; flow:to_client; content:"SSH-2.0-CNC"; startswith; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created_at 2026-07-16; sid:2200002; rev:1;)
 ```
 
-### Suricata: TuxBot v3 DGA Domain Pattern in DNS Query
-Detects DNS queries matching the TuxBot v3 DGA pattern (12 lowercase alpha characters followed by one of six TLDs).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. DGA pattern (12 a-z chars + 6 TLDs) is moderately distinctive but could match some legitimate short domains. The PCRE anchors reduce FPs. Medium confidence: pattern-based, not IOC-exact. -->
-```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - TuxBot v3 DNS TXT Query to DGA Domain Pattern"; flow:to_server; dns.query; content:".cc"; endswith; pcre:"/^[a-z]{12}\.(com|net|org|info|biz|cc)$/"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created_at 2026-07-16; sid:2200003; rev:1;)
-```
+<!-- CUT: Suricata DGA Domain Pattern — removed per review: logic bug in content pre-filter ".cc" blocks 5/6 TLD variants (83% miss rate). The content keyword requires ".cc" at the end before the PCRE fires, so domains ending in .com/.net/.org/.info/.biz never match. -->
 
-### Suricata: TuxBot v3 P2P Gossip Port 13337 Outbound
-Detects outbound TCP connections to port 13337 used by TuxBot v3 P2P gossip protocol.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Port 13337 is uncommon but not unique to TuxBot. Medium confidence; best used as a hunt lead in combination with other indicators. -->
-```suricata
-alert tcp $HOME_NET any -> $EXTERNAL_NET 13337 (msg:"Actioner - TuxBot v3 P2P Gossip Port 13337 Outbound"; flow:established,to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/tuxbot-v3-evolution-iot-botnet/; metadata:author Actioner, created_at 2026-07-16; sid:2200004; rev:1;)
-```
+<!-- CUT: Suricata P2P Gossip Port 13337 — removed per review: port-only rule with no content match is an altitude violation. Port 13337 is not distinctive enough without payload inspection. -->
 
 ### YARA: TuxBot v3 ELF Binary Detection
 Detects TuxBot v3 IoT botnet ELF binaries via distinctive embedded strings including the LLM-generated safety disclaimer, "Infected By Akiru" banner, busybox probe, and DGA seed. Scope to ELF file scanning pipelines; not a network rule.

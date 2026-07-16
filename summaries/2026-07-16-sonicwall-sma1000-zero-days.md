@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-16
-Version: DRAFT 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -125,9 +125,9 @@ Observed post-compromise activities (Rapid7):
 | T1090 | Proxy | WebSocket proxy abuse to tunnel connections to localhost-only services through the appliance |
 | T1068 | Exploitation for Privilege Escalation | Path traversal in hotfix rollback workflow to execute scripts as root (CVE-2026-15410) |
 | T1059.004 | Unix Shell | Arbitrary shell script execution via `/bin/bash` through the hotfix rollback mechanism |
-| T1003 | OS Credential Dumping | Extraction of credentials from session databases (`/tmp/temp.db*`) |
-| T1556 | Modify Authentication Process | Theft of TOTP MFA seed configurations to bypass multi-factor authentication |
-| T1021.002 | SMB/Windows Admin Shares | NTLM lateral movement from compromised appliance to domain controllers |
+| T1005 | Data from Local System | Extraction of credentials from web-application session databases (`/tmp/temp.db*`) on the appliance filesystem |
+| T1111 | Multi-Factor Authentication Interception | Theft of TOTP MFA seed configurations, enabling future authentication bypass without the physical token |
+| T1021 | Remote Services | NTLM lateral movement via LDAP service accounts from compromised appliance to domain controllers |
 | T1078 | Valid Accounts | Use of harvested LDAP service account credentials for lateral movement |
 
 ## Impact Assessment
@@ -179,7 +179,7 @@ On domain controllers, search for anomalous logons from the SMA appliance IP:
 
 ## Detection Rules
 
-These detections target the specific exploitation artifacts from the CVE-2026-15409/CVE-2026-15410 attack chain. PoC/advisory-specific altitude (default); the Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Suricata rules compile on Suricata 7.0.3. Compiles does not equal fires -- verify against your log pipeline before production deployment.
+These detections target the specific exploitation artifacts from the CVE-2026-15409/CVE-2026-15410 attack chain. PoC/advisory-specific altitude (default); the Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Suricata rules compile on Suricata 7.0.3 (SIDs 9200001-9200005, custom range to avoid Emerging Threats reserved range collision). Compiles does not equal fires -- verify against your log pipeline before production deployment.
 
 ### Sigma: SonicWall SMA1000 CVE-2026-15409 SSRF via wsproxy Endpoint
 
@@ -225,9 +225,9 @@ level: critical
 
 ### Sigma: SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal
 
-Detects POST requests to `/rollbackConfirm.action` with path traversal sequences in the request body, indicating privilege escalation exploitation.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (environment proxy issue); splunk convert exit 0; log_scale convert exit 0. cs-body field requires the web log source to capture POST body content, which is not default in all configurations — note in deployment. -->
+Detects POST requests to `/rollbackConfirm.action` with path traversal sequences in the request body. Requires `cs-body` (HTTP POST body) to be logged -- most web server/proxy configurations do not capture this field by default; verify your pipeline populates it before deploying.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (MITRE ATT&CK data download blocked by environment proxy, not a rule issue); splunk convert exit 0; log_scale convert exit 0. Confidence downgraded from high to medium: cs-body is a non-standard webserver log field; most configurations (IIS, Apache, nginx) do not log POST body content by default. The rule is structurally valid and converts cleanly, but will be inert unless the log pipeline is specifically configured to capture request bodies. -->
 
 ```yaml
 title: SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal
@@ -238,6 +238,10 @@ description: >
     /rollbackConfirm.action endpoint on SonicWall SMA1000 AMC (port 8443) with
     path traversal sequences in the hotfix parameter. Attackers use this to
     execute arbitrary scripts as root after chaining with CVE-2026-15409.
+    NOTE: This rule uses cs-body to match POST body content; the log source must
+    capture HTTP request bodies, which is not default in most web server
+    configurations. Verify your logging pipeline populates this field before
+    deploying.
 references:
     - https://www.rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/
     - https://www.sonicwall.com/support/notices/product-notice-sma-1000-series-affected-by-multiple-vulnerabilities/kA1VN000001nv6D0AQ
@@ -258,6 +262,7 @@ detection:
     condition: selection_uri and selection_method and selection_traversal
 falsepositives:
     - Legitimate hotfix rollback operations do not contain path traversal sequences
+    - This rule depends on cs-body (HTTP request body) being logged; if your web server or proxy does not capture POST bodies, this rule will not fire
 level: critical
 ```
 
@@ -296,52 +301,52 @@ level: critical
 
 ### Suricata: SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy to Erlang (port 1050)
 
-Detects HTTP GET requests to `/wsproxy` tunneling to localhost:1050 (Erlang process), the primary CVE-2026-15409 exploitation target.
+Detects HTTP GET requests to `/wsproxy` with `host=0.0.0.0` tunneling to port 1050 (Erlang process), the primary CVE-2026-15409 exploitation target.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Warnings about duplicate http.uri instances are cosmetic (multiple content matches against same buffer); rule loads and functions correctly. -->
+<!-- audit: suricata -T exit 0. Warnings about duplicate http.uri instances are cosmetic (multiple content matches against same buffer); rule loads and functions correctly. SIDs renumbered from 2200001-2200005 to 9200001-9200005 to avoid Emerging Threats reserved range (2200000-2299999). msg narrowed to reflect actual host=0.0.0.0 coverage (not all loopback variants). rev bumped to 2. -->
 
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy to Localhost"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"host=0.0.0.0"; http.uri; content:"port=1050"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:2200001; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy host=0.0.0.0 to Erlang port 1050"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"host=0.0.0.0"; http.uri; content:"port=1050"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:9200001; rev:2;)
 ```
 
 ### Suricata: SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy to ctrl-service (port 8188)
 
-Detects HTTP GET requests to `/wsproxy` tunneling to localhost:8188 (ctrl-service), used for privilege escalation chaining.
+Detects HTTP GET requests to `/wsproxy` with `host=0.0.0.0` tunneling to port 8188 (ctrl-service), used for privilege escalation chaining.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Same duplicate http.uri warnings as sid:2200001. -->
+<!-- audit: suricata -T exit 0. Same duplicate http.uri warnings as sid:9200001 (cosmetic). -->
 
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy to ctrl-service"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"host=0.0.0.0"; http.uri; content:"port=8188"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:2200002; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 SSRF wsproxy host=0.0.0.0 to ctrl-service port 8188"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"host=0.0.0.0"; http.uri; content:"port=8188"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:9200002; rev:2;)
 ```
 
 ### Suricata: SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal
 
 Detects HTTP POST to `/rollbackConfirm.action` with path traversal in the `hotfix` parameter for root-level code execution.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Requires HTTP request body inspection; ensure http.request_body is enabled in suricata.yaml. -->
+<!-- audit: suricata -T exit 0. Requires HTTP request body inspection; ensure http.request_body is enabled in suricata.yaml. SID renumbered from 2200003 to 9200003. rev:2. -->
 
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/rollbackConfirm.action"; fast_pattern; http.request_body; content:"hotfix="; content:"../"; distance:0; classtype:web-application-attack; reference:cve,2026-15410; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:2200003; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/rollbackConfirm.action"; fast_pattern; http.request_body; content:"hotfix="; content:"../"; distance:0; classtype:web-application-attack; reference:cve,2026-15410; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; metadata:author Actioner, created_at 2026-07-16; sid:9200003; rev:2;)
 ```
 
 ### Suricata: SonicWall SMA1000 CVE-2026-15409 PoC bmID Exploit Pattern
 
 Detects the distinctive `bmID=-3389` PoC exploit parameter in `/wsproxy` requests at the network level.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Duplicate http.uri warning (cosmetic). -->
+<!-- audit: suricata -T exit 0. Duplicate http.uri warning (cosmetic). SID renumbered from 2200004 to 9200004. rev:2. -->
 
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 PoC bmID Exploit Pattern"; flow:established,to_server; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"bmID=-3389"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,github.com/remmons-r7/rapid7-CVE-2026-15409; metadata:author Actioner, created_at 2026-07-16; sid:2200004; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 CVE-2026-15409 PoC bmID Exploit Pattern"; flow:established,to_server; http.uri; content:"/wsproxy"; fast_pattern; http.uri; content:"bmID=-3389"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,github.com/remmons-r7/rapid7-CVE-2026-15409; metadata:author Actioner, created_at 2026-07-16; sid:9200004; rev:2;)
 ```
 
 ### Suricata: SonicWall SMA1000 Exploit User-Agent "SMA Connect Agent"
 
-Detects the PoC exploit's `SMA Connect Agent` User-Agent string in requests to `/wsproxy`.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. High confidence: "SMA Connect Agent" is the PoC's distinctive UA string combined with /wsproxy URI. Attackers may change this, but default PoC usage will fire. -->
+Detects the PoC exploit's `SMA Connect Agent` User-Agent string in requests to `/wsproxy`. Note: legitimate SonicWall client software may use a similar User-Agent string; tune or pair with other indicators if false positives occur.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: suricata -T exit 0. Confidence downgraded from high to medium: "SMA Connect Agent" may be used by legitimate SonicWall client software (SMA Connect client), creating false-positive risk in environments with active SMA1000 usage. The PoC uses this UA by default, but attackers can trivially change it. Combined with /wsproxy URI for specificity, but FP risk from legitimate client traffic warrants medium. SID renumbered from 2200005 to 9200005. rev:2. -->
 
 ```suricata
-alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 Exploit User-Agent SMA Connect Agent"; flow:established,to_server; http.user_agent; content:"SMA Connect Agent"; fast_pattern; http.uri; content:"/wsproxy"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,github.com/remmons-r7/rapid7-CVE-2026-15409; metadata:author Actioner, created_at 2026-07-16; sid:2200005; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 Exploit User-Agent SMA Connect Agent"; flow:established,to_server; http.user_agent; content:"SMA Connect Agent"; fast_pattern; http.uri; content:"/wsproxy"; classtype:web-application-attack; reference:cve,2026-15409; reference:url,github.com/remmons-r7/rapid7-CVE-2026-15409; metadata:author Actioner, created_at 2026-07-16; sid:9200005; rev:2;)
 ```
 
 ### Snort: N/A

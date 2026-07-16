@@ -1,9 +1,10 @@
+<!-- revision: v1.1 (2026-07-16) — Applied critic NEEDS-REVISION fixes: (1) Sigma Node.js Spawning: removed 'const _0x5af5e1' from CommandLine|contains (JS source content, not CLI arg); (2) Snort: fixed comma→semicolon syntax between content options, removed space in flow value, downgraded confidence high→medium (uncompiled); (3) YARA Miasma_Loader: changed `any of ($key*)` to `$key1` to prevent FP from generic "rt-file-key" alone; (4) YARA: renamed Miasma_Payload_Hashes→Miasma_Payload_Strings (string-based detection, not hash-based); (5) Removed MITRE T1552.007 (Container API) row — Docker/K8s cred files already covered by T1552.001; (6) Defanged IP in remediation prose; (7) BleepingComputer source labeled "(unverified; HTTP 403 at time of analysis)". -->
 # Technical Analysis Report: AsyncAPI npm Supply Chain Compromise (2026-07-16)
 
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-16
-Version: DRAFT 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -251,8 +252,7 @@ Though flagged as disabled, the malware contained complete modules targeting:
 | T1027 | Obfuscated Files or Information | Three-layer encryption (HKDF + AES-256-GCM + ROT-94de) and heavy JS obfuscation |
 | T1036.005 | Match Legitimate Name or Location | Payload dropped in `NodeJS/` directory masquerading as legitimate Node.js |
 | T1564.001 | Hidden Artifacts | Detached processes with ignored stdio, hidden windows |
-| T1552.001 | Credentials In Files | Targeting of `.npmrc`, `.aws/credentials`, SSH keys, kubeconfig, etc. |
-| T1552.007 | Container API | Targeting of Docker and Kubernetes credential files |
+| T1552.001 | Credentials In Files | Targeting of `.npmrc`, `.aws/credentials`, SSH keys, kubeconfig, Docker config, etc. |
 | T1555 | Credentials from Password Stores | Browser password harvesting module (disabled) |
 | T1041 | Exfiltration Over C2 Channel | Data upload via port 8081 to C2 IP |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-256-GCM encrypted C2 communications |
@@ -303,7 +303,7 @@ grep -rn '"@asyncapi/generator": "3.3.1"' package-lock.json yarn.lock 2>/dev/nul
 
 ### Remediation
 
-1. **Containment**: Block outbound connections to `85.137.53.71` on ports 8080, 8081, 8091 at the network perimeter
+1. **Containment**: Block outbound connections to `85.137.53[.]71` on ports 8080, 8081, 8091 at the network perimeter
 2. **Containment**: Block public IPFS gateways (`ipfs.io`, `dweb.link`, `cloudflare-ipfs.com`) if IPFS is not a business requirement
 3. **Eradication**: Remove `sync.js` from all NodeJS masquerade directories and delete `~/.config/.miasma/`
 4. **Eradication**: Remove persistence artifacts -- Windows Run key, Linux systemd service, macOS shell RC injections
@@ -429,17 +429,17 @@ level: critical
 
 ### Sigma: Node.js Spawning Miasma Payload
 
-Detects Node.js process execution with command-line references to the Miasma payload path or the distinctive obfuscated loader variable `_0x5af5e1`.
+Detects Node.js process execution with command-line references to the Miasma payload sync.js in NodeJS masquerade directories.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Anchors on node binary + distinctive cmd args. _0x5af5e1 is a source-published obfuscation variable name. FP: near-zero for the path match; the obfuscation variable could theoretically appear in other obfuscated JS but is distinctive enough. -->
+<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Anchors on node binary + distinctive cmd path args. Removed _0x5af5e1 from CommandLine|contains (it is JS source content, not a CLI argument passed to node). FP: near-zero for the path match. -->
 ```yaml
 title: AsyncAPI Supply Chain - Node.js Spawning Miasma Payload
 id: 5f4a3d2c-6b8e-4c1f-d9a0-4e1b2c3d5f7a
 status: experimental
 description: >
     Detects Node.js process execution with command-line references to the Miasma
-    payload sync.js in NodeJS masquerade directories, or the distinctive
-    obfuscated loader pattern observed in the AsyncAPI supply chain compromise.
+    payload sync.js in NodeJS masquerade directories used by the AsyncAPI supply
+    chain compromise.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
 author: Actioner
@@ -458,7 +458,6 @@ detection:
         CommandLine|contains:
             - 'NodeJS\sync.js'
             - 'NodeJS/sync.js'
-            - 'const _0x5af5e1'
     condition: selection_binary and selection_payload
 falsepositives:
     - Unlikely - the combination of node executing sync.js from a NodeJS masquerade path is highly specific
@@ -479,19 +478,19 @@ alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma Fi
 ### Snort: Miasma C2 Beacon and File Upload
 
 Detects HTTP connections to the known Miasma C2 IP targeting the `/api/v1/beacon` and `/api/v1/file-result` endpoints.
-**Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: high
-<!-- audit: snort binary not available; structural check passed (underscore sticky buffers, semicolons, flow, sid/rev/classtype present, http protocol with http_uri buffer). -->
+**Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: medium
+<!-- audit: snort binary not available; structural check passed. REVISION: fixed comma→semicolon between content options (Snort 3 requires semicolons); fixed flow spacing (no space after comma); downgraded confidence high→medium (uncompiled). -->
 ```snort
-alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 Beacon to Known IP"; flow:established, to_server; http_uri; content:"/api/v1/beacon", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-16; sid:2100001; rev:1;)
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 Beacon to Known IP"; flow:established,to_server; http_uri; content:"/api/v1/beacon"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-16; sid:2100001; rev:1;)
 
-alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma File Upload to Known IP"; flow:established, to_server; http_uri; content:"/api/v1/file-result", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-16; sid:2100002; rev:1;)
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma File Upload to Known IP"; flow:established,to_server; http_uri; content:"/api/v1/file-result"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-16; sid:2100002; rev:1;)
 ```
 
 ### YARA: Miasma Loader Strings
 
 Detects the Miasma malware loader by matching distinctive encryption key material (`rt-vault-master-key-32b-aaaaaaaa`), campaign identifiers (`miasma-train-p1`, `miasma-test-org`), IPFS CIDs, and payload path patterns.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos.txt fired SupplyChain_AsyncAPI_Miasma_Loader (matched $key1, $campaign1, $campaign2, $ipfs1). yara neg.txt silent. Positive constructed from source-published strings (HKDF master key, campaign names, IPFS CID). FP: near-zero -- HKDF master key string is 32 chars and campaign-specific. -->
+<!-- audit: yarac exit 0. yara pos.txt fired SupplyChain_AsyncAPI_Miasma_Loader (matched $key1, $campaign1, $campaign2, $ipfs1). yara neg.txt silent. Positive constructed from source-published strings (HKDF master key, campaign names, IPFS CID). FP: near-zero -- HKDF master key string is 32 chars and campaign-specific. REVISION: changed `any of ($key*)` to `$key1` to avoid FP from generic "rt-file-key" ($key2) matching alone. -->
 ```yara
 rule SupplyChain_AsyncAPI_Miasma_Loader
 {
@@ -504,7 +503,6 @@ rule SupplyChain_AsyncAPI_Miasma_Loader
 
     strings:
         $key1 = "rt-vault-master-key-32b-aaaaaaaa" ascii
-        $key2 = "rt-file-key" ascii
         $campaign1 = "miasma-train-p1" ascii
         $campaign2 = "miasma-test-org" ascii
         $campaign3 = "M-RED-TEAM" ascii
@@ -517,7 +515,7 @@ rule SupplyChain_AsyncAPI_Miasma_Loader
 
     condition:
         filesize < 10MB and (
-            any of ($key*) or
+            $key1 or
             2 of ($campaign*) or
             any of ($ipfs*) or
             ($obf and any of ($path*)) or
@@ -525,10 +523,10 @@ rule SupplyChain_AsyncAPI_Miasma_Loader
         )
 }
 
-rule SupplyChain_AsyncAPI_Miasma_Payload_Hashes
+rule SupplyChain_AsyncAPI_Miasma_Payload_Strings
 {
     meta:
-        description = "Detects known SHA256 injected file content from the AsyncAPI npm supply chain compromise by matching distinctive loader strings"
+        description = "Detects Miasma payload files from the AsyncAPI npm supply chain compromise by matching distinctive loader strings (mDNS service name, persistence identifier, encryption key prefix)"
         author = "Actioner"
         date = "2026-07-16"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/"
@@ -589,7 +587,7 @@ Microsoft has published the following detection names for this threat:
 - [Microsoft Threat Intelligence](https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/) -- Primary technical analysis with full attack chain, IOCs, MITRE mappings, and remediation guidance
 - [Hackread / Upwind Research](https://hackread.com/upwind-supply-chain-compromise-asyncapi-npm-packages/) -- Limited additional context; references OX Security disclosure and Miasma string analysis
 - [Security Affairs](https://securityaffairs.com/195395/security/asyncapi-npm-supply-chain-attack-malware-injected-into-packages-with-2-million-weekly-downloads.html) -- Supplementary details including Ethereum contract address, BitTorrent DHT bootstrap nodes, and 2M+ weekly download impact figure
-- [BleepingComputer](https://www.bleepingcomputer.com/news/security/-asyncapi-npm-packages-infected-with-credential-stealing-malware/) -- Source returned HTTP 403; could not be verified at time of analysis
+- [BleepingComputer](https://www.bleepingcomputer.com/news/security/-asyncapi-npm-packages-infected-with-credential-stealing-malware/) -- (unverified; HTTP 403 at time of analysis)
 
 ---
 *Report generated by Actioner*

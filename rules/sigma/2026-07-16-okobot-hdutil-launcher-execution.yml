@@ -1,0 +1,25 @@
+title: OkoBot HDUtil Launcher Execution from ProgramData
+id: 8a3f1c2e-7b4d-4e6a-9f05-2d1c8e3b7a4f
+status: experimental
+description: >
+    Detects execution of HDUtil.exe from the ProgramData\HDVideo directory,
+    consistent with the OkoBot malware framework's VMProtect-packed launcher
+    component that orchestrates plugin dispatch and C2 polling.
+references:
+    - https://securelist.com/okobot-framework-targets-cryptocurrency-wallets/120660/
+    - https://thehackernews.com/2026/07/okobot-malware-framework-injects-seed.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\HDUtil.exe'
+        Image|contains: '\ProgramData\HDVideo\'
+    condition: selection
+falsepositives:
+    - Unlikely - HDVideo\HDUtil.exe is not a known legitimate software path
+level: high
