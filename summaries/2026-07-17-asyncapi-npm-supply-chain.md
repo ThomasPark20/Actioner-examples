@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -404,7 +404,7 @@ level: critical
 ### Sigma: AsyncAPI Miasma Runtime Lock File Creation
 Detects creation of the Miasma runtime lock file at `~/.config/.miasma/run/node.lock`, a unique artifact of the M-RED-TEAM v6.4 runtime.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: splunk exit 0; log_scale exit 0. High confidence: .miasma directory is unique to the Miasma runtime framework; no legitimate software uses this path. -->
+<!-- audit: splunk exit 0; log_scale exit 0 (re-validated post-revision). High confidence: .miasma directory is unique to the Miasma runtime framework; no legitimate software uses this path. -->
 <!-- revision: replaced ATT&CK tags T1027/T1059.007 with T1564.001 (Hidden Files and Directories) — lock file creation maps to hidden directory use, not obfuscation or JS execution -->
 ```yaml
 title: AsyncAPI Miasma Runtime Lock File Creation
@@ -600,26 +600,21 @@ rule AsyncAPI_Miasma_Runtime_Payload
 ```
 
 ### YARA: AsyncAPI Miasma Import-Time Loader
-Detects the import-time loader injected into AsyncAPI packages via IPFS CIDs, detached spawn pattern, or the distinctive obfuscation variable name.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Fired on positive sample containing published IPFS CID and spawn/detached/unref pattern. Quiet on negative with generic child_process usage. IPFS CIDs are content-addressed and unique to this campaign. -->
+Detects the import-time loader injected into AsyncAPI packages via the campaign-specific IPFS CIDs or the distinctive obfuscation variable name.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0 (re-validated post-revision). IPFS CIDs are content-addressed and unique to this campaign; obfuscation variable is specific to the published loader code. -->
+<!-- revision: dropped branches 1 (detached spawn pattern) and 2 (ipfs_url+sync.js) per critic — behavioral/TTP patterns too generic at specific altitude; removed corresponding string definitions. Retained $obfusc_var and $ipfs_cid* branches. Confidence lowered high→medium. -->
 ```yara
 rule AsyncAPI_Miasma_ImportTime_Loader
 {
     meta:
-        description = "Detects the AsyncAPI npm supply chain compromise import-time loader code that spawns a detached Node.js process to fetch and execute the Miasma payload from IPFS"
+        description = "Detects the AsyncAPI npm supply chain compromise import-time loader code via campaign-specific IPFS CIDs or the distinctive obfuscation variable name"
         author = "Actioner"
         date = "2026-07-17"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/"
         severity = "high"
 
     strings:
-        $spawn_detached = "detached: true" ascii
-        $windows_hide = "windowsHide: true" ascii
-        $stdio_ignore = "stdio: 'ignore'" ascii
-        $unref = ".unref()" ascii
-        $ipfs_url = "ipfs.io/ipfs/" ascii
-        $sync_file = "sync.js" ascii
         $obfusc_var = "const _0x5af5e1" ascii
         $ipfs_cid1 = "Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf" ascii
         $ipfs_cid2 = "QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9" ascii
@@ -627,8 +622,6 @@ rule AsyncAPI_Miasma_ImportTime_Loader
     condition:
         filesize < 500KB and
         (
-            ($spawn_detached and $windows_hide and $stdio_ignore and $unref) or
-            ($ipfs_url and $sync_file) or
             $obfusc_var or
             1 of ($ipfs_cid*)
         )

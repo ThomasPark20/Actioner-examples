@@ -1,0 +1,12 @@
+# AsyncAPI npm Supply Chain Compromise — Snort Detection Rules
+# Report: /home/user/Actioner-examples/summaries/2026-07-17-asyncapi-npm-supply-chain.md
+# Generated: 2026-07-17
+# Syntax: Snort 2/3-compatible (http_uri keyword)
+
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 Beacon to /api/v1/beacon"; flow:established, to_server; http_uri; content:"/api/v1/beacon", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-17; sid:2100010; rev:1;)
+
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 File Upload to /api/v1/file-result"; flow:established, to_server; http_uri; content:"/api/v1/file-result", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-17; sid:2100011; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AsyncAPI Miasma IPFS Payload Fetch with Known CID"; flow:established, to_server; http_uri; content:"/ipfs/Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-17; sid:2100012; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AsyncAPI Miasma IPFS Payload Fetch with Known CID 2"; flow:established, to_server; http_uri; content:"/ipfs/QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-17; sid:2100013; rev:1;)

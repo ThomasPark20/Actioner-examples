@@ -1,0 +1,13 @@
+# AsyncAPI npm Supply Chain Compromise — Suricata Detection Rules
+# Report: /home/user/Actioner-examples/summaries/2026-07-17-asyncapi-npm-supply-chain.md
+# Generated: 2026-07-17
+
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 HTTP Beacon to /api/v1/beacon"; flow:established,to_server; http.uri; content:"/api/v1/beacon"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-17; sid:2200010; rev:1;)
+
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 File Upload to /api/v1/file-result"; flow:established,to_server; http.uri; content:"/api/v1/file-result"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-17; sid:2200011; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AsyncAPI Miasma IPFS Payload Fetch Known CID Specs"; flow:established,to_server; http.uri; content:"/ipfs/Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-17; sid:2200012; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AsyncAPI Miasma IPFS Payload Fetch Known CID Generator"; flow:established,to_server; http.uri; content:"/ipfs/QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-17; sid:2200013; rev:1;)
+
+alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 File Content Retrieval"; flow:established,to_server; http.uri; content:"/api/v1/file-content/"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-17; sid:2200014; rev:1;)

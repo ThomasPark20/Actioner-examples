@@ -372,7 +372,9 @@ level: high
 
 Detects DNS queries to known UAT-11795 C2 and staging domains via DNS wire-format content matching.
 **Status:** compile ⚠️ uncompiled (structural check only -- snort not installed) · confidence: high
+**Note:** SIDs 2100001-2100006 overlap the Emerging Threats reserved range. Deployers should renumber to a local SID range (e.g., 1000001+) before loading into production rulesets.
 <!-- audit: snort binary not available in environment. Structural check: all rules use udp protocol on port 53, DNS label-length encoding verified (0x18=24 chars for windowscreenrepairnearme, 0x0c=12 for aipythondevs, 0x0d=13 for eorthopaedics, 0x07=7 for sastoro, 0x0c=12 for web-devtools, 0x07=7 for zynaris), flow:to_server present, all required fields (msg, sid, rev, classtype) present, SIDs in 2100000+ range. -->
+<!-- revision: added SID range overlap caveat — 2100000+ collides with Emerging Threats; deployers must renumber to local range. -->
 
 ```snort
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Starland RAT C2 DNS Query (windowscreenrepairnearme.com)"; flow:to_server; content:"|18|windowscreenrepairnearme|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100001; rev:1;)
@@ -392,7 +394,9 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Staging DNS Query (
 
 Detects DNS queries to the six known UAT-11795 C2 and staging domains using Suricata's dns.query sticky buffer.
 **Status:** compile ✅ compiles · confidence: high
+**Note:** SIDs 2200001-2200006 overlap the Emerging Threats reserved range. Deployers should renumber to a local SID range before loading into production rulesets.
 <!-- audit: suricata -T exit 0 (v7.0.3). Six rules covering all known C2 and staging domains. dns.query buffer with nocase for case-insensitive domain matching. SIDs 2200001-2200006. -->
+<!-- revision: added SID range overlap caveat — 2200000+ collides with Emerging Threats; deployers must renumber to local range. -->
 
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Starland RAT C2 Domain (windowscreenrepairnearme.com)"; flow:to_server; dns.query; content:"windowscreenrepairnearme.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-17; sid:2200001; rev:1;)
@@ -441,7 +445,16 @@ rule Malware_UAT11795_Starland_WLDR_Indicators
     condition:
         2 of them
 }
+```
 
+### YARA: CastleStealer Info-Stealer Strings
+
+Detects CastleStealer .NET info-stealer via the CastleStealer name string or co-occurrence with UAT-11795 campaign C2 domains in PE files.
+**Status:** compile ✅ compiles · confidence: medium · sample: N/A
+<!-- audit: yarac exit 0. Confidence medium — rule relies on a malware family name string or campaign-level C2 domains, neither of which is a byte-level artifact unique to this binary. -->
+<!-- revision: dropped $s2 (WLDR mutex) and $s3 (WLDR password) — those are Starland/WLDR artifacts, not CastleStealer-specific; confidence downgraded from high to medium accordingly. -->
+
+```yara
 rule Malware_UAT11795_CastleStealer_Strings
 {
     meta:

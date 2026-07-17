@@ -1,0 +1,169 @@
+# AsyncAPI npm Supply Chain Compromise — Sigma Detection Rules
+# Report: /home/user/Actioner-examples/summaries/2026-07-17-asyncapi-npm-supply-chain.md
+# Generated: 2026-07-17
+
+title: AsyncAPI Miasma Sync.js Payload Drop to NodeJS Masquerade Directory
+id: c4a7e3f1-8b29-4d56-9e0a-3f1c2d5b6e7a
+status: experimental
+description: >
+    Detects the Miasma runtime second-stage payload (sync.js) being written to
+    OS-specific NodeJS masquerade directories used by the AsyncAPI npm supply
+    chain compromise. The loader fetches an encrypted ~8.2 MB bundle from IPFS
+    and writes it to %LOCALAPPDATA%\NodeJS\sync.js (Windows),
+    ~/.local/share/NodeJS/sync.js (Linux), ~/Library/Application Support/NodeJS/sync.js
+    (macOS), or ~/.config/NodeJS/sync.js (fallback).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://thehackernews.com/2026/07/compromised-asyncapi-npm-packages.html
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1105
+    - attack.t1036.005
+logsource:
+    category: file_event
+detection:
+    selection_linux:
+        TargetFilename|endswith:
+            - '/.local/share/NodeJS/sync.js'
+            - '/.config/NodeJS/sync.js'
+    selection_macos:
+        TargetFilename|contains: '/Library/Application Support/NodeJS/sync.js'
+    selection_windows:
+        TargetFilename|endswith: '\NodeJS\sync.js'
+        TargetFilename|contains: '\AppData\Local\'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate software using a NodeJS directory name in these specific paths (highly unlikely)
+level: high
+---
+title: AsyncAPI Miasma Obfuscated Node.js Execution Pattern
+id: b5d8f2e0-7a18-4c45-8d9b-2e0f1c4a5b6d
+status: experimental
+description: >
+    Detects the specific obfuscation variable pattern used by the AsyncAPI npm
+    supply chain compromise loader. The injected code spawns a detached Node.js
+    child process with the command-line pattern 'node -e "const _0x5af5e1'
+    which is characteristic of the Miasma import-time payload execution.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1059.007
+    - attack.t1027
+logsource:
+    category: process_creation
+detection:
+    selection_obfusc:
+        CommandLine|contains: 'const _0x5af5e1'
+    selection_node:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+    condition: selection_obfusc and selection_node
+falsepositives:
+    - Extremely unlikely - this is a specific obfuscation variable name
+level: critical
+---
+title: AsyncAPI Miasma Runtime Lock File Creation
+id: a6c9d3e1-5f07-4b34-8c2a-1d0e9f8a7b6c
+status: experimental
+description: >
+    Detects creation of the Miasma runtime lock file at ~/.config/.miasma/run/node.lock.
+    The Miasma modular runtime (M-RED-TEAM v6.4) creates this lock file to prevent
+    concurrent execution during the AsyncAPI npm supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1564.001
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '/.config/.miasma/run/node.lock'
+    condition: selection
+falsepositives:
+    - None known - this path is unique to the Miasma runtime
+level: critical
+---
+title: AsyncAPI Miasma Windows Persistence via Registry Run Key
+id: d7e0f4a2-6b19-4c56-9d3e-2f1a0b8c7d5e
+status: experimental
+description: >
+    Detects the Miasma runtime installing Windows persistence via an HKCU Run
+    registry value named miasma-monitor. This persistence mechanism is part of
+    the AsyncAPI npm supply chain compromise Miasma M-RED-TEAM v6.4 runtime.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\miasma-monitor'
+    condition: selection
+falsepositives:
+    - None known - miasma-monitor is a unique malware identifier
+level: critical
+---
+title: AsyncAPI Miasma Linux Persistence via Systemd User Unit
+id: e8f1a5b3-7c20-4d67-ae4f-3a2b1c9d8e6f
+status: experimental
+description: >
+    Detects creation of the miasma-monitor.service systemd user unit file used
+    by the Miasma runtime for Linux persistence during the AsyncAPI npm supply
+    chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/miasma-monitor.service'
+        TargetFilename|contains:
+            - '/.config/systemd/user/'
+            - '/.local/share/systemd/user/'
+    condition: selection
+falsepositives:
+    - None known - miasma-monitor is a unique malware identifier
+level: critical
+---
+title: AsyncAPI Miasma C2 Beacon to Known Infrastructure
+id: f9a2b6c4-8d31-4e78-bf5a-4b3c2d0e1f7a
+status: experimental
+description: >
+    Detects network connections to the Miasma C2 server at 85.137.53.71 on ports
+    8080 (C2 beacon), 8081 (upload), or 8091 (management) used by the AsyncAPI
+    npm supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://securityaffairs.com/195395/security/asyncapi-npm-supply-chain-attack-malware-injected-into-packages-with-2-million-weekly-downloads.html
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '85.137.53.71'
+        DestinationPort:
+            - 8080
+            - 8081
+            - 8091
+    condition: selection
+falsepositives:
+    - Legitimate traffic to this IP address (verify ownership before filtering)
+level: critical
