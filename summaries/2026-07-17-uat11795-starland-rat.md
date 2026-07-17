@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -406,8 +406,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Staging Domain (zy
 ### YARA: Starland RAT / WLDR C2 Implant Artifacts
 
 Detects Starland RAT and WLDR C2 artifacts via distinctive strings including the WLDR mutex, encryption keys, C2 domains, smart contract address, and Telegram bot IDs. Fires on 2+ matches from the indicator set.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive (mutex + C2 domain + WLDR password) fired Malware_UAT11795_Starland_WLDR_Indicators; negative (benign text) clean. Strings sourced from published Talos indicators. The 2-of-them threshold balances coverage against FP risk — individual strings like "helo1" or "WSv1" are too short alone but combined with any other campaign indicator are decisive. -->
+**Status:** compile ✅ compiles · confidence: high · sample: N/A
+<!-- audit: yarac exit 0. Strings sourced from published Talos indicators. The 2-of-them threshold balances coverage against FP risk — individual strings like "helo1" or "WSv1" are too short alone but combined with any other campaign indicator are decisive. -->
+<!-- revision: fixed $xor_key2 escaping ("$m7\\*rYpry3" → "$m7*rYpry3" — original had spurious backslash); corrected sample status from "fired" to N/A (prior test used fabricated sample, not real malware). -->
 
 ```yara
 rule Malware_UAT11795_Starland_WLDR_Indicators
@@ -422,7 +423,7 @@ rule Malware_UAT11795_Starland_WLDR_Indicators
     strings:
         $mutex = "f2j398fj239d8j23dkkskskkkkkkkkk" ascii wide
         $xor_key1 = "helo1" ascii wide
-        $xor_key2 = "$m7\\*rYpry3" ascii wide
+        $xor_key2 = "$m7*rYpry3" ascii wide
         $wldr_pass = "odg5t8mvssvh" ascii wide
         $contract = "0x6ae382ed2154cc84c6672e4e908cd2c69c1b35ba" ascii wide nocase
         $func_sel = "0xc659f3b8" ascii wide nocase
@@ -444,23 +445,21 @@ rule Malware_UAT11795_Starland_WLDR_Indicators
 rule Malware_UAT11795_CastleStealer_Strings
 {
     meta:
-        description = "Detects CastleStealer info-stealer deployed by UAT-11795 via characteristic wallet enumeration and credential theft patterns"
+        description = "Detects CastleStealer info-stealer deployed by UAT-11795 via the CastleStealer name string or co-occurrence with campaign C2 domains"
         author = "Actioner"
         date = "2026-07-17"
         reference = "https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $s1 = "CastleStealer" ascii wide nocase
-        $s2 = "f2j398fj239d8j23dkkskskkkkkkkkk" ascii wide
-        $s3 = "odg5t8mvssvh" ascii wide
         $c2_1 = "windowscreenrepairnearme.com" ascii wide nocase
         $c2_2 = "aipythondevs.com" ascii wide nocase
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 10MB and
-        ($s1 or (2 of ($s*, $c2_*)))
+        ($s1 or 2 of ($c2_*))
 }
 ```
 

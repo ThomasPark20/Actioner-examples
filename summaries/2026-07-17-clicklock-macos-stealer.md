@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -158,7 +158,7 @@ Payload hosting relies on compromised legitimate domains:
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1204.002 | User Execution: Malicious File | Victim pastes malicious command into Terminal from ClickFix lure |
+| T1204 | User Execution | Victim pastes malicious command into Terminal from ClickFix lure (ClickFix — not file-based) |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Orchestrator and modules are bash shell scripts |
 | T1059.002 | Command and Scripting Interpreter: AppleScript | osascript used to display fake password dialog |
 | T1056.002 | Input Capture: GUI Input Capture | Fake macOS password dialog captures login credentials |
@@ -220,7 +220,7 @@ log show --predicate 'process == "osascript"' --last 24h 2>/dev/null | head -50
 ### Long-Term Hardening
 
 - Block the ClickFix attack vector by deploying endpoint detection for `curl | bash` patterns and osascript-based password dialogs.
-- macOS 26.4 introduces a paste warning for Terminal, but the "Paste Anyway" button leaves a residual exploitation window; user education remains critical.
+- Recent macOS releases reportedly introduce a paste warning for Terminal (per Group-IB), but the "Paste Anyway" button leaves a residual exploitation window; user education remains critical.
 - Monitor for process-killing loops targeting core macOS UI processes -- this behavior has no legitimate use case.
 - Consider application allowlisting for LaunchAgents to detect unauthorized plist creation.
 

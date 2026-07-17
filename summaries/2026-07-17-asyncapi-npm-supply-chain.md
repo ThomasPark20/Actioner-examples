@@ -7,7 +7,8 @@ Version: 1.0 (DRAFT)
 
 ## Executive Summary
 
-On July 14, 2026, five compromised @asyncapi npm packages (collectively exceeding 2 million weekly downloads) were discovered delivering the Miasma modular runtime (M-RED-TEAM v6.4) with active command-and-control infrastructure. The attack exploited a misconfigured GitHub Actions `pull_request_target` workflow to obtain publishing credentials, then injected obfuscated loaders into each package's entry point that execute at module import time -- bypassing npm's `--ignore-scripts` mitigation entirely. The loaders fetch an encrypted ~8.2 MB second-stage payload (`sync.js`) from IPFS, which decrypts through three cryptographic layers into the Miasma runtime -- a 91,973-line, 744-module framework with six C2 channels (HTTP, Nostr, Ethereum, BitTorrent DHT, libp2p, IPFS), RAT capabilities, platform-specific persistence, and credential harvesting targeting 100+ environment variables and credential files. The C2 server operates at `85.137.53[.]71` on ports 8080/8081/8091. While the malware contains the "Miasma" string and uses the same framework codebase, Microsoft and OX Security assess this is NOT attributed to the TeamPCP/Shai-Hulud campaigns documented in the June 2026 Miasma worm incident -- the branding overlap may represent deliberate misdirection or independent reuse of the now-open-sourced toolkit. OX Security disclosed the compromise; Microsoft published the primary technical analysis on July 15, 2026. The affected packages have been removed from npm.
+<!-- revision: fix package count — four distinct packages across five malicious versions -->
+On July 14, 2026, four compromised @asyncapi npm packages across five malicious versions (collectively exceeding 2 million weekly downloads) were discovered delivering the Miasma modular runtime (M-RED-TEAM v6.4) with active command-and-control infrastructure. The attack exploited a misconfigured GitHub Actions `pull_request_target` workflow to obtain publishing credentials, then injected obfuscated loaders into each package's entry point that execute at module import time -- bypassing npm's `--ignore-scripts` mitigation entirely. The loaders fetch an encrypted ~8.2 MB second-stage payload (`sync.js`) from IPFS, which decrypts through three cryptographic layers into the Miasma runtime -- a 91,973-line, 744-module framework with six C2 channels (HTTP, Nostr, Ethereum, BitTorrent DHT, libp2p, IPFS), RAT capabilities, platform-specific persistence, and credential harvesting targeting 100+ environment variables and credential files. The C2 server operates at `85.137.53[.]71` on ports 8080/8081/8091. While the malware contains the "Miasma" string and uses the same framework codebase, Microsoft and OX Security assess this is NOT attributed to the TeamPCP/Shai-Hulud campaigns documented in the June 2026 Miasma worm incident -- the branding overlap may represent deliberate misdirection or independent reuse of the now-open-sourced toolkit. OX Security disclosed the compromise; Microsoft published the primary technical analysis on July 15, 2026. The affected packages have been removed from npm.
 
 ## Background: AsyncAPI and npm Ecosystem
 
@@ -403,6 +404,7 @@ level: critical
 Detects creation of the Miasma runtime lock file at `~/.config/.miasma/run/node.lock`, a unique artifact of the M-RED-TEAM v6.4 runtime.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: splunk exit 0; log_scale exit 0. High confidence: .miasma directory is unique to the Miasma runtime framework; no legitimate software uses this path. -->
+<!-- revision: replaced ATT&CK tags T1027/T1059.007 with T1564.001 (Hidden Files and Directories) — lock file creation maps to hidden directory use, not obfuscation or JS execution -->
 ```yaml
 title: AsyncAPI Miasma Runtime Lock File Creation
 id: a6c9d3e1-5f07-4b34-8c2a-1d0e9f8a7b6c
@@ -416,8 +418,7 @@ references:
 author: Actioner
 date: 2026/07/17
 tags:
-    - attack.t1027
-    - attack.t1059.007
+    - attack.t1564.001
 logsource:
     category: file_event
 detection:
