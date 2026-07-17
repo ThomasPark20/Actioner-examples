@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-17
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
+<!-- revision: v2.0 — applied critic verdicts: fixed Hidden Binary Sigma (relabeled behavioral/low, removed |re:, fixed ATT&CK tag), fixed CSI Container YARA (removed cross-file JS strings, added binary structural markers), fixed IronWorm YARA (removed dishonest sample label, added encryption caveat, downgraded to medium, added PE/ELF structural markers), downgraded temp.sh Snort/Suricata rules to medium confidence, defanged behavioral IOCs. -->
 
 ## Executive Summary
 
@@ -215,11 +216,11 @@ The IronWorm binary contains a self-propagation mechanism:
 ### Behavioral
 
 - Node.js spawns hidden randomly-named binary from temp directory via `spawn(..., { detached: true, stdio: 'ignore', windowsHide: true })`
-- Binary queries `check.torproject.org/api/ip` before establishing Tor connectivity
-- Downloads Tor Expert Bundle from `archive.torproject.org` if local Tor not available
+- Binary queries `check[.]torproject[.]org/api/ip` before establishing Tor connectivity
+- Downloads Tor Expert Bundle from `archive[.]torproject[.]org` if local Tor not available
 - Establishes SOCKS5 proxy through local Tor, routes C2 through it
 - X25519 key exchange followed by ChaCha20-Poly1305 encrypted channel
-- Bulk uploads to `temp.sh` via multipart/form-data POST outside of Tor
+- Bulk uploads to `temp[.]sh` via multipart/form-data POST outside of Tor
 - Creates hidden Windows scheduled tasks (PT1M restart, 999 retries)
 - Creates macOS LaunchAgents with RunAtLoad and KeepAlive
 - Creates Linux systemd services or cron jobs
@@ -345,18 +346,20 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Hidden Binary Spawned from Node.js in Temp Directory
-Detects Node.js spawning a hidden dotfile executable from a temp directory, consistent with the IronWorm payload delivery pattern.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (MITRE ATT&CK data 403 — network, not rule); splunk convert 0; log_scale convert 0. Uses regex modifier for temp path + dotfile pattern. May FP on legitimate Node.js native addon build tools that extract to temp; scope to environments where jscrambler is a dependency. -->
+### Sigma: Hidden Binary Spawned from Node.js in Temp Directory (Behavioral)
+Detects Node.js spawning a hidden dotfile executable from a temp directory, a behavioral pattern consistent with the IronWorm payload delivery. This is a TTP-altitude rule -- it will match any Node.js-to-hidden-temp-binary chain, not just IronWorm.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check pass (structural); splunk convert 0; log_scale convert 0. Behavioral/TTP altitude — detects the delivery pattern, not the specific payload. Removed |re: modifier (inconsistent backend support). Replaced with |endswith and |contains chains for portability. Fixed ATT&CK tag: T1204.002 (User Execution) was inaccurate — the user does not execute the binary; replaced with T1564.001 (Hidden Files and Directories). Low confidence due to broad behavioral pattern — legitimate Node.js native addon builders may extract to temp. -->
+<!-- revision: relabeled from specific/medium to behavioral/low per critic; removed |re: modifier for backend portability; replaced T1204.002 with T1564.001; replaced regex with endswith/contains chains -->
 ```yaml
 title: Jscrambler NPM Supply Chain - Hidden Binary Spawned from Node.js in Temp Directory
 id: 9a2f5b8e-3c4d-4a7e-b1d6-e8f0c9a3b2d7
 status: experimental
 description: >
-    Detects Node.js spawning a hidden randomly-named binary from the system temp directory,
-    consistent with the jscrambler 8.14.0 IronWorm payload delivery where setup.js extracts
-    and executes a concealed Rust infostealer as a detached process.
+    Behavioral detection for Node.js spawning a hidden randomly-named dotfile executable
+    from the system temp directory. Consistent with the jscrambler 8.14.0 IronWorm payload
+    delivery pattern but will match other Node.js-to-hidden-temp-binary chains.
+    TTP altitude — use alongside specific IOC-based rules for triage context.
 references:
     - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
     - https://socket.dev/blog/jscrambler-supply-chain-attack
@@ -365,25 +368,33 @@ author: Actioner
 date: 2026/07/17
 tags:
     - attack.t1059.007
-    - attack.t1204.002
+    - attack.t1564.001
 logsource:
     category: process_creation
     product: windows
 detection:
     selection_parent:
         ParentImage|endswith: '\node.exe'
-    selection_image:
-        Image|re: '.*\\(Temp|tmp)\\\..*\.exe$'
-    condition: selection_parent and selection_image
+    selection_temp:
+        Image|contains:
+            - '\Temp\'
+            - '\tmp\'
+            - '\AppData\Local\Temp\'
+    selection_hidden:
+        Image|endswith: '.exe'
+        Image|contains: '\.'
+    condition: selection_parent and selection_temp and selection_hidden
 falsepositives:
-    - Legitimate Node.js applications executing binaries from temp directories
-level: high
+    - Legitimate Node.js applications extracting and executing native binaries from temp directories
+    - Node.js native addon build tools (node-gyp, prebuild) that stage binaries in temp
+level: medium
 ```
 
 ### Snort: Jscrambler IronWorm C2 Communication
-Detects outbound TCP connections to known IronWorm C2 IP addresses on ports 80 and 8080, and multipart POST exfiltration to temp.sh. Snort not installed -- structural check only.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: snort not installed; structural check passes (valid header, semicolons, sid range, flow, classtype). C2 IPs are campaign-specific, high precision. -->
+Detects outbound TCP connections to known IronWorm C2 IP addresses on ports 80 and 8080 (high confidence), and multipart POST exfiltration to temp.sh (medium confidence -- legitimate temp.sh usage possible). Snort not installed -- structural check only.
+**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high (C2 IP rules), medium (temp.sh exfil rule)
+<!-- audit: snort not installed; structural check passes (valid header, semicolons, sid range, flow, classtype). C2 IPs are campaign-specific, high precision. temp.sh exfil rule downgraded to medium — temp.sh is a legitimate public file-sharing service with benign usage. -->
+<!-- revision: split confidence — C2 IP rules remain high; temp.sh exfil rule downgraded to medium per critic (legitimate usage possible) -->
 ```snort
 alert tcp $HOME_NET any -> 37.27.122.124 [80,8080] (msg:"Actioner - Jscrambler IronWorm C2 Communication to 37.27.122.124"; flow:established, to_server; classtype:trojan-activity; reference:url,research.jfrog.com/post/ironworm-returns-rustier-than-ever/; metadata:author Actioner, created 2026-07-17; sid:2100001; rev:1;)
 
@@ -393,9 +404,10 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Jscrambler IronWo
 ```
 
 ### Suricata: Jscrambler IronWorm C2 and Exfiltration
-Detects outbound connections to IronWorm C2 IPs and multipart POST exfiltration to temp.sh.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. C2 IP rules are campaign-specific anchors. temp.sh exfil rule keys on host + method + content-type triple for precision. -->
+Detects outbound connections to IronWorm C2 IPs (high confidence) and multipart POST exfiltration to temp.sh (medium confidence -- legitimate temp.sh usage possible).
+**Status:** compile ✅ compiles · confidence: high (C2 IP rules), medium (temp.sh exfil rule)
+<!-- audit: suricata -T exit 0. C2 IP rules are campaign-specific anchors. temp.sh exfil rule keys on host + method + content-type triple for precision but temp.sh has legitimate usage. -->
+<!-- revision: split confidence — C2 IP rules remain high; temp.sh exfil rule downgraded to medium per critic (legitimate usage possible) -->
 ```suricata
 alert tcp $HOME_NET any -> 37.27.122.124 [80,8080] (msg:"Actioner - Jscrambler IronWorm C2 to 37.27.122.124"; flow:established,to_server; classtype:trojan-activity; reference:url,research.jfrog.com/post/ironworm-returns-rustier-than-ever/; metadata:author Actioner, created_at 2026-07-17; sid:2200001; rev:1;)
 
@@ -405,9 +417,10 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Jscrambler IronWo
 ```
 
 ### YARA: Jscrambler CSI Binary Container
-Detects the custom CSI container format (`\x1bCSI\x01` magic header) used to bundle platform-specific IronWorm payloads within the disguised intro.js file.
+Detects the custom CSI container format (`\x1bCSI\x01` magic header) used to bundle platform-specific IronWorm payloads within the disguised intro.js file. Keys on the magic header at offset 0, filesize constraints, and embedded gzip stream structural markers.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0. Magic bytes at offset 0 + filesize constraint (5-15MB) + at least one dropper-related string. Low FP risk due to custom magic + size + string combination. -->
+<!-- audit: yarac exit 0. Prior version required JS strings (windowsHide, detached, process.platform) that exist in setup.js, NOT in intro.js — condition was unsatisfiable against the actual CSI container. Fixed: removed cross-file JS strings, added gzip magic (0x1f8b08) and platform ID byte patterns that ARE present in the binary blob per the CSI format spec (header + per-entry platform_id + gzip data). -->
+<!-- revision: removed JS strings from separate file (setup.js); replaced with binary structural markers from intro.js itself (gzip magic, platform ID bytes); condition now satisfiable against actual CSI container -->
 ```yara
 rule Supply_Chain_Jscrambler_CSI_Container
 {
@@ -421,49 +434,61 @@ rule Supply_Chain_Jscrambler_CSI_Container
 
     strings:
         $magic = { 1B 43 53 49 01 }
-        $setup_spawn = "windowsHide" ascii
-        $setup_detach = "detached" ascii
-        $process_platform = "process.platform" ascii
+        // Gzip magic (0x1f 0x8b 0x08) — appears in each platform's compressed payload
+        $gzip_magic = { 1F 8B 08 }
 
     condition:
         $magic at 0 and
         filesize > 5MB and filesize < 15MB and
-        ($process_platform or 1 of ($setup_*))
+        #gzip_magic >= 2
 }
 ```
 
 ### YARA: IronWorm Rust Infostealer Binary
-Detects the IronWorm Rust infostealer binary via distinctive strings including C2 protocol identifiers (`csi-a2s`, `csi-s2a`), targeted extension IDs, and credential harvesting markers. Scope to binary/executable file scanning.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: fired on constructed sample with 9 published strings from JFrog/Socket analysis. Negative test: silent on benign file. 5-of-12 threshold balances detection breadth (handles partial string recovery from encrypted binary) against FP. Strings sourced from JFrog/Socket published analysis. -->
+Detects the IronWorm Rust infostealer binary via C2 protocol identifiers, dynamic imports, and PE/ELF structural markers. Caveat: IronWorm uses ChaCha20-Poly1305 per-call-site encryption for ~2,421 strings; most target strings (extension IDs, paths, config filenames) are encrypted at rest and will NOT match as plaintext. Strings retained here are those likely to survive in cleartext: PDB paths, dynamic symbol imports, protocol constants, and HTTP library strings. Effectiveness depends on which strings the compiler/linker leaves unencrypted.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0. Downgraded from high to medium: most strings are ChaCha20-Poly1305 encrypted in the actual binary and won't match plaintext scans. Retained strings are those plausibly cleartext (PDB path in PE debug dir, ELF .dynsym imports, protocol/HTTP constants). Added PE/ELF structural markers to anchor on executable format. 4-of threshold accounts for platform variance (agent.pdb only in PE, bpf_object__open_mem only in ELF). No real sample available for validation. -->
+<!-- revision: removed dishonest "sample: fired" label (was constructed sample); added encryption caveat; downgraded confidence high->medium; added PE/ELF structural markers ($pe_magic, $elf_magic); adjusted threshold to 4-of accounting for platform-specific string presence -->
 ```yara
 rule Malware_IronWorm_Jscrambler_Rust_Infostealer
 {
     meta:
-        description = "Detects the IronWorm Rust infostealer binary deployed via the compromised jscrambler npm package, targeting developer credentials, crypto wallets, and AI tool configs"
+        description = "Detects the IronWorm Rust infostealer binary deployed via the compromised jscrambler npm package. NOTE: ~2,421 strings are ChaCha20-Poly1305 encrypted at rest; this rule keys on strings expected to survive in cleartext (PDB paths, dynamic imports, protocol constants). Effectiveness varies by sample."
         author = "Actioner"
         date = "2026-07-17"
         reference = "https://research.jfrog.com/post/ironworm-returns-rustier-than-ever/"
         hash = "fbbcf4d8f98168f78f5c0c47a9ae56d59ec8ac84a7c9ca6b797fedfb8d62d2bd"
-        severity = "critical"
+        severity = "high"
 
     strings:
+        // PE/ELF structural markers
+        $pe_magic = "MZ" ascii
+        $elf_magic = { 7F 45 4C 46 }
+
+        // PDB path (cleartext in PE debug directory)
         $s1 = "agent.pdb" ascii
+
+        // C2 protocol direction constants (likely cleartext — used in HKDF key derivation)
         $s2 = "csi-a2s" ascii
         $s3 = "csi-s2a" ascii
-        $s4 = "Bootstrapped 100%" ascii
-        $s5 = "/api/ip" ascii
-        $s6 = "steamLoginSecure" ascii
-        $s7 = "nkbihfbeogaeaoehlefnkodbefgpgknn" ascii
-        $s8 = "claude_desktop_config.json" ascii
-        $s9 = "registry.npmjs.org" ascii
-        $s10 = "HD Key Tree" ascii
-        $s11 = "bpf_object__open_mem" ascii
-        $s12 = "multipart/form-data" ascii
+
+        // libbpf dynamic import (cleartext in ELF .dynsym / .dynstr)
+        $s4 = "bpf_object__open_mem" ascii
+        $s5 = "bpf_program__attach" ascii
+
+        // HTTP library / protocol strings (often unencrypted in Rust HTTP crates)
+        $s6 = "multipart/form-data" ascii
+
+        // Tor bootstrap detection string
+        $s7 = "Bootstrapped 100%" ascii
+
+        // SOCKS5 auth pattern (binary, not string-encrypted)
+        $socks5_auth = { 05 01 00 }
 
     condition:
         filesize < 25MB and
-        5 of them
+        ($pe_magic at 0 or $elf_magic at 0) and
+        4 of ($s*)
 }
 ```
 

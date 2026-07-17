@@ -233,17 +233,18 @@ These detections target the ClickLock macOS stealer at the PoC/advisory-specific
 
 ### Sigma: ClickLock Stealer - Fake macOS Password Dialog via osascript
 
-Detects osascript executing AppleScript with `display dialog` / `hidden answer` to present a fake password prompt, the primary credential-harvesting mechanism of ClickLock.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data fetch blocked by proxy, not a rule issue); splunk convert exit 0; log_scale convert exit 0. osascript + display dialog + hidden answer is distinctive; false positives limited to IT admin scripts. -->
+Detects osascript executing AppleScript with `display dialog` / `hidden answer` to present a fake password prompt, scoped to ClickLock's working directory (`.cacheb/`) or icon sourced from `/tmp/` to reduce false positives from legitimate admin scripts.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Narrowed from generic osascript dialog to ClickLock-specific via parent CurrentDirectory or icon path filter. Confidence dropped from high to medium per critic — osascript dialog is a known TTP, narrowing helps but does not eliminate all FP. -->
+<!-- revision: added ClickLock-specific narrowing (parent .cacheb/ or /tmp/ icon path); dropped confidence high→medium per critic altitude-mismatch finding -->
 ```yaml
 title: ClickLock Stealer - Fake macOS Password Dialog via osascript
 id: a3e7f1d2-4b8c-4a5e-9d6f-1c2b3a4e5f67
 status: experimental
 description: >
-    Detects osascript executing AppleScript to display a fake password dialog,
-    a technique used by the ClickLock macOS stealer to harvest user credentials
-    by mimicking a legitimate system password prompt.
+    Detects osascript executing AppleScript to display a fake password dialog
+    with ClickLock-specific context: the parent process working directory is
+    the .cacheb hidden cache or the dialog references an icon from /tmp/.
 references:
     - https://www.group-ib.com/blog/clicklock-stealer-macos-malware/
     - https://www.bleepingcomputer.com/news/security/new-clicklock-macos-malware-traps-users-into-revealing-login-password/
@@ -263,10 +264,13 @@ detection:
             - 'display dialog'
             - 'default answer'
             - 'hidden answer'
-    condition: selection_binary and selection_dialog
+    filter_clicklock_context:
+        CommandLine|contains:
+            - '/tmp/'
+            - '.cacheb'
+    condition: selection_binary and selection_dialog and filter_clicklock_context
 falsepositives:
-    - Legitimate system administration scripts using osascript password dialogs
-    - Custom IT deployment tools requesting credentials via AppleScript
+    - Legitimate system administration scripts using osascript password dialogs with icons stored in /tmp
 level: high
 ```
 
@@ -306,18 +310,19 @@ level: critical
 
 ### Sigma: ClickLock Stealer - Password Validation via dscl authonly
 
-Detects `dscl` invoked with `-authonly` against the local directory, used by ClickLock to validate captured passwords before exfiltration.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: splunk convert exit 0; log_scale convert exit 0. dscl -authonly from non-system parents is rare. Legitimate system auth services may trigger; scope to shell script parents if FP rate is high. -->
+Detects `dscl` invoked with `-authonly` against the local directory from a ClickLock-associated parent context (shell scripts in `.cacheb/` or osascript-spawned processes). Generic `dscl -authonly` is a known macOS technique; this rule scopes to ClickLock parents to reduce noise.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Scoped to ClickLock parent processes (.cacheb, osascript, zsh.txt) per critic. Confidence dropped high→medium; dscl -authonly is generic macOS TTP, narrowing via parent helps but is not definitive. -->
+<!-- revision: scoped to ClickLock parent context (.cacheb/, osascript, zsh.txt); dropped confidence high→medium per critic -->
 ```yaml
 title: ClickLock Stealer - Password Validation via dscl authonly
 id: c5a9b3f4-6d0e-4c7a-1f8b-3e4d5c6a7b89
 status: experimental
 description: >
     Detects dscl being invoked with -authonly flag against the local directory,
-    a technique used by the ClickLock macOS stealer to validate a captured
-    password before exfiltration. Legitimate use of dscl -authonly from
-    non-system parent processes is rare.
+    scoped to ClickLock-associated parent contexts (scripts in .cacheb/ or
+    osascript-spawned processes). Generic dscl -authonly is a known macOS
+    technique; this rule narrows to ClickLock parent processes.
 references:
     - https://www.group-ib.com/blog/clicklock-stealer-macos-malware/
     - https://thehackernews.com/2026/07/new-clicklock-macos-stealer-kills-apps.html
@@ -334,27 +339,34 @@ detection:
         CommandLine|contains|all:
             - '/Local/Default'
             - '-authonly'
-    condition: selection
+    filter_clicklock_parent:
+        ParentCommandLine|contains:
+            - '.cacheb'
+            - 'osascript'
+            - 'zsh.txt'
+    condition: selection and filter_clicklock_parent
 falsepositives:
-    - System authentication services validating credentials
-    - IT administration scripts performing credential checks
-level: high
+    - System authentication services validating credentials from paths that coincidentally contain .cacheb
+level: medium
 ```
 
-### Sigma: ClickLock Stealer - Rapid macOS System Process Killing
+### Sigma: ClickLock Stealer - macOS System Process Kill (Single-Event Heuristic)
 
-Detects `pkill`/`killall` targeting core macOS UI processes (Finder, Dock, SystemUIServer, NotificationCenter), the coercive locker mechanism unique to ClickLock.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: splunk convert exit 0; log_scale convert exit 0. Individual kills are legitimate during maintenance/installs; confidence medium because a single event could be benign — the malicious signal is rapid repetition, which requires correlation or threshold logic not expressible in a single Sigma rule. Pair with osascript dialog rule for higher confidence. -->
+Detects a single `pkill`/`killall` event targeting core macOS UI processes (Finder, Dock, SystemUIServer, NotificationCenter). This is a single-event heuristic -- ClickLock's malicious signal is rapid repetition (every 210ms), which requires threshold/correlation logic not expressible in a standalone Sigma rule. Pair with the osascript dialog and LaunchAgent rules for higher-confidence correlation.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Single killall Dock/Finder is routine admin activity; this rule fires on a single event — the actual malicious pattern is rapid repetition. Confidence low, level medium. Useful primarily as a correlation component. -->
+<!-- revision: retitled from "Rapid" to "Single-Event Heuristic"; dropped confidence medium→low, level high→medium; added honest caveat about threshold limitation per critic -->
 ```yaml
-title: ClickLock Stealer - Rapid macOS System Process Killing
+title: ClickLock Stealer - macOS System Process Kill (Single-Event Heuristic)
 id: d6b0c4a5-7e1f-4d8b-2a9c-4f5e6d7a8b90
 status: experimental
 description: >
-    Detects rapid use of pkill or killall targeting core macOS UI processes
-    (Finder, Dock, SystemUIServer, NotificationCenter), a technique used by the
-    ClickLock stealer to force users into entering their login password by
-    rendering the desktop unusable.
+    Detects pkill or killall targeting core macOS UI processes (Finder, Dock,
+    SystemUIServer, NotificationCenter). This is a single-event heuristic:
+    ClickLock kills these processes every 210ms, but Sigma lacks native
+    threshold/timeframe aggregation. A single kill is routine admin activity.
+    Use as a correlation component alongside osascript dialog and LaunchAgent
+    persistence rules for higher-confidence detection.
 references:
     - https://www.group-ib.com/blog/clicklock-stealer-macos-malware/
     - https://www.bleepingcomputer.com/news/security/new-clicklock-macos-malware-traps-users-into-revealing-login-password/
@@ -380,20 +392,22 @@ detection:
 falsepositives:
     - System administrators restarting UI processes during maintenance
     - Software installers that restart Finder or Dock
-level: high
+    - macOS updates or system restores
+level: medium
 ```
 
 ### Snort: HTTP Request to ClickLock WordPress Payload Paths
 
-Detects HTTP requests to the specific WordPress content paths used by ClickLock for payload staging on compromised host `panalobet[.]ph`. Snort is not installed -- structural check only.
+Detects HTTP requests to the specific WordPress content paths used by ClickLock for payload staging on compromised host `panalobet[.]ph`. Requires TLS inspection for HTTPS traffic. Snort is not installed -- structural check only.
 **Status:** compile ⚠️ uncompiled (structural check only; Snort not installed) · confidence: high
 <!-- audit: snort not on PATH; structural check: http service, http_uri sticky buffer, flow established,to_server, content with fast_pattern, sid/rev/classtype/reference present. Three rules covering zsh.txt, chromer.txt, finderv2.jpg payload paths. -->
+<!-- revision: fixed flow spacing (removed space after comma); added HTTPS/TLS-inspection caveat per critic -->
 ```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload Path zsh.txt"; flow:established, to_server; http_uri; content:"/wp-content/upgrade/zsh.txt", fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100001; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload Path zsh.txt"; flow:established,to_server; http_uri; content:"/wp-content/upgrade/zsh.txt"; fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100001; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload chromer.txt"; flow:established, to_server; http_uri; content:"/wp-content/themes/twentytwenty/assets/fonts/chromer.txt", fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload chromer.txt"; flow:established,to_server; http_uri; content:"/wp-content/themes/twentytwenty/assets/fonts/chromer.txt"; fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100002; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload finderv2.jpg"; flow:established, to_server; http_uri; content:"/wp-content/themes/twentytwenty/assets/images/finderv2.jpg", fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock Payload finderv2.jpg"; flow:established,to_server; http_uri; content:"/wp-content/themes/twentytwenty/assets/images/finderv2.jpg"; fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created 2026-07-17; sid:2100003; rev:1;)
 ```
 
 ### Suricata: DNS Queries to ClickLock Payload and C2 Domains
@@ -411,9 +425,10 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to ClickLock GSock
 
 ### Suricata: HTTP Requests to ClickLock WordPress Payload Paths
 
-Detects HTTP requests to the specific WordPress content paths used by ClickLock for payload delivery, including the credential stealer, Keychain stealer, and crypto stealer modules.
+Detects HTTP requests to the specific WordPress content paths used by ClickLock for payload delivery, including the credential stealer, Keychain stealer, and crypto stealer modules. Requires TLS inspection for HTTPS traffic.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0 for all three rules. http protocol, http.uri dot-notation sticky buffer, flow established,to_server, fast_pattern. Paths are specific enough to avoid false positives on legitimate WordPress sites. -->
+<!-- revision: added HTTPS/TLS-inspection caveat per critic -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to ClickLock WordPress Payload Path zsh.txt"; flow:established,to_server; http.uri; content:"/wp-content/upgrade/zsh.txt"; fast_pattern; classtype:trojan-activity; reference:url,group-ib.com/blog/clicklock-stealer-macos-malware/; metadata:author Actioner, created_at 2026-07-17; sid:2200004; rev:1;)
 
@@ -425,8 +440,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to C
 ### YARA: ClickLock Orchestrator Shell Script
 
 Detects the ClickLock orchestrator shell script via distinctive string combinations including the characteristic plist names (`com.authirity`, `com.chromer`), credential validation command (`dscl -authonly`), process kill targets, and backdoor artifacts.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: constructed (not real malware)
 <!-- audit: yarac exit 0. yara pos.txt fired (Malware_ClickLock_Orchestrator_Script), neg.txt quiet. Positive sample constructed from published source strings (com.authirity.plist, com.chromer.plist, dscl /Local/Default -authonly, killall Dock/Finder, NotificationCenter, .cacheb, iCloudsync, goyim). Condition requires 3-of-6 distinctive strings AND at least one kill command — specific enough to avoid false positives on benign scripts. -->
+<!-- revision: relabeled sample from "fired ✓" to "constructed (not real malware)" per critic — tested against synthetic sample, not actual ClickLock binary -->
 ```yara
 rule Malware_ClickLock_Orchestrator_Script
 {
