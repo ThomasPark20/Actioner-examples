@@ -113,7 +113,7 @@ The payload is compiled with `rustc 1.98.0-nightly (e7815e522 2026-06-04)` and u
 ### 6. Data Exfiltration
 
 - **Control/metadata:** Over encrypted Tor SOCKS5 channel to C2 IPs
-- **Bulk data:** Direct unproxied HTTPS POST to `temp.sh` using rustls, `multipart/form-data` body (`POST /upload HTTP/1.1`). Resulting URL transmitted back over Tor C2
+- **Bulk data:** Direct unproxied HTTPS POST to `temp[.]sh` using rustls, `multipart/form-data` body (`POST /upload HTTP/1.1`). Resulting URL transmitted back over Tor C2
 - **Additional exfil:** POST/PUT to cloud APIs (Kubernetes `/api/v1/namespaces`, AWS Secrets Manager, SSM) using stolen credentials
 
 ### 7. Platform-Specific Behavior
@@ -240,7 +240,7 @@ The IronWorm binary contains a self-propagation mechanism:
 | T1528 | Steal Application Access Token | Steals npm tokens, cloud API keys, AI tool API keys, Discord/Slack tokens |
 | T1005 | Data from Local System | Harvests SSH keys, VPN configs, crypto wallet data, Tor hidden service keys |
 | T1041 | Exfiltration Over C2 Channel | Control data exfiltrated over encrypted Tor SOCKS5 channel |
-| T1567 | Exfiltration Over Web Service | Bulk data uploaded to temp.sh via HTTPS POST |
+| T1567 | Exfiltration Over Web Service | Bulk data uploaded to temp[.]sh via HTTPS POST |
 | T1053.005 | Scheduled Task | Windows: hidden scheduled task with PT1M restart interval |
 | T1543.001 | Launch Agent | macOS: LaunchAgent with RunAtLoad and KeepAlive |
 | T1543.002 | Systemd Service | Linux: systemd system/user services with Restart=always |
