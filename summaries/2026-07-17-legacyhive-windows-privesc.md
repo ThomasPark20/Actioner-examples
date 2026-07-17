@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 — applied critic READY verdict. Fixed "compiles does not equal fires" phrasing. Added T1574 approximate-mapping caveat. All 3 rules KEEP (2 high, 1 medium). Standalone rule files written to rules/sigma/ and rules/yara/. -->
 
 ## Executive Summary
 
@@ -128,7 +129,7 @@ No network indicators. LegacyHive is a purely local privilege escalation exploit
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1574 | Hijack Execution Flow | Object Manager symbolic link redirection forces ProfSvc to load an unintended registry hive by hijacking the path resolution during profile initialization |
+| T1574 | Hijack Execution Flow | Object Manager symbolic link redirection forces ProfSvc to load an unintended registry hive by hijacking the path resolution during profile initialization. Note: T1574 is an approximate mapping -- no ATT&CK technique precisely captures service-level path trust abuse for registry hive redirection. |
 | T1112 | Modify Registry | Offline modification of NTUSER.DAT to redirect Local AppData path; resulting read-write access to target user's UsrClass.dat enables arbitrary registry manipulation |
 | T1134.001 | Access Token Manipulation: Token Impersonation/Theft | LogonUserW + ImpersonateLoggedOnUser used to authenticate as the secondary standard user and trigger profile loading |
 | T1068 | Exploitation for Privilege Escalation | Exploits a logic flaw in ProfSvc's hive loading to escalate from standard user to administrator-level registry access |
@@ -182,7 +183,7 @@ No patch is available as of July 17, 2026. Microsoft is investigating.
 
 ## Detection Rules
 
-These detections target the LegacyHive PoC's distinctive artifacts: the Object Manager namespace path redirection in User Shell Folders (Sigma #1), registry hive file staging outside profile directories (Sigma #2), and the PoC binary's unique string constellation (YARA). No network rules apply -- this is a purely local exploit. All Sigma rules convert cleanly to Splunk and CrowdStrike; compiles does not equal fires -- verify in your pipeline.
+These detections target the LegacyHive PoC's distinctive artifacts: the Object Manager namespace path redirection in User Shell Folders (Sigma #1), registry hive file staging outside profile directories (Sigma #2), and the PoC binary's unique string constellation (YARA). No network rules apply -- this is a purely local exploit. All Sigma rules convert cleanly to Splunk and CrowdStrike; compile success does not equal detection fires -- verify in your pipeline.
 
 ### Sigma: Registry Set - Local AppData Redirection to Object Manager Namespace (LegacyHive)
 
