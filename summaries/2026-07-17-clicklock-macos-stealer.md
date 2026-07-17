@@ -209,6 +209,8 @@ log show --predicate 'process == "osascript"' --last 24h 2>/dev/null | head -50
 
 ### Remediation
 
+> **Advisory:** The following steps are interim mitigations. Efficacy depends on your environment's configuration, deployment tooling, and endpoint visibility. Validate each step against your own infrastructure before treating it as a complete fix.
+
 1. **Contain:** Disconnect affected systems from the network immediately to stop active exfiltration via Telegram.
 2. **Remove persistence:** Delete `~/Library/LaunchAgents/com.authirity.plist` and `~/Library/LaunchAgents/com.chromer.plist`. Remove any suspicious crontab entries. Check and clean shell configuration files (`.zshrc`, `.bashrc`, `.bash_profile`).
 3. **Remove GSocket backdoor:** Delete `~/Library/Application Support/iCloudsync` directory. Kill any `SystemUIServerl` processes.
@@ -226,7 +228,8 @@ log show --predicate 'process == "osascript"' --last 24h 2>/dev/null | head -50
 
 ## Detection Rules
 
-These detections target the ClickLock macOS stealer at the PoC/advisory-specific altitude, keying on distinctive artifacts: characteristic plist names, osascript password dialog patterns, dscl password validation, process-killing behavior, and known payload/C2 domains. Compiles does not equal fires -- verify each rule against your endpoint and network telemetry pipeline.
+These detections target the ClickLock macOS stealer at the PoC/advisory-specific altitude, keying on distinctive artifacts: characteristic plist names, osascript password dialog patterns, dscl password validation, process-killing behavior, and known payload/C2 domains. Compiles does not equal fires -- verify each rule against your endpoint and network telemetry pipeline. **HTTPS caveat:** The Snort and Suricata HTTP-layer rules require TLS inspection (SSL/TLS decryption proxy or endpoint-based HTTP logging) to match on URI content within HTTPS sessions; without TLS inspection, only the DNS-layer Suricata rules will fire for encrypted traffic.
+<!-- revision: added HTTPS/TLS-inspection caveat to preamble per critic finding -->
 
 ### Sigma: ClickLock Stealer - Fake macOS Password Dialog via osascript
 

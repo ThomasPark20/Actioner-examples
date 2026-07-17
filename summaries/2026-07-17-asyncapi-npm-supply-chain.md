@@ -294,7 +294,8 @@ grep -l "miasma\|NodeJS/sync" ~/.zshrc ~/.bashrc ~/.bash_profile 2>/dev/null
 reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v miasma-monitor 2>nul
 ```
 
-**Network indicators:**
+<!-- revision: added defanging exception note for executable shell commands containing live IP -->
+**Network indicators** (note: commands below use the live IP `85.137.53.71` for grep matching -- defanged form `85.137.53[.]71` would not match; see defanging convention above):
 ```bash
 # Check for active connections to C2
 ss -tnp | grep '85.137.53.71' 2>/dev/null
@@ -530,7 +531,8 @@ level: critical
 ### Snort: AsyncAPI Miasma C2 HTTP Beacon and IPFS Payload Fetch
 Detects HTTP traffic to the Miasma C2 API endpoints (`/api/v1/beacon`, `/api/v1/file-result`) and IPFS payload fetches using the campaign's known CIDs.
 **Status:** compile ⚠️ uncompiled (Snort not installed) · confidence: high
-<!-- audit: Snort not installed. Structural validation: http service, http_uri sticky buffer, flow established/to_server, comma-separated content modifiers, proper sid range (2100010-2100013), rev:1, classtype:trojan-activity. All rules follow Snort 3 syntax. -->
+<!-- audit: Snort not installed. Structural validation: http service, http_uri sticky buffer, flow established/to_server, comma-separated content modifiers, proper sid range (2100010-2100013), rev:1, classtype:trojan-activity. Rules use Snort 2/3-compatible syntax (http_uri keyword). -->
+<!-- revision: corrected syntax version claim from "Snort 3 syntax" to "Snort 2/3-compatible syntax" — http_uri is a Snort 2 keyword also accepted by Snort 3 -->
 ```snort
 alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Miasma C2 Beacon to /api/v1/beacon"; flow:established, to_server; http_uri; content:"/api/v1/beacon", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created 2026-07-17; sid:2100010; rev:1;)
 
