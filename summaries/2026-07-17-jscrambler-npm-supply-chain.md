@@ -93,10 +93,10 @@ The payload is compiled with `rustc 1.98.0-nightly (e7815e522 2026-06-04)` and u
 
 **Tor Integration:**
 - Probes localhost for an existing SOCKS proxy
-- Downloads Tor Expert Bundle from `archive.torproject.org:443` if unavailable
+- Downloads Tor Expert Bundle from `archive[.]torproject[.]org:443` if unavailable
 - Launches Tor as a child process, monitors stderr for `"Bootstrapped 100%"`
 - Routes C2 through the local Tor SOCKS5 proxy (auth: `05 01 00`, expected: `05 00`)
-- OPSEC weakness: Queries `check.torproject.org/api/ip` over cleartext TLS before Tor is established, exposing real IP
+- OPSEC weakness: Queries `check[.]torproject[.]org/api/ip` over cleartext TLS before Tor is established, exposing real IP
 
 **Two C2 Routes:**
 - **Route 1 (HTTP Bootstrap):** SOCKS connects to C2 on port 80, sends POST to `/` with 32-byte X25519 client public key
