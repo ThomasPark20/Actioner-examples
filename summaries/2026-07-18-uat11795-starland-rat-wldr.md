@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-18
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -202,7 +202,7 @@ Three distinct persistence mechanisms are employed:
 | T1053.005 | Scheduled Task | PythonLauncher-{xxx} scheduled task with AtLogOn trigger |
 | T1087 | Account Discovery | net user /dom, nltest /dclist domain enumeration |
 | T1005 | Data from Local System | CastleStealer credential and wallet theft |
-| T1056.004 | Credential API Hooking | CastleStealer DPAPI + AES-GCM browser credential decryption |
+| T1555.003 | Credentials from Web Browsers | CastleStealer DPAPI + AES-GCM browser credential decryption |
 | T1113 | Screen Capture | Remcos screen and webcam capture |
 | T1140 | Deobfuscate/Decode | XOR decryption of LICENSE.txt loader (key 0xC6) |
 | T1562.001 | Disable Security Tools | AMSI AmsiScanBuffer and ETW EtwEventWrite patching |
@@ -436,88 +436,14 @@ level: high
 
 <!-- AUDIT: IOC-anchored rule. Exact registry value name "MyApp" and mshta content from Cisco Talos. Validated: sigma convert --without-pipeline -t splunk pass (exit 0), sigma convert --without-pipeline -t log_scale pass (exit 0). -->
 
-### Sigma: UAT-11795 WLDR AMSI and ETW Bypass via Memory Patching
-Detects PowerShell scripts containing AMSI or ETW bypass patterns consistent with WLDR implant initialization.
-**compile-status: ✅ compiles (sigma convert splunk pass, sigma convert log_scale pass)** | **confidence: medium** (TTP-level; similar patterns used by red team tools)
-
-```yaml
-title: UAT-11795 WLDR AMSI and ETW Bypass via Memory Patching
-id: f9bc3d86-7e64-9c1f-ad37-6b8c0d3e4f56
-status: experimental
-description: >
-    Detects PowerShell loading amsi.dll or ntdll.dll with subsequent memory
-    manipulation consistent with the WLDR C2 implant AMSI bypass (AmsiScanBuffer
-    patching) and ETW bypass (EtwEventWrite patching) techniques used by UAT-11795.
-references:
-    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
-author: Actioner
-date: 2026-07-18
-tags:
-    - attack.defense_evasion
-    - attack.t1562.001
-logsource:
-    category: ps_script
-    product: windows
-detection:
-    selection_amsi:
-        ScriptBlockText|contains|all:
-            - 'AmsiScanBuffer'
-            - 'VirtualProtect'
-    selection_etw:
-        ScriptBlockText|contains|all:
-            - 'EtwEventWrite'
-            - 'ntdll'
-    condition: selection_amsi or selection_etw
-falsepositives:
-    - Security testing tools and red team scripts
-    - AMSI testing utilities
-level: high
-```
-
-<!-- AUDIT: TTP-level rule. AmsiScanBuffer+VirtualProtect and EtwEventWrite+ntdll are the exact WLDR bypass patterns but also used by other offensive tools. Confidence medium due to TTP reuse. Validated: sigma convert --without-pipeline -t splunk pass (exit 0), sigma convert --without-pipeline -t log_scale pass (exit 0). -->
-
-### Sigma: UAT-11795 ClickFix Initial Access - mshta Remote HTA Execution
-Detects mshta.exe executing remote HTA files, consistent with the ClickFix delivery mechanism.
-**compile-status: ✅ compiles (sigma convert splunk pass, sigma convert log_scale pass)** | **confidence: medium** (TTP-level; mshta with remote URLs is used by multiple threat actors)
-
-```yaml
-title: UAT-11795 ClickFix Social Engineering - mshta Execution with Remote HTA
-id: 0abc4e97-8f75-4012-be48-7c9d1e5a6b78
-status: experimental
-description: >
-    Detects mshta.exe executing a remote HTA file, consistent with the UAT-11795
-    ClickFix social engineering technique that tricks users into running mshta
-    commands which download and execute VBScript HTA stagers.
-references:
-    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
-author: Actioner
-date: 2026-07-18
-tags:
-    - attack.initial_access
-    - attack.t1566
-    - attack.execution
-    - attack.t1204.002
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\mshta.exe'
-        CommandLine|contains:
-            - 'http://'
-            - 'https://'
-    condition: selection
-falsepositives:
-    - Legitimate HTA applications loaded from intranet
-    - Software installers using HTA-based wizards
-level: medium
-```
-
-<!-- AUDIT: TTP-level rule. mshta + remote URL is a common ClickFix pattern but not unique to UAT-11795. Level medium and confidence medium appropriate. Validated: sigma convert --without-pipeline -t splunk pass (exit 0), sigma convert --without-pipeline -t log_scale pass (exit 0). -->
+<!-- DROPPED RULES (Revision v2.0):
+     - Sigma "WLDR AMSI and ETW Bypass via Memory Patching" (id: f9bc3d86-7e64-9c1f-ad37-6b8c0d3e4f56) — DROPPED: altitude violation. AmsiScanBuffer+VirtualProtect and EtwEventWrite+ntdll patterns are generic TTP-level detections used by 30+ offensive tools; not specific to UAT-11795.
+     - Sigma "ClickFix Social Engineering - mshta Execution with Remote HTA" (id: 0abc4e97-8f75-4012-be48-7c9d1e5a6b78) — DROPPED: altitude violation. Generic LOLBin pattern (mshta + remote URL) with no UAT-11795-specific IOC anchoring.
+-->
 
 ### YARA: Starland RAT Loader, WLDR C2 Implant, and Trojanized Installer
 Three YARA rules targeting the Starland RAT Python loader (sandbox checks, XOR key "helo1", recon commands), the WLDR C2 PowerShell implant (unique mutex, hardcoded password, WSv1 protocol), and the trojanized NSIS installers (Nullsoft + pythonw + LICENSE.txt + PythonLauncher pattern).
-**compile-status: ✅ compiles (yarac pass)** | **confidence: high** (RAT loader - sandbox+XOR combo), **high** (WLDR - unique mutex/password), **high** (installer - multi-artifact conjunction)
+**compile-status: ✅ compiles (yarac pass)** | **confidence: high** (RAT loader - sandbox+XOR combo), **high** (WLDR - unique mutex/password), **medium** (installer - multi-artifact conjunction; schtasks branch removed to reduce over-breadth)
 
 ```yara
 rule Malware_Starland_RAT_Loader
@@ -595,13 +521,12 @@ rule Malware_Starland_Trojanized_Installer
         $pythonw = "pythonw.exe" ascii wide
         $license = "LICENSE.txt" ascii wide
         $task = "PythonLauncher-" ascii wide
-        $schtasks = "schtasks" ascii wide
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 200MB and
         $nsis and $pythonw and $license and
-        ($task or $schtasks)
+        $task
 }
 ```
 
