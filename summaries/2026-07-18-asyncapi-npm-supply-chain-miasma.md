@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-18
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -340,7 +340,7 @@ author: Actioner
 date: 2026/07/18
 tags:
     - attack.t1547.004
-    - attack.t1547.015
+    - attack.t1543.002
 logsource:
     category: file_event
     product: linux
@@ -387,14 +387,14 @@ detection:
     selection:
         ParentImage|endswith: '\node.exe'
         Image|endswith: '\node.exe'
-        CommandLine|contains: 'sync.js'
-    filter_legitimate:
         CommandLine|contains:
-            - 'node_modules'
-            - 'npm'
-    condition: selection and not filter_legitimate
+            - '\NodeJS\sync.js'
+            - '.local/share/NodeJS/sync.js'
+            - 'Library/Application Support/NodeJS/sync.js'
+            - '.config/NodeJS/sync.js'
+    condition: selection
 falsepositives:
-    - Legitimate Node.js applications spawning child processes with sync.js scripts
+    - Legitimate Node.js applications using identical NodeJS/sync.js payload paths (highly unlikely)
 level: high
 ```
 
@@ -416,7 +416,7 @@ references:
 author: Actioner
 date: 2026/07/18
 tags:
-    - attack.t1547.004
+    - attack.t1543.002
 logsource:
     category: file_event
     product: linux
@@ -502,7 +502,7 @@ Detects network traffic to the Miasma C2 IP on specific ports and IPFS gateway r
 **Status:** compile PASS (suricata -T exit 0) | confidence: high
 <!-- audit: suricata -T exit 0. Six rules: 1x IP-based multi-port, 2x IPFS CID HTTP URI, 3x per-port HTTP. All validated against Suricata 7.0.3. -->
 ```suricata
-alert ip $HOME_NET any -> 85.137.53.71 [8080,8081,8091] (msg:"Actioner - AsyncAPI Miasma C2 Communication to 85.137.53.71"; flow:to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-18, campaign miasma-train-p1; sid:2300001; rev:1;)
+alert tcp $HOME_NET any -> 85.137.53.71 [8080,8081,8091] (msg:"Actioner - AsyncAPI Miasma C2 Communication to 85.137.53.71"; flow:to_server,established; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-18, campaign miasma-train-p1; sid:2300001; rev:2;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AsyncAPI Miasma IPFS Payload Download CID Qmet4fhs"; flow:established,to_server; http.uri; content:"/ipfs/Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-18, campaign miasma-train-p1; sid:2300002; rev:1;)
 
@@ -532,3 +532,5 @@ The following Microsoft Defender signatures detect components of this attack:
 - [Miasma Worm Technical Analysis (prior campaign)](https://www.stepsecurity.io/blog/miasma-worm-hits-microsoft-again-azure-functions-action-and-72-other-repositories-disabled-after-supply-chain-attack-targeting-ai-coding-agents)
 - [MITRE ATT&CK: Supply Chain Compromise T1195.003](https://attack.mitre.org/techniques/T1195/003/)
 - [GitHub Actions Security: pull_request_target](https://securitylab.github.com/research/github-actions-preventing-pwn-requests/)
+
+<!-- revision: v1.1 2026-07-18 — Fixed: Sigma Rule 4 CommandLine constrained to distinctive paths (\NodeJS\sync.js, .local/share/NodeJS/sync.js, Library/Application Support/NodeJS/sync.js); Suricata SID 2300001 changed from alert ip to alert tcp with flow:to_server,established; MITRE T1547.015 corrected to T1543.002 (Systemd Service); T1110 corrected to T1552 (Unsecured Credentials); Sigma Rule 5 tag corrected to attack.t1543.002; all Sigma rule UUIDs regenerated as proper random UUIDv4. -->

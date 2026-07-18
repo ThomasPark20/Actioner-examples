@@ -1,0 +1,69 @@
+title: Shell profile modification by Node.js process (ViteVenom persistence)
+id: 8a4b2c1e-3d5f-4e7a-b9c2-6f1d8e3a5b7c
+status: experimental
+description: >-
+  Detects Node.js processes modifying shell profile files (.bashrc, .zshrc, .profile),
+  consistent with the ViteVenom npm supply chain campaign persistence mechanism
+  that injects backdoor commands into shell initialization files.
+references:
+  - https://thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html
+author: Actioner
+date: 2026/07/18
+tags:
+  - attack.persistence
+  - attack.t1546.004
+logsource:
+  category: file_change
+  product: linux
+detection:
+  selection_process:
+    Image|endswith:
+      - '/node'
+      - '/npm'
+      - '/npx'
+  selection_target:
+    TargetFilename|endswith:
+      - '/.bashrc'
+      - '/.zshrc'
+      - '/.profile'
+      - '/.bash_profile'
+  condition: selection_process and selection_target
+falsepositives:
+  - Legitimate Node.js tools that manage shell configuration (e.g., nvm installer)
+level: high
+---
+title: Node.js process connecting to blockchain RPC endpoints (ViteVenom C2)
+id: 9b5c3d2f-4e6a-5f8b-c0d3-7a2e9f4b6c8d
+status: experimental
+description: >-
+  Detects Node.js processes initiating DNS queries or network connections to
+  blockchain RPC endpoints (Tron, BSC, Aptos) used as C2 resolution channels
+  by the ViteVenom npm supply chain campaign. Developer workstations running
+  Vite-themed packages should not normally connect to blockchain infrastructure.
+references:
+  - https://thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html
+author: Actioner
+date: 2026/07/18
+tags:
+  - attack.command_and_control
+  - attack.t1102
+  - attack.t1071.001
+logsource:
+  category: dns_query
+  product: linux
+detection:
+  selection_process:
+    Image|endswith:
+      - '/node'
+      - '/npm'
+      - '/npx'
+  selection_domain:
+    QueryName|endswith:
+      - '.trongrid.io'
+      - '.binance.org'
+      - '.aptoslabs.com'
+  condition: selection_process and selection_domain
+falsepositives:
+  - Legitimate Web3/DeFi development tools querying blockchain RPCs
+  - dApp frontend build processes
+level: medium

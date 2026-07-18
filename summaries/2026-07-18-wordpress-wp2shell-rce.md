@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-18
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -151,9 +151,9 @@ find /var/www/ -name "*.php" -newer /var/www/wp-includes/version.php -mtime -7
 These detections target the WordPress wp2shell exploitation chain at the network and log level. They key on the distinctive combination of the `/wp-json/batch/v1` (or `rest_route=/batch/v1`) endpoint with `author__not_in` manipulation — artifacts specific to CVE-2026-63030 + CVE-2026-60137 rather than generic SQLi patterns. The batch endpoint is rarely used by legitimate clients on most WordPress installations, making the endpoint alone a useful signal; combined with the `author__not_in` string injection indicator, confidence is high. Verify field mappings (cs-uri-query, cs-body) against your log schema before deploying.
 
 ### Sigma Rule 1: WordPress wp2shell Batch Endpoint RCE Exploitation (CVE-2026-63030 + CVE-2026-60137)
-Detects requests to the WordPress batch endpoint combined with author__not_in parameter presence — the core exploitation signal.
+Detects requests to the WordPress batch endpoint combined with author__not_in parameter presence in the request body — the core exploitation signal.
 **Status:** compile PASS (sigma check 0 issues; convert splunk PASS; convert log_scale PASS) | confidence: high
-<!-- audit: sigma check 0 errors/0 issues (excluding attacktag/cvetag/d3_fendtag due to offline MITRE data). sigma convert --without-pipeline -t splunk: OK. sigma convert --without-pipeline -t log_scale: OK. cs-uri-query covers both URL path and query-string; uses |contains for substring matching. FP: legitimate batch API calls with author__not_in are uncommon. The endpoint alone is a signal on most sites. -->
+<!-- audit: sigma check 0 errors/0 issues (excluding attacktag/cvetag/d3_fendtag due to offline MITRE data). sigma convert --without-pipeline -t splunk: OK. sigma convert --without-pipeline -t log_scale: OK. cs-uri-stem|contains for /wp-json/batch/v1 path variant; cs-uri-query|contains for rest_route= query-string variant. author__not_in is in the JSON POST body so uses cs-body|contains. FP: legitimate batch API calls with author__not_in are uncommon. The endpoint alone is a signal on most sites. -->
 ```yaml
 title: WordPress wp2shell Batch Endpoint RCE Exploitation (CVE-2026-63030 + CVE-2026-60137)
 id: 8a3c7e1f-4d6b-4f92-b5e8-1c9a3d7f2e06
@@ -177,25 +177,27 @@ tags:
 logsource:
     category: webserver
 detection:
-    selection_batch_endpoint:
-        cs-uri-query|contains:
+    selection_batch_path:
+        cs-uri-stem|contains:
             - '/wp-json/batch/v1'
+    selection_batch_query:
+        cs-uri-query|contains:
             - 'rest_route=/batch/v1'
             - 'rest_route=%2Fbatch%2Fv1'
     selection_sqli_indicator:
-        cs-uri-query|contains:
+        cs-body|contains:
             - 'author__not_in'
             - 'author%5F%5Fnot%5Fin'
-    condition: selection_batch_endpoint and selection_sqli_indicator
+    condition: (selection_batch_path or selection_batch_query) and selection_sqli_indicator
 falsepositives:
-    - Legitimate batch API requests that reference author__not_in as a query parameter are uncommon but possible in custom REST clients
+    - Legitimate batch API requests that reference author__not_in in the POST body are uncommon but possible in custom REST clients
 level: high
 ```
 
 ### Sigma Rule 2: WordPress wp2shell Batch POST with SQLi Indicators (CVE-2026-60137)
 Detects POST requests to the batch endpoint with author__not_in and SQL injection keywords in the request body — higher confidence, requires body logging.
-**Status:** compile PASS (sigma check 0 issues; convert splunk PASS; convert log_scale PASS) | confidence: critical
-<!-- audit: sigma check 0 errors/0 issues. Requires cs-body field (body logging enabled). More specific than Rule 1 — fires only on POST with SQL keyword indicators in body alongside author__not_in. The combination is highly specific to exploitation; FP near zero. Evasion: comment obfuscation or case tricks in body may evade keyword list. -->
+**Status:** compile PASS (sigma check 0 issues; convert splunk PASS; convert log_scale PASS) | confidence: high
+<!-- audit: sigma check 0 errors/0 issues. Requires cs-body field (body logging enabled). cs-uri-stem|contains for /wp-json/batch/v1 path variant; cs-uri-query|contains for rest_route= query-string variant. More specific than Rule 1 — fires only on POST with SQL keyword indicators in body alongside author__not_in. The combination is highly specific to exploitation; FP near zero. Evasion: comment obfuscation or case tricks in body may evade keyword list. '--' and '/*' are marginal but acceptable given full conjunction with method+endpoint+author__not_in. -->
 ```yaml
 title: WordPress wp2shell Batch POST with SQLi Indicators (CVE-2026-60137)
 id: 2b4d8f3a-7e1c-4a59-9d6f-3c8b5e2a1f07
@@ -221,9 +223,11 @@ logsource:
 detection:
     selection_method:
         cs-method: 'POST'
-    selection_batch_uri:
-        cs-uri-query|contains:
+    selection_batch_path:
+        cs-uri-stem|contains:
             - '/wp-json/batch/v1'
+    selection_batch_query:
+        cs-uri-query|contains:
             - 'rest_route=/batch/v1'
             - 'rest_route=%2Fbatch%2Fv1'
     selection_sqli_body:
@@ -242,7 +246,7 @@ detection:
             - 'UPDATEXML('
             - '--'
             - '/*'
-    condition: selection_method and selection_batch_uri and selection_sqli_body and selection_sqli_patterns
+    condition: selection_method and (selection_batch_path or selection_batch_query) and selection_sqli_body and selection_sqli_patterns
 falsepositives:
     - Very unlikely; the combination of batch endpoint + author__not_in + SQL keywords in POST body is highly specific
 level: critical
@@ -280,6 +284,8 @@ The wp2shell chain demonstrates that even WordPress core — with its massive se
 - [The Hacker News — New wp2shell WordPress Core Flaw](hxxps://thehackernews[.]com/2026/07/new-wp2shell-wordpress-core-flaw-lets[.]html) — primary reporting; CVE identifiers, affected versions, exploitation mechanism summary, timeline
 - [WordPress 6.9.5 Security Release](hxxps://wordpress[.]org/news/2026/07/wordpress-6-9-5-security-release/) — vendor advisory; patched versions, acknowledgments
 - [WordPress 7.0.2 Security Release](hxxps://wordpress[.]org/news/2026/07/wordpress-7-0-2-security-release/) — vendor advisory for 7.x branch
+
+<!-- revision: v1.1 2026-07-18 — Sigma Rule 1: split endpoint detection into cs-uri-stem|contains (path variant) and cs-uri-query|contains (rest_route= variant); moved author__not_in from cs-uri-query to cs-body|contains; updated audit comment. Sigma Rule 2: same path/query split; confidence label corrected from "critical" to "high" in status line; audit comment updated re: marginal patterns acceptable given conjunction. Suricata/Snort: unchanged (KEEP). Re-validated: sigma check 0 errors/0 issues; sigma convert splunk PASS; sigma convert log_scale PASS. -->
 
 ---
 *Report generated by Actioner*

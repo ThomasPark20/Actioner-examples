@@ -1,0 +1,33 @@
+title: AsyncAPI Miasma sync.js Persistence File Creation (Linux/macOS)
+id: 4e708640-f71e-4cd1-a13c-50510d6edb70
+status: experimental
+description: >
+    Detects creation of the Miasma runtime persistence file sync.js in Linux
+    and macOS application data directories. The AsyncAPI npm supply chain
+    compromise drops sync.js to ~/.local/share/NodeJS/sync.js (Linux),
+    ~/Library/Application Support/NodeJS/sync.js (macOS), or
+    ~/.config/NodeJS/sync.js (fallback). Also detects the lock file
+    at ~/.config/.miasma/run/node.lock.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1547.004
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_linux_share:
+        TargetFilename|endswith: '/.local/share/NodeJS/sync.js'
+    selection_macos:
+        TargetFilename|contains: '/Library/Application Support/NodeJS/sync.js'
+    selection_config:
+        TargetFilename|endswith: '/.config/NodeJS/sync.js'
+    selection_lock:
+        TargetFilename|contains: '/.config/.miasma/run/node.lock'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate Node.js tooling creating sync.js in these specific paths (highly unlikely)
+level: critical

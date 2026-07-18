@@ -3,7 +3,8 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-07-18
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 — Sigma Rule 2 QueryName|contains→endswith for domain-boundary safety; 3 Suricata rules dropped (no campaign-specific discriminator on public blockchain RPC endpoints); single-source limitation noted. -->
 
 ## Executive Summary
 
@@ -183,7 +184,7 @@ These modifications ensure the backdoor re-establishes on every new terminal ses
 
 ## Detection Rules
 
-These detections target the campaign's most distinctive artifacts: (1) shell profile modification by Node.js processes (the persistence mechanism), (2) blockchain RPC endpoint access from Node.js (the C2 resolution chain), and (3) network-level detection of HTTP requests to the specific blockchain endpoints used. The blockchain C2 mechanism is the primary detection differentiator — while individual blockchain RPC access may be legitimate in Web3 environments, it is highly anomalous on general development workstations running Vite build tooling.
+These detections target the campaign's most distinctive artifacts: (1) shell profile modification by Node.js processes (the persistence mechanism), and (2) blockchain RPC endpoint DNS resolution from Node.js (the C2 resolution chain). Network-level Suricata rules were evaluated but dropped (see below). The blockchain C2 mechanism is the primary detection differentiator — while individual blockchain RPC access may be legitimate in Web3 environments, it is highly anomalous on general development workstations running Vite build tooling.
 
 ### Sigma: Shell profile modification by Node.js process
 Detects Node.js/npm/npx processes modifying shell initialization files (.bashrc, .zshrc, .profile, .bash_profile), consistent with ViteVenom's persistence mechanism. This is a high-confidence indicator — legitimate Node.js tools rarely modify shell profiles outside of explicit installer flows (e.g., nvm).
@@ -228,7 +229,7 @@ level: high
 ### Sigma: Node.js DNS queries to blockchain RPC endpoints
 Detects Node.js processes resolving blockchain RPC endpoint domains (Tron, BSC, Aptos), consistent with ViteVenom's multi-blockchain C2 resolution chain. On non-Web3 developer workstations this is highly anomalous.
 **Status:** compile pass (sigma convert splunk/log_scale exit 0) | confidence: medium
-<!-- audit: Same sandbox D3FEND-fetch issue as above — rule parses and converts cleanly. `sigma convert --without-pipeline -t splunk` exit 0 => Image IN ("*/node","*/npm","*/npx") QueryName IN ("*api.trongrid.io*","*bsc-dataseed.binance.org*","*fullnode.mainnet.aptoslabs.com*"); `-t log_scale` exit 0. Medium confidence because legitimate Web3 dev tools will trigger; deploy with environment context (suppress in blockchain dev teams). T1102 (Web Service as C2) is correct technique. -->
+<!-- audit: Same sandbox D3FEND-fetch issue as above — rule parses and converts cleanly. Revised: QueryName|endswith replaces QueryName|contains to enforce domain-boundary matching (prevents substring false positives like "notapi.trongrid.io.evil.com"). `sigma convert --without-pipeline -t splunk` exit 0; `-t log_scale` exit 0. Medium confidence because legitimate Web3 dev tools will trigger; deploy with environment context (suppress in blockchain dev teams). T1102 (Web Service as C2) is correct technique. -->
 ```yaml
 title: Node.js process connecting to blockchain RPC endpoints (ViteVenom C2)
 id: 9b5c3d2f-4e6a-5f8b-c0d3-7a2e9f4b6c8d
@@ -281,6 +282,8 @@ This campaign demonstrates a significant evolution in blockchain-based C2 infras
 4. **Transaction data as payload storage:** Blockchain transaction fields can carry arbitrary encrypted data — this is a durable, censorship-resistant payload delivery channel.
 
 ## Sources
+
+> **Single-source limitation:** This report is derived entirely from a single public disclosure (The Hacker News). No independent sample analysis, blockchain transaction verification, or secondary vendor confirmation was available at time of writing. IOCs and behavioral descriptions reflect the source narrative and should be corroborated when additional reporting emerges.
 
 - [The Hacker News — Seven Malicious Vite npm Packages Use Blockchain C2](https://thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html) — primary disclosure; package names, download counts, blockchain C2 architecture, RAT capabilities, persistence mechanism
 
