@@ -1,0 +1,146 @@
+# UAT-11795 Starland RAT & WLDR C2 Campaign - Sigma Detection Rules
+# Author: Actioner
+# Date: 2026-07-18
+# Reference: https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+# Total: 5 rules
+
+title: UAT-11795 Starland RAT Execution Chain - mshta to pythonw with LICENSE.txt
+id: a4c7e831-2f19-4d6a-b882-1c3d5e8f9a01
+status: experimental
+description: >
+    Detects the UAT-11795 Starland RAT execution chain where a trojanized NSIS
+    installer executes pythonw.exe with LICENSE.txt as an argument. The LICENSE.txt
+    file contains the XOR-encrypted (key 0xC6) Python loader that decrypts and
+    executes the Starland RAT in memory.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.execution
+    - attack.t1204.002
+    - attack.defense_evasion
+    - attack.t1027
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\pythonw.exe'
+        CommandLine|contains: 'LICENSE.txt'
+    condition: selection
+falsepositives:
+    - Highly unlikely in production environments
+level: high
+---
+title: UAT-11795 Starland RAT Scheduled Task Persistence - PythonLauncher Pattern
+id: b5d8f942-3a20-5e7b-c993-2d4e6f9a0b12
+status: experimental
+description: >
+    Detects the creation of scheduled tasks matching the Starland RAT persistence
+    naming pattern PythonLauncher-{3 random chars} with AtLogOn trigger and
+    RunLevel Highest. The task executes pythonw.exe with LICENSE.txt to reload
+    the encrypted RAT payload.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.persistence
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'PythonLauncher-'
+    condition: selection
+falsepositives:
+    - Custom Python development environments using similar naming convention
+level: high
+---
+title: UAT-11795 WLDR C2 Implant Mutex Creation
+id: c6e9a053-4b31-6f8c-da04-3e5f7a0b1c23
+status: experimental
+description: >
+    Detects creation of the WLDR C2 implant mutex f2j398fj239d8j23dkkskskkkkkkkkk
+    which is a hardcoded single-instance check used by the WLDR PowerShell implant
+    deployed by UAT-11795. This mutex value is unique to this threat actor.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.execution
+    - attack.t1106
+logsource:
+    category: create_mutex
+    product: windows
+detection:
+    selection:
+        EventType: CreateMutex
+        MutexName: 'f2j398fj239d8j23dkkskskkkkkkkkk'
+    condition: selection
+falsepositives:
+    - None known
+level: critical
+---
+title: UAT-11795 Known C2 Domain DNS Query
+id: d7fa1b64-5c42-7a9d-eb15-4f6a8b1c2d34
+status: experimental
+description: >
+    Detects DNS queries to known UAT-11795 C2 infrastructure domains used
+    for Starland RAT and WLDR implant command-and-control in the financially
+    motivated campaign targeting US and European users.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName|endswith:
+            - 'eorthopaedics.com'
+            - 'sastoro.com'
+            - 'web-devtools.com'
+            - 'zynaris.io'
+            - 'windowscreenrepairnearme.com'
+            - 'aipythondevs.com'
+            - 'polygon-rpc.com'
+    condition: selection
+falsepositives:
+    - Unlikely - these are attacker-controlled domains
+level: critical
+---
+title: UAT-11795 Starland RAT Registry Persistence via mshta
+id: e8ab2c75-6d53-8b0e-fc26-5a7b9c2d3e45
+status: experimental
+description: >
+    Detects the UAT-11795 registry persistence mechanism where the Run key value
+    MyApp is set to execute mshta.exe with a remote HTA URL. This is used as
+    a secondary persistence mechanism alongside the scheduled task.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.persistence
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run'
+        TargetObject|endswith: '\MyApp'
+        Details|contains: 'mshta'
+    condition: selection
+falsepositives:
+    - Unlikely - generic Run value name "MyApp" with mshta is suspicious
+level: high

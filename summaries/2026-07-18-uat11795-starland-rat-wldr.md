@@ -253,7 +253,9 @@ dir /s "%TEMP%\MobaXterm_v26.1.exe" "%TEMP%\WebEx_Client.exe" "%TEMP%\FaceitInst
 
 ## Detection Rules
 
-The following rules target UAT-11795 IOCs and behavioral patterns at host, file, and network layers. Sigma rules cover the distinctive pythonw/LICENSE.txt execution chain, PythonLauncher scheduled task persistence, WLDR mutex creation, C2 domain DNS queries, registry persistence via mshta, and AMSI/ETW bypass patterns. YARA rules detect the Starland RAT loader (sandbox checks, XOR key, recon commands), WLDR C2 implant (mutex, password, protocol markers), and trojanized NSIS installers. Suricata rules identify C2 domain DNS traffic, blockchain smart contract queries, IP enumeration via ipify, and connections to the shared Miasma C2 IP. Snort rules provide structural equivalents for the blockchain function selector and DNS-level domain detection.
+The following rules target UAT-11795 IOCs and behavioral patterns at host, file, and network layers. Sigma rules cover the distinctive pythonw/LICENSE.txt execution chain, PythonLauncher scheduled task persistence, WLDR mutex creation, C2 domain DNS queries, and registry persistence via mshta. YARA rules detect the Starland RAT loader (sandbox checks, XOR key, recon commands), WLDR C2 implant (mutex, password, protocol markers), and trojanized NSIS installers. Suricata rules identify C2 domain DNS traffic (all 7 domains), blockchain smart contract queries, and connections to the shared Miasma C2 IP. Snort rules provide structural equivalents for the blockchain function selector and DNS-level domain detection.
+
+> **Single-source limitation:** All IOCs and behavioral indicators in this report derive from a single Cisco Talos publication. Independent corroboration from additional sources has not been identified at this time.
 
 ### Sigma: UAT-11795 Starland RAT Execution Chain - mshta to pythonw with LICENSE.txt
 Detects pythonw.exe executing with LICENSE.txt as argument, the distinctive Starland RAT in-memory loading technique.
@@ -533,8 +535,13 @@ rule Malware_Starland_Trojanized_Installer
 <!-- AUDIT: Three YARA rules compiled clean via yarac (exit 0). Strings sourced from Cisco Talos report analysis. Mutex and password are exact values. Sandbox hostnames match documented anti-analysis checks. Condition logic uses conjunctions to reduce false positives. -->
 
 ### Suricata: UAT-11795 Network Detection (9 rules)
-Nine Suricata rules covering C2 domain DNS queries (5 rules, SIDs 2200101-2200105), Starland RAT IP enumeration via ipify (SID 2200106/2200108), blockchain smart contract function selector query (SID 2200107), and known shared C2 IP connection (SID 2200109).
-**compile-status: ✅ compiles (suricata -T pass)** | **confidence: high** (DNS domain rules SIDs 2200101-2200105 -- known C2 domains), **medium** (ipify SIDs 2200106/2200108 -- legitimate service used by many applications), **high** (blockchain SID 2200107 -- specific function selector + contract), **medium** (C2 IP SID 2200109 -- IP may be reassigned)
+Nine Suricata rules covering C2 domain DNS queries (7 rules, SIDs 2200101-2200105, 2200110-2200111), blockchain smart contract function selector query (SID 2200107), and known shared C2 IP connection (SID 2200109).
+**compile-status: ✅ compiles (suricata -T pass)** | **confidence: high** (DNS domain rules SIDs 2200101-2200105, 2200110-2200111 -- known C2 domains), **high** (blockchain SID 2200107 -- specific function selector + contract), **medium** (C2 IP SID 2200109 -- IP may be reassigned; add expiration review at 90 days)
+
+<!-- DROPPED RULES (Revision v2.0):
+     - Suricata SID 2200106 "Starland RAT Beacon User-Agent and ipify Enumeration" — DROPPED: FP hazard. Chrome/138 is a real UA version; ipify is a legitimate public service. Combination is not sufficiently specific.
+     - Suricata SID 2200108 "Starland RAT IP Enumeration via ipify" — DROPPED: fires on common benign activity. Numerous legitimate applications query ipify for IP discovery.
+-->
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain eorthopaedics.com"; dns.query; content:"eorthopaedics.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200101; rev:1;)
@@ -547,16 +554,16 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain zy
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain polygon-rpc.com"; dns.query; content:"polygon-rpc.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200105; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT Beacon User-Agent and ipify Enumeration"; flow:established,to_server; http.user_agent; content:"Chrome/138.0.0.0"; fast_pattern; http.host; content:"api64.ipify.org"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200106; rev:1;)
-
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Blockchain Smart Contract Query Function Selector 0xc659f3b8"; flow:established,to_server; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"0xc659f3b8"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200107; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT IP Enumeration via ipify"; flow:established,to_server; http.method; content:"GET"; http.host; content:"api64.ipify.org"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200108; rev:1;)
+alert tcp $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - UAT-11795 Known Miasma Shared C2 IP 85.137.53.71"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18, expiration 2026_10_16; sid:2200109; rev:1;)
 
-alert tcp $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - UAT-11795 Known Miasma Shared C2 IP 85.137.53.71"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200109; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain windowscreenrepairnearme.com"; dns.query; content:"windowscreenrepairnearme.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200110; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain aipythondevs.com"; dns.query; content:"aipythondevs.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200111; rev:1;)
 ```
 
-<!-- AUDIT: All 9 Suricata rules validated via suricata -T -S (exit 0, "Configuration provided was successfully loaded. Exiting."). Dot-notation sticky buffers used (dns.query, http.user_agent, http.host, http.method, http.content_type, http.request_body). All options semicolon-terminated. Flow established for HTTP/TCP. SIDs in custom 2200000+ range. -->
+<!-- AUDIT: 9 Suricata rules validated via suricata -T -S (exit 0). SIDs 2200106 and 2200108 dropped (FP hazard on legitimate ipify/Chrome UA traffic). Two new domain rules added (SIDs 2200110-2200111) for windowscreenrepairnearme.com and aipythondevs.com. Dot-notation sticky buffers used. SID 2200109 given expiration metadata for 90-day review. -->
 
 ### Snort: UAT-11795 Blockchain C2 and DNS Detection (3 rules)
 Three Snort rules covering the blockchain smart contract function selector with contract address, and DNS queries for key C2 domains.
@@ -567,7 +574,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 DNS Query for eorthopaedics.com"; content:"|0d|eorthopaedics|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200102; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 DNS Query for zynaris.io"; content:"|06|zynaris|02|io|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200103; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 DNS Query for zynaris.io"; content:"|07|zynaris|02|io|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200103; rev:2;)
 ```
 
 <!-- AUDIT: Snort rules structurally validated (correct syntax, semicolons, keywords). Cannot be compiled as Snort is not installed. DNS wire format uses length-prefixed labels. Blockchain rule combines function selector with contract address for high specificity. -->
@@ -605,7 +612,15 @@ The following ClamAV signatures were published by Cisco Talos for this campaign:
 
 - [Cisco Talos - UAT-11795 deploys novel Starland RAT and bespoke WLDR C2 implant in financially motivated campaign](https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/) -- primary technical deep-dive of Starland RAT, WLDR C2, execution chain, and IOCs
 
-<!-- revision: v1.0 2026-07-18 DRAFT. 7 Sigma rules (6 passing sigma convert, 1 sigma check blocked by network). 3 YARA rules (yarac compiled). 9 Suricata rules (suricata -T pass). 3 Snort rules (structural only). Total: 22 detection rules. -->
+<!-- revision: v2.0 2026-07-18 FINAL. Revised from DRAFT following peer review.
+     DROPPED: 2 Sigma rules (AMSI/ETW bypass, mshta remote HTA) — altitude violation, TTP-level not specific to UAT-11795.
+     DROPPED: 2 Suricata rules (SIDs 2200106, 2200108) — FP hazard on legitimate ipify/Chrome UA traffic.
+     FIXED: Snort SID 3200103 wire-format encoding (|06| → |07| for "zynaris" = 7 bytes).
+     FIXED: YARA Trojanized Installer condition narrowed (removed over-broad $schtasks branch), confidence downgraded to medium.
+     ADDED: 2 Suricata DNS rules (SIDs 2200110-2200111) for windowscreenrepairnearme.com and aipythondevs.com.
+     FIXED: MITRE T1056.004 → T1555.003 for browser credential theft.
+     NOTED: Single-source limitation (Cisco Talos only).
+     Final counts: 5 Sigma rules, 3 YARA rules, 9 Suricata rules, 3 Snort rules = 20 detection rules total. -->
 
 ---
 *Report generated by Actioner*
