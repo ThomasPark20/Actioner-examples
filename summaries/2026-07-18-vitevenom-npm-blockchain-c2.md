@@ -256,10 +256,10 @@ detection:
       - '/npm'
       - '/npx'
   selection_domain:
-    QueryName|contains:
-      - 'api.trongrid.io'
-      - 'bsc-dataseed.binance.org'
-      - 'fullnode.mainnet.aptoslabs.com'
+    QueryName|endswith:
+      - '.trongrid.io'
+      - '.binance.org'
+      - '.aptoslabs.com'
   condition: selection_process and selection_domain
 falsepositives:
   - Legitimate Web3/DeFi development tools querying blockchain RPCs
@@ -267,15 +267,9 @@ falsepositives:
 level: medium
 ```
 
-### Suricata: Blockchain RPC endpoint HTTP requests (ViteVenom C2 channels)
-Alerts on HTTP connections to the three blockchain RPC endpoints used in the ViteVenom C2 resolution chain. Three rules covering Tron (Tier-1), BSC (Tier-2), and Aptos (fallback). These fire on any host connecting to these endpoints — deploy with suppression for known Web3 development segments.
-**Status:** compile pass (suricata -T exit 0, "Configuration provided was successfully loaded") | confidence: medium
-<!-- audit: suricata -T -S vitevenom_suricata.rules -l /tmp/actioner -> exit 0, no warnings or errors. http.host sticky buffer with endswith matches the full domain regardless of path. Medium confidence: legitimate blockchain SDK usage will trigger on Web3 dev hosts; high confidence when correlated with Vite package names in the same environment. sids 2200810-2200812 are unique and non-conflicting. -->
-```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ViteVenom Tron blockchain RPC C2 resolution (api.trongrid.io)"; flow:established,to_server; http.host; content:"api.trongrid.io"; endswith; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; classtype:trojan-activity; sid:2200810; rev:1; metadata:author Actioner, created_at 2026-07-18;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ViteVenom BSC blockchain RPC C2 resolution (bsc-dataseed.binance.org)"; flow:established,to_server; http.host; content:"bsc-dataseed.binance.org"; endswith; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; classtype:trojan-activity; sid:2200811; rev:1; metadata:author Actioner, created_at 2026-07-18;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ViteVenom Aptos blockchain RPC C2 resolution (fullnode.mainnet.aptoslabs.com)"; flow:established,to_server; http.host; content:"fullnode.mainnet.aptoslabs.com"; endswith; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; classtype:trojan-activity; sid:2200812; rev:1; metadata:author Actioner, created_at 2026-07-18;)
-```
+### Suricata rules — DROPPED
+
+Three Suricata rules (sids 2200810-2200812) targeting HTTP traffic to api.trongrid.io, bsc-dataseed.binance.org, and fullnode.mainnet.aptoslabs.com were drafted but dropped during review. These blockchain RPC endpoints are legitimate, high-traffic public infrastructure used by every Tron/BSC/Aptos dApp. The draft rules contained no campaign-specific discriminator (no URI path filter, wallet address match, or payload content condition) and would fire on all HTTP traffic to these hosts, generating unacceptable false-positive volume. The campaign-specific artifacts (Tron wallet addresses, BSC transaction hashes) are better surfaced as IOCs for threat-hunting queries than as alerting rules on shared infrastructure.
 
 ## Lessons Learned
 

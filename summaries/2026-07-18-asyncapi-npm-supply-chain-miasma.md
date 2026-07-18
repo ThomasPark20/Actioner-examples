@@ -174,9 +174,9 @@ These modules are present in the code but currently disabled (not executing).
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Obfuscated JavaScript loader with ROT-94de encoding and eval() |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | Windows HKCU Run key "miasma-monitor" |
 | T1547.004 | Boot or Logon Autostart Execution: Unix Shell Configuration Modification | macOS rc/shell profile injection |
-| T1547.015 | Boot or Logon Autostart Execution: Login Items | Systemd unit miasma-monitor.service on Linux |
+| T1543.002 | Create or Modify System Process: Systemd Service | Systemd unit miasma-monitor.service on Linux |
 | T1027 | Obfuscated Files or Information | ROT-94de encoding, HKDF-SHA256/AES-256-GCM encryption chain |
-| T1110 | Brute Force | (Credential modules present but disabled) |
+| T1552 | Unsecured Credentials | Credential-harvesting modules targeting tokens/files (present but disabled) |
 | T1555 | Credentials from Password Stores | Targets ~/.npmrc, ~/.aws/credentials, ~/.ssh/id_rsa, kubeconfig |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP C2 to 85.137.53.71:8080; IPFS gateway for payload delivery |
 | T1008 | Fallback Channels | Nostr, Ethereum, BitTorrent DHT, libp2p, IPFS as backup C2 |
@@ -252,7 +252,7 @@ Detects network connections to the Miasma runtime C2 server at 85.137.53[.]71 on
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: specific IP + specific ports combination is highly distinctive. -->
 ```yaml
 title: AsyncAPI Miasma C2 IP Communication (85.137.53.71)
-id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+id: 72f8d355-3883-4877-b565-e2d808f8d963
 status: experimental
 description: >
     Detects network connections to the Miasma runtime C2 server at
@@ -288,7 +288,7 @@ Detects creation of the Miasma runtime persistence file `sync.js` in the Windows
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: %LOCALAPPDATA%\NodeJS\sync.js is not a legitimate Windows path used by Node.js or npm. -->
 ```yaml
 title: AsyncAPI Miasma sync.js Persistence File Creation
-id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+id: a9045293-14a0-4799-8ed0-a060570375b1
 status: experimental
 description: >
     Detects creation of the Miasma runtime persistence file sync.js in
@@ -325,7 +325,7 @@ Detects creation of the Miasma runtime persistence file `sync.js` in Linux/macOS
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: ~/.local/share/NodeJS/sync.js and ~/Library/Application Support/NodeJS/sync.js are not legitimate paths. -->
 ```yaml
 title: AsyncAPI Miasma sync.js Persistence File Creation (Linux/macOS)
-id: c3d4e5f6-a7b8-9012-cdef-123456789012
+id: 4e708640-f71e-4cd1-a13c-50510d6edb70
 status: experimental
 description: >
     Detects creation of the Miasma runtime persistence file sync.js in Linux
@@ -365,7 +365,7 @@ Detects Node.js spawning a detached child Node.js process executing `sync.js` --
 <!-- audit: sigma convert splunk 0; log_scale 0. Medium confidence: node spawning node with sync.js is specific but legitimate Node.js file-sync tools could match; filter reduces FPs. -->
 ```yaml
 title: AsyncAPI Miasma Detached Node.js Child Process Spawn
-id: d4e5f6a7-b8c9-0123-defa-234567890123
+id: b633749c-bbaf-4524-9011-fec0843bcf7f
 status: experimental
 description: >
     Detects the Miasma runtime's characteristic detached Node.js child process
@@ -404,7 +404,7 @@ Detects creation of the `miasma-monitor.service` systemd unit file used for Linu
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: "miasma-monitor" is a unique malicious service name with no legitimate software equivalent. -->
 ```yaml
 title: AsyncAPI Miasma Systemd Persistence Unit Installation
-id: e5f6a7b8-c9d0-1234-efab-345678901234
+id: 8a896e11-e24c-427e-aa7e-5ed284e717c6
 status: experimental
 description: >
     Detects creation of the miasma-monitor.service systemd unit file used by
@@ -436,7 +436,7 @@ Detects creation of the `miasma-monitor` Windows Registry Run key for boot persi
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: "miasma-monitor" registry value name is unique to this malware family. -->
 ```yaml
 title: AsyncAPI Miasma Windows Registry Run Key Persistence
-id: f6a7b8c9-d0e1-2345-fabc-456789012345
+id: e87de041-d567-49b6-855b-12cda563eccc
 status: experimental
 description: >
     Detects the Miasma runtime setting the "miasma-monitor" Windows registry
@@ -467,7 +467,7 @@ Detects proxy/web log evidence of IPFS gateway requests fetching the specific co
 <!-- audit: sigma convert splunk 0; log_scale 0. High confidence: IPFS CIDs are content-addressed hashes unique to the malicious payload. -->
 ```yaml
 title: AsyncAPI Miasma IPFS Payload Download via Known CIDs
-id: a7b8c9d0-e1f2-3456-abcd-567890123456
+id: 7358cb78-b72e-4c7c-8ce6-32a9e7a0b862
 status: experimental
 description: >
     Detects HTTP requests to IPFS gateways fetching the specific CIDs used by
