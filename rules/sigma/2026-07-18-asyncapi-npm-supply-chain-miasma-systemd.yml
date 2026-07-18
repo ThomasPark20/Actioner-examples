@@ -1,0 +1,25 @@
+title: AsyncAPI Miasma Systemd Persistence Unit Installation
+id: 8a896e11-e24c-427e-aa7e-5ed284e717c6
+status: experimental
+description: >
+    Detects creation of the miasma-monitor.service systemd unit file used by
+    the Miasma runtime for persistence on Linux systems. The AsyncAPI npm
+    supply chain compromise installs this service to maintain persistence
+    across reboots.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: 'miasma-monitor'
+        TargetFilename|endswith: '.service'
+    condition: selection
+falsepositives:
+    - None expected; miasma-monitor is a unique malicious service name
+level: critical

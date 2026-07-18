@@ -1,0 +1,32 @@
+title: AsyncAPI Miasma Detached Node.js Child Process Spawn
+id: b633749c-bbaf-4524-9011-fec0843bcf7f
+status: experimental
+description: >
+    Detects the Miasma runtime's characteristic detached Node.js child process
+    spawn pattern. The malicious code executes at import time and spawns a
+    detached Node.js process running sync.js payload with stdio ignored and
+    windowsHide enabled, then unreferences the child to prevent the parent
+    from waiting.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1059.007
+    - attack.t1129
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\node.exe'
+        Image|endswith: '\node.exe'
+        CommandLine|contains:
+            - '\NodeJS\sync.js'
+            - '.local/share/NodeJS/sync.js'
+            - 'Library/Application Support/NodeJS/sync.js'
+            - '.config/NodeJS/sync.js'
+    condition: selection
+falsepositives:
+    - Legitimate Node.js applications using identical NodeJS/sync.js payload paths (highly unlikely)
+level: high

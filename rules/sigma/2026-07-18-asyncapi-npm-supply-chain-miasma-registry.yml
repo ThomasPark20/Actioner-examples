@@ -1,0 +1,24 @@
+title: AsyncAPI Miasma Windows Registry Run Key Persistence
+id: e87de041-d567-49b6-855b-12cda563eccc
+status: experimental
+description: >
+    Detects the Miasma runtime setting the "miasma-monitor" Windows registry
+    Run key for persistence. The AsyncAPI npm supply chain compromise creates
+    an HKCU Run key named "miasma-monitor" to execute the payload at user logon.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run\'
+        TargetObject|endswith: 'miasma-monitor'
+    condition: selection
+falsepositives:
+    - None expected; miasma-monitor is a unique malicious registry value name
+level: critical

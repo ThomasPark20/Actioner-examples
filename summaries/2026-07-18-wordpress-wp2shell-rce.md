@@ -148,7 +148,7 @@ find /var/www/ -name "*.php" -newer /var/www/wp-includes/version.php -mtime -7
 
 ## Detection Rules
 
-These detections target the WordPress wp2shell exploitation chain at the network and log level. They key on the distinctive combination of the `/wp-json/batch/v1` (or `rest_route=/batch/v1`) endpoint with `author__not_in` manipulation — artifacts specific to CVE-2026-63030 + CVE-2026-60137 rather than generic SQLi patterns. The batch endpoint is rarely used by legitimate clients on most WordPress installations, making the endpoint alone a useful signal; combined with the `author__not_in` string injection indicator, confidence is high. Verify field mappings (cs-uri-query, cs-body) against your log schema before deploying.
+These detections target the WordPress wp2shell exploitation chain at the network and log level. They key on the distinctive combination of the `/wp-json/batch/v1` (or `rest_route=/batch/v1`) endpoint with `author__not_in` manipulation — artifacts specific to CVE-2026-63030 + CVE-2026-60137 rather than generic SQLi patterns. The batch endpoint is rarely used by legitimate clients on most WordPress installations, making the endpoint alone a useful signal; combined with the `author__not_in` string injection indicator, confidence is high. Verify field mappings (cs-uri-stem, cs-uri-query, cs-body) against your log schema before deploying.
 
 ### Sigma Rule 1: WordPress wp2shell Batch Endpoint RCE Exploitation (CVE-2026-63030 + CVE-2026-60137)
 Detects requests to the WordPress batch endpoint combined with author__not_in parameter presence in the request body — the core exploitation signal.
