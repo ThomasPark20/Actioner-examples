@@ -1,0 +1,1 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ViteVenom Blockchain C2 Tron Wallet Query"; flow:established,to_server; content:"TMfKQEd7TJJa5xNZJZ2Lep838vrzrs7mAP"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; sid:2100010; rev:1;)

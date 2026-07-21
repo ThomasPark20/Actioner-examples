@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - ViteVenom C2 DNS Query to Vercel Domain (260120)"; dns.query; content:"260120.vercel.app"; nocase; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; metadata:author Actioner, created_at 2026-07-21; sid:2200010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ViteVenom C2 DNS Query to Vercel Domain (default-configuration)"; dns.query; content:"default-configuration.vercel.app"; nocase; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; metadata:author Actioner, created_at 2026-07-21; sid:2200011; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ViteVenom Blockchain C2 Tron Wallet Resolution via HTTP"; flow:established,to_server; http.uri; content:"TMfKQEd7TJJa5xNZJZ2Lep838vrzrs7mAP"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html; metadata:author Actioner, created_at 2026-07-21; sid:2200012; rev:1;)
