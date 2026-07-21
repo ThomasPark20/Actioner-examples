@@ -1,0 +1,26 @@
+title: HollowGraph Configuration File logAzure.txt Creation
+id: 2b5f8c4a-1e7d-49a3-b6f0-3c8d9e5a2f1b
+status: experimental
+description: >
+    Detects the creation of logAzure.txt, the on-disk configuration file
+    used by HollowGraph malware to store Microsoft Entra ID credentials
+    (tenant ID, client ID, client secret) and RSA keys for Graph API
+    authentication.
+references:
+    - https://www.group-ib.com/blog/hollowgraph-microsoft-365/
+    - https://thehackernews.com/2026/07/hollowgraph-malware-hides-c2-and-stolen.html
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1059.009
+    - attack.t1078.004
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\logAzure.txt'
+    condition: selection
+falsepositives:
+    - Custom Azure logging scripts that write to a file named logAzure.txt
+level: medium
