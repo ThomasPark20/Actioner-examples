@@ -1,0 +1,23 @@
+title: Miasma Monitor Windows Registry Persistence
+id: 045b243d-1c64-440c-a3af-5d1fd58df661
+status: experimental
+description: >
+    Detects creation of the miasma-monitor Registry Run key used by the
+    Miasma RAT for persistence, as seen in the AsyncAPI npm supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://socket.dev/blog/asyncapi-supply-chain-attack
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\miasma-monitor'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
