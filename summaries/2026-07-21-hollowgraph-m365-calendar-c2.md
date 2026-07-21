@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-21
-Version: DRAFT
+Version: FINAL
+<!-- revision: 2026-07-21 — applied critic verdicts: logAzure.txt Sigma level+confidence downgraded to medium; M365 Calendar Sigma title stripped "via Application" (no app-identity filter), narrowed 2050 match with calendar-context filter, flagged environment-specific; YARA sample label corrected to "untested (no public sample)"; graph.microsoft.com removed from IOC table (legitimate infrastructure — DO NOT BLOCK); defanging of graph.microsoft.com made consistent; M365 rule prose rewritten from pseudo-implemented to tuning recommendation. -->
 
 ## Executive Summary
 
@@ -129,7 +130,8 @@ All data moving through the calendar channel is protected with **hybrid RSA + AE
 | Domain | `google[.]com[.]hospitalinstallation[.]com` | Cavern framework C2 subdomain (newer) |
 | Domain | `adserviceupdate[.]com` | Legacy Cav3rn era C2 |
 | Domain | `hygienehistory[.]com` | Legacy Cav3rn era C2 |
-| API Endpoint | `graph[.]microsoft[.]com` | Legitimate Microsoft Graph API (C2 traffic destination) |
+
+> **Note:** All HollowGraph C2 traffic transits `graph.microsoft.com` (the legitimate Microsoft Graph API endpoint). This domain is **NOT an IOC** and must **NOT** be added to blocklists -- doing so would disable Microsoft 365 for the organization. Detection must focus on audit-log-level inspection of application-driven calendar operations, not network-level domain blocking.
 
 ### Behavioral
 
@@ -252,9 +254,9 @@ level: high
 
 ### Sigma: HollowGraph Configuration File Creation
 
-Detects creation of `logAzure.txt`, the on-disk config file storing compromised Entra ID credentials for Graph API authentication.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk 0, log_scale 0, splunk_windows pipeline 0. Filename is distinctive but not unique — FP possible from custom Azure logging scripts; combined with other indicators raises confidence. -->
+Detects creation of `logAzure.txt`, the on-disk config file storing compromised Entra ID credentials for Graph API authentication. Filename is not unique -- false positives from custom Azure logging scripts are acknowledged.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check blocked by proxy; splunk 0, log_scale 0, splunk_windows pipeline 0. Filename is distinctive but not unique — FP possible from custom Azure logging scripts; confidence downgraded from high to medium per critic review. Best used as a supporting indicator alongside DNS or calendar detections. -->
 ```yaml
 title: HollowGraph Configuration File logAzure.txt Creation
 id: 2b5f8c4a-1e7d-49a3-b6f0-3c8d9e5a2f1b
@@ -281,23 +283,25 @@ detection:
     condition: selection
 falsepositives:
     - Custom Azure logging scripts that write to a file named logAzure.txt
-level: high
+level: medium
 ```
 
 ### Sigma: Suspicious M365 Calendar Event with Far-Future Date
 
-Detects application-driven calendar event creation or modification in M365 audit logs targeting dates in the year 2050, consistent with HollowGraph dead-drop C2. Scope to application-identity operations to reduce noise from legitimate far-future scheduling.
+Detects calendar event creation or modification in M365 audit logs where the item references the year 2050 alongside calendar-specific context, consistent with HollowGraph dead-drop C2. **Environment-specific:** requires M365 Unified Audit Log ingestion with `Operation` and `Item` fields; CrowdStrike Falcon does not ingest M365 audit logs in this schema natively. **Tuning recommendation:** if your pipeline exposes the actor identity type (e.g., `UserType` = `Application`), add that as a filter to scope to application-identity operations and reduce noise.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk 0, log_scale 0. M365 logsource (product: m365, service: exchange) is environment-specific; field names (Operation, Item) depend on audit log ingestion pipeline. Confidence medium because the 2050 substring match is broad — legitimate far-future events (rare but possible) will trigger. Best combined with application-identity filtering if available. -->
+<!-- audit: sigma check blocked by proxy; splunk 0, log_scale 0. M365 logsource (product: m365, service: exchange) is environment-specific; CrowdStrike does not ingest M365 audit logs in this schema. Confidence medium because 2050 substring match can hit room numbers, ticket numbers, or other numeric data — narrowed with calendar-context filter. Application-identity filter not implemented because field availability varies across ingestion pipelines; documented as tuning recommendation. -->
 ```yaml
-title: Suspicious M365 Calendar Event with Far-Future Date via Application
+title: Suspicious M365 Calendar Event with Far-Future Date
 id: 9c4d1e6f-3b8a-42e5-a7f9-5d0c2b1e8a4f
 status: experimental
 description: >
-    Detects application-driven calendar event creation or modification in
-    Microsoft 365 audit logs targeting dates in the year 2050, consistent
-    with HollowGraph malware using calendar events as a covert C2 dead drop.
-    The malware schedules events on 2050-05-13 between 22:00-23:00 UTC.
+    Detects calendar event creation or modification in Microsoft 365 audit
+    logs where the item references the year 2050 alongside calendar context,
+    consistent with HollowGraph malware using calendar events as a covert C2
+    dead drop. The malware schedules events on 2050-05-13 between 22:00-23:00
+    UTC. Tuning: add application-identity filter (e.g., UserType = Application)
+    if your audit log pipeline exposes actor type.
 references:
     - https://www.group-ib.com/blog/hollowgraph-microsoft-365/
     - https://thehackernews.com/2026/07/hollowgraph-malware-hides-c2-and-stolen.html
@@ -314,12 +318,17 @@ detection:
         Operation:
             - 'Create'
             - 'Update'
-    selection_item:
+    selection_calendar:
+        Item|contains:
+            - 'calendar'
+            - 'Calendar'
+    selection_year:
         Item|contains: '2050'
-    condition: selection_operation and selection_item
+    condition: selection_operation and selection_calendar and selection_year
 falsepositives:
     - Legitimate calendar events intentionally scheduled for the year 2050
-level: high
+    - Calendar items containing the number 2050 in non-date context (room numbers, ticket IDs)
+level: medium
 ```
 
 ### Snort: DNS Query to HollowGraph C2 Domain
@@ -352,8 +361,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Tunneling to HollowGraph
 ### YARA: HollowGraph Cavern DLL
 
 Detects HollowGraph malware DLL via characteristic strings from the Cavern framework C2 component: configuration filename, Graph API endpoint patterns, calendar event subject patterns, and Cavern command delimiters.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0; yara fired on positive (published strings: logAzure.txt, calendarView, Event ID:, _;;_, _,_, cloudlanecdn), quiet on negative. NativeAOT may strip some strings — condition requires logAzure.txt (anchor) plus 2-of combinations for resilience. Strings sourced from Group-IB and BleepingComputer reporting. -->
+**Status:** compile ✅ compiles · confidence: high · sample: untested (no public sample)
+<!-- audit: yarac 0; no real HollowGraph binary was available for testing — sample label corrected from "fired" to "untested". NativeAOT may strip some strings — condition requires logAzure.txt (anchor) plus 2-of combinations for resilience. Strings sourced from Group-IB and BleepingComputer reporting. -->
 ```yara
 rule Malware_HollowGraph_Cavern_DLL
 {

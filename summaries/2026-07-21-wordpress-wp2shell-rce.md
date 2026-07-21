@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-21
-Version: DRAFT
+Version: FINAL
+<!-- revision: applied critic verdicts — dropped Sigma batch-endpoint rule (FP on legitimate Gutenberg/mobile POSTs); fixed Sigma SQLi rule (AND logic, downgraded to medium); tightened YARA CMSmap $fake_author to "Author: WordPress.org" (downgraded to medium); relabeled YARA wp2shell sample as synthetic; separated YARA status lines; fixed T1078.001→T1078. -->
 
 ## Executive Summary
 
@@ -153,7 +154,7 @@ Observed threat actor activities across honeypots and incident response engageme
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Web shell executing OS commands via `shell_exec()`, `system()`, `passthru()` |
 | T1136.001 | Create Account: Local Account | Creation of rogue administrator accounts (wp2_*, w2s_*, wpsvc_*) via the SQLi-to-admin bridge |
 | T1505.003 | Server Software Component: Web Shell | Deployment of PHP web shells disguised as WordPress plugins |
-| T1078.001 | Valid Accounts: Default Accounts | Use of bridge-generated admin accounts for post-exploitation |
+| T1078 | Valid Accounts | Use of bridge-generated admin accounts for post-exploitation |
 | T1105 | Ingress Tool Transfer | Upload of Overlord RAT and malicious plugins |
 | T1070.004 | Indicator Removal: File Deletion | Auto-deletion of web shell and bridge admin account after session |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Web shell disguised as legitimate WordPress plugin with fake authorship headers |
@@ -219,40 +220,7 @@ grep -rl 'WP2SHELL' /var/www/html/wp-content/plugins/ | head -20
 These detections target the wp2shell exploit chain at the network and file level: batch endpoint exploitation attempts, known exploit tool user-agents, SQL injection parameters, and deployed web shells. PoC/advisory-specific altitude (default); Sigma rules convert cleanly to Splunk and CrowdStrike. Compiles does not equal fires -- verify in your pipeline with representative logs.
 
 ### Sigma: WordPress wp2shell Batch Endpoint Exploitation Attempt
-Detects HTTP POST requests to the WordPress REST API batch endpoint (`/batch/v1`), the entry point for the wp2shell RCE chain.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (MITRE ATT&CK data download blocked by proxy — not a rule error); splunk convert exit 0; log_scale convert exit 0. Medium confidence because batch endpoint is also used by Gutenberg editor — POST to /batch/v1 alone is not conclusive without body inspection. FP: legitimate Gutenberg/mobile batch requests. Evasion: attacker could use ?rest_route= query-string variant only. -->
-```yaml
-title: WordPress wp2shell Batch Endpoint Exploitation Attempt
-id: 7c3a1e9b-4f2d-48a6-b5c8-9d0e7f1a2b3c
-status: experimental
-description: >
-    Detects HTTP POST requests to the WordPress REST API batch endpoint
-    (/wp-json/batch/v1 or ?rest_route=/batch/v1) which is the entry point
-    for the wp2shell pre-authentication RCE chain (CVE-2026-63030 + CVE-2026-60137).
-references:
-    - https://thehackernews.com/2026/07/wordpress-wp2shell-exploitation-grows.html
-    - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
-    - https://github.com/Icex0/wp2shell-poc
-author: Actioner
-date: 2026/07/21
-tags:
-    - attack.t1190
-logsource:
-    category: webserver
-detection:
-    selection_post:
-        cs-method: 'POST'
-    selection_batch_uri:
-        cs-uri-stem|contains: '/batch/v1'
-    selection_batch_query:
-        cs-uri-query|contains: 'rest_route=/batch/v1'
-    condition: selection_post and (selection_batch_uri or selection_batch_query)
-falsepositives:
-    - Legitimate WordPress REST API batch operations from Gutenberg editor
-    - WordPress mobile app batch requests
-level: medium
-```
+**DROPPED:** Fires on legitimate Gutenberg editor and WordPress mobile app POST requests to `/batch/v1`. No exploit-specific narrowing possible without HTTP body inspection (not available in webserver log sources). The Snort and Suricata rules below cover the body-level `author_exclude` pattern instead.
 
 ### Sigma: WordPress wp2shell Exploit Tool User-Agent
 Detects HTTP requests with User-Agent strings containing known wp2shell exploitation framework signatures.
@@ -287,18 +255,18 @@ level: high
 ```
 
 ### Sigma: WordPress wp2shell SQL Injection Parameters
-Detects requests to WordPress batch or posts endpoints containing SQL injection keywords in the `author_exclude`/`author__not_in` parameter used by the wp2shell exploit chain.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data download blocked by proxy — not a rule error); splunk convert exit 0; log_scale convert exit 0. High confidence — SQL keywords (UNION, SELECT, SLEEP, EXTRACTVALUE, UPDATEXML) in query strings to batch/posts endpoints are not legitimate. FP: generic SQLi scanners (still worth alerting on). -->
+Detects requests to WordPress endpoints containing both `author_exclude`/`author__not_in` and SQL injection keywords in query parameters. Covers the direct-query variant only; batch POST body injection is covered by Snort/Suricata rules below.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (MITRE ATT&CK data download blocked by proxy — not a rule error); splunk convert exit 0; log_scale convert exit 0. Medium confidence — requires both author_exclude and SQL keywords, reducing FP from legitimate author_exclude use; however, only covers query-string variant (batch POST body covered by Snort/Suricata). FP: generic SQLi scanners using author_exclude parameter. -->
 ```yaml
 title: WordPress wp2shell SQL Injection in Batch Request Parameters
 id: 9e5c3a1d-6b4f-4ac8-d7ea-bf2a9c3d4e5f
 status: experimental
 description: >
-    Detects HTTP requests to WordPress batch or posts endpoints containing
-    SQL injection keywords in query parameters, targeting the author_exclude /
-    author__not_in SQL injection vector used in the wp2shell exploit chain
-    (CVE-2026-60137).
+    Detects HTTP requests to WordPress endpoints containing both the
+    author_exclude / author__not_in parameter AND SQL injection keywords,
+    targeting the wp2shell exploit chain (CVE-2026-60137). Covers
+    query-string variant only; batch POST body covered by Snort/Suricata.
 references:
     - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
     - https://www.picussecurity.com/resource/blog/cve-2026-63030-and-cve-2026-60137-wp2shell-wordpress-rce-explained
@@ -310,11 +278,7 @@ tags:
 logsource:
     category: webserver
 detection:
-    selection_endpoint:
-        cs-uri-stem|contains:
-            - '/batch/v1'
-            - '/wp/v2/posts'
-    selection_sqli:
+    selection_author_param:
         cs-uri-query|contains:
             - 'author_exclude'
             - 'author__not_in'
@@ -325,10 +289,10 @@ detection:
             - 'SLEEP'
             - 'EXTRACTVALUE'
             - 'UPDATEXML'
-    condition: selection_endpoint and (selection_sqli or selection_sqli_keywords)
+    condition: selection_author_param and selection_sqli_keywords
 falsepositives:
-    - Generic SQL injection scanners not related to wp2shell
-level: high
+    - Generic SQL injection scanners using author_exclude parameter
+level: medium
 ```
 
 ### Snort: WordPress wp2shell Batch Endpoint POST with author_exclude
@@ -373,8 +337,8 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - WordPress wp2shel
 
 ### YARA: wp2shell Webshell Plugin Detection
 Detects wp2shell web shell plugins by matching the `WP2SHELL_OUT_START`/`WP2SHELL_OUT_END` response markers, fake WordPress.org authorship header combined with command execution parameters, or the combination of fake headers with eval/exec functions and GET parameter access.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on positive (constructed from published indicators — WP2SHELL_OUT_START/END markers, $_GET['tok']/$_GET['c'] params, Author: WordPress.org Community header, shell_exec); quiet on negative (legitimate plugin). High confidence — WP2SHELL_OUT markers and the token+command parameter pattern are unique to this exploit. -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic (published strings) ✓
+<!-- audit: yarac exit 0. Sample test: fired on synthetic positive (constructed from published indicators — WP2SHELL_OUT_START/END markers, $_GET['tok']/$_GET['c'] params, Author: WordPress.org Community header, shell_exec); quiet on negative (legitimate plugin). High confidence — WP2SHELL_OUT markers and the token+command parameter pattern are unique to this exploit. -->
 ```yara
 rule Exploit_WP2Shell_Webshell_Plugin
 {
@@ -407,7 +371,13 @@ rule Exploit_WP2Shell_Webshell_Plugin
             ($header and 2 of ($eval*) and 1 of ($param_*))
         )
 }
+```
 
+### YARA: CMSmap-Style Obfuscated Webshell
+Detects the larger CMSmap-style obfuscated web shell (~150 KB) observed in wp2shell post-exploitation campaigns by matching plugin headers with fake authorship, obfuscation functions, and command execution primitives.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0. Medium confidence — relies on combination of plugin header + fake author + obfuscation + exec; the "Author: WordPress.org" prefix avoids matching readme/URL text but the overall pattern could match other obfuscated malicious plugins not related to wp2shell. -->
+```yara
 rule Exploit_WP2Shell_CMSmap_Webshell
 {
     meta:
@@ -415,7 +385,7 @@ rule Exploit_WP2Shell_CMSmap_Webshell
         author = "Actioner"
         date = "2026-07-21"
         reference = "https://www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $gzip = "gzinflate(" ascii
@@ -423,7 +393,7 @@ rule Exploit_WP2Shell_CMSmap_Webshell
         $b64 = "base64_decode(" ascii
         $hex_decode = "hex2bin(" ascii
         $plugin_header = "Plugin Name:" ascii
-        $fake_author = "WordPress.org" ascii
+        $fake_author = "Author: WordPress.org" ascii
         $cmd1 = "shell_exec" ascii
         $cmd2 = "proc_open" ascii
         $cmd3 = "passthru" ascii

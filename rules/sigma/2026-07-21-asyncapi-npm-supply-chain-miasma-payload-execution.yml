@@ -1,0 +1,29 @@
+title: Miasma Payload Execution from Masquerading NodeJS Directory
+id: e9fff3e7-56ee-4e22-8d4e-3d0470276658
+status: experimental
+description: >
+    Detects node.exe executing sync.js from Miasma-specific drop directories
+    that masquerade as legitimate NodeJS cache paths, as observed in the
+    AsyncAPI npm supply chain compromise (July 2026).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://socket.dev/blog/asyncapi-supply-chain-attack
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1059.007
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith: '\node.exe'
+    selection_cmdline:
+        CommandLine|contains:
+            - '\NodeJS\sync.js'
+            - 'AppData\Local\NodeJS\sync.js'
+    condition: selection_image and selection_cmdline
+falsepositives:
+    - Legitimate NodeJS applications with a sync.js file in a directory named NodeJS (unlikely)
+level: high
