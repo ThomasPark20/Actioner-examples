@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-22
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -285,7 +285,7 @@ Rapid7 identified overlapping TTPs suggesting UTA0533 may be a single coordinate
 
 ## Detection Rules
 
-These 17 rules (5 Sigma, 3 Snort, 3 Suricata, 6 YARA) target the UTA0533/SonicWall SMA exploitation chain across host, network, and file telemetry. IOC-based rules are high confidence but subject to infrastructure rotation. TTP-based rules provide durable detection at medium-high confidence. Compile status does not equal production-ready -- validate in your pipeline.
+These 17 rules (5 Sigma, 3 Snort, 3 Suricata, 6 YARA) target the UTA0533/SonicWall SMA exploitation chain across host, network, and file telemetry. Confidence spread: 11 high, 6 medium. IOC-based rules are subject to infrastructure rotation. TTP-based rules provide durable detection at medium-high confidence. Compile status does not equal production-ready -- validate in your pipeline.
 
 ### Sigma: CVE-2026-15409 SSRF Exploitation via /wsproxy
 
@@ -293,6 +293,7 @@ Detects HTTP requests to the `/wsproxy` endpoint with the distinctive `bmID=-338
 
 **Status:** compile :white_check_mark: compiles (convert) | Confidence: high
 
+<!-- revision: fixed cs-uri-query|contains: '/wsproxy' to cs-uri-stem|contains: '/wsproxy' -- /wsproxy is a URI path, not a query-string value -->
 <!-- audit: sigma check failed (network: MITRE ATT&CK data fetch 403 via proxy -- not a rule issue). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Targets the exact exploitation pattern documented by Volexity. The bmID=-3389 prefix combined with /wsproxy is highly specific to this vulnerability. FP risk: legitimate SMA Connect Agent traffic may hit /wsproxy but would use valid bmID values, not the -3389 prefix. -->
 
 ```yaml
@@ -316,7 +317,7 @@ logsource:
     product: sonicwall
 detection:
     selection_uri:
-        cs-uri-query|contains: '/wsproxy'
+        cs-uri-stem|contains: '/wsproxy'
     selection_bmid:
         cs-uri-query|contains: 'bmID=-3389'
     selection_status:
@@ -333,6 +334,7 @@ Detects path traversal attempts targeting the SonicWall ctrl-service remove_hotf
 
 **Status:** compile :white_check_mark: compiles (convert) | Confidence: high
 
+<!-- revision: replaced EventData|contains with message|contains -- SonicWall logs are plaintext on Linux, EventData is a Windows-only field -->
 <!-- audit: sigma check failed (network: MITRE ATT&CK data fetch 403 via proxy -- not a rule issue). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Exact pattern from Volexity's ctrl-service.log evidence. Path traversal in remove_hotfix is never legitimate. FP risk: near-zero -- remove_hotfix should only receive sanitized hotfix identifiers. -->
 
 ```yaml
@@ -355,9 +357,9 @@ logsource:
     product: sonicwall
 detection:
     selection_remove:
-        EventData|contains: 'remove_hotfix'
+        message|contains: 'remove_hotfix'
     selection_traversal:
-        EventData|contains: '../'
+        message|contains: '../'
     condition: selection_remove and selection_traversal
 falsepositives:
     - None expected - path traversal in remove_hotfix is never legitimate
@@ -368,8 +370,9 @@ level: critical
 
 Detects creation of known UTA0533 malware artifacts on the filesystem, including ROOTRUN, KNUCKLEBALL, and staging files.
 
-**Status:** compile :white_check_mark: compiles (convert) | Confidence: high
+**Status:** compile :white_check_mark: compiles (convert) | Confidence: medium
 
+<!-- revision: removed /tmp/1234.sh from selection_staging (generic temp filename, high FP on any Linux host); downgraded confidence from high to medium -->
 <!-- audit: sigma check failed (network: MITRE ATT&CK data fetch 403 via proxy -- not a rule issue). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. Targets known file paths documented by Volexity. These paths are highly specific to the campaign. FP risk: xzfind could theoretically be a legitimate xz-related utility name on other Linux systems, but not on SonicWall appliances. -->
 
 ```yaml
@@ -401,7 +404,6 @@ detection:
     selection_staging:
         TargetFilename:
             - '/tmp/hypdate.b64'
-            - '/tmp/1234.sh'
             - '/tmp/agent_wp8.jar'
             - '/tmp/agent_wp9.jar'
     selection_persistence:
@@ -572,8 +574,9 @@ alert ip [108.205.8.173,147.45.51.19,150.241.210.53,202.8.105.201,217.77.15.99,4
 
 Detects the ROOTRUN (xzfind) ELF setuid binary used by UTA0533 for privilege escalation on compromised SonicWall appliances.
 
-**Status:** compile :white_check_mark: compiles (yarac exit 0) | Confidence: high
+**Status:** compile :white_check_mark: compiles (yarac exit 0) | Confidence: medium
 
+<!-- revision: downgraded confidence from high to medium -- xzfind may be a filename only, not an embedded string in the binary -->
 <!-- audit: yarac rootrun.yar /dev/null exit 0. Uses ELF header and size constraints for the known 13,464-byte binary. Includes string patterns from setuid binary functionality. -->
 
 ```yara
@@ -674,7 +677,8 @@ Detects the ORANGETAIL (agent_wp9.jar) custom Behinder-like Java web shell deplo
 
 **Status:** compile :white_check_mark: compiles (yarac exit 0) | Confidence: high
 
-<!-- audit: yarac orangetail.yar /dev/null exit 0. Targets distinctive strings from the web shell including the injection target class, the POST parameter name, and the AES encryption markers. -->
+<!-- revision: removed $find_param = "find" (matches every JAR, adds no detection value) -->
+<!-- audit: yarac orangetail.yar /dev/null exit 0. Targets distinctive strings from the web shell including the injection target class and the AES encryption markers. -->
 
 ```yara
 rule UTA0533_ORANGETAIL_Webshell
@@ -691,7 +695,6 @@ rule UTA0533_ORANGETAIL_Webshell
         $pk_header = { 50 4B 03 04 }
         $class_target = "com/aventail/jsp/workplace/dialogs/errorDialog_jsp" ascii
         $agent_wp9 = "agent_wp9" ascii
-        $find_param = "find" ascii
         $mozilla6 = "Mozilla/6.0" ascii
         $string_valueof = "String.valueOf" ascii
         $aes = "AES" ascii
@@ -700,7 +703,7 @@ rule UTA0533_ORANGETAIL_Webshell
         $pk_header at 0 and
         filesize < 100KB and
         ($class_target or $agent_wp9) and
-        2 of ($find_param, $mozilla6, $string_valueof, $aes)
+        2 of ($mozilla6, $string_valueof, $aes)
 }
 ```
 

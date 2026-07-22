@@ -1,0 +1,29 @@
+title: SonicWall SMA CVE-2026-15409 SSRF Exploitation via wsproxy Endpoint
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects exploitation of CVE-2026-15409 via crafted requests to the /wsproxy
+    endpoint with bmID parameter starting with -3389, enabling unauthenticated
+    WebSocket tunneling to localhost services on SonicWall SMA 1000 appliances.
+references:
+    - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - cve.2026-15409
+logsource:
+    category: webserver
+    product: sonicwall
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/wsproxy'
+    selection_bmid:
+        cs-uri-query|contains: 'bmID=-3389'
+    selection_status:
+        sc-status: 101
+    condition: selection_uri and selection_bmid and selection_status
+falsepositives:
+    - Legitimate SMA Connect Agent sessions using the /wsproxy endpoint with different bmID values
+level: critical

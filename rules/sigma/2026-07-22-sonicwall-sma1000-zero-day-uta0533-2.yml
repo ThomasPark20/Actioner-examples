@@ -1,0 +1,26 @@
+title: SonicWall SMA CVE-2026-15410 Path Traversal in remove_hotfix
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects path traversal sequences in SonicWall ctrl-service logs indicating
+    exploitation of CVE-2026-15410 via the sysCtrl.execRemoveHotfix method.
+references:
+    - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - cve.2026-15410
+logsource:
+    category: application
+    product: sonicwall
+detection:
+    selection_remove:
+        message|contains: 'remove_hotfix'
+    selection_traversal:
+        message|contains: '../'
+    condition: selection_remove and selection_traversal
+falsepositives:
+    - None expected - path traversal in remove_hotfix is never legitimate
+level: critical

@@ -3,8 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-22
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 <!-- revision: initial draft. sigma check passed (0 errors, 0 issues; attacktag/d3_fendtag excluded — MITRE data download blocked by proxy, not a rule defect). yarac compiled 0. Snort/Suricata structural only. -->
+<!-- revision: v1.1 — dropped Sigma 1 (batch POST, pure behavioral FP magnet); downgraded Sigma 3 level high→medium, added W3 Total Cache FP; fixed Sigma 4 level high→medium; narrowed Snort title to UNION-based SQLi (honest disclosure); removed T1078.001 from ATT&CK table; added WAF trade-off note; surfaced body-only payload caveat on Sigma 2; fixed rule count Seven→Eight. -->
 
 ## Executive Summary
 
@@ -190,7 +191,6 @@ echo 'WP2SHELL::' . shell_exec($_GET['c']) . '::END';
 | T1505.003 | Server Software Component: Web Shell | PHP webshells deployed to /wp-content/cache/ and /wp-content/plugins/ directories |
 | T1136.001 | Create Account: Local Account | Rogue administrator accounts created with patterns wpsvc_/wp2_/w2s_ and attacker-controlled emails |
 | T1005 | Data from Local System | LFI attacks targeting wp-config.php via admin-ajax.php to exfiltrate database credentials |
-| T1078.001 | Valid Accounts: Default Accounts | Exploitation of newly created admin accounts for post-exploitation access |
 | T1027 | Obfuscated Files or Information | CMSmap webshell uses hex-encoded concatenation and gzip-compressed base64 encoding |
 | T1071.001 | Application Layer Protocol: Web Protocols | All exploitation and C2 communication over HTTP/HTTPS REST API |
 | T1587.001 | Develop Capabilities: Malware | Purpose-built wp2shell and rezwp2shell exploit tools |
@@ -217,7 +217,7 @@ echo 'WP2SHELL::' . shell_exec($_GET['c']) . '::END';
 ### Remediation
 
 1. **Patch immediately** to WordPress 6.9.5, 7.0.2, or 6.8.6
-2. **Block batch endpoint** at WAF level if immediate patching is impossible: block both `/wp-json/batch/v1` and `rest_route=/batch/v1`
+2. **Block batch endpoint** at WAF level if immediate patching is impossible: block both `/wp-json/batch/v1` and `rest_route=/batch/v1`. **Trade-off:** blocking the batch endpoint breaks Gutenberg editor saves, Jetpack sync, and WordPress mobile app REST calls -- coordinate with content teams before deploying
 3. **Deploy Searchlight's drop-in plugin** rejecting anonymous batch requests as an interim measure
 4. **Post-compromise:** Revoke all sessions, audit and remove rogue accounts, scan for webshells, rotate database credentials, check for Overlord RAT artifacts
 
@@ -229,53 +229,13 @@ echo 'WP2SHELL::' . shell_exec($_GET['c']) . '::END';
 
 ## Detection Rules
 
-Seven network- and host-focused detection rules target the wp2shell exploit chain: five Sigma rules for web server log analysis (batch endpoint POST, batch + SQLi parameters, webshell cache directory access, known attacker IPs, and exploit tool user-agents), one Snort rule and one Suricata rule for HTTP-level exploit detection, and two YARA rules for on-disk webshell detection. All are PoC/advisory-specific altitude with strict leniency. Snort/Suricata rules fire only where TLS is terminated upstream (the exploit traverses HTTPS).
+Eight network- and host-focused detection rules target the wp2shell exploit chain: four Sigma rules for web server log analysis (batch + SQLi parameters, webshell cache directory access, known attacker IPs, and exploit tool user-agents), one Snort rule and one Suricata rule for HTTP-level exploit detection, and two YARA rules for on-disk webshell detection. All are PoC/advisory-specific altitude with strict leniency. Snort/Suricata rules fire only where TLS is terminated upstream (the exploit traverses HTTPS).
 
-### Sigma: WordPress wp2shell Batch Endpoint POST Request (CVE-2026-63030)
-
-Detects POST requests to the WordPress batch endpoint, the attack surface for CVE-2026-63030. Scope to WordPress-facing log sources; legitimate Gutenberg editor traffic may trigger this rule.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag/d3_fendtag — MITRE data download blocked by proxy, not a rule defect). splunk convert 0: "cs-method"="POST" "cs-uri-stem"="*/batch/v1*" OR "cs-uri-query"="*rest_route=/batch/v1*". log_scale convert 0: "cs-method"=/^POST$/i "cs-uri-stem"=/\/batch\/v1/i or "cs-uri-query"=/rest_route=\/batch\/v1/i. logsource:webserver — fires on any POST to batch/v1; legitimate uses exist (Gutenberg, Jetpack), so medium confidence. -->
-```yaml
-title: WordPress wp2shell Batch Endpoint POST Request (CVE-2026-63030)
-id: b2c3d4e5-f6a7-8901-bcde-f12345678901
-status: experimental
-description: >
-    Detects HTTP POST requests to the WordPress REST API batch endpoint
-    (/wp-json/batch/v1 or ?rest_route=/batch/v1). The batch endpoint is the
-    attack surface for CVE-2026-63030 route confusion enabling the wp2shell
-    unauthenticated RCE chain. POST requests to the batch endpoint from
-    external sources are suspicious and warrant investigation, especially when
-    returning HTTP 207 Multi-Status responses.
-references:
-    - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
-    - https://www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137
-    - https://brandefense.io/blog/wp2shell-wordpress-rce-analysis/
-author: Actioner
-date: 2026/07/22
-tags:
-    - attack.initial_access
-    - attack.t1190
-    - cve.2026-63030
-logsource:
-    category: webserver
-detection:
-    selection_method:
-        cs-method: 'POST'
-    selection_batch_uri:
-        cs-uri-stem|contains: '/batch/v1'
-    selection_batch_query:
-        cs-uri-query|contains: 'rest_route=/batch/v1'
-    condition: selection_method and (selection_batch_uri or selection_batch_query)
-falsepositives:
-    - Legitimate WordPress REST API batch requests from authenticated admin sessions or Gutenberg editor traffic
-    - WordPress mobile app or Jetpack using batch API
-level: medium
-```
+<!-- revision: Sigma 1 (Batch Endpoint POST Request, id b2c3d4e5-f6a7-8901-bcde-f12345678901) DROPPED — fires on every Gutenberg editor save, Jetpack sync, and WP mobile app; pure behavioral with no exploit-specific artifact. -->
 
 ### Sigma: WordPress wp2shell Batch Endpoint SQL Injection Attempt (CVE-2026-63030 / CVE-2026-60137)
 
-Detects POST to the batch endpoint with `author__not_in` or `author_exclude` parameters in the query string -- the specific SQLi vector for the wp2shell chain. Combining batch endpoint access with author filtering parameters has no legitimate use case.
+Detects POST to the batch endpoint with `author__not_in` or `author_exclude` parameters in the query string -- the specific SQLi vector for the wp2shell chain. Combining batch endpoint access with author filtering parameters has no legitimate use case. **Caveat:** This rule covers query-string variants only; when the SQLi payload is carried exclusively in the JSON request body (the more common exploitation path), this rule will not fire -- the Snort and Suricata rules below cover that case.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0 (excl. attacktag/d3_fendtag). splunk convert 0: "cs-method"="POST" "cs-uri-stem"="*/batch/v1*" OR "cs-uri-query"="*rest_route=/batch/v1*" "cs-uri-query" IN ("*author__not_in*", "*author_exclude*"). log_scale convert 0. Combining batch endpoint + author__not_in in query string is distinctive to the exploit. Note: if SQLi payload is in POST body only (JSON), this rule will not fire; the Snort/Suricata rules cover that case. -->
 ```yaml
@@ -321,8 +281,8 @@ level: high
 ### Sigma: WordPress wp2shell Webshell Access in Cache Directory
 
 Detects HTTP requests accessing PHP files in the WordPress `wp-content/cache/` directory, where wp2shell webshells are deployed with randomized filenames. PHP files in the cache directory are not part of normal WordPress operation.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag/d3_fendtag). splunk convert 0: "cs-uri-stem"="*/wp-content/cache/*" "cs-uri-stem"="*.php". log_scale convert 0: "cs-uri-stem"=/\/wp-content\/cache\//i "cs-uri-stem"=/\.php$/i. PHP files in wp-content/cache/ are not legitimate WordPress artifacts; some caching plugins use this directory but serve static HTML/JSON, not PHP. High confidence. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0 (excl. attacktag/d3_fendtag). splunk convert 0: "cs-uri-stem"="*/wp-content/cache/*" "cs-uri-stem"="*.php". log_scale convert 0: "cs-uri-stem"=/\/wp-content\/cache\//i "cs-uri-stem"=/\.php$/i. PHP files in wp-content/cache/ are not legitimate WordPress artifacts; some caching plugins use this directory but serve static HTML/JSON, not PHP. Downgraded to medium — W3 Total Cache can place PHP files in cache dir. -->
 ```yaml
 title: WordPress wp2shell Webshell Access in Cache Directory
 id: c3d4e5f6-a7b8-9012-cdef-123456789012
@@ -353,7 +313,8 @@ detection:
     condition: selection and filter_php
 falsepositives:
     - Some caching plugins may serve PHP files from the cache directory, though this is uncommon
-level: high
+    - W3 Total Cache may place PHP files in wp-content/cache/ for advanced caching modes
+level: medium
 ```
 
 ### Sigma: WordPress wp2shell Exploitation from Known Attacker IPs
