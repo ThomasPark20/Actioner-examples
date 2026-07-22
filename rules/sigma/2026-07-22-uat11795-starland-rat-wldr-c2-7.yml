@@ -1,0 +1,32 @@
+title: UAT-11795 Trojanized Software Installer Spawning Python Runtime
+id: a9cde7d8-1bf0-4524-b8e6-4d7a9c1e3f65
+status: experimental
+description: >
+    Detects known trojanized installer filenames used by UAT-11795 spawning
+    Python runtime processes. The actor distributes trojanized versions of
+    MobaXterm, WebEx, Zoom, DBeaver, and FACEIT installers that execute an
+    embedded NSIS script launching pythonw.exe with a compiled Python loader.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1204.002
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentCommandLine|contains:
+            - 'MobaXterm_v26.1'
+            - 'WebEx_Client'
+            - 'dbeaver-ce-windows-x86_64'
+            - 'FaceitInstaller_x64'
+        Image|endswith:
+            - '\pythonw.exe'
+            - '\python.exe'
+    condition: selection
+falsepositives:
+    - Legitimate installers for these products bundling Python (unlikely)
+level: high

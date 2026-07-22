@@ -1,0 +1,30 @@
+title: UAT-11795 Starland RAT and WLDR Known C2 Domain DNS Query
+id: c5e9a3f4-7db6-4180-d4a2-0f3c5e7a9b21
+status: experimental
+description: >
+    Detects DNS queries to known UAT-11795 C2 infrastructure domains used
+    for Starland RAT command-and-control, payload staging, and WLDR agent
+    communication. These domains were identified by Cisco Talos in July 2026.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/07/new-starland-rat-and-WLDR-implant-campaign.txt
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'eorthopaedics.com'
+            - 'sastoro.com'
+            - 'zynaris.io'
+            - 'web-devtools.com'
+            - 'aipythondevs.com'
+            - 'windowscreenrepairnearme.com'
+            - 'alphabitcapital.info'
+    condition: selection
+falsepositives:
+    - Unlikely - known malicious infrastructure
+level: critical

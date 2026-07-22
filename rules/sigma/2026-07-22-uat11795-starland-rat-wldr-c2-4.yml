@@ -1,0 +1,38 @@
+title: UAT-11795 Starland RAT Reconnaissance Command
+id: d6fab4a5-8ec7-4291-e5b3-1a4d6f8b0c32
+status: experimental
+description: >
+    Detects the system reconnaissance command patterns used by Starland RAT
+    after initial infection. The RAT executes WMI and PowerShell commands to
+    collect antivirus products, hardware UUIDs, memory capacity, and domain
+    membership information for victim profiling.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1082
+    - attack.t1518.001
+    - attack.t1016
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_uuid:
+        CommandLine|contains|all:
+            - 'Win32_ComputerSystemProduct'
+            - 'UUID'
+    selection_av:
+        CommandLine|contains|all:
+            - 'root/SecurityCenter2'
+            - 'AntiVirusProduct'
+    selection_mem:
+        CommandLine|contains|all:
+            - 'wmic'
+            - 'memorychip'
+            - 'Capacity'
+    condition: 1 of selection_*
+falsepositives:
+    - System administration scripts performing inventory collection
+    - Endpoint management tools querying hardware information
+level: medium

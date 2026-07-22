@@ -1,0 +1,30 @@
+title: UAT-11795 Starland RAT HTA Delivery via Mshta.exe
+id: a3c7e1d2-5b94-4f68-b2e0-8d1a3c5e7f09
+status: experimental
+description: >
+    Detects mshta.exe execution patterns consistent with UAT-11795 ClickFix
+    delivery chain. The actor uses mshta.exe to execute weaponized HTA files
+    hosted on known C2 infrastructure domains.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/07/new-starland-rat-and-WLDR-implant-campaign.txt
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1218.005
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mshta:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains:
+            - 'eorthopaedics.com'
+            - 'sastoro.com'
+            - 'zynaris.io'
+            - 'alphabitcapital.info'
+    condition: selection_mshta
+falsepositives:
+    - Unlikely - domains are known UAT-11795 infrastructure
+level: critical

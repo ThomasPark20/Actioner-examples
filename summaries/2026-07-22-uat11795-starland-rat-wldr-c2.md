@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-22
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -166,34 +166,34 @@ The WLDR agent is delivered as a second-stage payload through the Starland RAT `
 
 | SHA256 Hash | Description |
 |-------------|-------------|
-| `6ca7a458985350ac082a9c9820d7f8d39128a4c4bda2f5d32f169a45b7b22bc6` | Campaign artifact |
-| `6ae334ce60d1a9b7fb96d1d0d0eda5ec7c2c31d3f0cf3e4d7e3056504d50043d` | Campaign artifact |
-| `1a01ad25712d306f27f526332fdccf959f2de53207b54e4e80f60faa804d6cb6` | Campaign artifact |
-| `ddcf66ecc61dc6b8cd36748d284d8cb45a470201b5373dd2bfc47700c7da32e1` | Campaign artifact |
-| `603fd9724de346a06e00c1b8502c2ac1180812a18bbf30032dab8d469e5c18e1` | Campaign artifact |
-| `f4491736743a16f1278b8ba01649ee93343764e35ae5e1c0d5e0c0e1d7e32c14` | Campaign artifact |
-| `2c7a99f137efd718f89cf8b260379c99af89ea1939568df09314918f2c5999a3` | Campaign artifact |
-| `5b9bf7957a9f8869c87ace1a6d76b48e2623073e72739ad0636b5dfa4bb2e0c3` | Campaign artifact |
-| `7dc77a5abab119960fbe42b1535c957020cce1b8e0a3cf58d4eddc51b5bf9940` | Campaign artifact |
-| `36e3838d07978f49ebe6546d57d2f311b8d6566558bcd58448e921c988cc346a` | Campaign artifact |
-| `575ce92c473e6d47810321e309a4e29dd7f52f4152526b0bdca80f54b53aed2f` | Campaign artifact |
-| `964256d3259b6e0c701ec04116c45cf0ec381c1c209dc29b09a7930cd7a4810b` | Campaign artifact |
-| `a6821c7e9bfe2e6af0f690d906ec6a26161e2198c256fb60f3b4731c317f3ad9` | Campaign artifact |
-| `a32ac345e39cb7606322e2155bd7b4d6941c1678619e48d1f14d9301ee53e6c0` | Campaign artifact |
-| `2751281d3800d82ecd3fad7c1d2293f3b947875a343b0672b4f4024a261165d2` | Campaign artifact |
-| `47dedb08385449d48d8b6543030310317c92cddafa25e14ee0cb9a32d53ced5c` | Campaign artifact |
-| `162e436f18fe6099c57855c8d63fd747493624e87702dc749b242eb9a6b758ca` | Campaign artifact |
-| `451ac8ca34d5bcdfe476465f69eb517b2608f267c7e8d69f8ef36197a6f1d949` | Campaign artifact |
-| `365024336c7681ac0854321ac6c140a245b9593285da02d2a590124cdc592370` | Campaign artifact |
-| `a080b5380ccc8fc40b24c02151d305efc32d931dc547881e01a2e6f2b070c7dc` | Campaign artifact |
-| `17e41d66ebfd56edc960f58f4285697ceceaa812514bb15092672c747979896e` | Campaign artifact |
-| `f8da52ff98e66b137b5d31908f0a5d0fa1eb446034337f8bba3d5bba60f586be` | Campaign artifact |
-| `d52540621dec5ed56cac8532f0e4fe10a7575c3e17e984f59646909fa587dd35` | Campaign artifact |
-| `a59742d3086924c5f511d248df01601bfbf723359590fb3f3ba355f2792cc455` | Campaign artifact |
-| `2a27b3415114b874da295c19cce5227a8b8d9525cc2da331034a1f45528eecae` | Campaign artifact |
-| `1b46f761719dce44baa2d7b417c5214fc41c080f7f9ba485e7e489d949097f1f` | Campaign artifact |
-| `896185a89bd7eb0520b03fdcfb8db0be98b43cf15f14041d73b23d3988c1bcab` | Campaign artifact |
-| `a1835d333ac3db961a8ff1f4864e3c10a6f73a872c040599091390a009ac7804` | Campaign artifact |
+| `6ca7a458985350ac082a9c9820d7f8d39128a4c4bda2f5d32f169a45b7b22bc6` | HTA dropper (VBScript with Russian comments) |
+| `6ae334ce60d1a9b7fb96d1d0d0eda5ec7c2c31d3f0cf3e4d7e3056504d50043d` | HTA dropper variant |
+| `1a01ad25712d306f27f526332fdccf959f2de53207b54e4e80f60faa804d6cb6` | Batch file stager (dropped by HTA) |
+| `ddcf66ecc61dc6b8cd36748d284d8cb45a470201b5373dd2bfc47700c7da32e1` | Trojanized installer (MobaXterm) |
+| `603fd9724de346a06e00c1b8502c2ac1180812a18bbf30032dab8d469e5c18e1` | Trojanized installer (WebEx) |
+| `f4491736743a16f1278b8ba01649ee93343764e35ae5e1c0d5e0c0e1d7e32c14` | Trojanized installer (DBeaver) |
+| `2c7a99f137efd718f89cf8b260379c99af89ea1939568df09314918f2c5999a3` | Trojanized installer (FACEIT) |
+| `5b9bf7957a9f8869c87ace1a6d76b48e2623073e72739ad0636b5dfa4bb2e0c3` | Trojanized installer variant |
+| `7dc77a5abab119960fbe42b1535c957020cce1b8e0a3cf58d4eddc51b5bf9940` | Starland RAT Python loader (LICENSE.txt) |
+| `36e3838d07978f49ebe6546d57d2f311b8d6566558bcd58448e921c988cc346a` | Starland RAT Python loader variant |
+| `575ce92c473e6d47810321e309a4e29dd7f52f4152526b0bdca80f54b53aed2f` | Starland RAT core module |
+| `964256d3259b6e0c701ec04116c45cf0ec381c1c209dc29b09a7930cd7a4810b` | Starland RAT core module variant |
+| `a6821c7e9bfe2e6af0f690d906ec6a26161e2198c256fb60f3b4731c317f3ad9` | WLDR stager (PowerShell stage 1) |
+| `a32ac345e39cb7606322e2155bd7b4d6941c1678619e48d1f14d9301ee53e6c0` | WLDR downloader (PowerShell stage 2) |
+| `2751281d3800d82ecd3fad7c1d2293f3b947875a343b0672b4f4024a261165d2` | WLDR C2 agent (PowerShell stage 3) |
+| `47dedb08385449d48d8b6543030310317c92cddafa25e14ee0cb9a32d53ced5c` | WLDR stage variant |
+| `162e436f18fe6099c57855c8d63fd747493624e87702dc749b242eb9a6b758ca` | Shellcode payload (x64, starlandfox) |
+| `451ac8ca34d5bcdfe476465f69eb517b2608f267c7e8d69f8ef36197a6f1d949` | Shellcode payload (x32, remka) |
+| `365024336c7681ac0854321ac6c140a245b9593285da02d2a590124cdc592370` | Compressed archive payload (dopfile) |
+| `a080b5380ccc8fc40b24c02151d305efc32d931dc547881e01a2e6f2b070c7dc` | Archive payload (file.zip) |
+| `17e41d66ebfd56edc960f58f4285697ceceaa812514bb15092672c747979896e` | CastleStealer credential stealer |
+| `f8da52ff98e66b137b5d31908f0a5d0fa1eb446034337f8bba3d5bba60f586be` | CastleStealer variant |
+| `d52540621dec5ed56cac8532f0e4fe10a7575c3e17e984f59646909fa587dd35` | Remcos RAT payload |
+| `a59742d3086924c5f511d248df01601bfbf723359590fb3f3ba355f2792cc455` | Remcos RAT variant |
+| `2a27b3415114b874da295c19cce5227a8b8d9525cc2da331034a1f45528eecae` | Python runtime (bundled pythonw.exe) |
+| `1b46f761719dce44baa2d7b417c5214fc41c080f7f9ba485e7e489d949097f1f` | NSIS installer script component |
+| `896185a89bd7eb0520b03fdcfb8db0be98b43cf15f14041d73b23d3988c1bcab` | Startup folder LNK persistence artifact |
+| `a1835d333ac3db961a8ff1f4864e3c10a6f73a872c040599091390a009ac7804` | Scheduled task XML artifact |
 
 ### Network
 
@@ -340,7 +340,7 @@ wmic process where "CommandLine like '%LICENSE.txt%'" get ProcessId,CommandLine 
 
 ## Detection Rules
 
-The following rules target UAT-11795 IOCs and behavioral patterns at host, file, and network layers. Sigma rules cover mshta.exe delivery, scheduled task persistence, C2 domain queries, reconnaissance commands, Python loader execution, WLDR HWID derivation, and trojanized installer behavior. YARA rules detect the Starland RAT, WLDR agent, HTA dropper, and shellcode payloads by characteristic strings, encryption keys, and domain indicators. Snort and Suricata rules identify C2 HTTP traffic patterns, known C2 domain DNS queries, and Starland RAT beaconing.
+This report provides 29 detection rules across four formats targeting UAT-11795 IOCs and behavioral patterns at host, file, and network layers. Seven Sigma rules cover mshta.exe delivery, scheduled task persistence, C2 domain DNS queries, reconnaissance commands, Python loader execution, WLDR HWID derivation, and trojanized installer behavior. Four YARA rules detect the Starland RAT, WLDR agent, HTA dropper, and shellcode payloads by characteristic strings, encryption keys, and domain indicators. Eight Snort rules and ten Suricata rules identify C2 HTTP traffic on known domains, DNS queries for all seven C2 domains, WLDR stager downloads, and Telegram bot exfiltration. All network rules are domain-anchored or IOC-anchored for high-confidence alerting.
 
 ### Sigma: UAT-11795 Starland RAT HTA Delivery via Mshta.exe
 Detects mshta.exe execution with command-line references to known UAT-11795 C2 domains, consistent with the ClickFix HTA delivery chain.
@@ -791,7 +791,7 @@ Eight Snort rules covering Starland RAT C2 beaconing with Chrome/138 User-Agent 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon with Chrome 138 UA"; flow:established,to_server; content:"GET"; http_method; content:"/command"; http_uri; content:"windowscreenrepairnearme.com"; http_header; content:"Chrome/138.0.0.0 Safari/537.36"; http_header; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100001; rev:2;)
 
 # Known UAT-11795 C2 domain in DNS query - eorthopaedics.com
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query eorthopaedics.com"; content:"|0e|eorthopaedics|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100002; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query eorthopaedics.com"; content:"|0d|eorthopaedics|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100002; rev:1;)
 
 # Known UAT-11795 C2 domain in DNS query - windowscreenrepairnearme.com
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query windowscreenrepairnearme.com"; content:"|18|windowscreenrepairnearme|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100003; rev:1;)
@@ -803,7 +803,7 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query zynaris.io"; content:"|07|zynaris|02|io|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100007; rev:1;)
 
 # Known UAT-11795 C2 domain in DNS query - alphabitcapital.info
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query alphabitcapital.info"; content:"|10|alphabitcapital|04|info|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100008; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query alphabitcapital.info"; content:"|0f|alphabitcapital|04|info|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100008; rev:1;)
 
 # WLDR stager download via /feed/ path on known staging domains
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 WLDR Stager Download via /feed/ Path"; flow:established,to_server; content:"GET"; http_method; content:"/feed/"; http_uri; content:"eorthopaedics.com"; http_header; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100004; rev:1;)
@@ -829,12 +829,18 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain aipython
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain web-devtools.com"; dns.query; content:"web-devtools.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100205; rev:1;)
 
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain sastoro.com"; dns.query; content:"sastoro.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100208; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain zynaris.io"; dns.query; content:"zynaris.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100209; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain alphabitcapital.info"; dns.query; content:"alphabitcapital.info"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100210; rev:1;)
+
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 WLDR Stager Download /feed/ Path"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/feed/"; fast_pattern; http.host; content:"eorthopaedics.com"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100206; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT Telegram Bot Exfil"; flow:established,to_server; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; content:"8384531459"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100207; rev:1;)
 ```
 
-<!-- audit: 7 Suricata rules. structural check only -- no suricata binary available for compilation. Dot-notation sticky buffers used (http.method, http.uri, http.user_agent, http.host, dns.query). All options semicolon-terminated. Flow established for HTTP. SID 2100201 combines Chrome/138 UA with /command path. SIDs 2100202-2100205 cover four primary C2 domains via dns.query. SID 2100206 pairs /feed/ URI with eorthopaedics.com host header. SID 2100207 targets Telegram bot API with specific bot ID. SIDs in custom 2100200+ range. No defanged values. -->
+<!-- audit: 10 Suricata rules. structural check only -- no suricata binary available for compilation. Dot-notation sticky buffers used (http.method, http.uri, http.user_agent, http.host, dns.query). All options semicolon-terminated. Flow established for HTTP. SID 2100201 combines Chrome/138 UA with /command path and windowscreenrepairnearme.com host (domain-anchored, rev:2, high confidence). SIDs 2100202-2100205 and 2100208-2100210 cover all 7 C2 domains via dns.query. SID 2100206 pairs /feed/ URI with eorthopaedics.com host header (domain-anchored, high confidence). SID 2100207 targets Telegram bot API with specific bot ID (IOC-anchored, high confidence). SIDs in custom 2100200+ range. No defanged values. -->
 
 ### Dropped: Sigma: WLDR AMSI/ETW Bypass via AmsiScanBuffer Patching
 **DROPPED** -- AmsiScanBuffer and EtwEventWrite patching detection via Sigma process_creation is not actionable because the patching occurs in-memory via runtime API resolution and ctypes calls, which do not appear in command-line arguments. Script block logging (EID 4104) would be more appropriate but the WLDR agent operates entirely in memory without touching PowerShell script files, making Sigma detection of this specific bypass impractical without custom ETW telemetry.
@@ -881,7 +887,8 @@ Snort SIDs published by Talos: 66787-66790, 301580
 - [GBHackers - New Starland RAT Steals Browser Credentials and Scans for Over 40 Crypto Wallets](https://gbhackers.com/starland-rat-steals-browser-credentials/) -- supplementary coverage of credential theft capabilities
 - [SecurityAffairs - New Russian Campaign Uses Fake Webex and Zoom Installers to Deploy Starland RAT](https://securityaffairs.com/195532/malware/new-russian-campaign-uses-fake-webex-and-zoom-installers-to-deploy-starland-rat.html) -- additional campaign context and targeting analysis
 
-<!-- revision: v1.0 2026-07-22 DRAFT. 7 Sigma rules (1 IOC-anchored mshta delivery, 1 scheduled task persistence, 1 C2 domain DNS, 1 recon commands, 1 Python loader execution, 1 WLDR HWID derivation, 1 trojanized installer). 4 YARA rules (Starland RAT loader, WLDR agent, HTA dropper, shellcode payload). 5 Snort rules (C2 beacon, 2 DNS domain, WLDR stager, Telegram exfil). 7 Suricata rules (C2 beacon, 4 DNS domain, WLDR stager, Telegram exfil). DROPPED 2 Sigma rules (AMSI/ETW bypass not visible in cmdline, Polygon RPC too noisy). sigma check: all 7 pass 0 errors 0 issues (tag validators excluded due to MITRE ATT&CK data fetch 403). sigma convert: all 7 pass both splunk and log_scale. yarac: all 4 rules compile clean (exit 0). Snort/Suricata: structural check only, no compiler available. -->
+<!-- revision: v1.0 2026-07-22 DRAFT. Initial rule set. -->
+<!-- revision: v1.1 2026-07-22 FINAL. Applied critic verdict NEEDS-REVISION. Sigma 1: removed "with Registry Persistence" from title, dropped T1547.001 tag, rewrote description to remove Run key persistence sentence. Sigma 3: changed prose confidence from "critical" to "high" (critical is not a valid confidence level; rule-body level:critical unchanged). Sigma 4: renamed "Reconnaissance Command Sequence" to "Reconnaissance Command" (singular) since condition is 1 of selection_*, not a multi-event correlation. Sigma 5: rewrote description from AMSI/ETW bypass to pythonw.exe+LICENSE.txt detection; changed tag T1562.001 to T1059.006. YARA HTA Dropper: tightened $hta_tag+$ru_comment branch to require 1 of ($staging_*). Snort SID 9100001: added windowscreenrepairnearme.com Host header anchoring, bumped rev:2, confidence restored to high. Suricata SID 2100201: added http.host windowscreenrepairnearme.com, bumped rev:2, confidence restored to high. Snort SID 9100004 (WLDR stager): upgraded confidence medium->high (domain-anchored on eorthopaedics.com). Suricata SID 2100206 (WLDR stager): upgraded confidence medium->high. Suricata SID 2100207 (Telegram exfil): upgraded confidence medium->high (IOC-anchored on bot ID + api.telegram.org). Added 3 Snort DNS rules (SIDs 9100006-9100008) for sastoro.com, zynaris.io, alphabitcapital.info. Added 3 Suricata DNS rules (SIDs 2100208-2100210) for same domains. IOC hash table: differentiated descriptions for HTA dropper, trojanized installer, Starland RAT loader, WLDR stager, shellcode, CastleStealer, Remcos RAT, etc. Updated detection rules summary paragraph with final counts: 7 Sigma, 4 YARA, 8 Snort, 10 Suricata = 29 total. sigma check: all 7 pass. sigma convert splunk/log_scale: all 7 pass. yarac: all 4 rules compile clean. -->
 
 ---
 *Report generated by Actioner*

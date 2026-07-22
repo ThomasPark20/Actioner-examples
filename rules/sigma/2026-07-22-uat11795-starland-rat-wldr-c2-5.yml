@@ -1,0 +1,26 @@
+title: UAT-11795 Starland RAT Python Loader Execution
+id: e7abc5b6-9fd8-4302-f6c4-2b5e7a9c1d43
+status: experimental
+description: >
+    Detects pythonw.exe or python.exe execution with LICENSE.txt as an
+    argument, the characteristic invocation pattern of the Starland RAT
+    obfuscated Python loader deployed via trojanized NSIS installers.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_python_loader:
+        Image|endswith:
+            - '\pythonw.exe'
+            - '\python.exe'
+        CommandLine|endswith: 'LICENSE.txt'
+    condition: selection_python_loader
+falsepositives:
+    - Legitimate Python applications launched with LICENSE.txt as an argument (uncommon)
+level: high

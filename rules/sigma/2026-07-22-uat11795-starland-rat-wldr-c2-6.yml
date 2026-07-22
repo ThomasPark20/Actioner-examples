@@ -1,0 +1,31 @@
+title: UAT-11795 WLDR Agent PowerShell Execution with Volume Serial HWID
+id: f8bcd6c7-0ae9-4413-a7d5-3c6f8b0d2e54
+status: experimental
+description: >
+    Detects PowerShell command-line patterns consistent with the WLDR C2
+    agent deriving a hardware identifier from the C: drive volume serial
+    number. The WLDR downloader extracts the volume serial number and
+    converts it to construct HWID-parameterized C2 URLs.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026-07-22
+tags:
+    - attack.t1059.001
+    - attack.t1082
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'volume'
+            - 'serial'
+            - 'Global:'
+    condition: selection
+falsepositives:
+    - Administrative scripts querying volume serial numbers with global scope variables
+level: medium
