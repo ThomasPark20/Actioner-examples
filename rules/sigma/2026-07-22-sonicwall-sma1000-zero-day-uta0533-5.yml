@@ -1,0 +1,36 @@
+title: UTA0533 Known Attacker Source IP Addresses
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: >
+    Detects network connections from IP addresses attributed to UTA0533
+    by Volexity and Rapid7 investigations. These are non-VPN IPs directly
+    associated with the threat actor's infrastructure.
+references:
+    - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+    - https://www.rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.initial_access
+    - attack.t1190
+logsource:
+    category: firewall
+detection:
+    selection:
+        src_ip:
+            - '108.205.8.173'
+            - '147.45.51.19'
+            - '150.241.210.53'
+            - '202.8.105.201'
+            - '217.77.15.99'
+            - '42.200.172.14'
+            - '81.19.140.217'
+            - '89.117.20.1'
+            - '193.37.32.179'
+            - '193.37.32.214'
+            - '216.73.163.151'
+            - '216.73.163.158'
+    condition: selection
+falsepositives:
+    - IP address reuse after infrastructure decommission; verify current threat intel before blocking
+level: high
