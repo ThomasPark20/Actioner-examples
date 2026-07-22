@@ -321,7 +321,7 @@ level: medium
 
 Detects web requests from IP addresses observed conducting wp2shell exploitation in the wild. IP-based detection is time-limited; validate against current threat intelligence.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag/d3_fendtag). splunk convert 0: "c-ip" IN ("34.81.132.62", ...). log_scale convert 0. IP addresses sourced from Wiz blog. Medium confidence because IPs may be reassigned, shared hosting, or VPN exits. Values real, not defanged. Caveat: short shelf life. -->
+<!-- audit: sigma check 0 (excl. attacktag/d3_fendtag). splunk convert 0: "c-ip" IN ("34.81.132.62", ...). log_scale convert 0. IP addresses sourced from Wiz blog. Medium confidence because IPs may be reassigned, shared hosting, or VPN exits. Values real, not defanged. Caveat: short shelf life. Level fixed to medium to match confidence assessment. -->
 ```yaml
 title: WordPress wp2shell Exploitation from Known Attacker IPs
 id: d4e5f6a7-b8c9-0123-defa-234567890123
@@ -353,7 +353,7 @@ detection:
     condition: selection
 falsepositives:
     - IP addresses may be reassigned over time; validate against current threat intelligence before blocking
-level: high
+level: medium
 ```
 
 ### Sigma: WordPress wp2shell Exploit Tool User-Agent Detection
@@ -391,13 +391,13 @@ falsepositives:
 level: critical
 ```
 
-### Snort: WordPress wp2shell Batch Endpoint SQLi via author__not_in
+### Snort: WordPress wp2shell Batch Endpoint UNION-based SQLi via author__not_in
 
-Detects POST to the WordPress batch endpoint with `author__not_in` or `author_exclude` followed by SQL injection keywords (`UNION`, `SLEEP`, `AND 1=`) in the HTTP body. Fires only on decrypted HTTP (deploy behind TLS termination).
+Detects POST to the WordPress batch endpoint with `author__not_in` or `author_exclude` followed by `UNION` in the HTTP body -- the UNION-based injection variant used for row forgery in the wp2shell RCE chain. This rule targets the UNION-based payload specifically; SLEEP-based and Boolean-based variants are not covered (they lack a distinctive body keyword beyond `author__not_in` alone). Fires only on decrypted HTTP (deploy behind TLS termination).
 **Status:** ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: structural review only — Snort 2.9 syntax verified manually. http_method + http_uri + http_client_body content modifiers. "batch/v1" fast_pattern on URI. "author__not_in" in body keys the vulnerable parameter. "UNION" within:200 catches the UNION-based injection payload that follows. Two-content body chain (author__not_in then UNION) is highly distinctive to this exploit — no legitimate WordPress request combines these. sid:2100063. Requires TLS decryption. -->
+<!-- audit: structural review only — Snort 2.9 syntax verified manually. http_method + http_uri + http_client_body content modifiers. "batch/v1" fast_pattern on URI. "author__not_in" in body keys the vulnerable parameter. "UNION" within:200 catches the UNION-based injection payload that follows. Two-content body chain (author__not_in then UNION) is highly distinctive to this exploit — no legitimate WordPress request combines these. sid:2100063. Requires TLS decryption. Title narrowed to UNION-based SQLi — rule only matches UNION content, not SLEEP/AND variants. -->
 ```snort
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - WordPress wp2shell Batch Endpoint SQLi via author__not_in (CVE-2026-63030/CVE-2026-60137)"; flow:established,to_server; content:"POST"; http_method; content:"/batch/v1"; http_uri; fast_pattern; content:"author__not_in"; http_client_body; content:"UNION"; http_client_body; distance:0; within:200; classtype:web-application-attack; reference:url,www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137; reference:cve,2026-63030; reference:cve,2026-60137; metadata:author Actioner, created_at 2026_07_22; sid:2100063; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - WordPress wp2shell Batch Endpoint UNION-based SQLi via author__not_in (CVE-2026-63030/CVE-2026-60137)"; flow:established,to_server; content:"POST"; http_method; content:"/batch/v1"; http_uri; fast_pattern; content:"author__not_in"; http_client_body; content:"UNION"; http_client_body; distance:0; within:200; classtype:web-application-attack; reference:url,www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137; reference:cve,2026-63030; reference:cve,2026-60137; metadata:author Actioner, created_at 2026_07_22; sid:2100063; rev:2;)
 ```
 
 ### Suricata: WordPress wp2shell Batch Endpoint Exploitation with Nested Requests

@@ -343,18 +343,17 @@ wmic process where "CommandLine like '%LICENSE.txt%'" get ProcessId,CommandLine 
 The following rules target UAT-11795 IOCs and behavioral patterns at host, file, and network layers. Sigma rules cover mshta.exe delivery, scheduled task persistence, C2 domain queries, reconnaissance commands, Python loader execution, WLDR HWID derivation, and trojanized installer behavior. YARA rules detect the Starland RAT, WLDR agent, HTA dropper, and shellcode payloads by characteristic strings, encryption keys, and domain indicators. Snort and Suricata rules identify C2 HTTP traffic patterns, known C2 domain DNS queries, and Starland RAT beaconing.
 
 ### Sigma: UAT-11795 Starland RAT HTA Delivery via Mshta.exe
-Detects mshta.exe execution with command-line references to known UAT-11795 staging domains, consistent with the ClickFix HTA delivery chain.
+Detects mshta.exe execution with command-line references to known UAT-11795 C2 domains, consistent with the ClickFix HTA delivery chain.
 **compile: sigma check pass (0 errors, 0 issues) | sigma convert splunk pass | sigma convert log_scale pass** | **confidence: high**
 
 ```yaml
-title: UAT-11795 Starland RAT HTA Delivery via Mshta.exe with Registry Persistence
+title: UAT-11795 Starland RAT HTA Delivery via Mshta.exe
 id: a3c7e1d2-5b94-4f68-b2e0-8d1a3c5e7f09
 status: experimental
 description: >
     Detects mshta.exe execution patterns consistent with UAT-11795 ClickFix
     delivery chain. The actor uses mshta.exe to execute weaponized HTA files
-    that drop batch files and establish HKCU Run key persistence pointing
-    back to mshta.exe for subsequent stage execution.
+    hosted on known C2 infrastructure domains.
 references:
     - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
     - https://github.com/Cisco-Talos/IOCs/blob/main/2026/07/new-starland-rat-and-WLDR-implant-campaign.txt
@@ -362,7 +361,6 @@ author: Actioner
 date: 2026-07-22
 tags:
     - attack.t1218.005
-    - attack.t1547.001
     - attack.t1204.002
 logsource:
     category: process_creation
@@ -429,7 +427,7 @@ level: high
 
 ### Sigma: UAT-11795 Known C2 Domain DNS Query
 Detects DNS resolution of all seven known UAT-11795 infrastructure domains identified by Cisco Talos.
-**compile: sigma check pass (0 errors, 0 issues) | sigma convert splunk pass | sigma convert log_scale pass** | **confidence: critical**
+**compile: sigma check pass (0 errors, 0 issues) | sigma convert splunk pass | sigma convert log_scale pass** | **confidence: high**
 
 ```yaml
 title: UAT-11795 Starland RAT and WLDR Known C2 Domain DNS Query
@@ -466,12 +464,12 @@ level: critical
 
 <!-- audit: IOC-anchored domain rule. All 7 domains from Cisco Talos GitHub IOC dump, not defanged in detection. Critical level appropriate for confirmed malicious infrastructure. Validated: sigma check 0 errors 0 issues, sigma convert --without-pipeline -t splunk pass, sigma convert --without-pipeline -t log_scale pass. endswith modifier catches subdomains. -->
 
-### Sigma: UAT-11795 Starland RAT Reconnaissance Command Sequence
-Detects WMI and PowerShell reconnaissance commands characteristic of Starland RAT victim profiling. Caveat: individual commands may appear in legitimate administration scripts; correlation of multiple selections increases confidence.
+### Sigma: UAT-11795 Starland RAT Reconnaissance Command
+Detects WMI and PowerShell reconnaissance commands characteristic of Starland RAT victim profiling. Caveat: individual commands may appear in legitimate administration scripts; correlation of multiple hits increases confidence.
 **compile: sigma check pass (0 errors, 0 issues) | sigma convert splunk pass | sigma convert log_scale pass** | **confidence: medium**
 
 ```yaml
-title: UAT-11795 Starland RAT Reconnaissance Command Sequence
+title: UAT-11795 Starland RAT Reconnaissance Command
 id: d6fab4a5-8ec7-4291-e5b3-1a4d6f8b0c32
 status: experimental
 description: >
@@ -522,16 +520,15 @@ title: UAT-11795 Starland RAT Python Loader Execution
 id: e7abc5b6-9fd8-4302-f6c4-2b5e7a9c1d43
 status: experimental
 description: >
-    Detects PowerShell or Python process execution patterns consistent with
-    the Starland RAT AMSI bypass (patching AmsiScanBuffer in amsi.dll) and
-    ETW bypass (patching EtwEventWrite in ntdll.dll). The malware uses
-    runtime API resolution and VirtualProtect to modify these functions.
+    Detects pythonw.exe or python.exe execution with LICENSE.txt as an
+    argument, the characteristic invocation pattern of the Starland RAT
+    obfuscated Python loader deployed via trojanized NSIS installers.
 references:
     - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
 author: Actioner
 date: 2026-07-22
 tags:
-    - attack.t1562.001
+    - attack.t1059.006
 logsource:
     category: process_creation
     product: windows
@@ -749,7 +746,7 @@ rule Malware_Starland_RAT_HTA_Dropper
         (
             ($hta_tag and 1 of ($domain_*)) or
             ($vbs_tag and 1 of ($domain_*) and 1 of ($staging_*)) or
-            ($hta_tag and $ru_comment) or
+            ($hta_tag and $ru_comment and 1 of ($staging_*)) or
             (1 of ($domain_*) and 1 of ($bot_*))
         )
 }
@@ -785,19 +782,28 @@ rule Malware_UAT11795_Shellcode_Payload
 
 <!-- audit: Four YARA rules compiled clean via yarac (exit code 0). Starland RAT rule uses combination logic to require C2 domain + API resolution or encryption key presence, avoiding single-string false positives. WLDR agent rule anchors on hardcoded password "odg5t8mvssvh" and mutex "f2j398fj239d8j23dkkskskkkkkkkkk" which are unique IOCs. HTA dropper rule requires HTA tag + domain or Russian comment. Shellcode rule uses staging URLs and blockchain contract address. All string values are real (not defanged). Removed single-byte $xor_key and unreferenced $telegram from initial draft to fix yarac errors. -->
 
-### Snort: UAT-11795 Starland RAT and WLDR Network Detection (5 rules)
-Five Snort rules covering Starland RAT C2 beaconing with Chrome/138 User-Agent, known C2 domain DNS queries, WLDR stager download path, and Telegram bot notification exfiltration.
-**compile: structural check only** | **confidence: high** (C2 domain/UA rules), **medium** (URI path rules)
+### Snort: UAT-11795 Starland RAT and WLDR Network Detection (8 rules)
+Eight Snort rules covering Starland RAT C2 beaconing with Chrome/138 User-Agent on known C2 domain, five known C2 domain DNS queries, WLDR stager download path, and Telegram bot notification exfiltration.
+**compile: structural check only** | **confidence: high** (all rules -- domain-anchored or IOC-anchored)
 
 ```
-# Starland RAT C2 beaconing with characteristic Chrome/138.0.0.0 User-Agent and /command path
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon with Chrome 138 UA"; flow:established,to_server; content:"GET"; http_method; content:"/command"; http_uri; content:"Chrome/138.0.0.0 Safari/537.36"; http_header; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100001; rev:1;)
+# Starland RAT C2 beaconing with characteristic Chrome/138.0.0.0 User-Agent and /command path on known C2 domain
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon with Chrome 138 UA"; flow:established,to_server; content:"GET"; http_method; content:"/command"; http_uri; content:"windowscreenrepairnearme.com"; http_header; content:"Chrome/138.0.0.0 Safari/537.36"; http_header; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100001; rev:2;)
 
 # Known UAT-11795 C2 domain in DNS query - eorthopaedics.com
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query eorthopaedics.com"; content:"|0e|eorthopaedics|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100002; rev:1;)
 
 # Known UAT-11795 C2 domain in DNS query - windowscreenrepairnearme.com
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query windowscreenrepairnearme.com"; content:"|18|windowscreenrepairnearme|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100003; rev:1;)
+
+# Known UAT-11795 C2 domain in DNS query - sastoro.com
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query sastoro.com"; content:"|07|sastoro|03|com|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100006; rev:1;)
+
+# Known UAT-11795 C2 domain in DNS query - zynaris.io
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query zynaris.io"; content:"|07|zynaris|02|io|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100007; rev:1;)
+
+# Known UAT-11795 C2 domain in DNS query - alphabitcapital.info
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 Domain DNS Query alphabitcapital.info"; content:"|10|alphabitcapital|04|info|00|"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100008; rev:1;)
 
 # WLDR stager download via /feed/ path on known staging domains
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 WLDR Stager Download via /feed/ Path"; flow:established,to_server; content:"GET"; http_method; content:"/feed/"; http_uri; content:"eorthopaedics.com"; http_header; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100004; rev:1;)
@@ -806,14 +812,14 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 Starland RAT Telegram Bot Exfiltration"; flow:established,to_server; content:"api.telegram.org"; http_header; content:"/bot"; http_uri; content:"8384531459"; http_uri; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_22; sid:9100005; rev:1;)
 ```
 
-<!-- audit: 5 Snort rules. structural check only -- no snort binary available for compilation. SID 9100001 matches Starland RAT C2 polling GET with Chrome/138 UA and /command path. SIDs 9100002-9100003 use DNS wire format for domain matching (length prefix byte + label). SID 9100004 combines /feed/ URI with eorthopaedics.com Host header. SID 9100005 targets Telegram bot API exfiltration with specific bot ID. All use flow:established,to_server for TCP rules. DNS rules use UDP port 53. -->
+<!-- audit: 8 Snort rules. structural check only -- no snort binary available for compilation. SID 9100001 matches Starland RAT C2 polling GET with Chrome/138 UA, /command path, and windowscreenrepairnearme.com Host header (domain-anchored, rev:2). SIDs 9100002-9100003, 9100006-9100008 use DNS wire format for domain matching (length prefix byte + label) covering all 5 C2 domains. SID 9100004 combines /feed/ URI with eorthopaedics.com Host header (domain-anchored, high confidence). SID 9100005 targets Telegram bot API exfiltration with specific bot ID (IOC-anchored, high confidence). All use flow:established,to_server for TCP rules. DNS rules use UDP port 53. -->
 
-### Suricata: UAT-11795 Starland RAT and WLDR Network Detection (7 rules)
-Seven Suricata rules using sticky buffers for Starland RAT C2 beaconing, known C2 domain DNS queries, WLDR stage chain downloads, shellcode hosting domain access, and Telegram bot exfiltration.
-**compile: structural check only** | **confidence: high** (C2 domain DNS SIDs 2100202-2100205), **medium** (C2 endpoint/path SIDs 2100201, 2100206-2100207 -- URI paths could match legitimate traffic without domain context)
+### Suricata: UAT-11795 Starland RAT and WLDR Network Detection (10 rules)
+Ten Suricata rules using sticky buffers for Starland RAT C2 beaconing on known C2 domain, seven known C2 domain DNS queries, WLDR stage chain downloads, and Telegram bot exfiltration.
+**compile: structural check only** | **confidence: high** (all rules -- domain-anchored or IOC-anchored)
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon Chrome 138 UA"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/command"; http.user_agent; content:"Chrome/138.0.0.0 Safari/537.36"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Starland RAT C2 Beacon Chrome 138 UA"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/command"; http.host; content:"windowscreenrepairnearme.com"; http.user_agent; content:"Chrome/138.0.0.0 Safari/537.36"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100201; rev:2;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 C2 Domain eorthopaedics.com"; dns.query; content:"eorthopaedics.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026-07-22; sid:2100202; rev:1;)
 

@@ -1,0 +1,31 @@
+title: WordPress wp2shell Webshell Access in Cache Directory
+id: c3d4e5f6-a7b8-9012-cdef-123456789012
+status: experimental
+description: >
+    Detects HTTP requests accessing PHP files within the WordPress
+    wp-content/cache/ directory. Webshells deployed via the wp2shell exploit
+    chain are placed in /wp-content/cache/ with randomized filenames. PHP files
+    in the cache directory are not part of normal WordPress operation and
+    indicate post-exploitation webshell activity.
+references:
+    - https://www.bleepingcomputer.com/news/security/critical-wp2shell-wordpress-flaws-exploited-to-install-webshells/
+    - https://thehackernews.com/2026/07/wordpress-wp2shell-exploitation-grows.html
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.persistence
+    - attack.t1505.003
+    - cve.2026-63030
+    - cve.2026-60137
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/wp-content/cache/'
+    filter_php:
+        cs-uri-stem|endswith: '.php'
+    condition: selection and filter_php
+falsepositives:
+    - Some caching plugins may serve PHP files from the cache directory, though this is uncommon
+    - W3 Total Cache may place PHP files in wp-content/cache/ for advanced caching modes
+level: medium
