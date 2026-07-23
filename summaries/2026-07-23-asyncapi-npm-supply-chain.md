@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-23
-Version: DRAFT
+Version: FINAL
+<!-- revision: applied critic verdicts — fixed SHA-256 hash (65→64 hex chars), ATT&CK T1543.004→T1543.002 (Linux systemd), T1546→T1546.004 (macOS RC), Sigma registry rule TargetObject fix, Suricata IPFS rule downgraded to hunt-only, YARA sample label removed and rule renamed, YARA condition tightened -->
 
 ## Executive Summary
 
@@ -189,7 +190,7 @@ The decrypted payload is identified as **M-RED-TEAM v6.4** with campaign configu
 | All | injected index.js (specs) | `8351d251cf0b5a0bd82242deaa0a14e3e1394418d55c0f4259dac4303b79fc0c` | Stage 1 loader |
 | All | injected validator.js (generator) | `b9993a8ad0518849416798cf29668256ccb96598fc4423501ccab5312812653a` | Stage 1 loader |
 | All | injected ErrorHandling.js (gen-components) | `b270bdf8e2274ea1af0a6eed74d8f10e5fe61012d6cc226a43cc7cc7fd9f6292` | Stage 1 loader |
-| All | injected utils.js (gen-helpers) | `6e738713b75bd34828d49896176627f7face7aa9036cd874f2e02d9f23a9a9c71` | Stage 1 loader |
+| All | injected utils.js (gen-helpers) | `6e738713b75bd34828d49896176627f7face7aa9036cd874f2e02d9f23a9a9c7` | Stage 1 loader |
 | All | sync.js wrapper | `24b9ee242f21a73b55f7bb3297eafb33c60840907386b542ed79fc6b72365168` | Stage 2 encrypted payload |
 | Windows | `%LOCALAPPDATA%\NodeJS\sync.js` | -- | Dropped payload |
 | macOS | `~/Library/Application Support/NodeJS/sync.js` | -- | Dropped payload |
@@ -240,8 +241,8 @@ The decrypted payload is identified as **M-RED-TEAM v6.4** with campaign configu
 | T1140 | Deobfuscate/Decode Files or Information | HKDF-SHA256 + AES-256-GCM + ROT-94de decryption chain |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Drop path mimics legitimate NodeJS directory structure |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | Windows persistence via HKCU Run `miasma-monitor` |
-| T1543.004 | Create or Modify System Process: Launch Daemon | Linux persistence via systemd user unit `miasma-monitor.service` |
-| T1546 | Event Triggered Execution | macOS persistence via shell RC file injection |
+| T1543.002 | Create or Modify System Process: Systemd Service | Linux persistence via systemd user unit `miasma-monitor.service` |
+| T1546.004 | Event Triggered Execution: Unix Shell Configuration Modification | macOS persistence via shell RC file injection (.zshrc, .bashrc, .bash_profile) |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP C2 communication to `/api/v1/beacon` |
 | T1008 | Fallback Channels | Nostr, Ethereum, BitTorrent DHT, libp2p, IPFS fallback C2 |
 | T1005 | Data from Local System | Harvesting of credential files, SSH keys, cloud configs |
