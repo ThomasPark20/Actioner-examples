@@ -412,6 +412,7 @@ level: high
 Detects the Miasma RAT HKCU Run registry persistence with value name `miasma-monitor`.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check skipped (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. miasma-monitor registry value is unique to this campaign. Zero expected FPs. -->
+<!-- revision: fixed detection logic — 'miasma-monitor' is the registry value NAME (part of TargetObject), not the value DATA (Details). Changed Details|contains to TargetObject|endswith: '\Run\miasma-monitor'. -->
 ```yaml
 title: AsyncAPI NPM Supply Chain - Miasma Registry Persistence
 id: 9c3e5f7a-4d6b-4a0c-be8f-3b5d7c9e1f4a
@@ -431,8 +432,7 @@ logsource:
     product: windows
 detection:
     selection:
-        TargetObject|contains: '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
-        Details|contains: 'miasma-monitor'
+        TargetObject|endswith: '\Run\miasma-monitor'
     condition: selection
 falsepositives:
     - None expected - miasma-monitor is a known malicious indicator
@@ -444,6 +444,7 @@ level: critical
 Detects creation of the Miasma payload in Linux drop paths or the `miasma-monitor` systemd user service.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check skipped (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. Linux file_event logsource; drop paths and systemd service name are campaign-unique. -->
+<!-- revision: fixed ATT&CK tag — Linux systemd persistence is T1543.002 (Systemd Service), not T1543.004 (Launch Daemon / macOS). -->
 ```yaml
 title: AsyncAPI NPM Supply Chain - Linux Miasma Payload and Persistence
 id: ad4f6a8b-5e7c-4b1d-cf9a-4c6e8d0f2a5b
@@ -457,7 +458,7 @@ references:
 author: Actioner
 date: 2026/07/23
 tags:
-    - attack.t1543.004
+    - attack.t1543.002
     - attack.t1059.007
 logsource:
     category: file_event
@@ -493,22 +494,24 @@ alert tcp $HOME_NET any -> 85.137.53.71 8081 (msg:"Actioner - AsyncAPI Supply Ch
 
 ### Suricata: Miasma C2 Beacon and IPFS Payload Retrieval
 
-Detects HTTP C2 beacon traffic to `85.137.53.71` and DNS lookups to `ipfs.io` used for payload staging.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. HTTP rules use dot-notation sticky buffers. DNS rule for ipfs.io is medium-broad (ipfs.io is also used legitimately) but included as hunt indicator for CI/CD environments where IPFS is unexpected. -->
+Detects HTTP C2 beacon traffic to `85.137.53.71` (high confidence) and DNS lookups to `ipfs.io` used for payload staging (hunt-only, low confidence -- ipfs.io has legitimate uses).
+**Status:** compile ✅ compiles · confidence: high (sid:2200101, 2200102) / low (sid:2200103, hunt-only)
+<!-- audit: suricata -T exit 0. HTTP rules use dot-notation sticky buffers. DNS rule for ipfs.io fires on ANY ipfs.io query — high FP outside build/CI environments. -->
+<!-- revision: downgraded sid:2200103 (IPFS DNS) from confidence:high to confidence:low, classtype policy-violation, hunt-only per critic — ANY ipfs.io DNS query triggers, high FP risk. -->
 ```suricata
 alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Supply Chain Miasma C2 Beacon"; flow:established,to_server; http.uri; content:"/api/v1/beacon"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-23; sid:2200101; rev:1;)
 
 alert http $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Supply Chain Miasma Exfil Upload"; flow:established,to_server; http.uri; content:"/api/v1/file-result"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-23; sid:2200102; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - AsyncAPI Supply Chain IPFS Payload Retrieval via ipfs.io"; flow:to_server; dns.query; content:"ipfs.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-23; sid:2200103; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - HUNT AsyncAPI Supply Chain IPFS Payload Retrieval via ipfs.io"; flow:to_server; dns.query; content:"ipfs.io"; nocase; fast_pattern; classtype:policy-violation; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; metadata:author Actioner, created_at 2026-07-23, confidence low, hunt_only true; sid:2200103; rev:2;)
 ```
 
 ### YARA: AsyncAPI Miasma Loader Artifacts
 
 Detects the Miasma RAT loader and payload components by matching the HKDF master key, IPFS CIDs, campaign identifiers, OS-specific drop paths, and other distinctive strings from the compromised AsyncAPI packages. Scope to npm caches, `node_modules`, and build artifact directories.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: pos.txt with rt-vault-master-key-32b-aaaaaaaa matched AsyncAPI_NPM_Miasma_Loader; neg.txt clean. Master key string sourced from Microsoft blog (published indicator). Second rule keys on obfuscation marker, rentry dead-drop, mDNS service name, and Ethereum contract address — all from published IOCs. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Master key string sourced from Microsoft blog (published indicator). Second rule keys on obfuscation marker, rentry dead-drop, mDNS service name, and Ethereum contract address — all from published IOCs. -->
+<!-- revision: removed 'sample: fired' label — pos.txt was fabricated test input, not a real published sample; label was dishonest per skill spec. Renamed second rule from AsyncAPI_NPM_Compromised_Package_Hashes to AsyncAPI_NPM_Miasma_Campaign_Strings (it does string matching, not hash matching). Tightened condition: $obfusc now requires co-occurrence with at least one other indicator. -->
 ```yara
 rule AsyncAPI_NPM_Miasma_Loader
 {
@@ -543,17 +546,13 @@ rule AsyncAPI_NPM_Miasma_Loader
         )
 }
 
-rule AsyncAPI_NPM_Compromised_Package_Hashes
+rule AsyncAPI_NPM_Miasma_Campaign_Strings
 {
     meta:
-        description = "Detects known malicious files from the AsyncAPI npm supply chain compromise by SHA-256 hash match"
+        description = "Detects AsyncAPI npm supply chain compromise artifacts by campaign-specific strings: obfuscation markers, dead-drop URLs, mDNS service name, and Ethereum contract address"
         author = "Actioner"
         date = "2026-07-23"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/"
-        hash1 = "8351d251cf0b5a0bd82242deaa0a14e3e1394418d55c0f4259dac4303b79fc0c"
-        hash2 = "b9993a8ad0518849416798cf29668256ccb96598fc4423501ccab5312812653a"
-        hash3 = "b270bdf8e2274ea1af0a6eed74d8f10e5fe61012d6cc226a43cc7cc7fd9f6292"
-        hash4 = "24b9ee242f21a73b55f7bb3297eafb33c60840907386b542ed79fc6b72365168"
         severity = "critical"
 
     strings:
@@ -564,7 +563,10 @@ rule AsyncAPI_NPM_Compromised_Package_Hashes
 
     condition:
         filesize < 10MB and
-        any of them
+        (
+            ($obfusc and 1 of ($rentry, $mdns, $eth_addr)) or
+            2 of ($rentry, $mdns, $eth_addr)
+        )
 }
 ```
 

