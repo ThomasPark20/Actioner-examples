@@ -1,0 +1,31 @@
+title: AsyncAPI NPM Supply Chain - Miasma Payload Drop Path Creation
+id: 8b2d4e6f-3c5a-4f9b-ad7e-2a4c6b8d0e3f
+status: experimental
+description: >
+    Detects creation of sync.js payload files in the OS-specific drop directories used by the
+    AsyncAPI npm supply chain compromise Miasma RAT. Also detects creation of the lockfile
+    used by the malware runtime.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://www.chainguard.dev/unchained/asyncapi-supply-chain-compromise-npm-packages-backdoored-via-github-actions
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1059.007
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_syncjs:
+        TargetFilename|endswith: '\NodeJS\sync.js'
+        TargetFilename|contains: '\AppData\Local\'
+    selection_lockfile:
+        TargetFilename|contains|all:
+            - '\.miasma\'
+            - '\run\'
+            - '\node.lock'
+    condition: selection_syncjs or selection_lockfile
+falsepositives:
+    - Legitimate applications using a NodeJS directory under AppData
+level: high

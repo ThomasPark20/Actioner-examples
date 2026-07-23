@@ -1,0 +1,23 @@
+title: msaRAT MSI Delivery Server Network Connection
+id: ad6b4c25-7e1f-4a8b-d9c4-5f2a3b1e0d7c
+status: experimental
+description: >
+    Detects outbound network connections to IP 172.86.126[.]18, the attacker-controlled
+    server used by the Chaos ransomware group to deliver the msaRAT MSI installer
+    (update_ms.msi) over plain HTTP on port 443.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '172.86.126.18'
+    condition: selection
+falsepositives:
+    - Unlikely - this IP is associated with msaRAT infrastructure
+level: critical

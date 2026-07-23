@@ -1,0 +1,33 @@
+title: AsyncAPI NPM Supply Chain - Linux Miasma Payload and Persistence
+id: ad4f6a8b-5e7c-4b1d-cf9a-4c6e8d0f2a5b
+status: experimental
+description: >
+    Detects creation of the Miasma RAT payload sync.js in Linux-specific drop paths
+    or the miasma-monitor systemd user service, as observed in the AsyncAPI npm supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://www.stepsecurity.io/blog/compromised-next-branch-pushes-malicious-asyncapi-generator-generator-helpers-and-generator-components-to-npm
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1543.002
+    - attack.t1059.007
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_syncjs:
+        TargetFilename|endswith:
+            - '/.local/share/NodeJS/sync.js'
+            - '/.config/NodeJS/sync.js'
+    selection_systemd:
+        TargetFilename|endswith: '/miasma-monitor.service'
+    selection_lockfile:
+        TargetFilename|contains|all:
+            - '/.miasma/'
+            - '/run/'
+            - '/node.lock'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate applications creating files in .local/share/NodeJS
+level: high

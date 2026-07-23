@@ -243,9 +243,9 @@ level: high
 
 ### Sigma: msaRAT Headless Browser Launch with Remote Debugging
 
-Detects Chrome or Edge launched in headless mode with remote debugging enabled, the core CDP abuse technique used by msaRAT.
+Detects Chrome or Edge launched in headless mode with remote debugging enabled. **TTP-layer supplement** -- this is a behavioral rule that fires on the technique (CDP abuse), not on msaRAT-specific artifacts; scope to non-developer/non-CI hosts and pair with the IOC-anchored rules above.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (attacktag excluded). splunk 0; log_scale 0. Medium confidence: headless+debug flags are used by legitimate test frameworks (Selenium, Puppeteer). Distinctive in non-dev environments. Scope to non-CI/CD hosts. -->
+<!-- audit: sigma check 0 (attacktag excluded). splunk 0; log_scale 0. Medium confidence: headless+debug flags are used by legitimate test frameworks (Selenium, Puppeteer). Distinctive in non-dev environments. Scope to non-CI/CD hosts. TTP-layer: behavioral, not msaRAT-specific. -->
 ```yaml
 title: msaRAT Headless Browser Launch with Remote Debugging
 id: 8b4f2a03-5c9d-4e6f-b7a2-3d0e1f9c8b5a
@@ -315,7 +315,7 @@ level: critical
 
 ### Sigma: msaRAT MSI Delivery Server Network Connection
 
-Detects outbound network connections to IP 172.86.126.18, the attacker-controlled msaRAT MSI delivery server.
+Detects outbound network connections to IP 172.86.126[.]18, the attacker-controlled msaRAT MSI delivery server.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0 (attacktag excluded). splunk 0; log_scale 0. IOC-anchored; IP is specific to this campaign infrastructure. Will burn if infrastructure is rotated. -->
 ```yaml
@@ -371,8 +371,8 @@ alert http $HOME_NET any -> 172.86.126.18 any (msg:"Actioner - msaRAT MSI Payloa
 ### YARA: msaRAT CDP Binding Strings and MSI Artifacts
 
 Detects msaRAT payload via its distinctive CDP binding names (`msaOpen`, `msaClose`, `msaError`, `msaMessage`, `dataAck`), MSI Binary table reference, and C2 signaling indicators.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos.txt matched (3+ CDP binding strings present); neg.txt quiet. Condition: 3-of-5 CDP bindings, OR MSI Binary/CA table + RUN export, OR c2 domain + signaling path. Strings are from Talos published analysis, not reverse-engineered. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Tested against constructed pos.txt (not a real sample) — positional strings fired, neg.txt quiet. Condition: 3-of-5 CDP bindings, OR MSI Binary/CA table + RUN export, OR c2 domain + signaling path. Strings are from Talos published analysis, not reverse-engineered. -->
 ```yara
 rule Malware_Chaos_msaRAT_CDP_Bindings
 {

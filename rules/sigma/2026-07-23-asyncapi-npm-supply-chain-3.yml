@@ -1,0 +1,23 @@
+title: AsyncAPI NPM Supply Chain - Miasma Registry Persistence
+id: 9c3e5f7a-4d6b-4a0c-be8f-3b5d7c9e1f4a
+status: experimental
+description: >
+    Detects the Miasma RAT persistence mechanism on Windows via HKCU Run registry key
+    with the value name miasma-monitor, as observed in the AsyncAPI npm supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://securitylabs.datadoghq.com/articles/compromised-asyncapi-npm-packages/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Run\miasma-monitor'
+    condition: selection
+falsepositives:
+    - None expected - miasma-monitor is a known malicious indicator
+level: critical

@@ -1,0 +1,33 @@
+title: msaRAT Headless Browser Launch with Remote Debugging
+id: 8b4f2a03-5c9d-4e6f-b7a2-3d0e1f9c8b5a
+status: experimental
+description: >
+    Detects Chrome or Edge launched in headless mode with remote debugging enabled,
+    a technique used by msaRAT to establish covert C2 via Chrome DevTools Protocol
+    and WebRTC DataChannels. The RAT controls the browser to route all C2 traffic
+    through the browser process, evading endpoint network monitoring.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1071.001
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_browser:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+    selection_headless:
+        CommandLine|contains: '--headless'
+    selection_debug:
+        CommandLine|contains: '--remote-debugging-port'
+    condition: selection_browser and selection_headless and selection_debug
+falsepositives:
+    - Automated browser testing frameworks (Selenium, Puppeteer, Playwright)
+    - Web scraping tools using headless Chrome
+    - CI/CD pipelines running browser-based tests
+level: medium
