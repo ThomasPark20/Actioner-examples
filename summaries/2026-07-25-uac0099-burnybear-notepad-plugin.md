@@ -107,16 +107,17 @@ No specific C2 domains, IP addresses, or communication protocols were disclosed 
 
 ### File System
 
-| Platform | Path / Filename | Hash (SHA256) | Description |
-|----------|-----------------|---------------|-------------|
-| Windows | NppExport.dll | See hash table below | LUNCHPOKE malicious plugin |
-| Windows | RemoteLibUpdater.exe | See hash table below | BURNYBEAR loader |
-| Windows | InitTest.dll | See hash table below | MATCHBOIL.V2 payload loader |
-| Windows | updater.rar | See hash table below | Password-protected archive |
-| Windows | mimeTools.dll | See hash table below | Associated component |
-| Windows | certificate.pem | See hash table below | TLS certificate for C2 |
+| Platform | Path / Filename | SHA-256 (truncated) | Description |
+|----------|-----------------|---------------------|-------------|
+| Windows | NppExport.dll | `4552e84e...28236c` | LUNCHPOKE malicious plugin |
+| Windows | RemoteLibUpdater.exe | `a0016420...0614b` | BURNYBEAR loader |
+| Windows | InitTest.dll | `2da2fcd6...ad5ce` | MATCHBOIL.V2 payload loader |
+| Windows | updater.rar | `5af95489...d4f7f2` | Password-protected archive |
+| Windows | mimeTools.dll | `c6c250e1...5d91c` | Associated component |
+| Windows | certificate.pem | `fbd959e9...c80b9` | TLS certificate for C2 |
 | Windows | %PUBLIC%\Libraries\[random]\ | -- | Extraction directory |
 | Windows | %PUBLIC%\Wallpapers\Background.exe | -- | Copied schtasks.exe (masquerading) |
+| Windows | \W1n3r-U09oTy-Ap5\Updates | -- | Scheduled task path (persistence) |
 
 **File Hashes (from CERT-UA / Rewterz):**
 
@@ -433,44 +434,13 @@ rule UAC0099_BURNYBEAR_Loader
 
 <!-- audit: yarac compile pass. Medium confidence: requires the embedded binary name string which is campaign-specific but could be stripped in future variants. .NET indicators help constrain the match. -->
 
-### YARA Rule 3: UAC0099_MATCHBOIL_V2_Loader
+<!-- revision: YARA Rule 3 (UAC0099_MATCHBOIL_V2_Loader) DROPPED. "InitTest" too generic, "certificate.pem" very common; no unique MATCHBOIL.V2 strings. -->
 
-Detects the MATCHBOIL.V2 payload DLL (`InitTest.dll`) by matching its name alongside .NET runtime markers and associated component filenames.
-
-**Status**: `compile: pass` | `confidence: low`
-
-```yara
-rule UAC0099_MATCHBOIL_V2_Loader
-{
-    meta:
-        description = "Detects MATCHBOIL.V2 (InitTest.dll), a C#-based malware loader deployed by BURNYBEAR in the UAC-0099 campaign against Ukrainian organizations"
-        author = "Actioner"
-        date = "2026-07-25"
-        reference = "https://cert.gov.ua/article/6318634"
-        tlp = "WHITE"
-        severity = "critical"
-
-    strings:
-        $name1 = "InitTest" ascii wide fullword
-        $dotnet1 = "_CorDllMain" ascii fullword
-        $dotnet2 = "mscoree.dll" ascii fullword
-        $cert = "certificate.pem" ascii wide
-        $mime = "mimeTools.dll" ascii wide
-
-    condition:
-        uint16(0) == 0x5A4D and
-        filesize < 2MB and
-        $name1 and
-        1 of ($dotnet*) and
-        ($cert or $mime)
-}
-```
-
-<!-- audit: yarac compile pass. Low confidence: "InitTest" is somewhat generic; the rule relies on co-occurrence with .NET markers and the certificate.pem/mimeTools.dll strings. Without sample-specific byte patterns or hashes, this is best used alongside hash-based IOC matching. -->
-
-### YARA Rule 4: UAC0099_VBS_Double_Extension_Dropper
+### YARA Rule 3: UAC0099_VBS_Double_Extension_Dropper
 
 Detects VBScript dropper files used for initial delivery, matching VBS execution patterns combined with references to the Evernote.zip / Notepad++ payload chain.
+
+<!-- revision: removed $zip_ref (".zip") from third condition branch -- too broad, matches countless VBS downloaders. Second branch now requires $evernote or $rar_ref only (both campaign-specific). -->
 
 **Status**: `compile: pass` | `confidence: medium`
 
@@ -491,7 +461,6 @@ rule UAC0099_VBS_Double_Extension_Dropper
         $evernote = "Evernote" ascii wide nocase
         $notepad = "notepad++" ascii wide nocase
         $npp = "NppExport" ascii wide
-        $zip_ref = ".zip" ascii wide nocase
         $rar_ref = "updater.rar" ascii wide nocase
         $download1 = "XMLHTTP" ascii nocase
         $download2 = "ADODB.Stream" ascii nocase
@@ -502,37 +471,17 @@ rule UAC0099_VBS_Double_Extension_Dropper
         1 of ($vbs_header*) and
         (
             ($evernote and ($notepad or $npp)) or
-            ($download1 and $shell1 and ($evernote or $zip_ref or $rar_ref)) or
+            ($download1 and $shell1 and ($evernote or $rar_ref)) or
             ($download2 and ($notepad or $npp))
         )
 }
 ```
 
-<!-- audit: yarac compile pass. Medium confidence: VBS file detection without PE header check (VBS files are plaintext). The Evernote/notepad++ string combination is specific to this campaign variant but the broader download pattern conditions could match other VBS downloaders. -->
+<!-- audit: yarac compile pass. Medium confidence: VBS file detection without PE header check (VBS files are plaintext). The Evernote/notepad++/updater.rar string combinations are campaign-specific. $zip_ref removed to eliminate broad-match FP path. -->
 
-### Snort Rule 1: EasySend File Download -- UAC-0099 Delivery Infrastructure
+<!-- revision: Snort Rule 1 (EasySend File Download) DROPPED. EasySend is a legitimate file-sharing platform; rule alerts on ALL EasySend usage, producing extremely high false positives. -->
 
-Detects HTTP requests to the EasySend[.]co file-sharing platform used as the delivery mechanism for the initial ZIP archive.
-
-**Status**: `compile: uncompiled` | `confidence: low`
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to EasySend File Sharing - Potential UAC-0099 Delivery"; flow:established, to_server; http_uri; content:"/dl/"; http_header; content:"Host: "; content:"easysend.co", distance 0, within 20; classtype:trojan-activity; reference:url,cert.gov.ua/article/6318634; metadata:author Actioner, created 2026-07-25; sid:2100101; rev:1;)
-```
-
-<!-- audit: structural check only -- snort not installed. Semicolons terminate all options; flow set for TCP; http_uri and http_header sticky buffers used with http protocol; msg/sid/rev present. Low confidence: EasySend is a legitimate service; this rule will generate false positives and should be used with threat-intel enrichment or alongside other indicators. -->
-
-### Suricata Rule 1: EasySend File Sharing Download -- UAC-0099 Delivery
-
-Detects HTTP traffic to EasySend[.]co, the file-sharing service observed hosting the UAC-0099 initial ZIP payload.
-
-**Status**: `compile: uncompiled` | `confidence: low`
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to EasySend - Potential UAC-0099 Payload Delivery"; flow:established,to_server; http.host; content:"easysend.co"; endswith; http.uri; content:"/dl/"; startswith; classtype:trojan-activity; reference:url,cert.gov.ua/article/6318634; metadata:author Actioner, created_at 2026-07-25; sid:2100101; rev:1;)
-```
-
-<!-- audit: structural check only -- suricata not installed. Dot-notation sticky buffers (http.host, http.uri) correctly used; semicolons on all options; msg/sid/rev present; endswith/startswith modifiers correctly applied. Low confidence: EasySend is a legitimate file-sharing platform; this rule requires tuning with additional context (e.g., ZIP content type, specific URI patterns) to reduce FP rate. -->
+<!-- revision: Suricata Rule 1 (EasySend File Sharing Download) DROPPED. Same issue as Snort -- legitimate service with unacceptable FP rate. -->
 
 ## Lessons Learned
 
