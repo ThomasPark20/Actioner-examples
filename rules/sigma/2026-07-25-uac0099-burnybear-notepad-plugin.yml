@@ -1,0 +1,84 @@
+title: Suspicious DLL Loaded by Notepad++ from Public Libraries Directory - UAC-0099
+id: b5612330-106e-44c6-8f79-2396b7315205
+status: experimental
+description: >
+    Detects Notepad++ loading a DLL from the %PUBLIC%\Libraries\ directory tree,
+    indicating potential DLL sideloading as used by UAC-0099 to load the malicious
+    LUNCHPOKE plugin (NppExport.dll) bundled alongside a portable Notepad++ installation
+    extracted to a randomized subdirectory under %PUBLIC%\Libraries\.
+references:
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+    - https://cert.gov.ua/article/6318634
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1574.002
+    - attack.t1036
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\notepad++.exe'
+    selection_dll:
+        ImageLoaded|contains: '\Users\Public\Libraries\'
+    condition: selection_process and selection_dll
+falsepositives:
+    - Portable Notepad++ installations intentionally placed in Public\Libraries directories
+level: high
+---
+title: Scheduled Task Created for BURNYBEAR Persistence - UAC-0099
+id: b44142b3-ba33-4180-8122-ea01857e4f46
+status: experimental
+description: >
+    Detects creation of a scheduled task matching the UAC-0099 persistence pattern,
+    including the known task path pattern and the RemoteLibUpdater.exe binary with
+    arguments "setup nodisplay" used by the BURNYBEAR loader.
+references:
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+    - https://cert.gov.ua/article/6318634
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'RemoteLibUpdater'
+            - 'setup'
+            - 'nodisplay'
+    condition: selection_schtasks
+falsepositives:
+    - Unlikely in legitimate environments
+level: critical
+---
+title: BURNYBEAR Loader Execution - RemoteLibUpdater
+id: 04b1ef77-8983-4729-a7ad-8fbee8230d81
+status: experimental
+description: >
+    Detects execution of RemoteLibUpdater.exe, the BURNYBEAR loader used by UAC-0099.
+    This .NET binary loads the MATCHBOIL.V2 payload (InitTest.dll) when executed with
+    the correct arguments, or triggers anti-analysis resource exhaustion otherwise.
+    Detection is based on the executable image name, which is campaign-specific.
+references:
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+    - https://cert.gov.ua/article/6318634
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1204.002
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\RemoteLibUpdater.exe'
+    condition: selection
+falsepositives:
+    - Legitimate software named RemoteLibUpdater.exe (uncommon)
+level: critical

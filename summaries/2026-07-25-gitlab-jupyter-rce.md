@@ -285,7 +285,7 @@ Compile: Splunk ✅ | LogScale ✅ | Confidence: medium
 <!-- audit: sigma convert --without-pipeline to both Splunk and LogScale succeeded. Targets Linux syslog entries for Puma/Ruby process crashes (SIGSEGV, SIGABRT). The ASLR probing phase produces 5-10 minutes of repeated crashes, which is anomalous for production GitLab. Medium confidence due to potential overlap with legitimate OOM or gem compatibility crashes. -->
 
 ```yaml
-title: GitLab Puma Worker Crash or Hang During Notebook Diff Rendering
+title: GitLab Puma Worker Crash During Notebook Diff Rendering
 id: d6aeaa44-cd9e-43fb-991e-15b522cb6876
 status: experimental
 description: >
@@ -293,7 +293,9 @@ description: >
     GitLab servers, which may indicate active exploitation of the Oj parser memory corruption
     vulnerabilities. The exploit chain causes controlled crashes during the ASLR bypass
     probing phase (5-10 minutes of repeated requests causing worker hangs) before achieving
-    code execution. Repeated Puma worker restarts correlate with heap layout probing.
+    code execution. A single crash is not necessarily malicious; this rule should be used
+    as a correlation signal. Five or more matches within 10 minutes from the same process
+    strongly suggests active ASLR probing.
 references:
     - https://thehackernews.com/2026/07/researcher-publishes-gitlab-rce-poc.html
     - https://depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities
@@ -318,14 +320,15 @@ detection:
             - 'signal 11'
             - 'signal 6'
             - 'core dumped'
-    condition: selection_process and selection_signal | count() by SyslogIdentifier >= 5
-    timeframe: 600s
+    condition: selection_process and selection_signal
 falsepositives:
     - Puma worker crashes due to memory pressure or out-of-memory conditions
     - Ruby gem compatibility issues causing segmentation faults
     - Legitimate application bugs in custom GitLab extensions
 level: medium
 ```
+
+> **Correlation guidance:** Deploy this rule as a correlation signal, not a standalone alert. A single Puma segfault is routine. The exploit artifact is 5+ crashes within a 10-minute window from the same `SyslogIdentifier`. Configure your SIEM to threshold on `count(SyslogIdentifier) >= 5` within a 600-second window before escalating.
 
 ### YARA Rule 1: Malicious Jupyter Notebook for Oj RCE Exploit
 

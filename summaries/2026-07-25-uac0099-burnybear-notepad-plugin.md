@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-25
-Version: 1.0 DRAFT
+Version: 1.1 REVISED
 
 ## Executive Summary
 
@@ -120,21 +120,22 @@ No specific C2 domains, IP addresses, or communication protocols were disclosed 
 
 **File Hashes (from CERT-UA / Rewterz):**
 
-| SHA-256 | SHA-1 | MD5 |
-|---------|-------|-----|
-| 4552e84edd73799b3a6e8e6d8ad0cb231d44241748ecb072c82ee9211728236c | e11ae6392aebab8a878bf4bfa3f6e68ced0c6658 | c4ac3b4ce7aa4ca1234d2d3787323de2 |
-| a001642046a6e99ab2b412d96020a243a221e3819eaac94ab3251fad7d20614b | 2e4b1e2bbe9ec23d9b1d83a800c06afdf4aafa12 | 6136ce65b22f59b9f8e564863820720b |
-| 2da2fcd61d20eb6f842d833e7fd5ccc6c2aadde908b6e435cd1c94d469aad5ce | fc86d79e67ebe6352343ce370c7ff32711171af9 | fe4237ab7847f3c235406b9ac90ca845 |
-| 5af95489c5c3c6e2643a4218543e6e39b62ed6c5b4c97cef9c812ba913d4f7f2 | 12c8d43af0077c400fdf4d3e9c83fcef6111ba57 | d29f25c4b162f6a19d4c6b96a540648c |
-| c6c250e1cd6d5477b46871ffe17deac248d723ad45687fc54ae4fc5e3f45d91c | a8473f2db5cc7d2cba76416be23d7c55fc38c8dc | 8b7a358005eff6c44d66e44f5b266d33 |
-| fbd959e9578a01c763fd72bec06c8a3bf6683800d587bfd46cc8abe8342c80b9 | a9f9d07bc8a020ab42db8d217a8df8d334a3febb | d5ea5ad8678f362bac86875cad47ba21 |
+<!-- revision: mapped each hash to its corresponding malware component per Rewterz IOC ordering -->
+
+| Component | SHA-256 | SHA-1 | MD5 |
+|-----------|---------|-------|-----|
+| NppExport.dll (LUNCHPOKE) | 4552e84edd73799b3a6e8e6d8ad0cb231d44241748ecb072c82ee9211728236c | e11ae6392aebab8a878bf4bfa3f6e68ced0c6658 | c4ac3b4ce7aa4ca1234d2d3787323de2 |
+| RemoteLibUpdater.exe (BURNYBEAR) | a001642046a6e99ab2b412d96020a243a221e3819eaac94ab3251fad7d20614b | 2e4b1e2bbe9ec23d9b1d83a800c06afdf4aafa12 | 6136ce65b22f59b9f8e564863820720b |
+| InitTest.dll (MATCHBOIL.V2) | 2da2fcd61d20eb6f842d833e7fd5ccc6c2aadde908b6e435cd1c94d469aad5ce | fc86d79e67ebe6352343ce370c7ff32711171af9 | fe4237ab7847f3c235406b9ac90ca845 |
+| updater.rar | 5af95489c5c3c6e2643a4218543e6e39b62ed6c5b4c97cef9c812ba913d4f7f2 | 12c8d43af0077c400fdf4d3e9c83fcef6111ba57 | d29f25c4b162f6a19d4c6b96a540648c |
+| mimeTools.dll | c6c250e1cd6d5477b46871ffe17deac248d723ad45687fc54ae4fc5e3f45d91c | a8473f2db5cc7d2cba76416be23d7c55fc38c8dc | 8b7a358005eff6c44d66e44f5b266d33 |
+| certificate.pem | fbd959e9578a01c763fd72bec06c8a3bf6683800d587bfd46cc8abe8342c80b9 | a9f9d07bc8a020ab42db8d217a8df8d334a3febb | d5ea5ad8678f362bac86875cad47ba21 |
 
 ### Network
 
 | Type | Value | Context |
 |------|-------|---------|
 | Domain | easysend[.]co | File-sharing platform used for initial payload delivery |
-| Scheduled Task | \W1n3r-U09oTy-Ap5\Updates | Persistence mechanism, executes every 3 minutes |
 
 *Note: No C2 domains or IP addresses were disclosed in available reporting.*
 
@@ -154,8 +155,7 @@ No specific C2 domains, IP addresses, or communication protocols were disclosed 
 | T1566.001 | Spearphishing Attachment | Phishing email with embedded image linking to EasySend file-sharing platform |
 | T1204.002 | User Execution: Malicious File | VBScript with double extension tricks user into executing malware |
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | VBScript dropper downloads and deploys the Notepad++ package |
-| T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Malicious NppExport.dll loaded via Notepad++ plugin mechanism |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | Legitimate Notepad++ loads LUNCHPOKE from bundled plugin directory |
+| T1574.002 | Hijack Execution Flow: DLL Side-Loading | Legitimate Notepad++ loads LUNCHPOKE from bundled plugin directory; malicious NppExport.dll loaded via plugin mechanism |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Persistence via scheduled task running BURNYBEAR every 3 minutes |
 | T1036 | Masquerading | schtasks.exe copied as Background.exe; VBS disguised as PDF |
 | T1036.007 | Masquerading: Double File Extension | VBScript files named with .pdf .vbs double extension |
@@ -212,7 +212,8 @@ Get-ChildItem -Path "$env:PUBLIC" -Recurse -File | Get-FileHash | Where-Object {
 
 ### Long-Term Hardening
 
-- Update Notepad++ to version 8.9.7 or later, 7-Zip to 26.02, and WinRAR to 7.23
+<!-- revision: removed 7-Zip reference; 7-Zip is not part of this attack chain (only WinRAR) -->
+- Update Notepad++ to version 8.9.7 or later and WinRAR to 7.23
 - Implement application whitelisting to prevent execution from `%PUBLIC%` directories
 - Configure email gateway rules to block or quarantine archives containing VBScript files
 - Enable Windows Script Host restrictions via Group Policy where scripting is not required
@@ -221,67 +222,28 @@ Get-ChildItem -Path "$env:PUBLIC" -Recurse -File | Get-FileHash | Where-Object {
 
 ## Detection Rules
 
-Five Sigma rules, four YARA rules, and two Snort/Suricata rules cover the observable attack chain from VBScript delivery through BURNYBEAR execution. No C2 network indicators were published, limiting network-layer detection to delivery-phase infrastructure. All rules are advisory-specific and should be tested against local telemetry before production deployment.
+<!-- revision: updated rule count after dropping Sigma 1 (generic parent-child), Sigma 4 (generic double-ext), YARA 3 (generic MATCHBOIL strings), Snort 1 (legitimate service FP), Suricata 1 (legitimate service FP) -->
+Three Sigma rules and three YARA rules cover the observable attack chain from DLL sideloading through BURNYBEAR persistence and execution. No C2 network indicators were published, and delivery-phase network rules (EasySend) were dropped due to unacceptable false-positive rates against a legitimate file-sharing service. All rules are advisory-specific and should be tested against local telemetry before production deployment.
 
-### Sigma Rule 1: Notepad++ Spawning Scripting Engine or Command Shell
+<!-- revision: Sigma Rule 1 (Notepad++ Spawning Scripting Engine, id:52e6674a) DROPPED. Generic parent-child detection; NppExec plugin routinely spawns cmd/powershell; no campaign-specific conditions. -->
 
-Detects Notepad++ spawning suspicious child processes (scripting interpreters, task scheduler) indicative of LUNCHPOKE plugin post-exploitation activity.
+### Sigma Rule 1: Suspicious DLL Loaded by Notepad++ from Public Libraries Directory
 
-**Status**: `compile: pass` | `confidence: medium`
+Detects Notepad++ loading DLLs from `%PUBLIC%\Libraries\` subdirectories, the specific extraction path used by UAC-0099's portable installation sideloading technique.
 
-```yaml
-title: Notepad++ Spawning Scripting Engine or Command Shell - UAC-0099 LUNCHPOKE
-id: 52e6674a-2473-4a10-8235-c217f1486de8
-status: experimental
-description: >
-    Detects Notepad++ spawning a scripting interpreter (wscript, cscript, cmd, powershell)
-    or task scheduler, which may indicate the LUNCHPOKE malicious plugin (NppExport.dll)
-    executing post-exploitation actions in the UAC-0099 campaign targeting Ukrainian organizations.
-references:
-    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
-    - https://cert.gov.ua/article/6318634
-author: Actioner
-date: 2026/07/25
-tags:
-    - attack.t1574.001
-    - attack.t1059.005
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_parent:
-        ParentImage|endswith: '\notepad++.exe'
-    selection_child:
-        Image|endswith:
-            - '\wscript.exe'
-            - '\cscript.exe'
-            - '\cmd.exe'
-            - '\powershell.exe'
-            - '\schtasks.exe'
-            - '\mshta.exe'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate Notepad++ plugins that invoke command-line utilities
-    - NppExec plugin executing user-configured scripts
-level: high
-```
-
-<!-- audit: sigma check pass (no-validator mode, ATT&CK tag fetch blocked by proxy); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. Medium confidence due to potential FP from NppExec plugin. Parent-child process_creation is well-supported across Sysmon/4688 pipelines. -->
-
-### Sigma Rule 2: Suspicious DLL Loaded by Notepad++ from Public Directory
-
-Detects Notepad++ loading DLLs from `%PUBLIC%` directories, a hallmark of the UAC-0099 portable installation sideloading technique.
+<!-- revision: narrowed ImageLoaded|contains to '\Users\Public\Libraries\' (campaign-specific path); removed redundant 'C:\Users\Public\' pattern subsumed by the first -->
 
 **Status**: `compile: pass` | `confidence: medium`
 
 ```yaml
-title: Suspicious DLL Loaded by Notepad++ from Public Directory - UAC-0099
+title: Suspicious DLL Loaded by Notepad++ from Public Libraries Directory - UAC-0099
 id: b5612330-106e-44c6-8f79-2396b7315205
 status: experimental
 description: >
-    Detects Notepad++ loading a DLL from a non-standard directory such as %PUBLIC%,
+    Detects Notepad++ loading a DLL from the %PUBLIC%\Libraries\ directory tree,
     indicating potential DLL sideloading as used by UAC-0099 to load the malicious
-    LUNCHPOKE plugin (NppExport.dll) bundled alongside a portable Notepad++ installation.
+    LUNCHPOKE plugin (NppExport.dll) bundled alongside a portable Notepad++ installation
+    extracted to a randomized subdirectory under %PUBLIC%\Libraries\.
 references:
     - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
     - https://cert.gov.ua/article/6318634
@@ -297,18 +259,16 @@ detection:
     selection_process:
         Image|endswith: '\notepad++.exe'
     selection_dll:
-        ImageLoaded|contains:
-            - '\Users\Public\'
-            - 'C:\Users\Public\'
+        ImageLoaded|contains: '\Users\Public\Libraries\'
     condition: selection_process and selection_dll
 falsepositives:
-    - Portable Notepad++ installations intentionally placed in Public directories
+    - Portable Notepad++ installations intentionally placed in Public\Libraries directories
 level: high
 ```
 
-<!-- audit: sigma check pass; splunk/log_scale convert pass. Requires Sysmon EID 7 (image_load) to be enabled with appropriate configuration -- not universally deployed. Medium confidence: the path-based condition is specific to this campaign's observed behavior but relies on the %PUBLIC% extraction path which could vary in future variants. -->
+<!-- audit: sigma check pass (tag validators excluded -- proxy blocks ATT&CK fetch); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. Requires Sysmon EID 7 (image_load). Medium confidence: narrowed to Libraries subdirectory reduces FP surface. -->
 
-### Sigma Rule 3: Scheduled Task Created for BURNYBEAR Persistence
+### Sigma Rule 2: Scheduled Task Created for BURNYBEAR Persistence
 
 Detects `schtasks.exe` creating a scheduled task referencing `RemoteLibUpdater.exe` with the `setup nodisplay` arguments, the exact persistence mechanism documented by CERT-UA.
 
@@ -347,67 +307,32 @@ level: critical
 
 <!-- audit: sigma check pass; splunk/log_scale convert pass. High confidence: three-keyword AND on schtasks command line is highly specific to this campaign. Requires command-line auditing (Sysmon EID 1 or Windows 4688 with command-line logging). -->
 
-### Sigma Rule 4: VBScript Execution with Double File Extension
+<!-- revision: Sigma Rule 4 (VBScript Double File Extension, id:e7176ecc) DROPPED. Generic TTP used by dozens of groups; no UAC-0099-specific artifacts; |re: modifier has poor backend portability. -->
 
-Detects VBScript execution where the command line contains a double file extension pattern, consistent with the UAC-0099 initial delivery technique.
-
-**Status**: `compile: pass` | `confidence: medium`
-
-```yaml
-title: VBScript Execution with Double File Extension - UAC-0099 Delivery
-id: e7176ecc-781c-4d9b-8099-9099aba73ab8
-status: experimental
-description: >
-    Detects execution of VBScript files using double file extensions (e.g. .pdf.vbs),
-    a social engineering technique used by UAC-0099 to disguise malicious VBS scripts
-    as PDF documents for initial delivery of the LUNCHPOKE/BURNYBEAR toolchain.
-references:
-    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
-    - https://cert.gov.ua/article/6318634
-author: Actioner
-date: 2026/07/25
-tags:
-    - attack.t1059.005
-    - attack.t1036.007
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_engine:
-        Image|endswith:
-            - '\wscript.exe'
-            - '\cscript.exe'
-    selection_double_ext:
-        CommandLine|re: '\.(pdf|doc|docx|xls|xlsx|jpg|png)\s+\.vbs'
-    condition: selection_engine and selection_double_ext
-falsepositives:
-    - Legitimate scripts with unusual naming conventions
-level: high
-```
-
-<!-- audit: sigma check pass; splunk/log_scale convert pass. Medium confidence: regex depends on command-line capturing the full filename with whitespace padding -- some environments may truncate or normalize the path. The regex pattern covers the specific double-extension trick with space padding used by UAC-0099. -->
-
-### Sigma Rule 5: BURNYBEAR Loader Execution -- RemoteLibUpdater
+### Sigma Rule 3: BURNYBEAR Loader Execution -- RemoteLibUpdater
 
 Detects execution of `RemoteLibUpdater.exe`, the BURNYBEAR loader binary name specific to the UAC-0099 campaign.
+
+<!-- revision: fixed title to remove "with Setup Arguments" (detection checks Image name only, not arguments); replaced attack.t1059 with attack.t1204.002 (compiled .NET loader, not scripting interpreter); updated description to match actual detection logic -->
 
 **Status**: `compile: pass` | `confidence: high`
 
 ```yaml
-title: BURNYBEAR Loader Execution - RemoteLibUpdater with Setup Arguments
+title: BURNYBEAR Loader Execution - RemoteLibUpdater
 id: 04b1ef77-8983-4729-a7ad-8fbee8230d81
 status: experimental
 description: >
-    Detects execution of RemoteLibUpdater.exe, the BURNYBEAR loader used by UAC-0099,
-    particularly when launched with the "setup nodisplay" arguments that trigger the
-    correct malware execution path rather than the anti-analysis resource exhaustion routine.
+    Detects execution of RemoteLibUpdater.exe, the BURNYBEAR loader used by UAC-0099.
+    This .NET binary loads the MATCHBOIL.V2 payload (InitTest.dll) when executed with
+    the correct arguments, or triggers anti-analysis resource exhaustion otherwise.
+    Detection is based on the executable image name, which is campaign-specific.
 references:
     - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
     - https://cert.gov.ua/article/6318634
 author: Actioner
 date: 2026/07/25
 tags:
-    - attack.t1059
+    - attack.t1204.002
     - attack.t1574.002
 logsource:
     category: process_creation
@@ -421,7 +346,7 @@ falsepositives:
 level: critical
 ```
 
-<!-- audit: sigma check pass; splunk/log_scale convert pass. High confidence: RemoteLibUpdater.exe is not a known legitimate binary name. Simple Image-based detection is robust across all process_creation log sources. -->
+<!-- audit: sigma check pass (tag validators excluded -- proxy blocks ATT&CK fetch); sigma convert --without-pipeline -t splunk pass; sigma convert --without-pipeline -t log_scale pass. High confidence: RemoteLibUpdater.exe is not a known legitimate binary name. Simple Image-based detection is robust across all process_creation log sources. -->
 
 ### YARA Rule 1: UAC0099_LUNCHPOKE_NppExport_Plugin
 
