@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-25
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 — applied critic verdicts: narrowed Sigma Rule 1 parent to msiexec only; added update_ms.msi filename constraint to Sigma Rule 2; added TLS/HTTPS caveat and companion tls.sni rule to Suricata Rule 3; reworded remediation item 4 re: WebRTC monitoring scope. -->
 
 ## Executive Summary
 
@@ -213,30 +214,33 @@ dns.query contains "is-01-ast.ols-img-12.workers.dev"
 1. **Chrome Enterprise Policy:** Disable `--remote-debugging-port` via Group Policy for non-developer endpoints (`DevToolsAvailability` = 2)
 2. **Application Control:** Implement WDAC/AppLocker policies to restrict which processes can launch browsers with debugging flags
 3. **Sysmon Configuration:** Ensure Sysmon Event ID 1 (process creation) captures full command lines, especially for browser processes
-4. **Network Segmentation:** Monitor and restrict WebRTC traffic from endpoints that should not be using video conferencing
+4. **WebRTC Monitoring:** Monitor for WebRTC traffic originating from headless or background browser instances without user interaction -- this is the anomalous pattern, not WebRTC in general (which is required for Teams, Meet, Slack, and other collaboration tools)
 5. **MSI Audit Logging:** Enable Windows Installer logging to detect suspicious custom action execution
 
 ## Detection Rules
 
 These rules cover three detection layers: behavioral process execution patterns (Sigma), file-level malware identification (YARA), and network-level indicators (Suricata). The primary caveat is that the behavioral Sigma rules for browser debugging flags may generate false positives in developer or QA environments running automated browser testing. All Sigma rules were validated via `sigma convert` to Splunk and LogScale backends; `sigma check` could not complete due to an environment-level proxy restriction on MITRE ATT&CK data fetching (not a rule syntax issue).
 
-### Sigma: Browser Launched with Remote Debugging by Suspicious Parent - msaRAT Pattern
+### Sigma: Browser Launched with Remote Debugging by Msiexec - msaRAT Pattern
 
-Detects Chrome or Edge launched with headless and remote debugging flags by a non-interactive parent process such as msiexec.exe, matching the msaRAT execution chain.
+<!-- revision: v1.1 — narrowed parent list from 8 entries to msiexec.exe only, per documented execution chain. Title updated to reflect scope. -->
+
+Detects Chrome or Edge launched with headless and remote debugging flags by msiexec.exe, matching the documented msaRAT execution chain where a malicious MSI custom action launches a headless browser for C2.
 
 compile-status: `sigma convert` to Splunk and LogScale: **pass** | confidence: **medium**
 
-<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale (exit 0). sigma check failed due to proxy blocking MITRE ATT&CK STIX data download (environment issue, not rule syntax). Tags attack.t1218.007, attack.t1071.001, attack.t1572 are valid MITRE sub/technique IDs. logsource category:process_creation product:windows is standard. Field names Image, CommandLine, ParentImage match Sysmon EID 1 schema. Values use real paths (backslash-terminated endswith), not defanged. FP risk: browser test automation (Playwright, Puppeteer) launched by CI runners or task schedulers. Parent list scoped to reduce FP but may need tuning per environment. -->
+<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale (exit 0). sigma check failed due to proxy blocking MITRE ATT&CK STIX data download (environment issue, not rule syntax). Tags attack.t1218.007, attack.t1071.001, attack.t1572 are valid MITRE sub/technique IDs. logsource category:process_creation product:windows is standard. Field names Image, CommandLine, ParentImage match Sysmon EID 1 schema. Values use real paths (backslash-terminated endswith), not defanged. FP risk: browser test automation (Playwright, Puppeteer) launched by MSI-installed services (uncommon). Parent restricted to msiexec.exe only — the sole documented parent in the Talos analysis. -->
 
 ```yaml
-title: Browser Launched with Remote Debugging by Suspicious Parent - msaRAT Pattern
+title: Browser Launched with Remote Debugging by Msiexec - msaRAT Pattern
 id: 8f3a7c1e-4d2b-4e9a-b5f6-1c8d9e0a2b3c
 status: experimental
 description: >
     Detects Chrome or Edge browsers launched with remote debugging flags and headless mode
-    by a non-interactive parent process such as msiexec.exe. This pattern matches the msaRAT
-    execution chain where a malicious MSI installer launches a headless browser to establish
-    a covert C2 channel via Chrome DevTools Protocol.
+    by msiexec.exe. This pattern matches the msaRAT execution chain where a malicious MSI
+    installer launches a headless browser to establish a covert C2 channel via Chrome
+    DevTools Protocol. Only msiexec.exe is used as the parent filter because it is the sole
+    documented parent in the Chaos msaRAT execution chain.
 references:
     - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
 author: Actioner
@@ -258,38 +262,31 @@ detection:
             - '--remote-debugging-port'
             - '--headless'
     selection_parent:
-        ParentImage|endswith:
-            - '\msiexec.exe'
-            - '\cmd.exe'
-            - '\powershell.exe'
-            - '\pwsh.exe'
-            - '\rundll32.exe'
-            - '\services.exe'
-            - '\svchost.exe'
-            - '\wmiprvse.exe'
+        ParentImage|endswith: '\msiexec.exe'
     condition: selection_browser and selection_flags and selection_parent
 falsepositives:
     - Automated browser testing frameworks launched via MSI-deployed services
-    - CI/CD pipelines running headless browser tests via system services
 level: high
 ```
 
-### Sigma: Curl Download of MSI Installer to ProgramData Directory
+### Sigma: Curl Download of msaRAT MSI Installer to ProgramData Directory
 
-Detects curl.exe downloading an MSI file to C:\ProgramData\, matching the msaRAT delivery mechanism.
+<!-- revision: v1.1 — added update_ms.msi filename constraint as fourth AND condition to reduce false positives from generic curl+MSI admin scripts. -->
+
+Detects curl.exe downloading the specific msaRAT MSI file (`update_ms.msi`) to C:\ProgramData\, matching the documented delivery mechanism.
 
 compile-status: `sigma convert` to Splunk and LogScale: **pass** | confidence: **medium**
 
-<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale (exit 0). Tags attack.t1105, attack.t1036.005 are valid. logsource process_creation/windows standard. Fields Image, CommandLine match Sysmon EID 1. Detection uses real backslash paths, not defanged. FP risk: legitimate software deployment using curl to download MSI packages to ProgramData (uncommon but possible in admin scripts). -->
+<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale (exit 0). Tags attack.t1105, attack.t1036.005 are valid. logsource process_creation/windows standard. Fields Image, CommandLine match Sysmon EID 1. Detection uses real backslash paths, not defanged. Added update_ms.msi filename filter to narrow from generic curl+MSI to the known artifact. FP risk: low — requires exact filename match in addition to curl, ProgramData path, and -o flag. -->
 
 ```yaml
-title: Curl Download of MSI Installer to ProgramData Directory
+title: Curl Download of msaRAT MSI Installer to ProgramData Directory
 id: a2b4c6d8-e1f3-4a5b-8c7d-9e0f1a2b3c4d
 status: experimental
 description: >
-    Detects curl.exe downloading an MSI file to the C:\ProgramData directory, matching
-    the msaRAT delivery mechanism where the Chaos ransomware group uses curl to stage
-    a malicious MSI installer disguised as a Windows update.
+    Detects curl.exe downloading the msaRAT MSI installer (update_ms.msi) to the
+    C:\ProgramData directory. This matches the specific delivery mechanism used by
+    the Chaos ransomware group to stage the malicious MSI disguised as a Windows update.
 references:
     - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
 author: Actioner
@@ -309,10 +306,11 @@ detection:
         CommandLine|contains|all:
             - '-o'
             - '\programdata\'
-    condition: selection_curl and selection_msi and selection_path
+    selection_filename:
+        CommandLine|contains: 'update_ms.msi'
+    condition: selection_curl and selection_msi and selection_path and selection_filename
 falsepositives:
-    - Legitimate software deployment scripts using curl to download MSI installers
-    - System administrators manually downloading packages to ProgramData
+    - Unlikely - matches the specific msaRAT installer filename
 level: high
 ```
 
@@ -533,15 +531,18 @@ alert http $HOME_NET any -> 172.86.126.18 443 (
 
 ### Suricata: HTTP Request to msaRAT WebRTC Signaling Endpoint
 
-Detects HTTP traffic to the Cloudflare Workers `/token/v1/` endpoint used for WebRTC SDP exchange.
+<!-- revision: v1.1 — added prominent HTTPS/TLS caveat: the target endpoint uses HTTPS, so alert http with http.host/http.uri buffers requires TLS decryption. Added companion alert tls rule (sid:2100013) matching tls.sni for non-decrypting environments. -->
+
+Detects HTTP traffic to the Cloudflare Workers `/token/v1/` endpoint used for WebRTC SDP exchange. **Important: the target endpoint (`https://is-01-ast.ols-img-12.workers.dev`) uses HTTPS. This rule requires TLS decryption/inspection to function.** In environments without TLS decryption, use the companion `alert tls` rule (sid:2100013) below, or rely on sid:2100010 (DNS query rule) which covers the same domain at the DNS layer without requiring decryption.
 
 compile-status: **uncompiled (structural check only)** | confidence: **medium**
 
-<!-- audit: structural check only (Suricata not installed). Protocol http enables http.uri and http.host sticky buffers. flow:established,to_server correct. content matches real URI path /token/v1/ (not defanged). http.host matches real domain. Multiple content matches in same buffer use distance/within implicitly. All options semicolon-terminated. Dot-notation used. FP risk: other applications using same Workers subdomain pattern (unlikely given specificity). -->
+<!-- audit: structural check only (Suricata not installed). IMPORTANT: the target Cloudflare Workers endpoint uses HTTPS — alert http with http.host/http.uri sticky buffers will only match if TLS traffic is decrypted upstream (SSL/TLS inspection proxy, or Suricata configured with TLS decryption). Without decryption, these buffers are empty for HTTPS flows. Companion alert tls rule (sid:2100013) provided for non-decrypting deployments. Protocol http enables http.uri and http.host sticky buffers (post-decryption). flow:established,to_server correct. content matches real URI path /token/v1/ (not defanged). http.host matches real domain. All options semicolon-terminated. Dot-notation used. FP risk: other applications using same Workers subdomain pattern (unlikely given specificity). -->
 
 ```
+# Requires TLS decryption — see sid:2100013 for non-decrypting alternative
 alert http $HOME_NET any -> $EXTERNAL_NET any (
-    msg:"Actioner - HTTP Request to msaRAT WebRTC Signaling Endpoint";
+    msg:"Actioner - HTTP Request to msaRAT WebRTC Signaling Endpoint (requires TLS decryption)";
     flow:established,to_server;
     http.host;
     content:"is-01-ast.ols-img-12.workers.dev"; fast_pattern;
@@ -551,6 +552,19 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
     reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/;
     metadata:author Actioner, created_at 2026-07-25;
     sid:2100012;
+    rev:2;
+)
+
+# Companion rule for environments without TLS decryption — matches on TLS SNI
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"Actioner - TLS Connection to msaRAT WebRTC Signaling Domain (non-decrypting)";
+    flow:established,to_server;
+    tls.sni;
+    content:"is-01-ast.ols-img-12.workers.dev"; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/;
+    metadata:author Actioner, created_at 2026-07-25;
+    sid:2100013;
     rev:1;
 )
 ```
