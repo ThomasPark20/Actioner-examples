@@ -414,35 +414,7 @@ rule Exploit_GitLab_Notebook_Heap_Spray_Payload
 }
 ```
 
-### Suricata Rule 1: Notebook Diff Request with Deep Nesting Payload
-
-Compile: ⚠️ uncompiled (structural check only) | Confidence: medium
-
-<!-- audit: Suricata not installed; structural validation performed: dot-notation sticky buffers (http.uri, http.request_body) correctly used, semicolons terminate all options, protocol is http, flow established/to_server present, msg/sid/rev required fields present. The content match for 20 consecutive brackets is a conservative threshold; real exploit uses 2000+. Will match only if the deeply nested JSON is visible in the HTTP request body (direct Git push via HTTP, not SSH). -->
-
-```
-alert http $HOME_NET any -> any any (msg:"Actioner - GitLab Notebook Diff Request with Deeply Nested JSON Payload (Oj RCE CVE-2026-54592)"; flow:established,to_server; http.uri; content:"/diffs"; content:".ipynb"; http.request_body; content:"[[[[[[[[[[[[[[[[[[[["; fast_pattern; classtype:web-application-attack; reference:url,depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities; reference:cve,2026-54592; metadata:author Actioner, created_at 2026-07-25; sid:2100010; rev:1;)
-```
-
-### Suricata Rule 2: Notebook Commit with Oversized JSON Key
-
-Compile: ⚠️ uncompiled (structural check only) | Confidence: medium
-
-<!-- audit: Structural validation passed: dot-notation buffers, semicolons, required fields all present. Matches HTTP POST/PUT containing notebook format marker and long padding string characteristic of the 65000+ byte key overflow. Limited to HTTP-protocol Git operations; SSH pushes bypass this rule. -->
-
-```
-alert http $HOME_NET any -> any any (msg:"Actioner - GitLab Notebook Commit with Oversized JSON Key (Oj Info Leak CVE-2026-54500)"; flow:established,to_server; http.uri; content:".ipynb"; http.request_body; content:"\"cells\""; content:"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"; fast_pattern; classtype:web-application-attack; reference:url,depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities; reference:cve,2026-54500; metadata:author Actioner, created_at 2026-07-25; sid:2100011; rev:1;)
-```
-
-### Suricata Rule 3: Diff Response with Heap Pointer Leak Artifact
-
-Compile: ⚠️ uncompiled (structural check only) | Confidence: low
-
-<!-- audit: Structural validation passed. Targets server-to-client diff responses containing cell_type markers alongside Unicode escape sequences that may indicate leaked heap pointer bytes rendered as HTML entities. Low confidence due to high false positive potential from legitimate notebook diffs containing Unicode content. Threshold of 3 matches in 300 seconds reduces noise. -->
-
-```
-alert http any any -> $HOME_NET any (msg:"Actioner - GitLab Puma Worker Diff Response Containing Heap Pointer Leak Artifact"; flow:established,to_client; http.stat_code; content:"200"; http.response_body; content:"cell_type"; content:"\\u00"; fast_pattern; threshold:type both, track by_dst, count 3, seconds 300; classtype:web-application-attack; reference:url,depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities; metadata:author Actioner, created_at 2026-07-25; sid:2100012; rev:1;)
-```
+<!-- revision: All three Suricata rules DROPPED. Suricata Rule 1 (Deep Nesting in diff request) — architecturally broken: diff endpoint is GET, notebook content is not in the request body; the notebook enters via git push as a binary packfile. Suricata Rule 2 (Oversized JSON Key in commit) — same transport misconception: git push sends compressed packfiles where literal string matches will not fire. Suricata Rule 3 (Heap Pointer Leak in diff response) — unsalvageable FP rate: \u00 is ubiquitous in JSON with non-ASCII content, and combined with cell_type it fires on virtually all notebook diffs. See Network Detection Gap note in Detection Rules preamble. -->
 
 ## Lessons Learned
 
