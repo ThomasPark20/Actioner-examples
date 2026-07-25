@@ -219,7 +219,7 @@ dns.query contains "is-01-ast.ols-img-12.workers.dev"
 
 ## Detection Rules
 
-These rules cover three detection layers: behavioral process execution patterns (Sigma), file-level malware identification (YARA), and network-level indicators (Suricata). The primary caveat is that the behavioral Sigma rules for browser debugging flags may generate false positives in developer or QA environments running automated browser testing. All Sigma rules were validated via `sigma convert` to Splunk and LogScale backends; `sigma check` could not complete due to an environment-level proxy restriction on MITRE ATT&CK data fetching (not a rule syntax issue).
+These rules cover three detection layers: behavioral process execution patterns (4 Sigma rules), file-level malware identification (2 YARA rules), and network-level indicators (4 Suricata rules, including a TLS SNI companion for HTTPS endpoints). The primary caveat is that the behavioral Sigma rule for browser debugging flags is scoped to msiexec.exe as parent -- the sole documented parent in the Talos analysis. All Sigma rules were validated via `sigma convert` to Splunk and LogScale backends; `sigma check` could not complete due to an environment-level proxy restriction on MITRE ATT&CK data fetching (not a rule syntax issue).
 
 ### Sigma: Browser Launched with Remote Debugging by Msiexec - msaRAT Pattern
 

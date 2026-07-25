@@ -1,0 +1,65 @@
+# Chaos msaRAT Browser C2 - Suricata Rules
+# Reference: https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+# Author: Actioner
+# Date: 2026-07-25
+
+# SID 2100010 - DNS query for C2 signaling domain
+alert dns $HOME_NET any -> any any ( \
+    msg:"Actioner - DNS Query to msaRAT Cloudflare Workers C2 Domain"; \
+    flow:to_server; \
+    dns.query; \
+    content:"is-01-ast.ols-img-12.workers.dev"; nocase; fast_pattern; \
+    classtype:trojan-activity; \
+    reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; \
+    metadata:author Actioner, created_at 2026-07-25; \
+    sid:2100010; \
+    rev:1; \
+)
+
+# SID 2100011 - HTTP request to staging server for MSI download (HTTP on port 443)
+alert http $HOME_NET any -> 172.86.126.18 443 ( \
+    msg:"Actioner - HTTP Request to msaRAT Staging Server for MSI Download"; \
+    flow:established,to_server; \
+    http.method; \
+    content:"GET"; \
+    http.uri; \
+    content:"/update_ms.msi"; fast_pattern; \
+    classtype:trojan-activity; \
+    reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; \
+    metadata:author Actioner, created_at 2026-07-25; \
+    sid:2100011; \
+    rev:1; \
+)
+
+# SID 2100012 - HTTP request to WebRTC signaling endpoint
+# IMPORTANT: The target endpoint uses HTTPS. This rule requires TLS decryption/inspection
+# to function. For environments without TLS decryption, use SID 2100013 (tls.sni match)
+# or SID 2100010 (DNS query) instead.
+alert http $HOME_NET any -> $EXTERNAL_NET any ( \
+    msg:"Actioner - HTTP Request to msaRAT WebRTC Signaling Endpoint (requires TLS decryption)"; \
+    flow:established,to_server; \
+    http.host; \
+    content:"is-01-ast.ols-img-12.workers.dev"; fast_pattern; \
+    http.uri; \
+    content:"/token/v1/"; \
+    classtype:trojan-activity; \
+    reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; \
+    metadata:author Actioner, created_at 2026-07-25; \
+    sid:2100012; \
+    rev:2; \
+)
+
+# SID 2100013 - TLS SNI match for C2 signaling domain (non-decrypting environments)
+# Companion to SID 2100012 for deployments without TLS inspection.
+# Matches the C2 domain in the TLS Server Name Indication field.
+alert tls $HOME_NET any -> $EXTERNAL_NET any ( \
+    msg:"Actioner - TLS Connection to msaRAT WebRTC Signaling Domain (non-decrypting)"; \
+    flow:established,to_server; \
+    tls.sni; \
+    content:"is-01-ast.ols-img-12.workers.dev"; fast_pattern; \
+    classtype:trojan-activity; \
+    reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; \
+    metadata:author Actioner, created_at 2026-07-25; \
+    sid:2100013; \
+    rev:1; \
+)

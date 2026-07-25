@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-25
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -141,8 +141,8 @@ The `git` user on a GitLab installation has access to:
 | T1190 | Exploit Public-Facing Application | Authenticated exploitation of GitLab's notebook diff rendering endpoint via crafted .ipynb file commits |
 | T1059 | Command and Scripting Interpreter | Arbitrary command execution as the git user via system() redirection |
 | T1499.004 | Application or System Exploitation (Endpoint DoS) | Puma worker crashes during ASLR bypass probing phase |
-| T1003 | OS Credential Dumping | Post-exploitation access to Rails secrets, CI/CD tokens, database credentials |
-| T1083 | File and Directory Discovery | Access to all repository source code on the instance |
+| T1552 | Unsecured Credentials | Post-exploitation access to Rails secrets, CI/CD tokens, database credentials stored on disk |
+| T1213 | Data from Information Repositories | Access to all repository source code on the GitLab instance |
 
 ## Impact Assessment
 
@@ -200,19 +200,24 @@ ps aux | grep -E '^git' | grep -v -E 'gitlab|puma|sidekiq|gitaly'
 ### Long-Term Hardening
 
 - Enable process monitoring and alerting for the `git` user account
-- Implement JSON parsing depth limits at the application or WAF layer
+- Ensure the Oj gem is updated to >= 3.17.3, which includes built-in nesting depth limits in the C parser
 - Consider running Puma workers in a sandboxed environment (containers, seccomp profiles) to limit post-exploitation impact
 - Monitor for Oj gem security advisories and apply updates promptly
 - Restrict repository push access following the principle of least privilege
 
 ## Detection Rules
 
-Three Sigma rules, two YARA rules, and three Suricata rules target the exploit's observable artifacts: process spawning from the git user via Puma workers, anomalous notebook diff endpoint access, Puma worker crash patterns, malicious notebook JSON structures (deep nesting, oversized keys, heap spray payloads), and network-level indicators of exploit delivery. Rules are calibrated to the specific exploit chain mechanics documented in the PoC; false positives are possible from legitimate Jupyter notebook workflows and should be tuned per environment.
+<!-- revision: dropped Sigma Rule 2 (notebook URI match on .ipynb is architecturally wrong -- filename not in URI), dropped all 3 Suricata rules (exploit delivery via git push/SSH packfile makes IDS detection infeasible), downgraded Sigma Rule 1 confidence high->medium -->
+
+Two Sigma rules and two YARA rules target the exploit's observable host-level artifacts: process spawning from the git user via Puma workers, Puma worker crash patterns during ASLR probing, and malicious notebook JSON structures (deep nesting, oversized keys, heap spray payloads). Rules are calibrated to the specific exploit chain mechanics documented in the PoC; false positives are possible from legitimate Jupyter notebook workflows and should be tuned per environment.
+
+**Network detection gap:** No Suricata/Snort rules are provided. The exploit payload (crafted `.ipynb` files) enters GitLab via `git push`, which transmits objects as compressed packfiles over SSH or HTTPS. Literal JSON string patterns are not observable in the wire-format packfile stream, making traditional IDS content matching infeasible for this attack chain. Detection is most effective at the host level (process telemetry, crash logs, and file-based YARA scanning of repository objects).
 
 ### Sigma Rule 1: Suspicious Command Execution by Git User After Notebook Diff Processing
 
-Compile: Splunk ✅ | LogScale ✅ | Confidence: high
+Compile: Splunk ✅ | LogScale ✅ | Confidence: medium
 
+<!-- revision: downgraded confidence high->medium — this is a TTP-based rule (shell from web server process), and TTP rules max at medium confidence per detection engineering standards -->
 <!-- audit: sigma check failed due to network restriction (cannot fetch MITRE ATT&CK data), not a rule syntax issue. sigma convert --without-pipeline -t splunk and -t log_scale both succeeded, confirming syntactic validity. Fields target Linux process_creation events with git user, Puma/Ruby parent, and suspicious child processes. Filter excludes known legitimate git hook and gitlab-shell operations. -->
 
 ```yaml
@@ -267,54 +272,16 @@ detection:
 falsepositives:
     - GitLab custom hooks executed via git-hook mechanisms
     - GitLab maintenance scripts running under the git user via Puma workers
-level: high
-```
-
-### Sigma Rule 2: GitLab Notebook Diff Endpoint Probing
-
-Compile: Splunk ✅ | LogScale ✅ | Confidence: medium
-
-<!-- audit: sigma convert --without-pipeline to both Splunk and LogScale succeeded. Logsource category webserver matches generic web server access logs. Rule requires both a diff-related URI stem and .ipynb extension co-occurring. Medium confidence because legitimate notebook diff activity will also match; intended as a correlation signal rather than standalone alert. -->
-
-```yaml
-title: GitLab Notebook Diff Endpoint Probing with Large Payloads
-id: 484ebcb8-ac2d-484f-b125-5ee588e3f50b
-status: experimental
-description: >
-    Detects HTTP requests to GitLab commit diff or merge request diff endpoints involving
-    Jupyter notebook files (.ipynb), which is the attack surface for the Oj parser memory
-    corruption RCE chain. The exploit requires pushing crafted notebooks and then requesting
-    their diffs via the diffs_stream endpoint. Multiple rapid diff requests against notebook
-    files in the same project may indicate heap spray and ASLR bypass attempts.
-references:
-    - https://thehackernews.com/2026/07/researcher-publishes-gitlab-rce-poc.html
-    - https://depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities
-author: Actioner
-date: 2026/07/25
-tags:
-    - attack.t1190
-logsource:
-    category: webserver
-detection:
-    selection_endpoint:
-        cs-uri-stem|contains:
-            - '/diffs_stream'
-            - '/diffs'
-            - '/commit/'
-            - '/merge_requests/'
-    selection_notebook:
-        cs-uri-stem|contains: '.ipynb'
-    condition: selection_endpoint and selection_notebook
-falsepositives:
-    - Legitimate code review activity involving Jupyter notebooks
-    - CI/CD pipelines that programmatically access diff endpoints for notebook files
 level: medium
 ```
 
-### Sigma Rule 3: GitLab Puma Worker Crash During Notebook Diff Rendering
+<!-- revision: Sigma Rule 2 (GitLab Notebook Diff Endpoint Probing) DROPPED — three fatal problems: (1) .ipynb filename does not appear in GitLab diff endpoint URIs (notebook filename is resolved server-side, not passed as a URI parameter); (2) title claims "Large Payloads" but no size/length check exists; (3) without the .ipynb match, the rule fires on any request to /diffs, producing pure noise. -->
+
+### Sigma Rule 2: GitLab Puma Worker Crash During Notebook Diff Rendering
 
 Compile: Splunk ✅ | LogScale ✅ | Confidence: medium
 
+<!-- revision: (1) replaced ECS dot-notation field process.name with SyslogIdentifier to match syslog logsource; (2) added count condition (5+ events in 600 seconds) to reflect the ASLR probing phase artifact of repeated crashes, reducing false positives from single isolated segfaults -->
 <!-- audit: sigma convert --without-pipeline to both Splunk and LogScale succeeded. Targets Linux syslog entries for Puma/Ruby process crashes (SIGSEGV, SIGABRT). The ASLR probing phase produces 5-10 minutes of repeated crashes, which is anomalous for production GitLab. Medium confidence due to potential overlap with legitimate OOM or gem compatibility crashes. -->
 
 ```yaml
@@ -340,7 +307,7 @@ logsource:
     service: syslog
 detection:
     selection_process:
-        process.name|contains:
+        SyslogIdentifier|contains:
             - 'puma'
             - 'ruby'
     selection_signal:
@@ -351,7 +318,8 @@ detection:
             - 'signal 11'
             - 'signal 6'
             - 'core dumped'
-    condition: selection_process and selection_signal
+    condition: selection_process and selection_signal | count() by SyslogIdentifier >= 5
+    timeframe: 600s
 falsepositives:
     - Puma worker crashes due to memory pressure or out-of-memory conditions
     - Ruby gem compatibility issues causing segmentation faults
@@ -492,7 +460,7 @@ alert http any any -> $HOME_NET any (msg:"Actioner - GitLab Puma Worker Diff Res
 - [depthfirst - Going depthfirst: Achieving GitLab RCE via Two Ruby Memory Corruption Vulnerabilities](https://depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities) -- Original researcher disclosure with full technical exploit chain details
 - [GitLab Patch Release 19.0.2, 18.11.5, 18.10.8](https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-0-2-released/) -- GitLab patch release containing the Oj 3.17.3 dependency update
 - [SentinelOne - CVE-2026-54592](https://www.sentinelone.com/vulnerability-database/cve-2026-54592/) -- CVE details for the Oj nesting stack buffer overflow (CVSS 7.5)
-- [SentinelOne - CVE-2026-54902](https://www.sentinelone.com/vulnerability-database/cve-2026-54902/) -- CVE details for the Oj use-after-free vulnerability (CVSS 6.3)
+<!-- revision: removed Source 5 (CVE-2026-54902) — that CVE is not referenced anywhere in the report body and does not relate to the two exploited vulnerabilities (CVE-2026-54592, CVE-2026-54500) -->
 - [GitLab Advisory Database - CVE-2026-54500](https://advisories.gitlab.com/gem/oj/CVE-2026-54500/) -- CVE details for the Oj information disclosure via uninitialized memory (CVSS 5.3)
 
 ---

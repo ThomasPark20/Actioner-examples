@@ -1,0 +1,115 @@
+title: Browser Launched with Remote Debugging by Msiexec - msaRAT Pattern
+id: 8f3a7c1e-4d2b-4e9a-b5f6-1c8d9e0a2b3c
+status: experimental
+description: >
+    Detects Chrome or Edge browsers launched with remote debugging flags and headless mode
+    by msiexec.exe. This pattern matches the msaRAT execution chain where a malicious MSI
+    installer launches a headless browser to establish a covert C2 channel via Chrome
+    DevTools Protocol. Only msiexec.exe is used as the parent filter because it is the sole
+    documented parent in the Chaos msaRAT execution chain.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1218.007
+    - attack.t1071.001
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_browser:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+    selection_flags:
+        CommandLine|contains|all:
+            - '--remote-debugging-port'
+            - '--headless'
+    selection_parent:
+        ParentImage|endswith: '\msiexec.exe'
+    condition: selection_browser and selection_flags and selection_parent
+falsepositives:
+    - Automated browser testing frameworks launched via MSI-deployed services
+level: high
+---
+title: Curl Download of msaRAT MSI Installer to ProgramData Directory
+id: a2b4c6d8-e1f3-4a5b-8c7d-9e0f1a2b3c4d
+status: experimental
+description: >
+    Detects curl.exe downloading the msaRAT MSI installer (update_ms.msi) to the
+    C:\ProgramData directory. This matches the specific delivery mechanism used by
+    the Chaos ransomware group to stage the malicious MSI disguised as a Windows update.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1105
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_curl:
+        Image|endswith: '\curl.exe'
+    selection_msi:
+        CommandLine|contains: '.msi'
+    selection_path:
+        CommandLine|contains|all:
+            - '-o'
+            - '\programdata\'
+    selection_filename:
+        CommandLine|contains: 'update_ms.msi'
+    condition: selection_curl and selection_msi and selection_path and selection_filename
+falsepositives:
+    - Unlikely - matches the specific msaRAT installer filename
+level: high
+---
+title: DNS Query to msaRAT Cloudflare Workers C2 Domain
+id: c4d6e8f0-1a3b-5c7d-9e0f-2a4b6c8d0e1f
+status: experimental
+description: >
+    Detects DNS resolution of the Cloudflare Workers domain used by the Chaos ransomware
+    group's msaRAT for WebRTC signaling relay. The domain is-01-ast.ols-img-12.workers.dev
+    serves as the SDP offer/answer exchange endpoint during C2 channel establishment.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'is-01-ast.ols-img-12.workers.dev'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a specific attacker-controlled Cloudflare Workers subdomain
+level: critical
+---
+title: Network Connection to msaRAT Staging Server
+id: 7e9b1d3f-5a2c-4f8e-b6d0-3c7a9e1f4b5d
+status: experimental
+description: >
+    Detects network connections to the known msaRAT staging IP address 172.86.126.18 used
+    by the Chaos ransomware group to host the malicious MSI installer. The initial download
+    uses HTTP on port 443 to this IP.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1105
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '172.86.126.18'
+    condition: selection
+falsepositives:
+    - Unlikely - known malicious infrastructure
+level: critical
