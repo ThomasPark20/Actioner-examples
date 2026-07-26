@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-26
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -110,11 +110,11 @@ Data is passed between the RAT and browser via CDP bindings: `window.msaMessage(
 
 | Type | Value | Context |
 |------|-------|---------|
-| IP | `172.86.126[.]18:443` | Staging server -- MSI payload download (HTTP on port 443) |
+| IP | `172[.]86[.]126[.]18:443` | Staging server -- MSI payload download (HTTP on port 443) |
 | Domain | `is-01-ast[.]ols-img-12[.]workers[.]dev` | Cloudflare Workers -- WebRTC signaling/SDP negotiation |
 | Domain | `stun2[.]l[.]google[.]com` | STUN server for NAT traversal (legitimate Google infra) |
 | Domain | `global[.]turn[.]twilio[.]com` | TURN relay for WebRTC data channel (legitimate Twilio infra) |
-| URL Pattern | `hxxp://172.86.126[.]18:443/update_ms.msi` | MSI payload download URL |
+| URL Pattern | `hxxp://172[.]86[.]126[.]18:443/update_ms.msi` | MSI payload download URL |
 | URL Pattern | `GET /token/v1/{UID}` | Workers endpoint -- retrieve STUN/TURN configuration |
 | URL Pattern | `POST /token/v1/{UID}` | Workers endpoint -- WebRTC SDP offer/answer exchange |
 | URL Pattern | `GET /json/list/` | Localhost CDP endpoint -- browser target enumeration |
@@ -134,7 +134,7 @@ Data is passed between the RAT and browser via CDP bindings: `window.msaMessage(
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1566.002 | Phishing: Spearphishing Link | Vishing/spam delivers RMM tools leading to manual payload deployment |
+| T1566.004 | Phishing: Spearphishing Voice | Vishing/spam delivers RMM tools leading to manual payload deployment |
 | T1204.002 | User Execution: Malicious File | Victim executes RMM tool / attacker runs MSI via curl |
 | T1105 | Ingress Tool Transfer | `curl.exe` downloads `update_ms.msi` from staging server |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | MSI spoofs Windows Update properties |
@@ -158,7 +158,7 @@ msaRAT represents a significant escalation in browser-based C2 tradecraft. The t
 - Search process creation logs for `chrome.exe` or `msedge.exe` spawned with both `--headless` and `--remote-debugging-port` flags, especially from non-interactive parent processes
 - Search for `curl.exe` downloading `.msi` files to `C:\programdata\`
 - Search DNS logs for queries to `is-01-ast[.]ols-img-12[.]workers[.]dev`
-- Search for outbound connections to `172.86.126[.]18`
+- Search for outbound connections to `172[.]86[.]126[.]18`
 - Scan for files matching ClamAV signature `Win.Downloader.ChaosRaas-10060321-0`
 
 ### Remediation
@@ -176,7 +176,7 @@ msaRAT represents a significant escalation in browser-based C2 tradecraft. The t
 
 ## Detection Rules
 
-These detections target the Chaos msaRAT payload delivery, C2 infrastructure, and browser hijacking behavior at PoC/advisory-specific altitude. Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target the Chaos msaRAT payload delivery, C2 infrastructure, and browser hijacking behavior. Most rules operate at PoC/advisory-specific altitude keyed on campaign IOCs; Rule 3 (Headless Browser Launch) is a supplementary behavioral detection that covers the broader TTP and is useful as a long-term durable signal beyond rotatable indicators. Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: Chaos msaRAT MSI Payload Delivery via Curl
 Detects the specific curl command pattern used to download the msaRAT MSI payload to ProgramData.
@@ -195,7 +195,6 @@ author: Actioner
 date: 2026/07/26
 tags:
     - attack.t1105
-    - attack.t1059
 logsource:
     category: process_creation
     product: windows
