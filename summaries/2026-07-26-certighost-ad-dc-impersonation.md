@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-26
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -114,7 +114,7 @@ The patch adds `CRequestInstance::_ValidateChaseTargetIsDC` behind the `Feature_
 | T1649 | Steal or Forge Authentication Certificates | Obtaining a valid DC certificate by exploiting AD CS enrollment chase to accept forged identity from rogue LDAP/SMB services |
 | T1003.006 | OS Credential Dumping: DCSync | Using the stolen DC certificate for PKINIT authentication followed by MS-DRSR directory replication to extract krbtgt and all domain credentials |
 | T1136.002 | Create Account: Domain Account | Creating a machine account via ms-DS-MachineAccountQuota to host rogue LDAP/SMB services and authenticate to the CA |
-| T1557 | Adversary-in-the-Middle | Running rogue LDAP and SMB services that intercept the CA's enrollment chase connection and serve forged DC identity data |
+| T1583.004 | Acquire Infrastructure: Server | Deploying rogue LDAP and SMB services on an attacker-controlled host to serve forged DC identity data to the CA during enrollment chase (note: T1557 Adversary-in-the-Middle was considered but the attacker directs the CA to a new endpoint rather than intercepting existing traffic) |
 
 ## Impact Assessment
 
@@ -238,23 +238,24 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate computer accounts with names beginning with GHOST
-level: high
+level: medium
 ```
 
-### Sigma: PKINIT Certificate Authentication for Domain Controller Account
+### Sigma: PKINIT Certificate Authentication for Machine Account (TTP Companion)
 
-Detects Kerberos TGT requests using PKINIT certificate-based authentication (PreAuthType 16) for machine accounts, the post-exploitation authentication step in the Certighost attack chain. Scope to your environment by filtering known DC IPs.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 errors 0 issues (NumberAsStringIssue fixed by using integer for PreAuthType); splunk convert exit 0; log_scale convert exit 0. Confidence medium because PKINIT for machine accounts is legitimate in some deployments (smart card, WHfB); requires environment-specific tuning to filter legitimate DC PKINIT events. Does not filter by source IP (environment-specific). -->
+TTP companion rule: detects Kerberos TGT requests using PKINIT certificate-based authentication (PreAuthType 16) for any machine account, which is the post-exploitation authentication step in the Certighost attack chain. Requires per-environment baseline -- filter known DC IPs and legitimate PKINIT sources before deployment.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check 0 errors 0 issues (NumberAsStringIssue fixed by using integer for PreAuthType); splunk convert exit 0; log_scale convert exit 0. Confidence lowered from medium to low per critic review: condition matches ALL machine accounts (TargetUserName|endswith: '$'), not only DC accounts, making title misleading at the original level. Relabeled as TTP companion. Requires environment-specific tuning to filter legitimate DC PKINIT events and smart card / WHfB auth. Does not filter by source IP (environment-specific). -->
 ```yaml
-title: PKINIT Certificate Authentication for Domain Controller Account
+title: PKINIT Certificate Authentication for Machine Account - TTP Companion
 id: 5d7b3e9a-1f24-4c68-9a3b-6e8d0c2f7a15
 status: experimental
 description: >
-    Detects Kerberos TGT requests using PKINIT certificate-based authentication
-    (PreAuthType 16) for domain controller machine accounts. After exploiting
+    TTP companion rule: detects Kerberos TGT requests using PKINIT certificate-based
+    authentication (PreAuthType 16) for any machine account (trailing $). After exploiting
     CVE-2026-54121, the attacker uses the stolen DC certificate to authenticate
-    as the domain controller via PKINIT before performing DCSync.
+    via PKINIT before performing DCSync. Requires per-environment baseline to filter
+    legitimate DC and smart-card PKINIT events.
 references:
     - https://thehackernews.com/2026/07/certighost-exploit-lets-low-privileged.html
     - https://github.com/aniqfakhrul/CVE-2026-54121
@@ -274,13 +275,13 @@ detection:
 falsepositives:
     - Legitimate PKINIT authentication by domain controllers during normal operations
     - Smart card authentication for computer accounts
-level: medium
+level: low
 ```
 
 ### YARA: Certighost PoC Exploit Tool
 
 Detects the Certighost PoC exploit tool (`certighost.py`) via distinctive strings including the tool name, CVE identifier, and attack-specific command-line arguments.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
 <!-- audit: yarac exit 0. Sample test: fired on constructed positive (certighost.py-like script with tool name + cdc/rmd attrs + CLI args), silent on negative (generic certutil script). Positive is constructed from published PoC README strings, not a copy of the actual tool. Strings keyed on: tool name "certighost", CVE ID, enrollment attributes "cdc"/"rmd", CLI args "--dc-ip"/"--computer-name"/"--listener", and chase flag constant. -->
 ```yara
 rule Exploit_Certighost_CVE_2026_54121
@@ -327,6 +328,8 @@ Same rationale as Snort. The exploit traffic uses standard MS-WCCE, LDAP, SMB, a
 ## Lessons Learned
 
 CVE-2026-54121 joins a growing class of AD CS abuse techniques (following Certified Pre-Owned/ESC1-ESC11) that exploit the inherent trust relationships in Microsoft's PKI infrastructure. The core lesson is that any enrollment mechanism accepting client-supplied routing or identity hints without validation creates a privilege escalation path. The vulnerability's low barrier to entry (any domain user, default configurations, standard tooling) combined with domain-wide impact (krbtgt extraction) makes it a critical patch-now issue. Organizations should treat AD CS infrastructure with the same security rigor as Domain Controllers themselves, restricting network access, monitoring enrollment events, and minimizing the attack surface by removing unnecessary certificate templates and reducing `ms-DS-MachineAccountQuota`.
+
+<!-- revision: 2026-07-26 critic pass — (1) Sigma Rule 2 level high→medium to match confidence:medium; (2) Sigma Rule 3 relabeled TTP companion, confidence medium→low, level medium→low, added per-environment baseline caveat, fixed misleading title; (3) YARA sample label "fired ✓"→"constructed" (positive was constructed, not the real tool); (4) ATT&CK T1557→T1583.004 (attacker deploys rogue services, does not intercept traffic); (5) report version DRAFT→1.0 -->
 
 ## Sources
 
