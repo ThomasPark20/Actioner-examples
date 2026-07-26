@@ -1,0 +1,27 @@
+title: AD CS Certificate Request with CDC Chase Attribute - Certighost CVE-2026-54121
+id: 8f3c1a7e-5d92-4b6f-a1e3-9c0d2f8b4e71
+status: experimental
+description: >
+    Detects certificate enrollment events where the Attributes field contains the
+    cdc (Client DC) request attribute. The Certighost exploit (CVE-2026-54121) abuses
+    this attribute to redirect the CA's authentication chase to a rogue LDAP/SMB server,
+    enabling domain controller impersonation and subsequent DCSync credential theft.
+references:
+    - https://thehackernews.com/2026/07/certighost-exploit-lets-low-privileged.html
+    - https://github.com/aniqfakhrul/CVE-2026-54121
+    - https://gist.github.com/H0j3n/a5ef2609b5f2944ac2390a191a534c26
+author: Actioner
+date: 2026/07/26
+tags:
+    - attack.t1649
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 4887
+        Attributes|contains: 'cdc:'
+    condition: selection
+falsepositives:
+    - Legitimate use of the cdc enrollment attribute in multi-site CA deployments (extremely rare)
+level: high

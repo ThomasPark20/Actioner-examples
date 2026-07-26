@@ -1,0 +1,29 @@
+title: PKINIT Certificate Authentication for Machine Account - TTP Companion
+id: 5d7b3e9a-1f24-4c68-9a3b-6e8d0c2f7a15
+status: experimental
+description: >
+    TTP companion rule: detects Kerberos TGT requests using PKINIT certificate-based
+    authentication (PreAuthType 16) for any machine account (trailing $). After exploiting
+    CVE-2026-54121, the attacker uses the stolen DC certificate to authenticate
+    via PKINIT before performing DCSync. Requires per-environment baseline to filter
+    legitimate DC and smart-card PKINIT events.
+references:
+    - https://thehackernews.com/2026/07/certighost-exploit-lets-low-privileged.html
+    - https://github.com/aniqfakhrul/CVE-2026-54121
+author: Actioner
+date: 2026/07/26
+tags:
+    - attack.t1649
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 4768
+        PreAuthType: 16
+        TargetUserName|endswith: '$'
+    condition: selection
+falsepositives:
+    - Legitimate PKINIT authentication by domain controllers during normal operations
+    - Smart card authentication for computer accounts
+level: low
