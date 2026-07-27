@@ -1,0 +1,12 @@
+# Actioner - Fastjson @JSONType RCE (CVE-2026-16723) - Suricata Rules
+# Date: 2026-07-27
+# Reference: https://thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html
+
+# JDK 8 Route: @type + jar:http + .probe!. in HTTP request body
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Fastjson @type jar:http RCE Payload in HTTP Request Body (CVE-2026-16723)"; flow:established,to_server; http.request_body; content:"@type"; fast_pattern; content:"jar:http"; content:".probe!."; classtype:web-application-attack; reference:url,thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html; reference:cve,2026-16723; metadata:author Actioner, created_at 2026-07-27, cve CVE-2026-16723; sid:9900001; rev:1;)
+
+# JDK 17+ Route: @type + /proc/self/fd/ in HTTP request body
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Fastjson @type /proc/self/fd RCE Payload in HTTP Request Body (CVE-2026-16723)"; flow:established,to_server; http.request_body; content:"@type"; fast_pattern; content:"/proc/self/fd/"; classtype:web-application-attack; reference:url,thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html; reference:cve,2026-16723; metadata:author Actioner, created_at 2026-07-27, cve CVE-2026-16723; sid:9900002; rev:1;)
+
+# Alternative FD Path: @type + /dev/fd/ in HTTP request body
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Fastjson @type /dev/fd RCE Payload in HTTP Request Body (CVE-2026-16723)"; flow:established,to_server; http.request_body; content:"@type"; fast_pattern; content:"/dev/fd/"; classtype:web-application-attack; reference:url,thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html; reference:cve,2026-16723; metadata:author Actioner, created_at 2026-07-27, cve CVE-2026-16723; sid:9900003; rev:1;)

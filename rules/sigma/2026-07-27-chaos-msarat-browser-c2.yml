@@ -1,0 +1,147 @@
+# Sigma rules for Chaos ransomware msaRAT browser-based C2
+# Reference: https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+# Generated: 2026-07-27
+# DROPPED: Non-Browser Process Initiating Loopback Connection (CDP Abuse) -- no port filter, millions of events/day
+
+title: Headless Browser Launch with Remote Debugging Port
+id: 7a3b1c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects Chrome or Edge launched in headless mode with remote debugging port enabled,
+    a technique used by msaRAT to establish covert C2 channels via Chrome DevTools Protocol.
+    The RAT launches the browser with --headless=new and --remote-debugging-port flags.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1219
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_browser:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+    selection_headless:
+        CommandLine|contains: '--headless'
+    selection_debug:
+        CommandLine|contains: '--remote-debugging-port'
+    condition: selection_browser and selection_headless and selection_debug
+falsepositives:
+    - Automated browser testing frameworks (Selenium, Puppeteer, Playwright)
+    - CI/CD pipelines using headless browsers
+    - Web scraping tools launched by scheduled tasks
+level: high
+---
+title: Curl Download of MSI from Known msaRAT Staging Server
+id: 8b4c2d5e-6f7a-4b9c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects curl.exe downloading an MSI installer from the known msaRAT staging
+    IP address 172.86.126.18 on port 443 using plain HTTP. The Chaos ransomware
+    group uses this technique to deliver the msaRAT payload disguised as a
+    Windows update (update_ms.msi).
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1105
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_curl:
+        Image|endswith: '\curl.exe'
+    selection_target:
+        CommandLine|contains: '172.86.126.18'
+    condition: selection_curl and selection_target
+falsepositives:
+    - Unlikely - this is a known malicious staging IP
+level: critical
+---
+title: MSI File Written to ProgramData Masquerading as Windows Update
+id: 9c5d3e6f-7a8b-4c0d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects an MSI file named update_ms.msi being created in C:\ProgramData,
+    matching the msaRAT delivery mechanism where the Chaos ransomware group
+    drops the payload to this location before execution.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1036.005
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\update_ms.msi'
+        TargetFilename|startswith: 'C:\ProgramData'
+    condition: selection
+falsepositives:
+    - Legitimate software update mechanisms writing MSI files to ProgramData
+level: high
+---
+title: Command Execution via msaRAT Shell Pattern
+id: 1e7f5a8b-9c0d-4e2f-3a4b-5c6d7e8f0a1b
+status: experimental
+description: >
+    Detects cmd.exe execution with the specific flag combination used by msaRAT
+    for command execution: /e:ON /v:OFF /d /c. This pattern enables command
+    extensions, disables delayed variable expansion, ignores registry AutoRun
+    entries, and executes the specified command.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmd:
+        Image|endswith: '\cmd.exe'
+    selection_flags:
+        CommandLine|contains|all:
+            - '/e:ON'
+            - '/v:OFF'
+            - '/d'
+            - '/c'
+    condition: selection_cmd and selection_flags
+falsepositives:
+    - Administrative scripts using this exact combination of cmd.exe flags
+    - Software installers invoking cmd.exe with similar parameters
+level: medium
+---
+title: DNS Query to msaRAT Cloudflare Worker C2 Domain
+id: 2f8a6b9c-0d1e-4f3a-4b5c-6d7e8f0a1b2c
+status: experimental
+description: >
+    Detects DNS resolution of the known msaRAT C2 signaling domain hosted
+    on Cloudflare Workers infrastructure. The domain is-01-ast.ols-img-12.workers.dev
+    is used for SDP offer/answer exchange during WebRTC C2 channel establishment.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|contains: 'is-01-ast.ols-img-12.workers.dev'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known malicious C2 domain
+level: critical

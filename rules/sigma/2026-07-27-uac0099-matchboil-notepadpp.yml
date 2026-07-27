@@ -1,0 +1,110 @@
+# UAC-0099 MATCHBOIL.V2 via Fake Notepad++ Plugin -- Sigma Detection Rules
+# Generated: 2026-07-27
+# Source: Actioner
+
+---
+title: UAC-0099 BURNYBEAR Loader Execution With Setup Nodisplay Arguments
+id: 7a3c1e9f-4b2d-4f8a-b6e5-2d1c9a8f7e3b
+status: experimental
+description: >
+    Detects execution of RemoteLibUpdater.exe (BURNYBEAR loader) with the distinctive
+    "setup nodisplay" command-line arguments used by UAC-0099 to silently load
+    MATCHBOIL.V2 payloads targeting Ukrainian organizations.
+references:
+    - https://thehackernews.com/2026/07/fake-notepad-plugin-delivers.html
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1204.002
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\RemoteLibUpdater.exe'
+        CommandLine|contains|all:
+            - 'setup'
+            - 'nodisplay'
+    condition: selection
+falsepositives:
+    - Unknown legitimate software using an executable with this exact name and arguments
+level: high
+---
+title: UAC-0099 MATCHBOIL Scheduled Task Persistence via W1n3r Task Path
+id: 8b4d2f0a-5c3e-4a7b-c8f6-3e2d0b9a8f4c
+status: experimental
+description: >
+    Detects creation or reference to the specific scheduled task path
+    W1n3r-U09oTy-Ap5\Updates used by UAC-0099 LUNCHPOKE and MATCHBOIL.V2
+    for persistence with three-minute execution intervals.
+references:
+    - https://thehackernews.com/2026/07/fake-notepad-plugin-delivers.html
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: 'W1n3r-U09oTy-Ap5'
+    condition: selection
+falsepositives:
+    - None expected - highly specific task path name unique to this campaign
+level: critical
+---
+title: UAC-0099 LUNCHPOKE NppExport DLL Loaded From Public Directory
+id: 9c5e3a1b-6d4f-4b8c-d9a7-4f3e1c0b9a5d
+status: experimental
+description: >
+    Detects NppExport.dll (LUNCHPOKE) being loaded from a directory under
+    C:\Users\Public, indicating DLL sideloading via a trojanized Notepad++
+    plugin distributed by UAC-0099 to deploy MATCHBOIL.V2.
+references:
+    - https://thehackernews.com/2026/07/fake-notepad-plugin-delivers.html
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\NppExport.dll'
+        ImageLoaded|contains: '\Public\'
+    condition: selection
+falsepositives:
+    - Legitimate Notepad++ installation placed under a Public user directory
+level: high
+---
+title: UAC-0099 Renamed Schtasks Execution From Public Wallpapers Directory
+id: ad6f4b2c-7e5a-4c9d-ea08-5a4f2d1c0b6e
+status: experimental
+description: >
+    Detects execution of a binary from the Public\Wallpapers directory named
+    Background.exe, which UAC-0099 uses as a renamed copy of schtasks.exe
+    to create persistence scheduled tasks while evading detection.
+references:
+    - https://thehackernews.com/2026/07/fake-notepad-plugin-delivers.html
+    - https://securityaffairs.com/195923/cyber-warfare-2/uac-0099-is-now-hiding-malware-inside-a-fake-notepad-plugin-to-target-ukrainian-organizations.html
+author: Actioner
+date: 2026-07-27
+tags:
+    - attack.t1036.003
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\Wallpapers\Background.exe'
+    condition: selection
+falsepositives:
+    - Legitimate wallpaper management software executing from this exact path
+level: high
