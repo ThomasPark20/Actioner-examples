@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-28
-Version: 1.0 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -90,7 +90,7 @@ Imperva's telemetry reveals the following attack tool distribution:
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs use defanged notation. URLs: `hxxps://`, Domains: `[.]`, IPs: `[.]`
+> **Note:** No network infrastructure IOCs (IP addresses, domains, URLs) have been publicly disclosed for this campaign as of the report date. The indicators listed below are payload patterns and behavioral signatures derived from vendor reporting, not traditional network-level IOCs.
 
 ### Network / Behavioral Indicators
 
@@ -119,8 +119,6 @@ Imperva's telemetry reveals the following attack tool distribution:
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated RCE via crafted JSON POST to FastJson endpoints |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Post-exploitation shell spawning from Java process on Linux servers |
-| T1059 | Command and Scripting Interpreter | Arbitrary command execution via deserialization payload |
-| T1195.001 | Supply Chain Compromise: Compromise Software Dependencies | Exploitation of widely-embedded library in enterprise software supply chains |
 
 ## Impact Assessment
 
@@ -189,13 +187,13 @@ grep -i "fastjson\|autoType\|JSONType\|getResourceAsStream" /var/log/app/*.log
 
 ## Detection Rules
 
-The following rules target the CVE-2026-16723 exploit delivery mechanism (malicious `@type` + `jar:` URL patterns in HTTP POST bodies) and post-exploitation behavior (Java spawning shells). Network rules are high-confidence for this specific exploit chain; the process-creation rule is a behavioral indicator applicable to Java deserialization attacks broadly. All rules require validation in the target environment before production deployment.
+The following rules target the CVE-2026-16723 exploit delivery mechanism (malicious `@type` + `jar:` URL patterns in HTTP POST bodies). All rules are high-confidence for this specific exploit chain and require validation in the target environment before production deployment.
 
 ### Sigma: CVE-2026-16723 FastJson Exploit Pattern in Web Server Logs
 
 Detects HTTP POST requests containing FastJson exploit signatures in web/proxy logs. Requires request body logging to be effective.
 
-Compile: PASS (splunk, log_scale) | Confidence: medium (depends on body logging availability)
+Compile: PASS (splunk, log_scale) | Confidence: medium (depends on body logging availability) | Portability note: the `cs-body` field requires custom field mapping in Splunk and CrowdStrike; it is not present in default log schemas
 
 ```yaml
 title: CVE-2026-16723 FastJson RCE Exploit Pattern in Web Server Logs
@@ -214,7 +212,6 @@ author: Actioner
 date: 2026-07-28
 tags:
     - attack.t1190
-    - attack.t1059.004
 logsource:
     category: webserver
 detection:
@@ -232,58 +229,7 @@ level: high
 
 <!-- audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale. Both conversions produced valid output. sigma check could not complete due to MITRE ATT&CK data fetch 403 in this environment but the rule structure is valid. The cs-body field requires web server or WAF body logging to be enabled, which is not universal. The @type + jar: combination is highly specific to this exploit chain. Values are not defanged per logsource-encoding guidance (rules use real values). -->
 
-### Sigma: Java Process Spawning Shell - Post-Exploitation
-
-Detects Java processes spawning shell interpreters on Linux, a behavioral indicator of successful deserialization exploitation.
-
-Compile: PASS (splunk, log_scale) | Confidence: low (behavioral, not FastJson-specific)
-
-```yaml
-title: Java Process Spawning Shell - Potential FastJson RCE Post-Exploitation
-id: 2c4e6a8b-1d3f-5b7a-9c0e-4f2d8a6b1c3e
-status: experimental
-description: >
-    Detects a Java process spawning common shell interpreters, which may indicate
-    successful exploitation of CVE-2026-16723 FastJson RCE or similar Java
-    deserialization vulnerabilities. This is a behavioral post-exploitation
-    indicator and is not specific to FastJson alone.
-references:
-    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
-    - https://nvd.nist.gov/vuln/detail/CVE-2026-16723
-author: Actioner
-date: 2026-07-28
-tags:
-    - attack.t1190
-    - attack.t1059.004
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '/java'
-            - '/javaw'
-    selection_child:
-        Image|endswith:
-            - '/sh'
-            - '/bash'
-            - '/dash'
-            - '/zsh'
-            - '/ksh'
-            - '/python'
-            - '/python3'
-            - '/perl'
-            - '/curl'
-            - '/wget'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate Java applications executing shell commands for system management
-    - Build tools and CI/CD pipelines running shell scripts
-    - Application servers performing maintenance tasks
-level: medium
-```
-
-<!-- audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale. Both conversions produced valid output. This is a behavioral/TTP rule, not specific to FastJson -- it detects any Java process spawning shells, which is common in legitimate environments. Confidence is low because it will generate false positives in CI/CD and application management contexts. The rule is useful as a correlation signal when combined with network-layer FastJson exploit detection. -->
+Dropped: Java Process Spawning Shell -- pure behavioral rule at TTP altitude, inconsistent with specific altitude request.
 
 ### Suricata: CVE-2026-16723 FastJson RCE via jar URL
 
@@ -304,10 +250,10 @@ Same detection logic as the Suricata rule, adapted for Snort 2.x syntax with und
 Compile: PASS (snort -T exit 0) | Confidence: high
 
 ```
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-16723 FastJson RCE Exploit Attempt via jar URL in JSON Body"; flow:established,to_server; content:"POST"; http_method; content:"@type"; http_client_body; fast_pattern; content:"jar|3a|"; http_client_body; distance:0; within:256; classtype:web-application-attack; reference:cve,2026-16723; reference:url,www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/; metadata:author Actioner, created 2026-07-28; sid:2100201; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-16723 FastJson RCE Exploit Attempt via jar URL in JSON Body"; flow:established,to_server; content:"POST"; http_method; content:"@type"; http_client_body; fast_pattern; content:"jar|3a|"; http_client_body; distance:0; within:256; classtype:web-application-attack; reference:cve,2026-16723; reference:url,www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/; metadata:author Actioner, created 2026-07-28; sid:9100201; rev:1;)
 ```
 
-<!-- audit: Validated with snort -T using Snort 2.9.20. Uses Snort 2 syntax: http_method / http_client_body as post-content modifiers, tcp protocol with $HTTP_PORTS, jar encoded as jar|3a| (hex colon) for robustness. The same distance:0 / within:256 pattern applies. -->
+<!-- audit: Validated with snort -T using Snort 2.9.20. Uses Snort 2 syntax: http_method / http_client_body as post-content modifiers, tcp protocol with $HTTP_PORTS, jar encoded as jar|3a| (hex colon) for robustness. The same distance:0 / within:256 pattern applies. SID changed to 9100201 to avoid collision with Suricata rule SID 2100201. -->
 
 ### YARA: FastJson CVE-2026-16723 Exploit Payload Detection
 
@@ -382,6 +328,8 @@ rule Exploit_CVE_2026_16723_FastJson_Minimal_Payload
 - [NVD - CVE-2026-16723 Detail](https://nvd.nist.gov/vuln/detail/CVE-2026-16723) -- official CVE record, CVSS vector, CWE classification
 - [Alibaba/FastJson2 GitHub Wiki - Security Advisory](https://github.com/alibaba/fastjson2/wiki/Security-Advisory:-Remote-Code-Execution-in-fastjson-1.2.68%E2%80%931.2.83) -- vendor advisory with affected conditions, remediation guidance
 - [LatestHackingNews - How the Fastjson RCE Vulnerability Actually Works](https://latesthackingnews.com/2026/07/26/fastjson-rce-vulnerability-how-to-check/) -- technical explanation of @JSONType trust signal and nested JAR path exploitation
+
+<!-- revision: v1.0 2026-07-28 — Dropped Java-spawns-shell Sigma rule (TTP altitude). Removed T1195.001 and redundant T1059 from ATT&CK table. Removed attack.t1059.004 tag from webserver Sigma rule. Added cs-body portability caveat. Changed Snort SID 2100201→9100201 to avoid Suricata collision. Reworded IOC notice to clarify no network infrastructure IOCs available. Promoted from DRAFT to 1.0. -->
 
 ---
 *Report generated by Actioner*
