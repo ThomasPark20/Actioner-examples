@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-28
-Version: 1.0-draft
+Version: 1.0
 
 ## Executive Summary
 
@@ -61,8 +61,8 @@ With the fraudulent certificate in hand, the tool:
 
 ### 5. Tool Details
 
-**Repository**: `https://github.com/aniqfakhrul/CVE-2026-54121`
-**Research writeup**: `https://gist.github.com/H0j3n/a5ef2609b5f2944ac2390a191a534c26`
+**Repository**: `hxxps://github[.]com/aniqfakhrul/CVE-2026-54121`
+**Research writeup**: `hxxps://gist[.]github[.]com/H0j3n/a5ef2609b5f2944ac2390a191a534c26`
 
 **Usage**:
 ```
@@ -102,11 +102,10 @@ sudo python3 certighost.py -d <domain> -u <username> -p <password> --dc-ip <dc-i
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1649 | Steal or Forge Authentication Certificates | Attacker obtains fraudulent certificate with DC identity via ADCS chase abuse |
+| T1649 | Steal or Forge Authentication Certificates | Attacker obtains fraudulent certificate with DC identity via ADCS chase abuse; PKINIT used with this certificate to obtain DC TGT |
 | T1136.002 | Create Account: Domain Account | Machine account created (GHOST* naming) to satisfy CA authentication requirements |
 | T1003.006 | OS Credential Dumping: DCSync | DCSync performed using forged DC credentials to extract krbtgt and domain secrets |
 | T1558.001 | Steal or Forge Kerberos Tickets: Golden Ticket | Access to krbtgt enables domain-wide Golden Ticket persistence (downstream impact) |
-| T1550.003 | Use Alternate Authentication Material: Pass the Certificate | PKINIT used with fraudulent certificate to obtain DC TGT |
 
 ## Impact Assessment
 
@@ -147,56 +146,19 @@ The vulnerability affects virtually every organization running an Enterprise CA 
 
 ## Detection Rules
 
-These rules target the Certighost (CVE-2026-54121) attack chain at multiple stages, from tool-specific artifacts to behavioral indicators of the ADCS chase abuse. The PoC-specific rules (GHOST naming pattern, certighost command line) provide high confidence but are trivially evaded by renaming; the behavioral rules (PKINIT for DC accounts, DCSync, certificate issuance) cover the technique but require tuning to each environment's DC inventory.
+These rules target the Certighost (CVE-2026-54121) attack chain at multiple stages, from tool-specific artifacts to behavioral indicators of the ADCS chase abuse. The PoC-specific rules (GHOST naming pattern, certighost command line) detect unmodified tool usage at medium confidence but are trivially evaded by renaming or using custom flags; the behavioral PKINIT rule provides complementary TTP-level coverage that requires tuning to each environment's DC inventory. Two initially drafted rules were dropped during review (see notes below).
 
-### Sigma: Certificate Issued via Machine Template
+### Dropped: Certificate Issued via Machine Template
 
-Baseline rule logging all certificate issuance events; correlate with Events 4741 and 4886 for investigation.
-
-Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: low
-
-<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy MITRE ATT&CK data fetch (environment limitation, not rule defect). Rule is intentionally broad (informational level) as a baseline; Event 4887 alone is high-volume on active CAs. Field name CertificateTemplate not validated against live CA event schema; verify field presence in target environment. -->
-
-```yaml
-title: Certificate Issued via Machine Template - Potential Certighost Exploitation
-id: 6202fdec-3d6d-4f80-ba1a-6adc37aa2f24
-status: experimental
-description: >
-    Detects certificate issuance events (Event ID 4887) on CA servers. In the
-    Certighost attack (CVE-2026-54121), an attacker-created machine account
-    requests a certificate through the ADCS chase fallback, causing the CA to
-    issue a certificate embedding a legitimate Domain Controller's identity.
-    Monitor for certificates issued to freshly created or unexpected machine
-    accounts, especially when correlated with Event 4741 and 4886.
-references:
-    - https://hackread.com/microsoft-certighost-flaw-domain-controller-impersonation/
-    - https://nvd.nist.gov/vuln/detail/CVE-2026-54121
-    - https://github.com/aniqfakhrul/CVE-2026-54121
-author: Actioner
-date: 2026-07-28
-tags:
-    - attack.t1649
-logsource:
-    product: windows
-    service: security
-detection:
-    selection:
-        EventID: 4887
-    condition: selection
-falsepositives:
-    - Legitimate certificate enrollment by authorized computer accounts
-    - Certificate auto-enrollment for domain-joined machines
-    - Routine certificate renewal processes
-level: informational
-```
+Dropped: bare EventID 4887 with no template filter; fires on every certificate issuance event. Pure noise on any active CA. Removed during review.
 
 ### Sigma: Computer Account Created With GHOST Naming Pattern
 
-Detects the default naming convention of the Certighost PoC tool.
+Detects the default naming convention of the Certighost PoC tool. Note: the PoC's `--computer-name` flag allows any arbitrary name, so this pattern matches only default/unmodified usage.
 
-Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: high
+Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: medium
 
-<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy (environment limitation). Confidence is high because the GHOST prefix is directly from the PoC tool's default behavior. Trivially evaded via --computer-name flag to specify a custom name. SamAccountName field is standard in Event 4741 schema. -->
+<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy (environment limitation). GHOST prefix is from the PoC tool's default behavior. Trivially evaded via --computer-name flag to specify a custom name; downgraded from high to medium. SamAccountName field is standard in Event 4741 schema. -->
 
 ```yaml
 title: Computer Account Created With GHOST Naming Pattern
@@ -224,16 +186,16 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate computer accounts with names beginning with GHOST
-level: high
+level: medium
 ```
 
 ### Sigma: Certighost PoC Tool Execution
 
-Detects command-line execution of the certighost.py exploit tool.
+Detects command-line execution of the certighost.py exploit tool. Trivially evaded by renaming the script file.
 
-Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: high
+Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: medium
 
-<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy (environment limitation). High confidence for unmodified tool use; trivially evaded by renaming the script. CommandLine field requires process command-line audit policy enabled (Windows Security 4688 or Sysmon EID 1). -->
+<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy (environment limitation). Detects unmodified tool use only; trivially evaded by renaming the script. Downgraded from high to medium. CommandLine field requires process command-line audit policy enabled (Windows Security 4688 or Sysmon EID 1). -->
 
 ```yaml
 title: Certighost PoC Tool Execution via Command Line
@@ -259,12 +221,12 @@ detection:
     condition: selection
 falsepositives:
     - Authorized penetration testing using the Certighost tool
-level: high
+level: medium
 ```
 
-### Sigma: PKINIT Certificate-Based TGT Request for Machine Account
+### Sigma: PKINIT Certificate-Based TGT Request for Machine Account (Complementary TTP-Level Rule)
 
-Detects certificate-based Kerberos authentication for machine accounts, the post-exploitation authentication step in the Certighost attack chain.
+Complementary TTP-level rule detecting certificate-based Kerberos authentication for machine accounts. This covers the post-exploitation authentication step in the Certighost attack chain but is not specific to Certighost; it fires on any PKINIT machine account authentication.
 
 Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: medium
 
@@ -307,48 +269,9 @@ falsepositives:
 level: medium
 ```
 
-### Sigma: Directory Replication Request Indicating Potential DCSync
+### Dropped: Directory Replication Request (DCSync)
 
-Detects DCSync-associated replication GUID access; the final exploitation step in the Certighost chain.
-
-Compile: PASS (sigma convert exit 0, both Splunk and LogScale) | Confidence: medium
-
-<!-- Audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; sigma check blocked by proxy (environment limitation). GUIDs 1131f6ad and 1131f6aa correspond to DS-Replication-Get-Changes-All and DS-Replication-Get-Changes respectively. Filter excludes machine accounts (ending with $) to reduce DC replication noise; however, Certighost authenticates AS a DC machine account, so this filter would miss the Certighost-specific scenario. This rule targets generic DCSync by human accounts as a complementary detection. -->
-
-```yaml
-title: Directory Replication Request Indicating Potential DCSync
-id: 29c621fa-d53b-4f14-932c-776787287b4b
-status: experimental
-description: >
-    Detects directory service access (Event ID 4662) with replication GUIDs
-    associated with DCSync operations. While legitimate DCs perform replication
-    routinely, this rule serves as a baseline alert; correlate the SubjectUserName
-    and source IP with known DC accounts and addresses to identify abuse.
-    In CVE-2026-54121 (Certighost), DCSync is the final step after DC impersonation.
-references:
-    - https://hackread.com/microsoft-certighost-flaw-domain-controller-impersonation/
-    - https://nvd.nist.gov/vuln/detail/CVE-2026-54121
-author: Actioner
-date: 2026-07-28
-tags:
-    - attack.t1003.006
-logsource:
-    product: windows
-    service: security
-detection:
-    selection:
-        EventID: 4662
-        Properties|contains:
-            - '1131f6ad-9c07-11d1-f79f-00c04fc2dcd2'
-            - '1131f6aa-9c07-11d1-f79f-00c04fc2dcd2'
-    filter_machine_accounts:
-        SubjectUserName|endswith: '$'
-    condition: selection and not filter_machine_accounts
-falsepositives:
-    - Azure AD Connect synchronization service accounts
-    - Third-party directory replication or monitoring tools
-level: medium
-```
+Dropped: logically cannot detect Certighost because the rule filters out machine accounts (SubjectUserName ending with $), but Certighost authenticates as the DC machine account. The rule would suppress the exact traffic it was meant to catch. Removed during review.
 
 ### YARA: Certighost PoC Exploit Tool
 
@@ -424,3 +347,5 @@ rule Exploit_CVE_2026_54121_Certighost_Tool
 
 ---
 *Report generated by Actioner*
+
+<!-- revision: 2026-07-28 REVISE pass. CUT Certificate Issued via Machine Template (bare EventID 4887 noise). CUT DCSync rule (filters out machine accounts, logically misses Certighost). Downgraded GHOST naming and PoC execution rules from high to medium confidence. Relabeled PKINIT as complementary TTP-level rule. Replaced T1550.003 (Pass the Ticket) with T1649 (Steal or Forge Authentication Certificates) for cert-based auth step. Defanged PoC repository URLs. Fixed intro paragraph consistency. Promoted version from DRAFT to 1.0. -->
