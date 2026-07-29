@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-07-29
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -174,13 +174,15 @@ According to Imperva's threat intelligence:
 
 ## Detection Rules
 
-Six detection rules target CVE-2026-16723 exploitation: three Sigma rules (HTTP payload detection, Windows post-exploitation, Linux post-exploitation), one Snort rule, one Suricata rule set, and one YARA rule set. All are PoC/advisory-specific altitude with strict leniency, targeting the known `@type` + `jar:` URI exploitation pattern.
+Twelve detection rules target CVE-2026-16723 exploitation: four Sigma rules (HTTP payload detection, Windows post-exploitation, Linux post-exploitation, proxy/firewall outbound JAR fetch), three Snort rules (SIDs 2100040-2100042), three Suricata rules (SIDs 2200040-2200042), and two YARA rules. All are PoC/advisory-specific altitude with strict leniency, targeting the known `@type` + `jar:` URI exploitation pattern.
+
+> **IOC Defanging Note:** Detection rules intentionally use real (non-defanged) payload values (`jar:http`, `jar:file`, `@type`) since these are pattern-match strings required for engine compatibility, not network IOCs.
 
 ### Sigma: FastJson CVE-2026-16723 Exploit Payload in HTTP Request Logs
 
-Detects HTTP requests containing FastJson exploitation payloads with `@type` fields referencing `jar:http` or `jar:file` URI schemes in web server logs or request bodies.
+Detects HTTP requests containing FastJson exploitation payloads with `@type` fields referencing `jar:http` or `jar:file` URI schemes in web server logs or request bodies. Both URI and body branches require `@type` co-occurrence to reduce false positives.
 **Status:** compile ✅ compiles (sigma convert to Splunk and LogScale successful) -- confidence: high
-<!-- audit: sigma check failed only due to MITRE ATT&CK data download blocked by proxy (not a rule defect). splunk convert: "cs-uri" IN ("*jar:http*", "*jar:file*") OR (request_body="*@type*" request_body IN ("*jar:http*", "*jar:file*")). log_scale convert: "cs-uri"=/jar:http/i or "cs-uri"=/jar:file/i or (request_body=/@type/i request_body=/jar:http/i or request_body=/jar:file/i). Values real, not defanged. -->
+<!-- audit: sigma check failed only due to MITRE ATT&CK data download blocked by proxy (not a rule defect). splunk convert: ("cs-uri"="*@type*" "cs-uri" IN ("*jar:http*", "*jar:file*")) OR (request_body="*@type*" request_body IN ("*jar:http*", "*jar:file*")). log_scale convert: ("cs-uri"=/@type/i "cs-uri"=/jar:http/i or "cs-uri"=/jar:file/i) or (request_body=/@type/i request_body=/jar:http/i or request_body=/jar:file/i). Values real, not defanged. Revision: fixed condition to require @type co-occurrence in URI branch; removed incorrect attack.t1059 tag. -->
 ```yaml
 title: FastJson CVE-2026-16723 Exploit Payload in HTTP Request Logs
 id: 8e3f2a1b-c4d5-4e6f-a7b8-9c0d1e2f3a4b
@@ -200,22 +202,23 @@ author: Actioner
 date: 2026/07/29
 tags:
     - attack.t1190
-    - attack.t1059
     - cve.2026.16723
 logsource:
     category: webserver
 detection:
-    selection_jar_http:
+    selection_uri_type:
+        cs-uri|contains: '@type'
+    selection_uri_jar_http:
         cs-uri|contains: 'jar:http'
-    selection_jar_file:
+    selection_uri_jar_file:
         cs-uri|contains: 'jar:file'
     selection_body_jar_http:
         request_body|contains: 'jar:http'
     selection_body_jar_file:
         request_body|contains: 'jar:file'
-    selection_type_field:
+    selection_body_type_field:
         request_body|contains: '@type'
-    condition: (selection_jar_http or selection_jar_file) or (selection_type_field and (selection_body_jar_http or selection_body_jar_file))
+    condition: (selection_uri_type and (selection_uri_jar_http or selection_uri_jar_file)) or (selection_body_type_field and (selection_body_jar_http or selection_body_jar_file))
 falsepositives:
     - Legitimate applications using jar: URI schemes in JSON payloads (unlikely in typical web applications)
 level: high
@@ -225,7 +228,7 @@ level: high
 
 Detects suspicious child processes spawned by Java on Windows systems, indicating potential post-exploitation activity following FastJson CVE-2026-16723 RCE.
 **Status:** compile ✅ compiles (sigma convert to Splunk and LogScale successful) -- confidence: medium
-<!-- audit: sigma check failed only due to MITRE ATT&CK data download blocked by proxy (not a rule defect). splunk convert: ParentImage IN ("*\\java.exe", "*\\javaw.exe") Image IN ("*\\cmd.exe", "*\\powershell.exe", ...). log_scale convert successful. Generic Java child process rule — legitimate Java applications may spawn system processes. Values real. -->
+<!-- audit: sigma check failed only due to MITRE ATT&CK data download blocked by proxy (not a rule defect). splunk convert: ParentImage IN ("*\\java.exe", "*\\javaw.exe") Image IN ("*\\cmd.exe", "*\\powershell.exe", ...). log_scale convert successful. Generic Java child process rule — legitimate Java applications may spawn system processes. Values real. Revision: downgraded level from high to medium — generic Java-spawns-shell pattern has significant FP surface. -->
 ```yaml
 title: Suspicious Child Process Spawned by Java - Potential FastJson RCE Post-Exploitation
 id: 7d2e1b0a-b3c4-4d5e-a6f7-8b9c0d1e2f3a
@@ -270,7 +273,7 @@ detection:
 falsepositives:
     - Legitimate Java applications that spawn system processes
     - Build tools and CI/CD pipelines using Java
-level: high
+level: medium
 ```
 
 ### Sigma: Suspicious Child Process Spawned by Java - Linux Post-Exploitation

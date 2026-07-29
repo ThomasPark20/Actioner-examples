@@ -1,0 +1,45 @@
+title: Suspicious Child Process Spawned by Java on Linux - Potential FastJson RCE Post-Exploitation
+id: 6c1d0a9f-a2b3-4c4d-95e6-7a8b9c0d1e2f
+status: experimental
+description: >
+    Detects suspicious child processes spawned by Java processes on Linux systems,
+    which may indicate successful exploitation of CVE-2026-16723 in FastJson.
+    Spring Boot fat-JAR deployments commonly run on Linux. After RCE, attackers
+    typically spawn shells, download tools, or establish reverse shells.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
+    - https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
+    - https://www.imperva.com/blog/imperva-customers-protected-against-cve-2026-16723-critical-fastjson-1-x-zero-day-rce/
+author: Actioner
+date: 2026/07/29
+tags:
+    - attack.t1059.004
+    - cve.2026.16723
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/java'
+            - '/javaw'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/curl'
+            - '/wget'
+            - '/python'
+            - '/python3'
+            - '/perl'
+            - '/nc'
+            - '/ncat'
+            - '/socat'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Java applications that invoke shell commands
+    - Application servers running maintenance scripts
+    - Build tools and CI/CD pipelines
+level: medium

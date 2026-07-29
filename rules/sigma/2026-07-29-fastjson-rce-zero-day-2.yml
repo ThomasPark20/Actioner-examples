@@ -1,0 +1,44 @@
+title: Suspicious Child Process Spawned by Java - Potential FastJson RCE Post-Exploitation
+id: 7d2e1b0a-b3c4-4d5e-a6f7-8b9c0d1e2f3a
+status: experimental
+description: >
+    Detects suspicious child processes spawned by Java processes, which may indicate
+    successful exploitation of CVE-2026-16723 in FastJson. After achieving RCE through
+    the deserialization flaw, attackers typically spawn shell processes or download
+    additional payloads. This rule targets the post-exploitation phase where attacker-
+    controlled bytecode executes system commands.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
+    - https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
+    - https://www.imperva.com/blog/imperva-customers-protected-against-cve-2026-16723-critical-fastjson-1-x-zero-day-rce/
+author: Actioner
+date: 2026/07/29
+tags:
+    - attack.t1059.004
+    - attack.t1059.001
+    - cve.2026.16723
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\java.exe'
+            - '\javaw.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\certutil.exe'
+            - '\bitsadmin.exe'
+            - '\mshta.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\rundll32.exe'
+            - '\regsvr32.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Java applications that spawn system processes
+    - Build tools and CI/CD pipelines using Java
+level: medium

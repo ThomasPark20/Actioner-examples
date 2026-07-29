@@ -1,0 +1,27 @@
+title: vBulletin CVE-2026-61511 Pre-Auth RCE Exploit - Web Server Log Detection
+id: a3f1c8d2-7b4e-4a9f-b6c1-d8e2f5a0b3c4
+status: experimental
+description: Detects HTTP POST requests to the vBulletin ajax/render/pagenav endpoint which is targeted by the CVE-2026-61511 pre-authentication remote code execution exploit. The exploit abuses the runMaths() eval injection via the pagenav[pagenumber] parameter using phpfuck-style encoding.
+references:
+    - https://www.bleepingcomputer.com/news/security/vbulletin-fixes-critical-pre-auth-rce-flaw-with-public-exploit/
+    - https://ssd-disclosure.com/vbulletin-runtime-template-runmaths-preauth-rce/
+    - https://karmainsecurity.com/KIS-2026-13
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-61511
+author: Actioner (DRAFT)
+date: 2026/07/29
+tags:
+    - attack.t1190
+    - attack.t1059.004
+    - cve.2026-61511
+logsource:
+    category: webserver
+    definition: Web server access logs with URI and HTTP method fields
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri_path:
+        cs-uri|contains: 'ajax/render/pagenav'
+    condition: selection_method and selection_uri_path
+falsepositives:
+    - Legitimate vBulletin page navigation AJAX requests may use this endpoint but typically use GET requests or have short parameter values
+level: high

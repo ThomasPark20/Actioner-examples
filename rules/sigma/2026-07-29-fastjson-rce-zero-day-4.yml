@@ -1,0 +1,36 @@
+title: Outbound jar:http Fetch from Internal Host - Potential FastJson RCE Resource Loading
+id: 5b0c9e8d-91a2-4b3c-84d5-6e7f8a9b0c1d
+status: experimental
+description: >
+    Detects outbound HTTP requests containing jar:http or jar:file URI patterns in proxy
+    or firewall logs. When FastJson CVE-2026-16723 is exploited, the victim Java process
+    fetches a remote JAR resource specified in the attacker's @type payload. This rule
+    targets that outbound fetch, which is a strong post-exploitation indicator visible
+    in proxy/firewall logs even when inbound TLS traffic is not inspected.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
+    - https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
+    - https://www.imperva.com/blog/imperva-customers-protected-against-cve-2026-16723-critical-fastjson-1-x-zero-day-rce/
+    - https://github.com/alibaba/fastjson2/wiki/Security-Advisory:-Remote-Code-Execution-in-fastjson-1.2.68%E2%80%931.2.83
+author: Actioner
+date: 2026/07/29
+tags:
+    - attack.t1190
+    - attack.t1105
+    - cve.2026.16723
+logsource:
+    category: proxy
+detection:
+    selection_jar_uri:
+        c-uri|contains:
+            - '.jar!'
+            - '.jar%21'
+    selection_method:
+        cs-method: 'GET'
+    selection_content:
+        r-content-type|contains: 'java-archive'
+    condition: selection_jar_uri or (selection_method and selection_content)
+falsepositives:
+    - Legitimate Java applications fetching JAR dependencies from internal Maven/Nexus repositories
+    - Development environments pulling libraries at runtime
+level: medium
