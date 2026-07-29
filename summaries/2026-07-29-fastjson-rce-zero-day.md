@@ -1,3 +1,4 @@
+<!-- revision: v1.1 2026-07-29 — Sigma1 condition tightened (require @type with jar: in URI branch), tag attack.t1059→removed; Sigma2 level high→medium; added Sigma4 proxy/firewall outbound jar:http fetch; Snort SIDs renumbered 2100040-2100042, fallback gets content-type check; Suricata SIDs renumbered 2200040-2200042, fallback gets content-type check, SID 2200004 (@JSONType) dropped (annotation is in bytecode, not HTTP body); YARA Exploit_Tool condition requires $cve+exploit string; removed ATT&CK T1071.001; added IOC defanging clarification; fixed rule counts. -->
 # Technical Analysis Report: Alibaba FastJson CVE-2026-16723 -- Gadget-Free RCE Zero-Day Actively Exploited Against US Organizations
 
 Prepared by: Actioner
@@ -136,7 +137,6 @@ According to Imperva's threat intelligence:
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Post-exploitation command execution via spawned shell processes from Java (Linux deployments) |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | Post-exploitation command execution on Windows-hosted Spring Boot deployments |
 | T1505.003 | Server Software Component: Web Shell | Expected follow-on persistence via web shell deployment on compromised Java application servers |
-| T1071.001 | Application Layer Protocol: Web Protocols | Exploit delivery via HTTP POST with JSON payload; potential C2 over HTTP |
 
 ## Impact Assessment
 
@@ -329,11 +329,55 @@ falsepositives:
 level: medium
 ```
 
+### Sigma: Outbound jar:http Fetch from Internal Host - Proxy/Firewall Log Detection
+
+Detects outbound HTTP requests containing JAR resource fetches in proxy or firewall logs. When the exploit fires, the victim Java process fetches a remote JAR specified in the `@type` payload -- this outbound fetch is visible in proxy logs even without inbound TLS decryption.
+**Status:** compile ✅ compiles (sigma convert to Splunk and LogScale successful) -- confidence: medium
+<!-- audit: sigma check failed only due to MITRE ATT&CK data download blocked by proxy (not a rule defect). splunk convert: "c-uri" IN ("*.jar!*", "*.jar%21*") OR ("cs-method"="GET" "r-content-type"="*java-archive*"). log_scale convert: "c-uri"=/\.jar!/i or "c-uri"=/\.jar%21/i or ("cs-method"=/^GET$/i "r-content-type"=/java-archive/i). New rule added per critic request — complements inbound payload rules with outbound artifact detection at the proxy layer. -->
+```yaml
+title: Outbound jar:http Fetch from Internal Host - Potential FastJson RCE Resource Loading
+id: 5b0c9e8d-91a2-4b3c-84d5-6e7f8a9b0c1d
+status: experimental
+description: >
+    Detects outbound HTTP requests containing jar:http or jar:file URI patterns in proxy
+    or firewall logs. When FastJson CVE-2026-16723 is exploited, the victim Java process
+    fetches a remote JAR resource specified in the attacker's @type payload. This rule
+    targets that outbound fetch, which is a strong post-exploitation indicator visible
+    in proxy/firewall logs even when inbound TLS traffic is not inspected.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
+    - https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
+    - https://www.imperva.com/blog/imperva-customers-protected-against-cve-2026-16723-critical-fastjson-1-x-zero-day-rce/
+    - https://github.com/alibaba/fastjson2/wiki/Security-Advisory:-Remote-Code-Execution-in-fastjson-1.2.68%E2%80%931.2.83
+author: Actioner
+date: 2026/07/29
+tags:
+    - attack.t1190
+    - attack.t1105
+    - cve.2026.16723
+logsource:
+    category: proxy
+detection:
+    selection_jar_uri:
+        c-uri|contains:
+            - '.jar!'
+            - '.jar%21'
+    selection_method:
+        cs-method: 'GET'
+    selection_content:
+        r-content-type|contains: 'java-archive'
+    condition: selection_jar_uri or (selection_method and selection_content)
+falsepositives:
+    - Legitimate Java applications fetching JAR dependencies from internal Maven/Nexus repositories
+    - Development environments pulling libraries at runtime
+level: medium
+```
+
 ### Snort: FastJson CVE-2026-16723 RCE Exploit Detection
 
 Detects HTTP POST requests with JSON content containing `@type` paired with `jar:` URI schemes -- the specific exploitation pattern for CVE-2026-16723. Requires TLS decryption to inspect payload.
-**Status:** compile ✅ compiles (Snort 2.9.20 validated) -- confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R fj.rules -T exit 0. Three rules: sid 2100001 (jar:http), 2100002 (jar:file), 2100003 (jar: generic). http_method/http_header/http_client_body content modifiers. distance:0 within:64 ensures @type and jar: are proximate in JSON body. Values real. Requires TLS decryption. -->
+**Status:** compile ✅ compiles (Snort 2.9.20 validated) -- confidence: high (SIDs 2100040-2100041), medium (SID 2100042 fallback)
+<!-- audit: snort -c /etc/snort/snort.conf -R fj.rules -T exit 0. Three rules: sid 2100040 (jar:http), 2100041 (jar:file), 2100042 (jar: generic fallback). http_method/http_header/http_client_body content modifiers. distance:0 within:64 ensures @type and jar: are proximate in JSON body. Values real. Requires TLS decryption. Revision: renumbered SIDs 2100001-2100003 → 2100040-2100042 to avoid collision with VeloCloud/Check Point reports; added content-type check to fallback rule (2100042). -->
 ```snort
 # Snort rules for CVE-2026-16723 - FastJson RCE Zero-Day
 # References:
@@ -341,20 +385,20 @@ Detects HTTP POST requests with JSON content containing `@type` paired with `jar
 #   https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
 
 # Detect @type with jar:http in JSON POST body
-alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:http @type Payload"; flow:to_server,established; content:"POST"; http_method; content:"application/json"; http_header; content:"@type"; http_client_body; content:"jar|3a|http"; http_client_body; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2100001; rev:1; metadata:created_at 2026_07_29;)
+alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:http @type Payload"; flow:to_server,established; content:"POST"; http_method; content:"application/json"; http_header; content:"@type"; http_client_body; content:"jar|3a|http"; http_client_body; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2100040; rev:1; metadata:created_at 2026_07_29;)
 
 # Detect @type with jar:file in JSON POST body
-alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:file @type Payload"; flow:to_server,established; content:"POST"; http_method; content:"application/json"; http_header; content:"@type"; http_client_body; content:"jar|3a|file"; http_client_body; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2100002; rev:1; metadata:created_at 2026_07_29;)
+alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:file @type Payload"; flow:to_server,established; content:"POST"; http_method; content:"application/json"; http_header; content:"@type"; http_client_body; content:"jar|3a|file"; http_client_body; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2100041; rev:1; metadata:created_at 2026_07_29;)
 
-# Detect @type with jar: URI scheme broadly (fallback)
-alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar: URI in JSON Body"; flow:to_server,established; content:"POST"; http_method; content:"@type"; http_client_body; content:"jar|3a|"; http_client_body; distance:0; within:128; reference:cve,2026-16723; classtype:web-application-attack; sid:2100003; rev:1; metadata:created_at 2026_07_29;)
+# Detect @type with jar: URI scheme broadly (fallback with content-type check)
+alert tcp any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar: URI in Request Body (Fallback)"; flow:to_server,established; content:"POST"; http_method; content:"application/json"; http_header; content:"@type"; http_client_body; content:"jar|3a|"; http_client_body; distance:0; within:128; reference:cve,2026-16723; classtype:web-application-attack; sid:2100042; rev:1; metadata:created_at 2026_07_29;)
 ```
 
 ### Suricata: FastJson CVE-2026-16723 RCE Exploit Detection
 
 Detects HTTP POST requests with JSON content containing `@type` paired with `jar:` URI schemes using Suricata dot-notation sticky buffers. Requires TLS decryption to inspect payload.
-**Status:** compile ✅ compiles (Suricata 7.0.3 validated) -- confidence: high
-<!-- audit: suricata -T -S fastjson_exploit.suricata.rules exit 0. Four rules: sid 2200001 (jar:http), 2200002 (jar:file), 2200003 (jar: generic), 2200004 (JSONType annotation). Dot-notation sticky buffers (http.method, http.content_type, http.request_body). Values real. Requires TLS decryption. -->
+**Status:** compile ✅ compiles (Suricata 7.0.3 validated) -- confidence: high (SIDs 2200040-2200041), medium (SID 2200042 fallback)
+<!-- audit: suricata -T -S fastjson_suricata.rules exit 0. Three rules: sid 2200040 (jar:http), 2200041 (jar:file), 2200042 (jar: generic fallback with content-type check). Dot-notation sticky buffers (http.method, http.content_type, http.request_body). Values real. Requires TLS decryption. Revision: renumbered SIDs 2200001-2200003 → 2200040-2200042 to avoid collision with VeloCloud/Check Point reports; added content-type check to fallback rule (2200042); DROPPED SID 2200004 (@JSONType annotation) — annotation resides in compiled bytecode of the loaded class, not in the HTTP request body, so the rule would never fire on real exploitation traffic. -->
 ```suricata
 # Suricata rules for CVE-2026-16723 - FastJson RCE Zero-Day
 # References:
@@ -362,23 +406,23 @@ Detects HTTP POST requests with JSON content containing `@type` paired with `jar
 #   https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
 
 # Detect @type with jar:http in JSON POST body
-alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:http @type Payload"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"jar|3a|http"; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2200001; rev:1; metadata:created_at 2026_07_29;)
+alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:http @type Payload"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"jar|3a|http"; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2200040; rev:1; metadata:created_at 2026_07_29;)
 
 # Detect @type with jar:file in JSON POST body
-alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:file @type Payload"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"jar|3a|file"; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2200002; rev:1; metadata:created_at 2026_07_29;)
+alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar:file @type Payload"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"jar|3a|file"; distance:0; within:64; reference:cve,2026-16723; classtype:web-application-attack; sid:2200041; rev:1; metadata:created_at 2026_07_29;)
 
-# Detect @type with jar: URI scheme broadly in HTTP request body
-alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar: URI in JSON Body"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"@type"; content:"jar|3a|"; distance:0; within:128; reference:cve,2026-16723; classtype:web-application-attack; sid:2200003; rev:1; metadata:created_at 2026_07_29;)
+# Detect @type with jar: URI scheme broadly in HTTP request body (fallback with content-type check)
+alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - jar: URI in JSON Body (Fallback)"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"jar|3a|"; distance:0; within:128; reference:cve,2026-16723; classtype:web-application-attack; sid:2200042; rev:1; metadata:created_at 2026_07_29;)
 
-# Detect @JSONType annotation abuse pattern in JSON body
-alert http any any -> any any (msg:"Actioner - FastJson CVE-2026-16723 RCE Exploit - JSONType Annotation Abuse"; flow:to_server,established; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"@type"; content:"JSONType"; distance:0; within:256; reference:cve,2026-16723; classtype:web-application-attack; sid:2200004; rev:1; metadata:created_at 2026_07_29;)
+# NOTE: SID 2200004 (JSONType Annotation Abuse) DROPPED — @JSONType resides in compiled
+# bytecode of the loaded class, not in the HTTP request body; rule would never fire.
 ```
 
 ### YARA: FastJson CVE-2026-16723 Exploit Payload and Tool Detection
 
 Detects FastJson exploitation payloads and exploit tools containing the characteristic `@type` + `jar:` URI pattern, as well as tools specifically referencing CVE-2026-16723.
 **Status:** compile ✅ compiles (yarac validated) -- confidence: high
-<!-- audit: yarac fastjson_exploit.yar /dev/null exit 0. Two rules: FastJson_CVE_2026_16723_Exploit_Payload (payload in network captures or files), FastJson_CVE_2026_16723_Exploit_Tool (exploit tools referencing the CVE). Values real. -->
+<!-- audit: yarac fastjson_exploit.yar /dev/null exit 0. Two rules: FastJson_CVE_2026_16723_Exploit_Payload (payload in network captures or files), FastJson_CVE_2026_16723_Exploit_Tool (exploit tools referencing the CVE). Values real. Revision: fixed Exploit_Tool condition — $cve alone no longer sufficient (would fire on news articles); now requires $cve + at least one exploit-related string. -->
 ```yara
 rule FastJson_CVE_2026_16723_Exploit_Payload
 {
@@ -427,7 +471,7 @@ rule FastJson_CVE_2026_16723_Exploit_Tool
         $fat_jar = "fat-jar" ascii wide nocase
 
     condition:
-        $cve or ($fastjson_rce and $type and ($jar_http or $jar_file) and any of ($safe_mode, $autotype, $spring_boot, $fat_jar))
+        ($cve and any of ($fastjson_rce, $jar_http, $jar_file, $type, $safe_mode, $autotype, $spring_boot, $fat_jar)) or ($fastjson_rce and $type and ($jar_http or $jar_file) and any of ($safe_mode, $autotype, $spring_boot, $fat_jar))
 }
 ```
 
