@@ -1,0 +1,26 @@
+title: DNS Query to typo-crypto C2 Domain npmjs.store
+id: 7f3a1b4e-2c8d-4e9f-a6b5-1d0e3f7c8a9b
+status: experimental
+description: >
+    Detects DNS queries to npmjs.store, the known C2 domain used by the
+    malicious typo-crypto npm package attributed to North Korean threat actors
+    (Sapphire Sleet). The domain was used to retrieve stage-two payloads.
+references:
+    - https://thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html
+    - https://cyberscoop.com/amazon-north-korea-open-source-software-attacks/
+    - https://osv.dev/vulnerability/MAL-2026-3400
+author: Actioner
+date: 2026/07/30
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'npmjs.store'
+    condition: selection
+falsepositives:
+    - Unlikely - this domain has no legitimate use
+level: high

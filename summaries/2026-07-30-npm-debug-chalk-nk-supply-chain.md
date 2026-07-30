@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-07-30
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -143,7 +143,7 @@ The RAT implant delivered via the compromised @joyfill beta packages had the fol
 | T1555 | Credentials from Password Stores | Harvesting Windows Credential Manager, Linux Secret Service, browser credentials |
 | T1005 | Data from Local System | Collection of Git configurations and IDE storage data |
 | T1041 | Exfiltration Over C2 Channel | Exfiltration of collected credentials and clipboard data over the established C2 |
-| T1547 | Boot or Logon Autostart Execution | npm lifecycle scripts (post-install hooks) in axios/Mastra compromise |
+<!-- revision: removed T1547 (Boot/Logon Autostart) — npm post-install hooks execute once at install time, they do not persist across reboots; T1547 requires boot/logon persistence -->
 | T1185 | Browser Session Hijacking | debug/chalk wallet-draining scripts intercepting browser API calls to rewrite transaction data |
 
 ## Impact Assessment
@@ -183,7 +183,8 @@ grep -E "216\.74\.123\.126|23\.27\.13\.43" /var/log/syslog /var/log/auth.log 2>/
 2. **Verify debug/chalk/axios versions:** Ensure you are running known-clean versions from after the malicious releases were reverted by npm.
 3. **Rotate credentials:** If any compromised packages were installed in developer or CI environments, rotate all credentials accessible from those environments -- including npm tokens, Git credentials, browser-stored passwords, API keys in IDE storage, and cryptocurrency wallet keys.
 4. **Audit CI/CD pipelines:** Review build logs for network connections to `npmjs[.]store` or `216[.]74[.]123[.]126` during the compromise window.
-5. **Block C2 infrastructure:** Add `npmjs[.]store`, `216.74.123.126`, and `23.27.13.43` to network blocklists (firewalls, DNS sinkhole, proxy deny lists).
+<!-- revision: defanged raw IPs per defanging convention -->
+5. **Block C2 infrastructure:** Add `npmjs[.]store`, `216[.]74[.]123[.]126`, and `23[.]27[.]13[.]43` to network blocklists (firewalls, DNS sinkhole, proxy deny lists).
 
 ### Long-Term Hardening
 
@@ -197,7 +198,8 @@ grep -E "216\.74\.123\.126|23\.27\.13\.43" /var/log/syslog /var/log/auth.log 2>/
 
 ## Detection Rules
 
-These detections target the confirmed C2 infrastructure (npmjs[.]store / 216[.]74[.]123[.]126 / 23[.]27[.]13[.]43), malicious package artifacts, and behavioral patterns (clipboard exfiltration via Node.js) from this campaign. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline before production deployment.
+<!-- revision: updated intro — dropped clipboard behavioral rule; adjusted rule counts -->
+These detections target the confirmed C2 infrastructure (npmjs[.]store / 216[.]74[.]123[.]126 / 23[.]27[.]13[.]43) and malicious package artifacts from this campaign. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline before production deployment.
 
 ### Sigma: DNS Query to typo-crypto C2 Domain npmjs.store
 
@@ -296,44 +298,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Clipboard Data Access via Node.js Child Process (Joyfill RAT Pattern)
-
-Detects Node.js spawning platform-specific clipboard-reading utilities, consistent with the Joyfill RAT's cross-platform clipboard exfiltration.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by MITRE ATT&CK data fetch (403); splunk convert exit 0; log_scale convert exit 0. Behavioral rule -- legitimate Node.js clipboard libraries (e.g. clipboardy) use the same utilities, so medium confidence. -->
-```yaml
-title: Clipboard Data Access via Node.js Child Process (Joyfill RAT Pattern)
-id: a0e2d4f5-5b9c-6d3e-f1a8-4c2b7e0f9d6a
-status: experimental
-description: >
-    Detects Node.js spawning clipboard-reading utilities (pbpaste, xclip, xsel,
-    or PowerShell Get-Clipboard), consistent with the Joyfill RAT's clipboard
-    exfiltration behavior observed in the DEV#POPPER campaign.
-references:
-    - https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html
-author: Actioner
-date: 2026/07/30
-tags:
-    - attack.t1115
-    - attack.t1059.007
-logsource:
-    category: process_creation
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '/node'
-            - '\node.exe'
-    selection_clipboard:
-        CommandLine|contains:
-            - 'pbpaste'
-            - 'xclip'
-            - 'xsel'
-            - 'Get-Clipboard'
-    condition: selection_parent and selection_clipboard
-falsepositives:
-    - Legitimate Node.js applications that access clipboard programmatically
-level: medium
-```
+<!-- revision: DROPPED Sigma "Clipboard Data Access via Node.js Child Process" — altitude mismatch (behavioral/TTP at specific altitude); high FP from Electron apps and clipboard libraries (e.g. clipboardy) that invoke the same utilities legitimately -->
 
 ### Snort: DNS Query to typo-crypto C2 Domain npmjs.store
 
@@ -392,8 +357,9 @@ alert tcp $HOME_NET any -> 23.27.13.43 any (msg:"Actioner - Connection to Joyfil
 ### YARA: Malicious typo-crypto npm Package
 
 Detects the malicious typo-crypto package artifacts by matching the C2 domain `npmjs.store` combined with the XOR key, trigger value, or file/package names.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on pos-typo-crypto.txt (contains published strings npmjs.store + 01042025 + 0098273), quiet on neg-typo-crypto.txt (clean crypto module). Hash 64edea611ad8e383c09495a7a6f7afd4fb86b88136c331ddf787bf0285259bf3 from OSV MAL-2026-3400. -->
+<!-- revision: removed "sample: fired" — test used a fabricated sample containing published strings, not real malware; confidence remains high based on rule logic and distinctive IOCs -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Hash 64edea611ad8e383c09495a7a6f7afd4fb86b88136c331ddf787bf0285259bf3 from OSV MAL-2026-3400. No real sample available for fire-test; prior "fired" claim was against a synthetic file. -->
 ```yara
 rule NPM_NK_Typo_Crypto_Malicious_Package
 {
@@ -422,6 +388,7 @@ rule NPM_NK_Typo_Crypto_Malicious_Package
 ### YARA: debug/chalk Wallet-Draining Interceptor
 
 Detects the browser-side wallet-draining code injected into compromised debug/chalk packages, keyed on the C2 domain combined with fetch/XHR/wallet API hooking patterns.
+<!-- revision: changed meta severity "high" → "medium" to align with status-line confidence: medium -->
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: yarac exit 0. Medium confidence because individual strings (fetch, XMLHttpRequest, wallet) are common in legitimate JS; the npmjs.store anchor raises specificity. No published sample hash available for debug/chalk malicious versions. -->
 ```yara
@@ -432,7 +399,7 @@ rule NPM_NK_Debug_Chalk_Wallet_Drainer
         author = "Actioner"
         date = "2026-07-30"
         reference = "https://thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $hook_fetch = "fetch" ascii
@@ -452,6 +419,7 @@ rule NPM_NK_Debug_Chalk_Wallet_Drainer
 ### YARA: Joyfill RAT Implant (DEV#POPPER / PolinRider)
 
 Detects the cross-platform RAT implant from compromised @joyfill packages, keyed on the combination of multi-platform clipboard access utilities and C2/exfiltration patterns.
+<!-- revision: changed meta severity "high" → "medium" to align with status-line confidence: medium -->
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: yarac exit 0. Clipboard utility names are legitimate but their co-presence in a single JS file with upload/check-in/joyfill references is distinctive. No published sample hash for Joyfill RAT. -->
 ```yara
@@ -462,7 +430,7 @@ rule NPM_NK_Joyfill_RAT_Implant
         author = "Actioner"
         date = "2026-07-30"
         reference = "https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $clip_win = "Get-Clipboard" ascii wide
@@ -498,7 +466,8 @@ rule NPM_NK_Joyfill_RAT_Implant
 
 - [The Hacker News - Amazon Links Debug and Chalk npm Hijack to North Korea](https://thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html) -- Primary reporting on Amazon's attribution of the debug/chalk/typo-crypto campaign to Sapphire Sleet; technical details on payload types, C2 domain, XOR key, and timeline
 - [CyberScoop - Amazon North Korea Open Source Software Attacks](https://cyberscoop.com/amazon-north-korea-open-source-software-attacks/) -- Social engineering methodology details; maintainer trust exploitation; attribution to UNC1069/Sapphire Sleet/Stardust Chollima; quote on "rehearsal" characterization of typo-crypto
-- [GBHackers - North Korean Compromise npm Packages](https://gbhackers.com/north-korean-compromise-npm-packages/) -- Additional coverage of the npm compromise campaign (content unavailable at time of fetch)
+<!-- revision: marked GBHackers source as unverified — content was unavailable at fetch time -->
+- [GBHackers - North Korean Compromise npm Packages](https://gbhackers.com/north-korean-compromise-npm-packages/) -- Additional coverage of the npm compromise campaign (unverified; content unavailable at time of fetch)
 - [The Hacker News - Two Compromised Joyfill npm Packages](https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html) -- Technical analysis of the @joyfill RAT implant; C2 IP, blockchain C2 mechanism, clipboard exfiltration details, PolinRider/DEV#POPPER attribution
 - [OSV - MAL-2026-3400 (typo-crypto)](https://osv.dev/vulnerability/MAL-2026-3400) -- Formal vulnerability advisory for typo-crypto@4.3.0; SHA256 hash; Amazon Inspector detection credit
 
