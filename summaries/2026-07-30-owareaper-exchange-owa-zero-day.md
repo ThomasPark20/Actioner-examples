@@ -1,9 +1,9 @@
 # Technical Analysis Report: OWAReaper — TA488 Exchange OWA Zero-Day Campaign (2026-07-30)
 
-Prepared by: Actioner (Researcher, DRAFT)
+Prepared by: Actioner (Researcher, REVISED)
 Classification: TLP:CLEAR
 Date: 2026-07-30
-Version: 0.1 (draft)
+Version: 0.2 (revised)
 
 ## Executive Summary
 
@@ -156,7 +156,8 @@ The predecessor ZimReaper was documented harvesting 90 days of victim mail data;
 | T1071.004 | DNS | Tertiary exfiltration via DNS tunneling with Base32-encoded encrypted payloads |
 | T1573.001 | Symmetric Cryptography | AES-CTR for exfiltration; AES with hard-coded + per-session keys for C2 decryption |
 | T1114.002 | Remote Email Collection | Harvests target mailbox contents via compromised OWA session |
-| T1070 | Indicator Removal | Rewrites exploit emails on Exchange server to strip malicious content post-infection |
+<!-- revision: T1070 parent used intentionally -- T1070.008 (Clear Mailbox Data) covers mailbox wiping, not server-side email body modification; no sub-technique precisely fits this behavior -->
+| T1070 | Indicator Removal | Rewrites exploit emails on Exchange server to strip malicious content post-infection (parent technique used; T1070.008 Clear Mailbox Data covers deletion, not in-place body modification) |
 
 ## Impact Assessment
 
@@ -209,7 +210,8 @@ index=dns query_length>50 query=*[a-z2-7]{32,}*
 ### Long-Term Hardening
 
 - Restrict OWA access to managed devices and trusted networks; require VPN or conditional access policies.
-- Deploy Content Security Policy (CSP) headers on OWA endpoints to limit the impact of future XSS vulnerabilities.
+<!-- revision: added CSP report-only testing caveat -->
+- Deploy Content Security Policy (CSP) headers on OWA endpoints to limit the impact of future XSS vulnerabilities. **Test in `Content-Security-Policy-Report-Only` mode first** -- a misconfigured CSP can break OWA functionality (add-ins, inline scripts, embedded images).
 - Disable OWA offline mode organization-wide unless specifically required.
 - Enable and monitor mailbox audit logging with focus on folder permission changes and OAuth token operations.
 - Consider migrating to Exchange Online, which receives mitigations faster and is not affected by this vulnerability.
@@ -217,21 +219,24 @@ index=dns query_length>50 query=*[a-z2-7]{32,}*
 
 ## Detection Rules
 
-These detections target OWAReaper's distinctive C2 mechanism (GitHub Commit Search API polling) and the JavaScript implant's signature strings. The Sigma rule converts cleanly to Splunk and CrowdStrike LogScale; Snort and Suricata rules cover network-level detection; the YARA rule targets the implant payload in files, browser cache exports, or memory dumps. Note: compiles does not equal fires -- verify all rules against your environment's telemetry before production deployment.
+<!-- revision: updated summary to reflect revised confidence levels -->
+These detections target OWAReaper's distinctive C2 mechanism (GitHub Commit Search API polling with email-scoped queries) and the JavaScript implant's signature strings. The Sigma rule converts cleanly to Splunk and CrowdStrike LogScale; Snort and Suricata rules cover network-level detection; the YARA rule targets the implant payload in files, browser cache exports, or memory dumps. Note: compiles does not equal fires -- verify all rules against your environment's telemetry before production deployment.
 
+<!-- revision: added cs-uri-query|contains:'@' to narrow to email-scoped queries (the documented C2 polling pattern); downgraded confidence medium->low -->
 ### Sigma: GitHub Commit Search API Request - OWAReaper C2 Channel
 
-Detects proxy log entries showing requests to the GitHub Commit Search API, the primary C2 polling mechanism used by OWAReaper every 24 hours.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed due to environment (MITRE ATT&CK data fetch blocked by proxy - HTTP 403, not a rule issue); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. No pipeline-mapped conversion attempted (no proxy pipeline available). FP risk: legitimate developer use of GitHub Commit Search API; reduce by scoping to non-developer endpoint populations. Evasion: actor could switch C2 to a different GitHub API or alternate platform. -->
+Detects proxy log entries showing requests to the GitHub Commit Search API with an email address in the query string, consistent with OWAReaper's 24-hour C2 polling pattern.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check failed due to environment (MITRE ATT&CK data fetch blocked by proxy - HTTP 403, not a rule issue); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. No pipeline-mapped conversion attempted (no proxy pipeline available). FP risk: legitimate developer use of GitHub Commit Search API with email-scoped author filters; reduce by scoping to non-developer endpoint populations. Evasion: actor could switch C2 to a different GitHub API or alternate platform. Rev 1->implicit: added cs-uri-query|contains:'@' per critic. -->
 ```yaml
 title: GitHub Commit Search API Request - Potential OWAReaper C2 Channel
 id: b3f4a892-1e7d-4c5a-9b3e-8d2f6a1c0e7b
 status: experimental
 description: >
-    Detects HTTP requests to the GitHub Commit Search API (api.github.com/search/commits),
-    used by OWAReaper as a C2 polling channel. The implant queries this endpoint every 24 hours
-    for commit messages containing the target email address to receive encrypted commands.
+    Detects HTTP requests to the GitHub Commit Search API (api.github.com/search/commits)
+    containing an email address in the query string, consistent with OWAReaper's C2 polling
+    pattern. The implant queries this endpoint every 24 hours for commit messages containing
+    the target email address to receive encrypted commands.
 references:
     - https://www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/
     - https://thehackernews.com/2026/07/russian-hackers-exploit-microsoft-owa.html
@@ -246,36 +251,40 @@ detection:
     selection:
         cs-host: 'api.github.com'
         cs-uri-stem|contains: '/search/commits'
+        cs-uri-query|contains: '@'
     condition: selection
 falsepositives:
-    - Legitimate developer tools querying the GitHub Commit Search API
-    - CI/CD pipeline integrations searching commits
+    - Legitimate developer tools querying the GitHub Commit Search API with email-scoped filters
+    - CI/CD pipeline integrations searching commits by author email
 level: medium
 ```
 
+<!-- revision: added content:"@"; http_uri; to narrow to email-scoped queries; downgraded confidence medium->low; rev 1->2 -->
 ### Snort: OWAReaper C2 via GitHub Commit Search API
 
-Detects outbound HTTP traffic to the GitHub Commit Search API endpoint, consistent with OWAReaper C2 polling.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf (with rule included) -T exit 0. Snort 2.9.20 validated. Matches /search/commits in URI + api.github.com in HTTP headers. FP: legitimate GitHub API usage; scope to Exchange/OWA user segments. -->
+Detects outbound HTTP traffic to the GitHub Commit Search API with an `@` in the URI, narrowing to the email-scoped query pattern used by OWAReaper C2.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: snort -c /etc/snort/snort.conf (with rule in rules/) -T exit 0. Snort 2.9.20 validated. Matches /search/commits + @ in URI + api.github.com in HTTP headers. FP: legitimate GitHub API usage with email author filters; scope to Exchange/OWA user segments. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OWAReaper C2 via GitHub Commit Search API"; flow:established,to_server; content:"/search/commits"; http_uri; fast_pattern; content:"api.github.com"; http_header; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/; sid:2100101; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OWAReaper C2 via GitHub Commit Search API"; flow:established,to_server; content:"/search/commits"; http_uri; fast_pattern; content:"@"; http_uri; content:"api.github.com"; http_header; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/; sid:2100101; rev:2;)
 ```
 
+<!-- revision: added content:"@" under http.uri to narrow to email-scoped queries; downgraded confidence medium->low; rev 1->2 -->
 ### Suricata: OWAReaper C2 via GitHub Commit Search API
 
-Detects outbound HTTP traffic to the GitHub Commit Search API endpoint using Suricata dot-notation sticky buffers.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. Suricata 7.0.3. Uses http.host + http.uri dot-notation buffers. Same FP/evasion profile as Snort rule above. -->
+Detects outbound HTTP traffic to the GitHub Commit Search API with an `@` in the URI, narrowing to OWAReaper's email-scoped C2 polling pattern (Suricata dot-notation buffers).
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: suricata -T -S /tmp/actioner/owa-suri-revised.rules -l /tmp/actioner exit 0. Suricata 7.0.3. Uses http.host + http.uri with both /search/commits and @ content matches in single buffer. Same FP/evasion profile as Snort rule above. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OWAReaper C2 via GitHub Commit Search API"; flow:established,to_server; http.host; content:"api.github.com"; http.uri; content:"/search/commits"; fast_pattern; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/; metadata:author Actioner, created_at 2026-07-30; sid:2200101; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OWAReaper C2 via GitHub Commit Search API"; flow:established,to_server; http.host; content:"api.github.com"; http.uri; content:"/search/commits"; fast_pattern; content:"@"; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/; metadata:author Actioner, created_at 2026-07-30; sid:2200101; rev:2;)
 ```
 
+<!-- revision: removed sample:fired (constructed test only, not real malware); tightened c2_github branch to require all 3 cmd strings (was 2 of 3); downgraded confidence high->medium -->
 ### YARA: OWAReaper JavaScript Implant Strings
 
 Detects the OWAReaper JavaScript implant via distinctive string combinations: OAuth token theft API (`GetClientAccessToken`), EWS folder permission modification (`UpdateFolder`), GitHub C2 endpoint, and custom command type identifiers (`cmnd`, `domn`, `code`). Targets cached files, browser storage exports, HTML email bodies, or memory dumps.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive file (constructed from published API/command strings) matched; negative file (benign JS with partial overlap) did not match. The positive uses source-published strings (GetClientAccessToken, UpdateFolder, search/commits, cmnd/domn/code) per Proofpoint/news reporting. Condition requires multiple string class overlap, reducing FP risk to near-zero for legitimate files. Evasion: obfuscation of string constants would defeat this rule; behavioral detection would be needed. -->
+**Status:** compile ✅ compiles · confidence: medium · sample: none (constructed test only)
+<!-- audit: yarac exit 0. Prior sample test used constructed input (not a real malware artifact) -- sample:fired removed per critic. Condition tightened: c2_github branch now requires all 3 command strings (cmnd+domn+code) instead of 2-of-3, reducing FP surface. Strings sourced from Proofpoint/news reporting (GetClientAccessToken, UpdateFolder, search/commits, cmnd/domn/code). Evasion: obfuscation of string constants would defeat this rule; behavioral detection would be needed. -->
 ```yara
 rule APT_TA488_OWAReaper_JavaScript_Implant
 {
@@ -301,7 +310,7 @@ rule APT_TA488_OWAReaper_JavaScript_Implant
         filesize < 5MB and
         (
             ($api1 and $api2 and 1 of ($cmd*)) or
-            ($c2_github and 2 of ($cmd_exec, $cmd_rotate, $cmd_replace)) or
+            ($c2_github and $cmd_exec and $cmd_rotate and $cmd_replace) or
             ($api1 and $c2_github and $crypto) or
             (1 of ($api*) and $c2_github and 1 of ($persist*) and 1 of ($cmd*))
         )
@@ -325,8 +334,10 @@ OWAReaper represents a significant evolution in webmail exploitation tradecraft.
 - [The Hacker News -- Russian Hackers Exploit Microsoft OWA](https://thehackernews.com/2026/07/russian-hackers-exploit-microsoft-owa.html) -- CVSS 8.1 scoring, detailed OWAReaper execution chain, command types (code/domn/cmnd), ZimReaper predecessor details
 - [Infosecurity Magazine -- TA488 Outlook Half-Click OWAReaper](https://www.infosecurity-magazine.com/news/ta488-outlook-half-click-owareaper/) -- remediation guidance (EWS token revocation, folder permission removal, localStorage clearing), on-premises-only scope
 - [Microsoft Exchange Team -- Released: July 2026 Exchange Server Security Updates](https://techcommunity.microsoft.com/blog/exchange/released-july-2026-exchange-server-security-updates/4534146) -- vendor remediation advisory (content not fully extractable at fetch time)
-- [Proofpoint Threat Insight -- "Cleaning out Inboxes: TA488 comes to Outlook with another half-click exploit"](https://www.proofpoint.com/us/blog/threat-insight/) -- primary technical research (full report URL not confirmed; IOC appendix not accessible at draft time)
-- [Earlier Actioner analysis -- CVE-2026-42897 Exchange OWA XSS](2026-06-11-exchange-cve-2026-42897.md) -- prior analysis of the underlying vulnerability before OWAReaper attribution
+<!-- revision: annotated Proofpoint URL as approximate (blog index, not direct report link) -->
+- [Proofpoint Threat Insight -- "Cleaning out Inboxes: TA488 comes to Outlook with another half-click exploit"](https://www.proofpoint.com/us/blog/threat-insight/) -- primary technical research (URL is the blog index, not the specific report; full report URL not confirmed at draft time; IOC appendix not accessible)
+<!-- revision: fixed bare file path to proper relative markdown link -->
+- Earlier Actioner analysis -- CVE-2026-42897 Exchange OWA XSS: see [`summaries/2026-06-11-exchange-cve-2026-42897.md`](2026-06-11-exchange-cve-2026-42897.md) in this repository -- prior analysis of the underlying vulnerability before OWAReaper attribution
 
 ---
 *Report generated by Actioner*
