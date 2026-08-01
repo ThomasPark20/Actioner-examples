@@ -1,0 +1,10 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"Actioner - DEV#POPPER Sec-V Campaign Header (Joyfill)";
+    flow:established, to_server;
+    http_header;
+    content:"Sec-V|3a 20|A9-0135-3", fast_pattern;
+    classtype:trojan-activity;
+    reference:url,socket.dev/blog/joyfill-npm-beta-releases-compromised;
+    metadata:author Actioner, created 2026-08-01;
+    sid:2100001; rev:1;
+)

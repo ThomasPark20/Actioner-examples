@@ -1,0 +1,30 @@
+title: Network Connection to Joyfill DEV#POPPER C2 Infrastructure
+id: 8a3c7e12-4f5b-4d91-b6e2-1c9f0a7d3e58
+status: experimental
+description: >
+    Detects outbound network connections to known C2 IP addresses used by the
+    DEV#POPPER RAT delivered via compromised @joyfill npm beta packages
+    (July 2026). Covers Socket.IO C2, boot payload, and fallback servers.
+references:
+    - https://socket.dev/blog/joyfill-npm-beta-releases-compromised
+    - https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html
+author: Actioner
+date: 2026/08/01
+tags:
+    - attack.t1071.001
+    - attack.t1102
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp:
+            - '166.88.134.62'
+            - '23.27.13.43'
+            - '198.105.127.210'
+            - '23.27.202.27'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on these IPs (unlikely given dedicated C2 use)
+level: high

@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-01
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -57,7 +57,7 @@ Rather than hardcoding C2 servers, the implant resolves encrypted payloads throu
 **Fallback (Aptos):** Account `0xbe037400...80811e` carries the hash in a 0-value transfer recipient address.
 
 **Secondary path (detached process):**
-A parallel `child_process.spawn("node", ["-e", payload])` with `detached: true, stdio: "ignore", windowsHide: true` runs independently. It queries Tron address `TXfxHUet9pJVU1BgVkBAbrES4YUc1nGzcG`, resolves to `23.27.13.43/$/boot`, and XOR-decrypts the response with key `ThZG+0jfXE6VAGOJ`. The process calls `unref()` to continue independent of the parent.
+A parallel `child_process.spawn("node", ["-e", payload])` with `detached: true, stdio: "ignore", windowsHide: true` runs independently. It queries Tron address `TXfxHUet9pJVU1BgVkBAbrES4YUc1nGzcG`, resolves to `23.27.13[.]43/$/boot`, and XOR-decrypts the response with key `ThZG+0jfXE6VAGOJ`. The process calls `unref()` to continue independent of the parent.
 
 ### 3. DEV#POPPER RAT (Stage 3 -- "clientCode")
 
@@ -79,7 +79,7 @@ The recovered 77 KB payload (SHA-256: `26351aed0397158d3a3b8cc8fd3047d4c015d264c
 | `ss_exit` / `ss_exit_f` | Process termination |
 | `~py` | Spawn Python credential stealer |
 
-**Campaign-based C2 routing:** The campaign tag `_V = "A9-0135-3"` (Joyfill vector) routes to `166.88.134.62:443` (Socket.IO) and `166.88.134.62` (uploads). Numeric campaigns use `198.105.127.210:443` (primary) and `23.27.202.27:443` (fallback).
+**Campaign-based C2 routing:** The campaign tag `_V = "A9-0135-3"` (Joyfill vector) routes to `166.88.134[.]62:443` (Socket.IO) and `166.88.134[.]62` (uploads). Numeric campaigns use `198.105.127[.]210:443` (primary) and `23.27.202[.]27:443` (fallback).
 
 ### 4. Worm Propagation and Persistence
 
@@ -230,7 +230,7 @@ Staged under `%USERPROFILE%\.npm` (Windows) or `/tmp/.npm` (macOS/Linux), the Py
 | T1059.001 | Command and Scripting Interpreter: PowerShell | `powershell -NoProfile -Command "Get-Clipboard"` for clipboard theft on Windows |
 | T1102 | Web Service | Multi-blockchain C2 resolution via Tron, Aptos, and BNB Smart Chain public APIs |
 | T1071.001 | Application Layer Protocol: Web Protocols | Socket.IO (WebSocket/HTTP) C2 channel; HTTP multipart uploads for exfiltration |
-| T1547 | Boot or Logon Autostart Execution | Injection into VS Code, Discord, GitHub Desktop, and global npm CLI for persistence |
+| T1554 | Compromise Host Software Binary | Injection into VS Code, Discord, GitHub Desktop, and global npm CLI for persistence |
 | T1115 | Clipboard Data | Platform-specific clipboard theft (PowerShell/pbpaste/xclip/xsel) |
 | T1555 | Credentials from Password Stores | Browser password extraction, OS credential manager harvesting, Keychain/GNOME Keyring/KWallet access |
 | T1005 | Data from Local System | Exfiltration of browser data, crypto wallets, Git credentials, VS Code storage |
@@ -280,7 +280,7 @@ Get-ChildItem "$env:USERPROFILE\.npm" -Force 2>$null
 2. **Inspect developer tools** for injection sentinels. Reinstall VS Code, Discord Desktop, GitHub Desktop, and global npm if sentinels are found.
 3. **Rotate all credentials** that were present on affected machines: npm tokens, GitHub tokens/SSH keys, Git credentials, browser-stored passwords, cryptocurrency wallet keys, cloud provider credentials, API keys.
 4. **Audit CI/CD pipelines** for the compromised versions. Rebuild any containers or images that may have cached the malicious packages.
-5. **Block C2 IPs** at the network perimeter: `166.88.134.62`, `23.27.13.43`, `198.105.127.210`, `23.27.202.27`.
+5. **Block C2 IPs** at the network perimeter: `166.88.134[.]62`, `23.27.13[.]43`, `198.105.127[.]210`, `23.27.202[.]27`.
 
 ### Long-Term Hardening
 
@@ -332,19 +332,20 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Suspicious npm Self-Installation of Socket.IO Client to Temp Directory
+### Sigma: Suspicious npm Self-Installation of Socket.IO Client via --prefix
 
-Detects npm installing socket.io-client with a custom `--prefix` to a non-standard directory, the exact self-provisioning pattern used by the DEV#POPPER RAT bootstrap.
+Detects npm installing socket.io-client with a custom `--prefix`, the exact self-provisioning pattern used by the DEV#POPPER RAT bootstrap.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk exit 0, log_scale exit 0. Pattern is highly distinctive — legitimate devs do not npm install socket.io-client with --prefix to temp dirs at runtime. Cross-platform: works on any OS with Sysmon or equivalent process_creation logging. -->
+<!-- audit: sigma convert --without-pipeline splunk exit 0, log_scale exit 0. Pattern is highly distinctive — legitimate devs do not npm install socket.io-client with --prefix at runtime. Cross-platform: works on any OS with Sysmon or equivalent process_creation logging. -->
+<!-- revision: title shortened from "to Temp Directory" to "via --prefix" — rule has no temp-path condition, title over-promised. -->
 ```yaml
-title: Suspicious npm Self-Installation of Socket.IO Client to Temp Directory
+title: Suspicious npm Self-Installation of Socket.IO Client via --prefix
 id: 2d4b8f16-a7e3-49c5-8d1a-5e6f2b9c0d73
 status: experimental
 description: >
-    Detects npm installing socket.io-client with a custom --prefix pointing to a
-    temporary directory, a behavior observed in the DEV#POPPER RAT bootstrap
-    when it self-provisions its Socket.IO dependency at runtime.
+    Detects npm installing socket.io-client with a custom --prefix flag,
+    a behavior observed in the DEV#POPPER RAT bootstrap when it
+    self-provisions its Socket.IO dependency at runtime.
 references:
     - https://socket.dev/blog/joyfill-npm-beta-releases-compromised
     - https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html
@@ -368,19 +369,20 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Clipboard Data Theft via PowerShell Get-Clipboard
+### Sigma: Clipboard Data Theft via PowerShell Get-Clipboard from Node.js
 
-Detects PowerShell execution of `Get-Clipboard` with `-NoProfile`, matching the exact clipboard exfiltration command used by the DEV#POPPER RAT `ss_cb` handler on Windows.
+Detects PowerShell `Get-Clipboard` spawned from node.exe, matching the DEV#POPPER RAT `ss_cb` clipboard exfiltration handler.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline splunk exit 0, log_scale exit 0. Medium confidence: Get-Clipboard with -NoProfile is somewhat specific but could appear in legitimate automation. The combination with -NoProfile is the distinctive indicator per eSentire analysis. -->
+<!-- audit: sigma convert --without-pipeline splunk exit 0, log_scale exit 0. Medium confidence: Get-Clipboard with -NoProfile is somewhat generic on its own; adding ParentImage node.exe narrows to the campaign-specific execution chain per eSentire analysis. Without the parent filter this would be behavioral/TTP altitude. -->
+<!-- revision: added ParentImage|endswith '\node.exe' to make campaign-specific per critic altitude-mismatch finding. -->
 ```yaml
-title: Clipboard Data Theft via PowerShell Get-Clipboard
+title: Clipboard Data Theft via PowerShell Get-Clipboard from Node.js
 id: 5c1e9d47-b3a2-4f68-9e0c-7a8d6f1b2e34
 status: experimental
 description: >
-    Detects PowerShell execution of Get-Clipboard with -NoProfile, matching the
-    exact command pattern used by the DEV#POPPER RAT ss_cb command for clipboard
-    data exfiltration on Windows.
+    Detects PowerShell execution of Get-Clipboard with -NoProfile spawned by
+    node.exe, matching the DEV#POPPER RAT ss_cb command for clipboard data
+    exfiltration on Windows.
 references:
     - https://socket.dev/blog/joyfill-npm-beta-releases-compromised
     - https://www.esentire.com/blog/north-korean-apt-malware-analysis-dev-popper-rat-and-omnistealer-everyday-im-shufflin
@@ -393,14 +395,14 @@ logsource:
     product: windows
 detection:
     selection:
+        ParentImage|endswith: '\node.exe'
         CommandLine|contains|all:
             - 'powershell'
             - '-NoProfile'
             - 'Get-Clipboard'
     condition: selection
 falsepositives:
-    - Legitimate automation scripts reading clipboard content
-    - IT administration tools
+    - Legitimate Node.js automation scripts reading clipboard content
 level: medium
 ```
 
@@ -443,8 +445,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DEV#POPPER Boot P
 ### YARA: Malicious Joyfill npm Bundle (DEV#POPPER Loader)
 
 Detects malicious @joyfill npm distribution bundles containing the DEV#POPPER loader based on the campaign marker, XOR decryption keys, injection comment sentinels, and global stash patterns.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos.txt (containing published strings 9-0135-3 + XOR key + global._p_t) matched; neg.txt (benign module.exports) quiet. Strings sourced from Socket and StepSecurity published analysis. filesize < 5MB accommodates npm bundle size while excluding very large files. -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic-positive only
+<!-- audit: yarac exit 0. yara pos.txt (manually constructed text file containing published strings 9-0135-3 + XOR key + global._p_t) matched; neg.txt (benign module.exports) quiet — but positive is synthetic, not an actual malicious @joyfill tarball. Strings sourced from Socket and StepSecurity published analysis. filesize < 5MB accommodates npm bundle size while excluding very large files. -->
+<!-- revision: relabeled from "sample: fired" to "sample: synthetic-positive only" — positive test used a manually constructed text file, not an actual malicious tarball. -->
 ```yara
 rule Malware_DEVPOPPER_Joyfill_Bundle
 {
