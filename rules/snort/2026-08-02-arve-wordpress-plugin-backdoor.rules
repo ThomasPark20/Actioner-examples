@@ -1,0 +1,1 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ARVE Backdoor C2 Domain fontswp.com (CVE-2026-18072)"; content:"|07|fontswp|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,hackread.com/wordfence-critical-backdoor-arve-wordpress-plugin/; reference:cve,2026-18072; sid:2100101; rev:1;)

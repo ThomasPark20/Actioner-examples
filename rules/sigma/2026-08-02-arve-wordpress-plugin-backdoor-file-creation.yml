@@ -1,0 +1,25 @@
+title: ARVE Backdoor File Creation - fn-update-check.php
+id: b8d4e6a1-3c7f-4e2b-9d5a-1f0c8b7e6d3a
+status: experimental
+description: >
+    Detects creation of the fn-update-check.php backdoor file in the
+    ARVE plugin directory, indicative of CVE-2026-18072 supply-chain compromise.
+references:
+    - https://hackread.com/wordfence-critical-backdoor-arve-wordpress-plugin/
+    - https://blog.toolslib.net/2026/07/29/cve-2026-18072-arve-backdoor/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1195.002
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: 'advanced-responsive-video-embedder'
+        TargetFilename|endswith: '/php/fn-update-check.php'
+    condition: selection
+falsepositives:
+    - Legitimate ARVE plugin updates that include this file path (verify plugin version)
+level: high

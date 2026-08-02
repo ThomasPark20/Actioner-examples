@@ -3,7 +3,8 @@
 Prepared by: Actioner (CTI / Detection Engineering)
 Classification: TLP:CLEAR
 Date: 2026-08-02
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 — critic NEEDS-REVISION applied: (1) T1078.001→T1078.003 (hijacks local admin, not default accts); (2) defanged all prose occurrences of fontswp.com; (3) YARA sample label fired→constructed (synthetic sample, not captured); (4) Sigma rule 1 audit comment: POST/cookie gap noted; (5) standalone rule files written. -->
 
 ## Executive Summary
 
@@ -104,7 +105,7 @@ This data is sent to the external domain `fontswp[.]com`, which serves as the co
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Attacker compromised the developer's WordPress.org account to inject malicious code into the plugin release |
 | T1556 | Modify Authentication Process | Backdoor bypasses WordPress authentication by creating admin sessions via hardcoded token comparison |
-| T1078.001 | Valid Accounts: Default Accounts | Backdoor impersonates existing administrator accounts without credentials |
+| T1078.003 | Valid Accounts: Local Accounts | Backdoor hijacks existing local administrator accounts without credentials |
 | T1041 | Exfiltration Over C2 Channel | Site URL and admin username exfiltrated to fontswp[.]com upon successful exploitation |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Backdoor file named `fn-update-check.php` to mimic legitimate plugin update code |
 
@@ -144,7 +145,7 @@ grep -i "version" /path/to/wordpress/wp-content/plugins/advanced-responsive-vide
 3. **Invalidate sessions**: Force logout of all users (`DELETE FROM wp_usermeta WHERE meta_key LIKE '%session_tokens%'`).
 4. **Rotate secrets**: Regenerate all WordPress salts and secret keys in `wp-config.php`.
 5. **Reset credentials**: Force password resets for all administrator accounts.
-6. **Block C2**: Block outbound connections to `fontswp.com` at the firewall.
+6. **Block C2**: Block outbound connections to `fontswp[.]com` at the firewall.
 7. **Full audit**: Inspect files and database records for secondary backdoors, web shells, or unauthorized content changes.
 
 ### Long-Term Hardening
@@ -157,13 +158,13 @@ grep -i "version" /path/to/wordpress/wp-content/plugins/advanced-responsive-vide
 
 ## Detection Rules
 
-These rules target the ARVE backdoor's distinctive artifacts: the `_wplogin`/`_wpm` request parameters in web logs, the `_arve_uc_init` function and C2 domain in the PHP backdoor file, and DNS/HTTP traffic to the C2 domain `fontswp.com`. All rules are PoC/advisory-specific (default altitude, strict leniency). Compile status reflects actual tool validation; confidence reflects the distinctiveness of the matched artifact.
+These rules target the ARVE backdoor's distinctive artifacts: the `_wplogin`/`_wpm` request parameters in web logs, the `_arve_uc_init` function and C2 domain in the PHP backdoor file, and DNS/HTTP traffic to the C2 domain `fontswp[.]com`. All rules are PoC/advisory-specific (default altitude, strict leniency). Compile status reflects actual tool validation; confidence reflects the distinctiveness of the matched artifact.
 
 ### Sigma: ARVE Backdoor Exploitation via _wplogin/_wpm Parameters
 
 Detects HTTP requests containing the `_wplogin` or `_wpm` query parameters used by the ARVE backdoor to trigger admin impersonation.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag — MITRE data unreachable from this env); splunk convert 0; log_scale convert 0. Parameters _wplogin/_wpm are highly distinctive to this backdoor; false-positive risk minimal. -->
+<!-- audit: sigma check 0 (excl. attacktag — MITRE data unreachable from this env); splunk convert 0; log_scale convert 0. Parameters _wplogin/_wpm are highly distinctive to this backdoor; false-positive risk minimal. Coverage gap: this rule keys on cs-uri-query (GET query strings); the backdoor also accepts the token via POST body and cookies, which standard webserver logs do not capture. POST/cookie delivery requires application-layer or WAF logging for detection. -->
 ```yaml
 title: ARVE WordPress Plugin Backdoor Exploitation Attempt
 id: f3a7c1e2-8b4d-4f9a-ae5c-6d2b1c0e9f8a
@@ -229,8 +230,8 @@ level: high
 ### YARA: ARVE WordPress Plugin Backdoor Detection
 
 Detects the ARVE backdoor PHP file by matching its distinctive function name, request parameters, and C2 domain.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac 0. Positive sample (constructed from published indicators: _arve_uc_init, _wplogin, fontswp.com, add_action, wp_set_auth_cookie) fires; benign PHP negative sample silent. Condition requires $func AND ($param1 OR $param2) AND ($c2 OR $wp_cookie) AND $hook — multi-string conjunction minimizes FP. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac 0. Positive tested against a sample constructed from published indicators (_arve_uc_init, _wplogin, fontswp.com, add_action, wp_set_auth_cookie) — not a real captured sample. Benign PHP negative sample silent. Condition requires $func AND ($param1 OR $param2) AND ($c2 OR $wp_cookie) AND $hook — multi-string conjunction minimizes FP. -->
 ```yara
 rule Supply_Chain_ARVE_WordPress_Backdoor_CVE_2026_18072
 {
@@ -259,18 +260,18 @@ rule Supply_Chain_ARVE_WordPress_Backdoor_CVE_2026_18072
 }
 ```
 
-### Snort: DNS Query to ARVE Backdoor C2 Domain fontswp.com
+### Snort: DNS Query to ARVE Backdoor C2 Domain fontswp[.]com
 
-Detects DNS queries to the C2 domain `fontswp.com` used by the ARVE backdoor for data exfiltration.
+Detects DNS queries to the C2 domain `fontswp[.]com` used by the ARVE backdoor for data exfiltration.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -c minimal-config -T 0 (Snort 2.9.20). DNS label-length encoding |07|fontswp|03|com|00| matches wire format. Domain fontswp.com is attacker-controlled C2; no known legitimate use. -->
 ```snort
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ARVE Backdoor C2 Domain fontswp.com (CVE-2026-18072)"; content:"|07|fontswp|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,hackread.com/wordfence-critical-backdoor-arve-wordpress-plugin/; reference:cve,2026-18072; sid:2100101; rev:1;)
 ```
 
-### Suricata: DNS Query to ARVE Backdoor C2 Domain fontswp.com
+### Suricata: DNS Query to ARVE Backdoor C2 Domain fontswp[.]com
 
-Detects DNS queries to the C2 domain `fontswp.com` used by the ARVE backdoor for data exfiltration.
+Detects DNS queries to the C2 domain `fontswp[.]com` used by the ARVE backdoor for data exfiltration.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T 0 (Suricata 7.0.3). Uses dns.query sticky buffer with fontswp.com domain. Domain is attacker-controlled C2; no known legitimate use. -->
 ```suricata
