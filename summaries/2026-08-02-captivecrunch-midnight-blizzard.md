@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-02
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -145,6 +145,8 @@ Since July 16, CaptiveCrunch landing pages added device code phishing: guests ar
 > - URLs: `hxxps://` or `hxxp://` (e.g., `hxxps://evil[.]com/payload`)
 > - Domains: `[.]` replacing dots (e.g., `evil[.]com`)
 > - IP addresses: `[.]` replacing dots (e.g., `1.2.3[.]4`)
+>
+> IOCs within detection rule match patterns are **not** defanged, as defanging would prevent the rules from firing.
 
 ### File System
 
@@ -209,7 +211,8 @@ Since July 16, CaptiveCrunch landing pages added device code phishing: guests ar
 | T1071.001 | Application Layer Protocol: Web Protocols | ChocoShell HTTPS C2 with URI path obfuscation |
 | T1005 | Data from Local System | CornFlake file exfiltration with extension-based targeting |
 | T1041 | Exfiltration Over C2 Channel | GZip-compressed JSON POST to /t/event |
-| T1621 | Multi-Factor Authentication Request Generation | Device code phishing granting MFA-satisfied access |
+| T1528 | Steal Application Access Token | Device code phishing granting MFA-satisfied OAuth access to Microsoft 365 |
+<!-- revision: Replaced T1621 (MFA Request Generation / push bombing) with T1528 (Steal Application Access Token) — device code OAuth phishing steals tokens, it does not generate MFA push requests. -->
 
 ## Impact Assessment
 
@@ -335,19 +338,21 @@ falsepositives:
 level: high
 ```
 
-### Sigma: ChocoShell UAC Bypass via SilentCleanup Environment Variable Hijack
+### Sigma: UAC Bypass via SilentCleanup Environment Variable Hijack (TTP)
 
-Detects the SilentCleanup UAC bypass where `HKCU\Environment\windir` is modified to hijack the elevated task execution path.
-**Status:** compile ✅ compiles · confidence: high
+Detects the SilentCleanup UAC bypass where `HKCU\Environment\windir` is modified to hijack the elevated task execution path. This is a TTP-level rule -- the technique is used by multiple threat actors beyond CaptiveCrunch.
+**Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. This UAC bypass technique is well-documented but setting the windir env var under HKCU is extremely rare in benign contexts. -->
+<!-- revision: (1) Renamed from "ChocoShell UAC Bypass" to TTP-level — technique is not CaptiveCrunch-specific. Confidence downgraded high→medium. (2) Dropped TargetObject|contains:'HKCU' filter — Sysmon logs HKU\<SID>\... not HKCU\...; the endswith '\Environment\windir' is sufficiently narrow on its own. -->
 ```yaml
-title: ChocoShell UAC Bypass via SilentCleanup Environment Variable Hijack
+title: UAC Bypass via SilentCleanup Environment Variable Hijack
 id: b3c4d5e6-f7a8-4901-bcde-f12345678901
 status: experimental
 description: >
-    Detects the SilentCleanup UAC bypass technique used by ChocoShell where the windir
-    environment variable is set under HKCU\Environment to hijack the elevated
-    SilentCleanup scheduled task execution path.
+    Detects the SilentCleanup UAC bypass technique where the windir environment variable
+    is set under the user registry hive Environment key to hijack the elevated
+    SilentCleanup scheduled task execution path. Used by ChocoShell in the CaptiveCrunch
+    campaign and by other threat actors. TTP-level detection.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
 author: Actioner
@@ -361,18 +366,18 @@ logsource:
 detection:
     selection:
         TargetObject|endswith: '\Environment\windir'
-        TargetObject|contains: 'HKCU'
     condition: selection
 falsepositives:
     - Legitimate software modifying user-level windir environment variable (rare)
-level: high
+level: medium
 ```
 
 ### Sigma: ChocoShell C2 Beacon URI Pattern
 
-Detects HTTP requests matching the ChocoShell C2 beacon (`/t/pixel.gif?m=`), payload fetch (`polyfill-7e2b`), and exfiltration (`/t/event`) URI patterns.
+Detects HTTP requests matching the ChocoShell C2 beacon (`/t/pixel.gif?m=`) and payload fetch (`polyfill-7e2b`) URI patterns.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. URI patterns are distinctive and campaign-specific. Filter by destination IP/domain for environments with high-volume tracking pixels. -->
+<!-- revision: Removed selection_exfil (POST /t/event) — analytics platforms (Segment, Amplitude) commonly POST to /t/event, producing significant FP. Beacon and payload arms are campaign-specific and stand alone. -->
 ```yaml
 title: ChocoShell C2 Beacon URI Pattern
 id: c4d5e6f7-a8b9-4012-cdef-123456789012
@@ -395,20 +400,18 @@ detection:
         cs-uri-query|contains: 'm='
     selection_payload:
         cs-uri-stem: '/cdn/chunks/polyfill-7e2b.min.js'
-    selection_exfil:
-        cs-method: 'POST'
-        cs-uri-stem: '/t/event'
-    condition: selection_beacon or selection_payload or selection_exfil
+    condition: selection_beacon or selection_payload
 falsepositives:
     - Legitimate tracking pixels with similar URI structure (filter by destination)
 level: high
 ```
 
-### Sigma: Wi-Fi Credential Harvesting via netsh
+### Sigma: Wi-Fi Credential Harvesting via netsh (TTP)
 
-Detects `netsh wlan show profile` with `key=clear` used by ChocoShell to harvest stored Wi-Fi credentials.
+Detects `netsh wlan show profile` with `key=clear` to harvest stored Wi-Fi credentials. This is a TTP-level rule -- the technique is used by many threat actors and penetration testing tools, not only CaptiveCrunch/ChocoShell.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. netsh wlan profile dump with key=clear is a known technique used by multiple threat actors; medium confidence due to legitimate admin usage. -->
+<!-- revision: Relabeled as TTP altitude — netsh wlan key=clear is generic, not CaptiveCrunch-specific. Detection logic and medium confidence unchanged. -->
 ```yaml
 title: Wi-Fi Credential Harvesting via netsh
 id: d5e6f7a8-b9c0-4123-defa-234567890123
@@ -477,9 +480,10 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChocoShell C2 Pay
 
 ### YARA: CornFlake RAT and ChocoShell Stealer
 
-Detects CornFlake RAT via its distinctive service name, display name, and dropper strings; detects ChocoShell via its C2 URI patterns and credential theft indicators. CornFlake rule sample-tested: fires on positive, silent on negative.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara positive test: matched Malware_CornFlake_RAT_CaptiveCrunch on pos_cornflake.txt containing published strings (svchost32 + Cloud Sync Service). Negative test: no match on benign file. ChocoShell rule not independently sample-tested (no in-memory script sample). Condition requires 2+ campaign-specific strings to fire, limiting FP. -->
+Detects CornFlake RAT via its distinctive service name, display name, and dropper strings; detects ChocoShell via its C2 URI patterns and credential theft indicators.
+**Status:** compile ✅ compiles · confidence: high · CornFlake sample: constructed (synthetic string file, not real binary) · ChocoShell sample: compile-only (no in-memory script sample available)
+<!-- audit: yarac exit 0. yara positive test: matched Malware_CornFlake_RAT_CaptiveCrunch on pos_cornflake.txt containing published strings (svchost32 + Cloud Sync Service) — synthetic text file, not real binary. Negative test: no match on benign file. ChocoShell rule not independently sample-tested (no in-memory script sample). Condition requires 2+ campaign-specific strings to fire, limiting FP. -->
+<!-- revision: Relabeled CornFlake sample status from "fired" to "constructed" — test used synthetic text file, not real binary. ChocoShell explicitly labeled "compile-only" — no sample was available for testing. -->
 ```yara
 rule Malware_CornFlake_RAT_CaptiveCrunch
 {

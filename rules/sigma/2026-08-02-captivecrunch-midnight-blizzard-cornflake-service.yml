@@ -1,0 +1,27 @@
+title: CornFlake RAT Windows Service Registration
+id: 7c4e1a3b-9f2d-4e8a-b5c6-d1e7f0a2b3c4
+status: experimental
+description: >
+    Detects registration of the CornFlake RAT Windows service with the distinctive
+    service name "svchost32" and display name "Cloud Sync Service" used by Storm-2945
+    in the CaptiveCrunch campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1543.003
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_path:
+        TargetObject|contains: '\SYSTEM\CurrentControlSet\Services\svchost32'
+    selection_values:
+        Details|contains:
+            - 'Cloud Sync Service'
+            - 'Synchronizes files with the cloud storage provider'
+    condition: selection_path or selection_values
+falsepositives:
+    - Unknown; service name and description are campaign-specific
+level: high

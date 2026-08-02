@@ -1,0 +1,25 @@
+title: UAC Bypass via SilentCleanup Environment Variable Hijack
+id: b3c4d5e6-f7a8-4901-bcde-f12345678901
+status: experimental
+description: >
+    Detects the SilentCleanup UAC bypass technique where the windir environment variable
+    is set under the user registry hive Environment key to hijack the elevated
+    SilentCleanup scheduled task execution path. Used by ChocoShell in the CaptiveCrunch
+    campaign and by other threat actors. TTP-level detection.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1548.002
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Environment\windir'
+    condition: selection
+falsepositives:
+    - Legitimate software modifying user-level windir environment variable (rare)
+level: medium
