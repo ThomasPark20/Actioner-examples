@@ -1,0 +1,27 @@
+title: CVE-2026-66066 Active Storage Direct Upload Activity
+id: 8c4e1a3b-7f2d-4e6a-9b1c-5d3e8f0a2c7b
+status: experimental
+description: >
+    Detects HTTP POST requests to the Rails Active Storage direct_uploads endpoint.
+    Hunt-only: fires on any direct upload, not exploit-specific. Pair with variant
+    representation access (Sigma rule 2a9f5b1c) and payload-level detections
+    (YARA/Snort/Suricata) for CVE-2026-66066 triage.
+references:
+    - https://github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm
+    - https://www.rapid7.com/blog/post/etr-kindarails2shell-cve-2026-66066-critical-arbitrary-file-read-and-possible-remote-code-execution-in-ruby-on-rails/
+    - https://discuss.rubyonrails.org/t/cve-2026-66066-possible-arbitrary-file-read-and-remote-code-execution-in-active-storage-variant-processing/91432
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1190
+    - attack.t1005
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/rails/active_storage/direct_uploads'
+        cs-method: 'POST'
+    condition: selection
+falsepositives:
+    - Legitimate Active Storage direct uploads from authorized application users
+level: low

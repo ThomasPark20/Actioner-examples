@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-02
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -96,7 +96,8 @@ The Rails forensic tooling notes that scheduled blob cleanup may remove evidence
 2. The crafted file in the object store
 3. The rendered variant (strongest evidence) -- contains the stolen bytes as pixel values in the application's own object store
 
-The crafted file uses a specific 128-byte header combination that legitimate software never produces, making forensic detection feasible via the `crafted_mat_file.rb` detector.
+The crafted file uses a MATLAB 5.0 header combined with HDF5 magic bytes. Note: MATLAB itself produces MAT v7.3 files with an identical byte-level structure, so this pattern alone is not proof of exploitation -- forensic detection via the `crafted_mat_file.rb` detector should be correlated with Active Storage upload context.
+<!-- revision: corrected false claim that "legitimate software never produces" this header combination; MATLAB v7.3 files share the same structure. -->
 
 ## Indicators of Compromise (IOCs)
 
@@ -129,7 +130,7 @@ The crafted file uses a specific 128-byte header combination that legitimate sof
 
 - HTTP POST to `/rails/active_storage/direct_uploads` with JSON metadata declaring `content_type` as `image/bmp` or other image type, followed by upload of a file with MATLAB 5.0 magic bytes
 - HTTP GET to `/rails/active_storage/representations/` triggering variant generation from a recently uploaded blob
-- Uploaded files with MATLAB 5.0 header (first 10 bytes) combined with HDF5 signature (`\x89HDF\r\n\x1a\n`) at offset 512 -- a combination legitimate software never produces
+- Uploaded files with MATLAB 5.0 header (first 10 bytes) combined with HDF5 signature (`\x89HDF\r\n\x1a\n`) at offset 512 -- note: MATLAB v7.3 (MAT-file 7.3) produces files with this same structure, so context (upload to Active Storage) is required to distinguish exploit payloads from legitimate files
 - PoC payload marker string: `RAILS_GHSA_OAST_PAYLOAD_V1`
 - Outbound HTTP requests from the Rails process to unexpected external endpoints (OAST callback) following variant processing
 - Ruby Marshal 4.8 deserialization with `MiniMagick::Tool` gadget chain executing `/usr/bin/curl`
@@ -142,7 +143,7 @@ The crafted file uses a specific 128-byte header combination that legitimate sof
 | T1005 | Data from Local System | Arbitrary file read via HDF5 External File List reads `/proc/1/environ` and other server files |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Extraction of SECRET_KEY_BASE, database passwords, API tokens from process environment |
 | T1059 | Command and Scripting Interpreter | RCE via Ruby Marshal deserialization executing system commands through MiniMagick gadget |
-| T1203 | Exploitation for Client Execution | Forged ImageProcessing variation payload triggers code execution on the server |
+<!-- revision: removed T1203 (Exploitation for Client Execution) — client-side technique, not applicable to server-side CVE-2026-66066. Server-side exploitation already covered by T1190. -->
 
 ## Impact Assessment
 
@@ -173,7 +174,7 @@ vips --version
 ```
 
 **Scan Active Storage blobs for exploitation artifacts:**
-Use the official forensic tool: `rails/rails-forensics-CVE-2026-66066` on GitHub. The `bin/kr2s_scan_active_storage_blobs.rb` script reads two header fields from blob byte ranges to identify the specific header combination that legitimate software never produces.
+Use the official forensic tool: `rails/rails-forensics-CVE-2026-66066` on GitHub. The `bin/kr2s_scan_active_storage_blobs.rb` script reads two header fields from blob byte ranges to identify the MATLAB/HDF5 header combination used in the exploit payload. Note: MATLAB v7.3 files share this byte structure, so the scanner's context (files in Active Storage) provides the distinguishing signal.
 
 **Web server log review:**
 ```bash
@@ -215,20 +216,21 @@ grep -E "GET.*/rails/active_storage/representations/" access.log
 
 These detections target CVE-2026-66066 exploitation at the web server log level (Sigma), on the network (Snort/Suricata), and at the file level (YARA). PoC/advisory-specific altitude; compiles does not equal fires -- verify in your pipeline.
 
-### Sigma: CVE-2026-66066 Active Storage Direct Upload Exploitation Attempt
+### Sigma: CVE-2026-66066 Active Storage Direct Upload Activity
 
-Detects HTTP POST requests to the Rails Active Storage direct_uploads endpoint, the initial stage of CVE-2026-66066 exploitation.
-**Status:** compile ✅ compiles · confidence: medium
+Detects HTTP POST requests to the Rails Active Storage direct_uploads endpoint. Hunt-only -- fires on any direct upload, not exploit-specific; pair with variant representation access and payload-level rules for higher fidelity.
+**Status:** compile ✅ compiles · confidence: low
 <!-- audit: sigma check 0 (with --exclude attacktag due to MITRE API 403 in env; tags are valid technique-only per spec). splunk 0, log_scale 0. webserver logsource is generic; cs-uri-stem and cs-method are standard proxy/web fields. FP risk: legitimate direct uploads from authorized users will match; pair with representation access correlation or anomalous upload volume. -->
+<!-- revision: renamed from "Exploitation Attempt" — rule matches ANY direct upload with no exploit-specific condition. Downgraded medium->low, labeled hunt-only. Fixed description that incorrectly claimed temporal correlation was implemented. -->
 ```yaml
-title: CVE-2026-66066 Active Storage Direct Upload Exploitation Attempt
+title: CVE-2026-66066 Active Storage Direct Upload Activity
 id: 8c4e1a3b-7f2d-4e6a-9b1c-5d3e8f0a2c7b
 status: experimental
 description: >
-    Detects HTTP POST requests to the Rails Active Storage direct_uploads endpoint
-    followed by representation/variant access, consistent with CVE-2026-66066
-    exploitation where crafted files are uploaded to trigger arbitrary file read
-    via libvips matload processing.
+    Detects HTTP POST requests to the Rails Active Storage direct_uploads endpoint.
+    Hunt-only: fires on any direct upload, not exploit-specific. Pair with variant
+    representation access (Sigma rule 2a9f5b1c) and payload-level detections
+    (YARA/Snort/Suricata) for CVE-2026-66066 triage.
 references:
     - https://github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm
     - https://www.rapid7.com/blog/post/etr-kindarails2shell-cve-2026-66066-critical-arbitrary-file-read-and-possible-remote-code-execution-in-ruby-on-rails/
@@ -247,7 +249,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate Active Storage direct uploads from authorized application users
-level: medium
+level: low
 ```
 
 ### Sigma: CVE-2026-66066 Active Storage Variant Representation Access
@@ -286,54 +288,59 @@ level: low
 
 ### Snort: CVE-2026-66066 Rails Active Storage Direct Upload Request
 
-Detects HTTP POST to the Active Storage direct_uploads endpoint on the wire.
-**Status:** compile ✅ compiles · confidence: medium
+Detects HTTP POST to the Active Storage direct_uploads endpoint on the wire. Generic endpoint match -- pair with payload-level rules for triage.
+**Status:** compile ✅ compiles · confidence: low
 <!-- audit: snort -T exit 0 (Snort 2.9.20 with /etc/snort/snort.conf). content match on URI path is case-insensitive via nocase. fast_pattern on the distinctive URI segment. FP: legitimate direct uploads. -->
+<!-- revision: reversed traffic direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (inbound attack). Downgraded medium->low (generic endpoint match). -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 Rails Active Storage Direct Upload Request"; flow:established,to_server; content:"POST"; depth:4; content:"/rails/active_storage/direct_uploads"; fast_pattern; nocase; sid:2100010; rev:1; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 Rails Active Storage Direct Upload Request"; flow:established,to_server; content:"POST"; depth:4; content:"/rails/active_storage/direct_uploads"; fast_pattern; nocase; sid:2100010; rev:2; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)
 ```
 
 ### Snort: CVE-2026-66066 MATLAB HDF5 Payload Upload
 
 Detects the distinctive MATLAB 5.0 header followed by HDF5 magic bytes in HTTP traffic, consistent with the crafted exploit payload.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. MATLAB header + HDF5 magic is the definitive file-level signature the Rails forensic tooling uses. Legitimate software never produces this combination. distance:0 within:1024 ensures both patterns are proximate. -->
+<!-- audit: snort -T exit 0. MATLAB header + HDF5 magic is the file-level signature the Rails forensic tooling uses. Note: MATLAB v7.3 (MAT-file 7.3) legitimately produces files with this same byte structure, so FPs are possible if MAT files are uploaded to the same endpoint. distance:0 within:1024 ensures both patterns are proximate. -->
+<!-- revision: reversed traffic direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (inbound attack). Corrected false "legitimate software never produces this" claim — MATLAB v7.3 has identical structure. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 MATLAB HDF5 Payload Upload to Rails"; flow:established,to_server; content:"MATLAB 5.0"; content:"|89 48 44 46 0D 0A 1A 0A|"; distance:0; within:1024; sid:2100011; rev:1; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 MATLAB HDF5 Payload Upload to Rails"; flow:established,to_server; content:"MATLAB 5.0"; content:"|89 48 44 46 0D 0A 1A 0A|"; distance:0; within:1024; sid:2100011; rev:2; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)
 ```
 
 ### Suricata: CVE-2026-66066 Rails Active Storage Direct Upload Request
 
-Detects HTTP POST to the Active Storage direct_uploads endpoint using Suricata HTTP inspection.
-**Status:** compile ✅ compiles · confidence: medium
+Detects HTTP POST to the Active Storage direct_uploads endpoint using Suricata HTTP inspection. Generic endpoint match -- pair with payload-level rules for triage.
+**Status:** compile ✅ compiles · confidence: low
 <!-- audit: suricata -T exit 0 (Suricata 7.0.3). http.method + http.uri dot-notation buffers. FP: legitimate direct uploads from authorized users. -->
+<!-- revision: reversed traffic direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (inbound attack). Downgraded medium->low (generic endpoint match). -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CVE-2026-66066 Rails Active Storage Direct Upload Request"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/rails/active_storage/direct_uploads"; fast_pattern; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm; metadata:author Actioner, created_at 2026-08-02; sid:2200010; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - CVE-2026-66066 Rails Active Storage Direct Upload Request"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/rails/active_storage/direct_uploads"; fast_pattern; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm; metadata:author Actioner, created_at 2026-08-02; sid:2200010; rev:2;)
 ```
 
 ### Suricata: CVE-2026-66066 MATLAB HDF5 Payload in HTTP Upload
 
 Detects the crafted MATLAB 5.0 + HDF5 byte pattern in HTTP request bodies, the definitive exploit payload signature.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. http.request_body inspects the upload payload for MATLAB header + HDF5 magic. This is the same combination the Rails forensic detector uses -- legitimate software never produces it. -->
+<!-- audit: suricata -T exit 0. http.request_body inspects the upload payload for MATLAB header + HDF5 magic. This is the same combination the Rails forensic detector uses. Note: MATLAB v7.3 (MAT-file 7.3) legitimately produces files with this same byte structure, so FPs are possible if MAT files are uploaded to the application. -->
+<!-- revision: reversed traffic direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (inbound attack). Corrected false "legitimate software never produces it" claim — MATLAB v7.3 has identical structure. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CVE-2026-66066 MATLAB HDF5 Payload in HTTP Upload to Rails"; flow:established,to_server; http.request_body; content:"MATLAB 5.0"; fast_pattern; content:"|89 48 44 46 0D 0A 1A 0A|"; distance:0; within:1024; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm; metadata:author Actioner, created_at 2026-08-02; sid:2200011; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - CVE-2026-66066 MATLAB HDF5 Payload in HTTP Upload to Rails"; flow:established,to_server; http.request_body; content:"MATLAB 5.0"; fast_pattern; content:"|89 48 44 46 0D 0A 1A 0A|"; distance:0; within:1024; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm; metadata:author Actioner, created_at 2026-08-02; sid:2200011; rev:2;)
 ```
 
 ### YARA: Crafted MATLAB/HDF5 Exploit File (CVE-2026-66066)
 
-Detects files with MATLAB 5.0 header at offset 0 combined with HDF5 magic bytes in the first kilobyte -- the crafted payload format used in CVE-2026-66066 exploitation that legitimate software never produces.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0. MATLAB header at offset 0 + HDF5 magic in range 128-1024 is the exact combination the Rails forensic detector (crafted_mat_file.rb) uses. Per the advisory: "identifies the specific header combination that legitimate software never produces." -->
+Detects files with MATLAB 5.0 header at offset 0 combined with HDF5 magic bytes in the first kilobyte -- the same byte pattern used in CVE-2026-66066 exploit payloads. Note: standard MATLAB v7.3 (MAT-file 7.3) files share this structure; context (e.g., presence in Active Storage, or HDF5 External File List referencing /proc/) is needed to confirm exploitation.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0. MATLAB header at offset 0 + HDF5 magic in range 128-1024 is the combination the Rails forensic detector (crafted_mat_file.rb) uses. MATLAB v7.3 files legitimately share this byte structure, so this rule will match both exploit payloads and legitimate MAT v7.3 files. Use in Active Storage context or pair with additional indicators. -->
+<!-- revision: downgraded high->medium — standard MAT v7.3 files have identical byte structure. Corrected false "legitimate software never produces" claims. -->
 ```yara
 rule Exploit_CVE_2026_66066_Crafted_MAT_HDF5
 {
     meta:
-        description = "Detects crafted MATLAB 5.0 / HDF5 files used in CVE-2026-66066 exploitation against Rails Active Storage with libvips"
+        description = "Detects MATLAB 5.0 / HDF5 files matching the byte pattern used in CVE-2026-66066 exploitation against Rails Active Storage. Note: legitimate MATLAB v7.3 files share this structure; pair with upload context for triage."
         author = "Actioner"
         date = "2026-08-02"
         reference = "https://github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $matlab_header = "MATLAB 5.0" ascii
@@ -349,8 +356,9 @@ rule Exploit_CVE_2026_66066_Crafted_MAT_HDF5
 ### YARA: CVE-2026-66066 PoC Payload Marker
 
 Detects the specific PoC marker string `RAILS_GHSA_OAST_PAYLOAD_V1` embedded in CVE-2026-66066 exploit tools.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara fired on positive (pos-marker.txt with published PoC string), quiet on negative. String is from the published Zer0SumGam3/CVE-2026-66066-POC exploit tool -- unique, never appears in legitimate files. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. yara matched on a constructed test file (pos-marker.txt containing the PoC string), quiet on negative. String is from the published Zer0SumGam3/CVE-2026-66066-POC exploit tool -- unique, never appears in legitimate files. Tested against fabricated text file, not a real PoC artifact. -->
+<!-- revision: changed "sample: fired" to "sample: constructed" — tested against fabricated text file, not real PoC artifact. -->
 ```yara
 rule Exploit_CVE_2026_66066_POC_Marker
 {
