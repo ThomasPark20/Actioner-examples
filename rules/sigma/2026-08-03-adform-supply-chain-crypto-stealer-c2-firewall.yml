@@ -1,0 +1,24 @@
+title: Adform Crypto Stealer C2 Communication - Firewall
+id: 9c5e3a7b-1d4f-6b0c-d8e3-f5a9b2c4d6e0
+status: experimental
+description: >
+  Detects firewall log entries showing connections to the Adform crypto stealer
+  C2 server at 84.32.102.230 port 7744.
+references:
+    - https://www.bleepingcomputer.com/news/security/online-ad-firm-adforms-script-compromised-to-steal-cryptocurrency/
+    - https://thehackernews.com/2026/08/hackers-poison-adform-script-to-swap.html
+author: Actioner CTI
+date: 2026-08-03
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip: '84.32.102.230'
+        dst_port: 7744
+    condition: selection
+falsepositives:
+    - Unlikely; this IP is attacker-controlled infrastructure
+level: critical

@@ -1,0 +1,29 @@
+title: Adform Crypto Stealer C2 Beacon to 84.32.102.230
+id: 8b4d2f6a-0c3e-5a9b-c7d2-e4f8a1b3c5d9
+status: experimental
+description: >
+  Detects outbound network connections to the C2 server 84.32.102.230 on port 7744
+  used by the Adform supply-chain crypto stealer to exfiltrate victim page data.
+references:
+    - https://www.bleepingcomputer.com/news/security/online-ad-firm-adforms-script-compromised-to-steal-cryptocurrency/
+    - https://thehackernews.com/2026/08/hackers-poison-adform-script-to-swap.html
+author: Actioner CTI
+date: 2026-08-03
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection_c2:
+        c-uri|contains: '84.32.102.230'
+    selection_rdns:
+        r-dns: '84.32.102.230'
+    condition: selection_c2 or selection_rdns
+falsepositives:
+    - Unlikely; this IP is attacker-controlled infrastructure
+    - "Note: the r-dns field may not be populated in all proxy log formats;
+      selection_c2 (URI match) provides fallback coverage"
+level: critical
