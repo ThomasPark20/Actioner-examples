@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-04
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: applied critic verdict — fixed Service Registration condition+level, relabeled 3 TTP-altitude Sigma rules, narrowed Snort/Suricata exfil rules, clarified YARA sample provenance, fixed ATT&CK T1598.004→T1204.001 and T1621→T1078.004, fixed section numbering -->
 
 ## Executive Summary
 
@@ -83,7 +84,7 @@ ChocoShell is an in-memory PowerShell stealer deployed after initial CornFlake e
 
 A **WinGet DSC variant** executes within the ConfigurationRemotingServer host process.
 
-### 3. C2 Infrastructure
+### 4. C2 Infrastructure
 
 **ChocoShell C2 Communication:**
 - Hardcoded C2: 213.145.86[.]112
@@ -100,7 +101,7 @@ A **WinGet DSC variant** executes within the ConfigurationRemotingServer host pr
 **FruitStone (Web C2 Panel):**
 Branded as "CloudSync Console" with footer "Acuity Systems, Inc. -- Cloud Infrastructure Portal v3.2.1". Features JWT authentication with rate limiting, real-time agent status via Server-Sent Events, geographic grouping, interactive command execution, file browser, collection tasking, in-place implant updates, campaign builder wizard (identity, capabilities, file paths, evasion tabs), proxy relay management with TLS cert tracking and health checks, configurable beacon profiles (sleep, reconnect, SNI spoofing, DNS fallback), and staging server push-to-deploy.
 
-### 4. AitM / Device Code Phishing Infrastructure
+### 5. AitM / Device Code Phishing Infrastructure
 
 - ms365-device[.]com (DCF redirect)
 - ms365-live[.]com (DCF redirect)
@@ -109,7 +110,7 @@ Branded as "CloudSync Console" with footer "Acuity Systems, Inc. -- Cloud Infras
 
 Supporting IPs: 31.57.243[.]154, 38.146.28[.]75, 104.194.159[.]150 (AitM infrastructure); 38.146.28[.]132 (DNS resolver); 107.189.26[.]194 (ChocoShell C2/DNS resolver).
 
-### 5. Anti-Forensics / Evasion Techniques
+### 6. Anti-Forensics / Evasion Techniques
 
 - AMSI bypass via .NET reflection
 - Timing-based sandbox detection with silent exit
@@ -175,7 +176,7 @@ Supporting IPs: 31.57.243[.]154, 38.146.28[.]75, 104.194.159[.]150 (AitM infrast
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Compromise of captive portal management infrastructure |
 | T1557 | Adversary-in-the-Middle | DNS/HTTP traffic manipulation on guest Wi-Fi |
-| T1598.004 | Phishing for Information: Spearphishing Voice | ClickFix social engineering via fake update/repair prompts |
+| T1204.001 | User Execution: Malicious Link | ClickFix social engineering via fake update/repair prompts on captive portal redirect |
 | T1204.002 | User Execution: Malicious File | Victim executes downloaded CornFlake payload |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | ChocoShell in-memory PowerShell execution |
 | T1059.003 | Command and Scripting Interpreter: Windows Command Shell | Remote shell via CornFlake |
@@ -200,7 +201,7 @@ Supporting IPs: 31.57.243[.]154, 38.146.28[.]75, 104.194.159[.]150 (AitM infrast
 | T1573.002 | Encrypted Channel: Asymmetric Cryptography | ECDH P-256 key exchange for C2 |
 | T1008 | Fallback Channels | DNS fallback, configurable C2 |
 | T1020 | Automated Exfiltration | Throttled file exfil (1000 files/500 MB per cycle) |
-| T1621 | Multi-Factor Authentication Request Generation | Device code phishing to bypass MFA |
+| T1078.004 | Valid Accounts: Cloud Accounts | Device code phishing grants attacker MFA-satisfied access to victim's M365 session via legitimate auth flow |
 
 ## Impact Assessment
 
@@ -290,9 +291,10 @@ level: high
 
 ### Sigma: CornFlake RAT Service Registration - Cloud Sync Service
 
-Detects registry writes consistent with CornFlake's service registration using the distinctive service name `svchost32` or display name `Cloud Sync Service`.
+Detects registry writes consistent with CornFlake's service registration using the distinctive service name `svchost32` with display name `Cloud Sync Service`.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. Keys on unique service name+display name pair from Microsoft disclosure. -->
+<!-- revision: fixed condition from OR to AND (selection_value alone would fire on any registry_set containing "Cloud Sync Service" with no path constraint); downgraded level from critical to high (registry write does not warrant critical severity) -->
 ```yaml
 title: CornFlake RAT Service Registration - Cloud Sync Service
 id: 2f8b4d6e-a1c3-4e7f-9d5b-0c2a3e8f1d4b
@@ -316,17 +318,18 @@ detection:
         Details|contains:
             - 'Cloud Sync Service'
             - 'Synchronizes files with the cloud storage provider'
-    condition: selection_path or selection_value
+    condition: selection_path and selection_value
 falsepositives:
     - Legitimate software using the exact service name svchost32 with Cloud Sync Service display name is extremely unlikely
-level: critical
+level: high
 ```
 
 ### Sigma: ChocoShell UAC Bypass via SilentCleanup Task Hijack
 
-Detects modification of `HKCU\Environment\windir`, a technique used by ChocoShell to hijack the SilentCleanup scheduled task for UAC bypass.
-**Status:** compile ✅ compiles · confidence: high
+Detects modification of `HKCU\Environment\windir`, a well-known UAC bypass technique (SilentCleanup windir hijack) observed in ChocoShell but not CaptiveCrunch-specific.
+**Status:** compile ✅ compiles · confidence: medium · altitude: TTP
 <!-- audit: sigma convert splunk 0, log_scale 0. Well-known UAC bypass (T1548.002); filters SYSTEM/LOCAL SERVICE to reduce FPs. Specific to the registry key path. -->
+<!-- revision: relabeled as TTP (well-known technique, not campaign-specific); downgraded confidence high→medium -->
 ```yaml
 title: ChocoShell UAC Bypass via SilentCleanup Task Hijack
 id: 5c9d2e1a-3f7b-4a6c-8e0d-b4f1a9c7d3e5
@@ -359,9 +362,10 @@ level: high
 
 ### Sigma: Wi-Fi Credential Harvesting via Netsh
 
-Detects `netsh wlan show profile key=clear` used by ChocoShell to extract stored Wi-Fi passwords in cleartext.
-**Status:** compile ✅ compiles · confidence: high
+Detects `netsh wlan show profile key=clear`, a commodity credential-harvesting technique observed in ChocoShell but not CaptiveCrunch-specific.
+**Status:** compile ✅ compiles · confidence: medium · altitude: TTP
 <!-- audit: sigma convert splunk 0, log_scale 0, splunk_windows pipeline 0. All four substrings required (|contains|all); may fire on legitimate IT auditing. -->
+<!-- revision: relabeled as TTP (commodity technique used by many tools); downgraded confidence high→medium -->
 ```yaml
 title: Wi-Fi Credential Harvesting via Netsh
 id: 8e4f1b2c-d6a3-4c9e-b7f0-5a1d8c3e2f9b
@@ -396,9 +400,10 @@ level: high
 
 ### Sigma: Browser Launched with Remote Debugging Port - Cookie Theft
 
-Detects Chromium-based browsers launched with `--remote-debugging-port`, used by ChocoShell to bypass App-Bound Encryption via Chrome DevTools Protocol.
-**Status:** compile ✅ compiles · confidence: medium
+Detects Chromium-based browsers launched with `--remote-debugging-port`, a common TTP used by many stealers and legitimate automation, observed in ChocoShell but not CaptiveCrunch-specific.
+**Status:** compile ✅ compiles · confidence: medium · altitude: TTP
 <!-- audit: sigma convert splunk 0, log_scale 0, splunk_windows pipeline 0. FP from devtools/test frameworks (Selenium, Puppeteer, Playwright) expected in dev environments; scope to non-developer endpoints for production use. -->
+<!-- revision: relabeled as TTP (common technique, not campaign-specific); confidence medium retained -->
 ```yaml
 title: Browser Launched with Remote Debugging Port - Cookie Theft
 id: 3b7e0c9d-f2a4-4d1b-8c6e-a5f3d9b1e2c8
