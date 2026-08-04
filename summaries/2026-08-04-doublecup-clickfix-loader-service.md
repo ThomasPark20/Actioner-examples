@@ -400,7 +400,7 @@ detection:
     condition: selection_findstr or selection_certutil
 falsepositives:
     - System administrators searching browser cache for diagnostic purposes
-level: high
+level: medium
 ```
 
 ### Sigma: CountLoader Process Masquerading via Renamed System Binaries

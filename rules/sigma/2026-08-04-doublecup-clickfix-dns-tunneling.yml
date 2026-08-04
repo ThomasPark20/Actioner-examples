@@ -1,0 +1,29 @@
+title: DeviceManager RAT DNS Tunneling Check-in Pattern
+id: 8e1f6a35-ca71-4d9e-f0a5-3b4e6a7f8d9c
+status: experimental
+description: >
+    Detects DNS queries matching the DeviceManager RAT check-in pattern where
+    device hash and tag are prepended to microsoft.com as a domain spoofing
+    technique for C2 communication.
+references:
+    - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1071.004
+    - attack.t1001.003
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|re: '^[a-f0-9]{16}[a-z0-9]+\.microsoft\.com$'
+    filter_legit:
+        QueryName|endswith:
+            - '.update.microsoft.com'
+            - '.windowsupdate.microsoft.com'
+            - '.login.microsoft.com'
+            - '.graph.microsoft.com'
+    condition: selection and not filter_legit
+falsepositives:
+    - Legitimate Microsoft services with hex-prefixed subdomains (unlikely pattern)
+level: medium

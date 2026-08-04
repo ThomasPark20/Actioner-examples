@@ -1,0 +1,26 @@
+title: CountLoader Process Masquerading via Renamed System Binaries
+id: 7d0e5f24-bf60-4c8d-e9f4-2a3d5f6e7c8b
+status: experimental
+description: >
+    Detects execution of system binaries (conhost.exe, powershell.exe, mshta.exe)
+    copied to user-writable directories with identifying prefixes (c, p, m) as
+    used by CountLoader for process masquerading.
+references:
+    - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1036.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|re: '\\(c|p|m)(conhost|powershell|mshta|svchost|OneDrive)\.exe$'
+        Image|contains:
+            - '\Users\'
+            - '\AppData\'
+    condition: selection
+falsepositives:
+    - Custom application launchers with single-letter prefixed executables in user directories
+level: high
