@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-04
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -234,6 +234,7 @@ Cross-compiled from Windows (build path: `C:\Users\Administrator\source\repos\Te
 | T1059.006 | Python | DeviceManager executes Python scripts in-memory and on-disk |
 | T1053.005 | Scheduled Task | CountLoader (GoogleUpdateService/MSEdgeUpdateService), DeviceManager (MicroUpdaterV1) |
 | T1547.009 | Shortcut Modification | CountLoader scans for browser .lnk files, USB worming via malicious shortcuts |
+| T1091 | Replication Through Removable Media | CountLoader USB worming via malicious .lnk shortcuts on removable drives |
 | T1546.003 | WMI Event Subscription | DeviceManager dormant capability using root\subscription |
 | T1620 | Reflective Code Loading | In-memory .NET assembly loading via D/Invoke |
 | T1027.003 | Steganography | Malicious code embedded in PNG images via LSB extraction |
@@ -284,11 +285,11 @@ ls ~/Library/LaunchAgents/ | grep -v "com.apple"
 - Block or alert on `findstr` and `certutil` accessing browser cache directories
 - Monitor for `eth_call` traffic to public blockchain RPC endpoints from corporate networks
 - Deploy DNS monitoring rules for high-entropy subdomains under microsoft.com resolving to non-Microsoft IP ranges
-- Apple's macOS 26.4 introduces Terminal paste-based attack mitigations; ensure deployment
+- Apple's macOS 26.4 reportedly introduces Terminal paste-based attack mitigations; verify availability in your deployment before relying on this control
 
 ## Detection Rules
 
-These detections target DOUBLECUP-specific artifacts: CountLoader/DeviceManager persistence task names, browser cache steganographic extraction via findstr/certutil, process masquerading via renamed system binaries, DNS tunneling patterns, and known C2 infrastructure. PoC/advisory-specific altitude (default); compiles != fires -- verify in your pipeline.
+These detections target DOUBLECUP-specific artifacts: CountLoader/DeviceManager persistence task names, browser cache steganographic extraction via findstr/certutil, process masquerading via renamed system binaries, DNS tunneling patterns, phishing domains, and known C2 infrastructure. PoC/advisory-specific altitude (default); compiles != fires -- verify in your pipeline. Four Snort rules and two Suricata session-endpoint rules were dropped during review due to generic URI patterns producing unacceptable false-positive rates.
 
 ### Sigma: CountLoader Persistence via Masqueraded Scheduled Task
 
@@ -362,9 +363,10 @@ level: high
 
 ### Sigma: DOUBLECUP Browser Cache PNG Extraction via Findstr or Certutil
 
-Detects findstr.exe or certutil.exe searching browser cache directories for PNG files, consistent with DOUBLECUP steganographic payload extraction.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk 0, log_scale 0. The intersection of cache-directory access + PNG search via command-line utilities is narrowly scoped; legitimate sysadmin use is rare and reviewable. -->
+Detects findstr.exe or certutil.exe searching browser cache directories for PNG files, consistent with DOUBLECUP steganographic payload extraction. This is a behavioral intersection pattern, not a DOUBLECUP-specific artifact; other steganographic loaders could match.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert splunk 0, log_scale 0. Behavioral intersection (cache dir + PNG + CLI tool) not unique to DOUBLECUP; downgraded from high to medium per review. Legitimate sysadmin cache inspection is a plausible FP source. -->
+<!-- revision: confidence high->medium; added caveat re behavioral intersection, not campaign-specific. -->
 ```yaml
 title: DOUBLECUP Browser Cache PNG Extraction via Findstr or Certutil
 id: 6c9d4e13-ae5f-4b7c-d8e3-1f2c4e5d6b7a
@@ -439,7 +441,8 @@ level: high
 
 Detects DNS queries matching DeviceManager's C2 pattern: a 16-character hex device hash prepended to microsoft.com, excluding legitimate Microsoft subdomains.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert splunk 0, log_scale 0. Regex anchored to 16 hex chars + alphanumeric suffix + microsoft.com. Filter excludes known MS subdomains. Medium confidence due to potential for legitimate hex-prefixed Microsoft CDN subdomains; pair with IOC correlation. -->
+<!-- audit: sigma convert splunk 0, log_scale 0. Regex anchored to 16 hex chars + alphanumeric suffix + microsoft.com. filter_legit is defense-in-depth boilerplate — the selection regex (^[a-f0-9]{16}...) cannot produce strings matching the filter's endswith patterns (e.g., .update.microsoft.com), so the filter is effectively dead code; kept for clarity if the selection is ever broadened. Medium confidence due to potential for legitimate hex-prefixed Microsoft CDN subdomains; pair with IOC correlation. Portability note: CrowdStrike DNS data may use different field names (DomainName vs QueryName); verify field mapping when deploying via sigma convert. -->
+<!-- revision: documented dead filter_legit block; added CrowdStrike DNS portability note. -->
 ```yaml
 title: DeviceManager RAT DNS Tunneling Check-in Pattern
 id: 8e1f6a35-ca71-4d9e-f0a5-3b4e6a7f8d9c
@@ -472,31 +475,18 @@ falsepositives:
 level: medium
 ```
 
-### Snort: DOUBLECUP C2 Endpoints
+### Snort: Dropped
 
-Detects HTTP requests to DOUBLECUP session registration, polling, API config, and CountLoader connect endpoints.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf -T exit 0. URI paths (/session/reg, /session/check, /api/config) are generic enough for some FP risk; /connect + Bearer narrows the CountLoader rule. Medium confidence due to generic URI patterns. -->
-```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - DOUBLECUP ClickFix Session Registration Endpoint"; flow:established,to_server; content:"/session/reg"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; sid:2100101; rev:1;)
-
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - DOUBLECUP ClickFix Session Polling Endpoint"; flow:established,to_server; content:"/session/check"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; sid:2100102; rev:1;)
-
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - DOUBLECUP ClickFix API Config Endpoint"; flow:established,to_server; content:"/api/config"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; sid:2100103; rev:1;)
-
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CountLoader C2 Connect Endpoint"; flow:established,to_server; content:"/connect"; http_uri; content:"Bearer "; http_header; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; sid:2100104; rev:1;)
-```
+All four Snort rules were removed during review: `/session/reg` (generic REST endpoint), `/session/check` (generic polling pattern), `/api/config` (ubiquitous REST endpoint), and `/connect` + Bearer (standard auth API pattern). Each would produce high false-positive rates against normal web traffic.
+<!-- revision: dropped 4 Snort rules (sid 2100101-2100104) — generic URI patterns, unacceptable FP rate. -->
 
 ### Suricata: DOUBLECUP and DeviceManager Network Indicators
 
-Detects DOUBLECUP session endpoints, DeviceManager DNS tunneling to spoofed microsoft.com, known phishing domains, and DeviceManager C2 IP.
+Detects DeviceManager DNS tunneling to spoofed microsoft.com, known phishing domains, and DeviceManager C2 IP. Two session-endpoint rules (sid:2200101 `/session/reg`, sid:2200102 `/session/check`) were dropped during review -- same generic URI false-positive problem as the Snort rules.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0. Domain/IP-based rules are high confidence (exact IOC match). DNS tunneling rule uses pcre for hex-prefix pattern + endswith microsoft.com. Session endpoint rules are medium confidence individually but grouped with IOC-based rules. -->
+<!-- audit: suricata -T -S exit 0. All remaining rules are high confidence: DNS tunneling PCRE is specific (hex-prefix + microsoft.com), phishing domains are exact IOC match, C2 IP is matched in rule header. -->
+<!-- revision: dropped sid:2200101, sid:2200102 (generic URI FP); fixed sid:2200107 — moved IP from content match to rule header for correct dest-IP matching; updated audit comment to remove stale medium-confidence reference. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP ClickFix Session Registration"; flow:established,to_server; http.uri; content:"/session/reg"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200101; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP ClickFix Session Polling"; flow:established,to_server; http.uri; content:"/session/check"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200102; rev:1;)
-
 alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS Tunneling to Spoofed microsoft.com"; flow:to_server; dns.query; content:"microsoft.com"; endswith; fast_pattern; pcre:"/^[a-f0-9]{16}[a-z0-9]*\.microsoft\.com$/i"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200103; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishing Domain login-netsuite"; flow:established,to_server; http.host; content:"login-netsuite.com"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200104; rev:1;)
@@ -505,14 +495,17 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishin
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishing Domain verification-salesforce"; flow:established,to_server; http.host; content:"verification-salesforce.com"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200106; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DeviceManager C2 Server Communication"; flow:established,to_server; content:"91.92.240.100"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200107; rev:1;)
+alert http $HOME_NET any -> [91.92.240.100] any (msg:"Actioner - DeviceManager C2 Server Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200107; rev:2;)
 ```
 
 ### YARA: DeviceManager RAT and CountLoader File Detection
 
 Detects DeviceManager RAT by EtherHiding function names, smart contract address, task names, and Python environment markers. Detects CountLoader by persistence task naming with GUID braces, PowerShell IRM/IEX invocation patterns, and wallet detection strings.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test fired on synthetic sample with published DeviceManager strings (task names + func names + eth contract address); negative test quiet. CountLoader rule anchored to task name with brace + irm/iex/bypass pattern or cross-compile path. DeviceManager contract address 0xc027490af56a9d7050fc259ecd03da1580b84aae is unique and functions get_data_selector/build_tag_token/device_hash/global_key are campaign-specific. -->
+**Status:** compile ✅ compiles · confidence: high
+- Malware_DeviceManager_RAT_DOUBLECUP: sample: synthetic ✓ (tested against constructed sample with published strings, not a real binary)
+- Malware_CountLoader_DOUBLECUP: sample: untested (no real or synthetic sample available)
+<!-- audit: yarac exit 0. DeviceManager positive test used synthetic sample with published strings (task names + func names + eth contract address); not a real captured binary — labeled accordingly. CountLoader untested against real sample. DeviceManager contract address 0xc027490af56a9d7050fc259ecd03da1580b84aae is unique and functions get_data_selector/build_tag_token/device_hash/global_key are campaign-specific. -->
+<!-- revision: relabeled DeviceManager sample provenance from "fired ✓" to "synthetic ✓"; split CountLoader sample status to "untested"; fixed $cross_compile string to include path separators. -->
 ```yara
 rule Malware_DeviceManager_RAT_DOUBLECUP
 {
@@ -571,7 +564,7 @@ rule Malware_CountLoader_DOUBLECUP
         $wallet_check2 = "Phantom" ascii wide
         $wallet_check3 = "Binance" ascii wide
         $signal = "Signal" ascii wide fullword
-        $cross_compile = "sourcereposTestAppMac_C" ascii
+        $cross_compile = "source\\repos\\TestApp\\Mac_C" ascii
 
     condition:
         filesize < 10MB and

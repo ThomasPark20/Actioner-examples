@@ -1,0 +1,28 @@
+title: CountLoader Persistence via Masqueraded Scheduled Task
+id: 4a7b2e91-8c3f-4d5a-b6e1-9f0a2d3c4e5b
+status: experimental
+description: >
+    Detects creation of scheduled tasks with naming patterns used by CountLoader
+    (GoogleUpdateService or MSEdgeUpdateService followed by a GUID) for persistence
+    with 25-minute execution intervals.
+references:
+    - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+    - https://www.bleepingcomputer.com/news/security/new-doublecup-clickfix-service-hides-malware-in-browser-cache-images/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1053.005
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains:
+            - 'GoogleUpdateService{'
+            - 'MSEdgeUpdateService{'
+    condition: selection_schtasks
+falsepositives:
+    - Legitimate Google or Microsoft Edge update services (these use different task name formats without embedded GUIDs)
+level: high
