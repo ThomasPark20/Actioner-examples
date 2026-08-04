@@ -440,24 +440,26 @@ level: medium
 
 ### Snort: CaptiveCrunch ChocoShell C2 Beacon and Exfiltration
 
-Detects ChocoShell C2 beacon (`/t/pixel.gif?m=`), tool delivery (`/cdn/chunks/polyfill-7e2b.min.js`), and exfiltration (`POST /t/event`) URI patterns.
-**Status:** compile ✅ compiles · confidence: high
+Detects ChocoShell C2 beacon (`/t/pixel.gif?m=`), tool delivery (`/cdn/chunks/polyfill-7e2b.min.js`), and exfiltration (`POST /t/event`) URI patterns. Beacon and tool delivery rules are high confidence (distinctive URIs); exfiltration rule is medium confidence (`/t/event` overlaps with analytics platforms -- narrowed with Content-Encoding constraint).
+**Status:** compile ✅ compiles · confidence: high (sid:2100001-2100002), medium (sid:2100003)
 <!-- audit: snort -c /etc/snort/snort.conf -T exit 0 via local.rules include. Snort 2 syntax with http_uri/http_method sticky buffers. URI patterns are highly distinctive campaign artifacts. -->
+<!-- revision: sid:2100003 downgraded to medium confidence; added Content-Encoding: gzip content match to narrow /t/event FPs from analytics platforms -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch ChocoShell C2 Beacon /t/pixel.gif"; flow:established,to_server; content:"/t/pixel.gif?m="; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100001; rev:1;)
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch Tool Delivery /cdn/chunks/polyfill-7e2b.min.js"; flow:established,to_server; content:"/cdn/chunks/polyfill-7e2b.min.js"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100002; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch ChocoShell Exfiltration /t/event"; flow:established,to_server; content:"POST"; http_method; content:"/t/event"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100003; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch ChocoShell Exfiltration POST /t/event (GZip)"; flow:established,to_server; content:"POST"; http_method; content:"/t/event"; http_uri; fast_pattern; content:"Content-Encoding|3a 20|gzip"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100003; rev:2;)
 ```
 
 ### Suricata: CaptiveCrunch C2 Communication and DNS IOCs
 
-Detects ChocoShell C2 beacon, tool delivery, and exfiltration HTTP patterns, plus DNS queries to four known Storm-2945 domains.
-**Status:** compile ✅ compiles · confidence: high
+Detects ChocoShell C2 beacon, tool delivery, and exfiltration HTTP patterns, plus DNS queries to four known Storm-2945 domains. Beacon, tool delivery, and DNS rules are high confidence; exfiltration rule is medium confidence (`/t/event` overlaps with analytics platforms -- narrowed with Content-Encoding constraint).
+**Status:** compile ✅ compiles · confidence: high (sid:2200001-2200002, 2200004-2200007), medium (sid:2200003)
 <!-- audit: suricata -T -S exit 0. Dot-notation sticky buffers (http.uri, http.method, dns.query). Domain IOCs are campaign-specific; rotate risk is low in the short term. -->
+<!-- revision: sid:2200003 downgraded to medium confidence; added http.header_names and content-encoding gzip match to narrow /t/event FPs -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch ChocoShell C2 Beacon /t/pixel.gif"; flow:established,to_server; http.uri; content:"/t/pixel.gif?m="; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200001; rev:1;)
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch Tool Delivery polyfill-7e2b.min.js"; flow:established,to_server; http.uri; content:"/cdn/chunks/polyfill-7e2b.min.js"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200002; rev:1;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch ChocoShell Exfiltration POST /t/event"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/t/event"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch ChocoShell Exfiltration POST /t/event (GZip)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/t/event"; fast_pattern; http.content_type; content:"application/json"; http.header_names; content:"Content-Encoding"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200003; rev:2;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - CaptiveCrunch Storm-2945 C2 Domain ms365-device.com"; flow:to_server; dns.query; content:"ms365-device.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200004; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - CaptiveCrunch Storm-2945 C2 Domain ms365-live.com"; flow:to_server; dns.query; content:"ms365-live.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200005; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - CaptiveCrunch Storm-2945 AitM Domain m365-owa.com"; flow:to_server; dns.query; content:"m365-owa.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created_at 2026-08-04; sid:2200006; rev:1;)
@@ -467,8 +469,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - CaptiveCrunch Storm-2945 Ait
 ### YARA: CornFlake RAT Detection
 
 Detects CornFlake RAT PE binaries via distinctive string combinations: service name/display name, config file name with fake window identifiers, or C2 URI pattern cluster.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive sample (published strings from MS disclosure) fired; negative sample quiet. Three OR branches: (svc_name+display+desc), (svc_name+config+2 fake windows), (3 C2 URIs). All strings from Microsoft's disclosure. -->
+**Status:** compile ✅ compiles · confidence: high · sample: untested (no real sample available; logic validated against published string indicators from Microsoft disclosure)
+<!-- audit: yarac exit 0. No real malware sample available for testing; rule logic derived from published strings in Microsoft's disclosure. Three OR branches: (svc_name+display+desc), (svc_name+config+2 fake windows), (3 C2 URIs). -->
+<!-- revision: corrected sample provenance — no real sample was tested; relabeled from "fired" to "untested" -->
 ```yara
 rule APT29_CornFlake_RAT : CaptiveCrunch
 {

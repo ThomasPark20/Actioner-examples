@@ -1,0 +1,27 @@
+title: ChocoShell UAC Bypass via SilentCleanup Task Hijack
+id: 5c9d2e1a-3f7b-4a6c-8e0d-b4f1a9c7d3e5
+status: experimental
+description: >
+    Detects modification of HKCU\Environment\windir registry value, a technique used by
+    ChocoShell (Storm-2945) to hijack the SilentCleanup scheduled task for UAC bypass.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1548.002
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Environment\windir'
+        EventType: SetValue
+    filter_system:
+        User|contains:
+            - 'SYSTEM'
+            - 'LOCAL SERVICE'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate modification of the user-level windir environment variable is rare
+level: high

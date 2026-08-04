@@ -1,0 +1,8 @@
+# Actioner - CaptiveCrunch / Midnight Blizzard Hotel Wi-Fi Campaign
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+# Date: 2026-08-04
+# Confidence: high (sid:2100001-2100002), medium (sid:2100003)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch ChocoShell C2 Beacon /t/pixel.gif"; flow:established,to_server; content:"/t/pixel.gif?m="; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch Tool Delivery /cdn/chunks/polyfill-7e2b.min.js"; flow:established,to_server; content:"/cdn/chunks/polyfill-7e2b.min.js"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CaptiveCrunch ChocoShell Exfiltration POST /t/event (GZip)"; flow:established,to_server; content:"POST"; http_method; content:"/t/event"; http_uri; fast_pattern; content:"Content-Encoding|3a 20|gzip"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; sid:2100003; rev:2;)
