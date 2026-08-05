@@ -1,0 +1,180 @@
+title: ChainDrop NPM Worm - Node/Bun Execution of setup.mjs Preinstall Hook
+id: 8a3f1e2b-4c5d-6e7f-8a9b-0c1d2e3f4a5b
+status: experimental
+description: >
+    Detects execution of setup.mjs via node or bun runtime, as used by the
+    ChainDrop/Shai-Hulud npm supply chain worm as a preinstall lifecycle hook
+    to bootstrap the malware payload.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://www.bleepingcomputer.com/news/security/massive-chaindrop-npm-supply-chain-attack-infects-hundreds-of-packages/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_runtime:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+            - '/bun'
+            - '\bun.exe'
+    selection_script:
+        CommandLine|contains: 'setup.mjs'
+    condition: selection_runtime and selection_script
+falsepositives:
+    - Legitimate packages using setup.mjs as a preinstall hook (uncommon naming)
+level: medium
+---
+title: ChainDrop NPM Worm - Bun Runtime Download During npm Install
+id: 1b2c3d4e-5f6a-7b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects a node process spawning a child process that downloads the Bun
+    runtime from GitHub, as performed by the ChainDrop worm Stage 1 loader
+    when Bun is not already present on the system.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1195.002
+    - attack.t1105
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '\node.exe'
+    selection_download:
+        CommandLine|contains|all:
+            - 'bun'
+            - 'github.com'
+    condition: selection_parent and selection_download
+falsepositives:
+    - Developers intentionally installing Bun via npm lifecycle scripts
+level: medium
+---
+title: ChainDrop NPM Worm - Math_*.js Malicious File Drop
+id: 2c3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects creation of Math_Symbol.js, Math_init.js, or math_<guid>.js
+    files characteristic of the ChainDrop/Shai-Hulud npm worm payload
+    variants dropped during the infection chain.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://hackread.com/shai-hulud-npm-worm-poisoning-1280-packages/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|re: '(?i)(Math_Symbol|Math_init|math_[0-9a-f\-]{8,36})\.js$'
+    condition: selection
+falsepositives:
+    - Highly unlikely; Math_Symbol.js and Math_init.js are not standard library filenames
+level: critical
+---
+title: ChainDrop NPM Worm - DNS Query to Known C2 Domains
+id: 3d4e5f6a-7b8c-9d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: >
+    Detects DNS resolution requests to the known ChainDrop/Shai-Hulud C2
+    domains npm-cache.com, pypi-get.com, and js-mirror.com used for
+    command-and-control and credential exfiltration.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://www.bleepingcomputer.com/news/security/massive-chaindrop-npm-supply-chain-attack-infects-hundreds-of-packages/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'npm-cache.com'
+            - 'pypi-get.com'
+            - 'js-mirror.com'
+    condition: selection
+falsepositives:
+    - None expected; these are known malicious infrastructure domains
+level: critical
+---
+title: ChainDrop NPM Worm - Developer Credential Harvesting Commands
+id: 4e5f6a7b-8c9d-0e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: >
+    Detects execution of credential harvesting commands used by the
+    ChainDrop/Shai-Hulud worm to steal developer tokens from GitHub CLI,
+    GCloud, Azure CLI, and Azure Developer CLI.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1552.001
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '\node.exe'
+            - '/bun'
+            - '\bun.exe'
+    selection_cred_commands:
+        CommandLine|contains:
+            - 'gh auth token'
+            - 'gcloud config config-helper'
+            - 'az account get-access-token'
+            - 'azd auth token'
+    condition: selection_parent and selection_cred_commands
+falsepositives:
+    - CI/CD pipelines that legitimately invoke these commands with node/bun as parent
+level: high
+---
+title: ChainDrop NPM Worm - Malicious Claude/VSCode Hook Files
+id: 5f6a7b8c-9d0e-1f2a-3b4c-5d6e7f8a9b0c
+status: experimental
+description: >
+    Detects creation of .claude/settings.json or .vscode/setup.mjs files
+    by node/bun processes, as planted by the ChainDrop worm for
+    re-execution persistence via Claude Code SessionStart hooks and
+    VS Code folderOpen tasks.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1546
+    - attack.t1195.002
+logsource:
+    category: file_event
+detection:
+    selection_claude:
+        TargetFilename|endswith: '.claude/settings.json'
+    selection_vscode_setup:
+        TargetFilename|endswith: '.vscode/setup.mjs'
+    selection_parent:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+            - '/bun'
+            - '\bun.exe'
+    condition: (selection_claude or selection_vscode_setup) and selection_parent
+falsepositives:
+    - Developers manually creating .claude/settings.json or .vscode configuration files via node scripts
+level: high

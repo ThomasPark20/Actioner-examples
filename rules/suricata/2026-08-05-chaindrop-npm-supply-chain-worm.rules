@@ -1,0 +1,18 @@
+# ChainDrop/Shai-Hulud npm Supply Chain Worm - Suricata Rules
+# Author: Actioner | Date: 2026-08-05
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+# SID range: 1000020-1000026
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to npm-cache.com C2 Domain"; flow:to_server; dns.query; content:"npm-cache.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000020; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to pypi-get.com C2 Domain"; flow:to_server; dns.query; content:"pypi-get.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000021; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to js-mirror.com C2 Domain"; flow:to_server; dns.query; content:"js-mirror.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000022; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm TLS SNI to npm-cache.com C2"; flow:established,to_server; tls.sni; content:"npm-cache.com"; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000023; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm TLS SNI to pypi-get.com C2"; flow:established,to_server; tls.sni; content:"pypi-get.com"; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000024; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm TLS SNI to js-mirror.com C2"; flow:established,to_server; tls.sni; content:"js-mirror.com"; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000025; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm HTTP POST to /router C2 Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/router"; fast_pattern; http.host; content:"npm-cache.com"; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/; metadata:author Actioner, created_at 2026-08-05; sid:1000026; rev:1;)
