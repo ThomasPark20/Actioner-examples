@@ -1,0 +1,27 @@
+title: ChainDrop npm Worm - Token Monitor Persistence Mechanism
+id: 7f1a4b5c-9d6e-4a0f-b18c-4e3f2b5a7f9d
+status: experimental
+description: >
+    Detects creation of the ChainDrop gh-token-monitor persistence components
+    including the systemd user service, macOS LaunchAgent, or associated config
+    directory used to watch for credential rotation and execute destructive handlers.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://safedep.io/keyv-npm-supply-chain-compromise/
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'gh-token-monitor.service'
+            - 'gh-token-monitor.sh'
+            - 'com.user.gh-token-monitor'
+            - '.config/gh-token-monitor/'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

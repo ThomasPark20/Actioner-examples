@@ -1,0 +1,28 @@
+title: ChainDrop npm Worm - DNS Query to Known C2 Domains
+id: 4b8f1c2d-6e3a-4f7b-9d5c-1a0e8f3b2c4d
+status: experimental
+description: >
+    Detects DNS queries to known ChainDrop C2 and exfiltration domains including
+    npm-cache[.]com and awqhnjewqjkl[.]icu used for credential exfiltration.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://www.elastic.co/security-labs/shai-hulud-chaindrop-npm-supply-chain
+    - https://www.wiz.io/blog/keyv-and-cacheable-npm-supply-chain-attack
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1071.001
+    - attack.t1567
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'npm-cache.com'
+            - 'awqhnjewqjkl.icu'
+            - 'pypi-get.com'
+            - 'js-mirror.com'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

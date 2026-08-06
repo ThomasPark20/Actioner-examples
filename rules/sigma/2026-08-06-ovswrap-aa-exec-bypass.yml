@@ -1,0 +1,28 @@
+title: AppArmor Bypass via aa-exec with Namespace Creation
+id: 4a7e2f9b-1c3d-4856-ae90-5b8d6c7f1e2a
+status: experimental
+description: >
+    Detects the AppArmor bypass variant used by the OVSwrap (CVE-2026-64531)
+    exploit: aa-exec with the permissive trinity profile chained to unshare
+    for namespace creation. This specific combination is a strong signal of
+    deliberate security-boundary evasion.
+references:
+    - https://heyitsas.im/posts/ovswrap/
+    - https://github.com/manizada/OVSwrap
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_aa_exec_bypass:
+        CommandLine|contains|all:
+            - 'aa-exec'
+            - 'trinity'
+            - 'unshare'
+    condition: selection_aa_exec_bypass
+falsepositives:
+    - Legitimate use of aa-exec with the trinity profile is extremely rare outside kernel fuzzing environments
+level: high

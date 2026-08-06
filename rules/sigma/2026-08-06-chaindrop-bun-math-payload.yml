@@ -1,0 +1,30 @@
+title: ChainDrop npm Worm - Bun Runtime Executing Math Payload
+id: 2a9d6e3f-5b4c-4d8e-af1b-7c0e9f2a3d5b
+status: experimental
+description: >
+    Detects the Bun JavaScript runtime executing Math_Symbol.js or math_init.js payloads,
+    the second-stage credential harvester of the ChainDrop npm supply chain worm.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://www.stepsecurity.io/blog/chaindrop-npm-worm
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_bun:
+        Image|endswith:
+            - '/bun'
+    selection_payload:
+        CommandLine|contains:
+            - 'Math_Symbol.js'
+            - 'math_init.js'
+            - 'Math_init.js'
+    condition: selection_bun and selection_payload
+falsepositives:
+    - Very unlikely in production environments
+level: critical

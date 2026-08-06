@@ -1,0 +1,27 @@
+title: ChainDrop npm Worm - Malicious IDE/AI Hook File Creation
+id: 8a2b5c6d-0e7f-4b1a-c29d-5f4a3c6b8e0f
+status: experimental
+description: >
+    Detects creation of malicious Claude Code or VS Code hook files used by ChainDrop
+    for persistence and reinfection. The worm plants setup.mjs in .claude/ and .vscode/
+    directories with SessionStart hooks and folderOpen tasks to re-execute without npm install.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+    - https://thehackernews.com/2026/08/keyv-linked-npm-worm-poisons-hundreds.html
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1546
+    - attack.t1059.007
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '.claude/setup.mjs'
+            - '.vscode/setup.mjs'
+            - '.claude/math_init.js'
+    condition: selection
+falsepositives:
+    - Legitimate Claude Code or VS Code workspace setup scripts named setup.mjs
+level: high

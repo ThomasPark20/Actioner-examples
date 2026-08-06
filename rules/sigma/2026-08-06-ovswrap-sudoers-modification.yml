@@ -1,0 +1,46 @@
+title: Unauthorized Sudoers File Modification
+id: 6c9d3e1f-5a2b-4c7d-8e4f-3b6a0d9e8f1c
+status: experimental
+description: >
+    Detects modification of /etc/sudoers or files in /etc/sudoers.d/ by
+    processes other than package managers, visudo, or common configuration
+    management tools. Unauthorized sudoers writes are a post-exploitation
+    persistence technique (T1548.003) observed in OVSwrap and other Linux
+    privilege escalation exploits.
+references:
+    - https://heyitsas.im/posts/ovswrap/
+    - https://github.com/manizada/OVSwrap
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1548.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith:
+            - '/etc/sudoers'
+            - '/etc/sudoers.d/'
+    filter_package_manager:
+        Image|endswith:
+            - '/dpkg'
+            - '/rpm'
+            - '/yum'
+            - '/dnf'
+            - '/apt'
+            - '/apt-get'
+            - '/visudo'
+    filter_config_mgmt:
+        Image|endswith:
+            - '/ansible'
+            - '/ansible-playbook'
+            - '/puppet'
+            - '/chef-client'
+            - '/salt-minion'
+            - '/salt-call'
+    condition: selection and not filter_package_manager and not filter_config_mgmt
+falsepositives:
+    - Configuration management tools not listed in the filter (add site-specific filters)
+    - Cloud-init or custom provisioning scripts modifying sudoers during instance bootstrap
+level: medium

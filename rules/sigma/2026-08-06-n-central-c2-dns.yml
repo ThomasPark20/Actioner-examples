@@ -1,0 +1,28 @@
+title: DNS Query to N-central Campaign C2 Domains
+id: 4e1a7c93-b5d8-4f20-9a63-8c2d0e5f7b31
+status: experimental
+description: >
+    Detects DNS queries to attacker-controlled domains observed in the
+    CVE-2026-18577 N-central exploitation campaign, including Synology
+    QuickConnect and TacticalRMM infrastructure.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1071.001
+    - attack.t1219
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'mousears.synology.me'
+            - 'wagoosh.direct.quickconnect.to'
+            - 'who-ripped-one.direct.quickconnect.to'
+            - 'api.mendoratech.health'
+    condition: selection
+falsepositives:
+    - None known - these are attacker-controlled domains
+level: critical

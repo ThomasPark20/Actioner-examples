@@ -1,0 +1,28 @@
+title: Cloudflared Masquerading as MicrosoftEdgeUpdate or System Binary (N-central Campaign)
+id: 7b2d4f63-e9a1-4085-bc37-5c8e0d6f2a19
+status: experimental
+description: >
+    Detects cloudflared.exe renamed to MicrosoftEdgeUpdate64.exe or msmp.exe,
+    a masquerading technique observed in CVE-2026-18577 post-exploitation.
+    Attackers renamed cloudflared to evade detection.
+references:
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1036.005
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        OriginalFileName: 'cloudflared.exe'
+        Image|endswith:
+            - '\MicrosoftEdgeUpdate64.exe'
+            - '\msmp.exe'
+    condition: selection
+falsepositives:
+    - Very unlikely - cloudflared should not masquerade as other binaries
+level: critical

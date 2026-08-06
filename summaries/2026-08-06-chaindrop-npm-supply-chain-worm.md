@@ -398,12 +398,13 @@ level: critical
 
 <!-- revision: Ethereum RPC Endpoint Query rule DROPPED — altitude violation (public infrastructure, not attacker artifacts), massive FP surface (every Web3 app), trivial evasion (only 3 of 75 RPC endpoints listed). -->
 
-### Sigma: ChainDrop npm Worm - Mass Credential File Access by Bun Process
-Detects the Bun runtime accessing sensitive credential files targeted by ChainDrop's harvester.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (proxy/MITRE); splunk exit 0; log_scale exit 0. Bun reading .npmrc + .aws/credentials + .ssh/id_ is highly abnormal outside of explicit credential-management tooling. -->
+### Sigma: ChainDrop npm Worm - Credential File Access by Bun Process
+Detects the Bun runtime accessing sensitive credential files targeted by ChainDrop's harvester. Note: file_event coverage depends on log source (auditd, Sysmon for Linux, or EDR).
+**Status:** compile ✅ compiles · confidence: medium
+<!-- revision: removed "Mass" from title — condition is OR, single file access fires. confidence high→medium — Bun legitimately reads ~/.npmrc during bun install. -->
+<!-- audit: sigma check failed (proxy/MITRE); splunk exit 0; log_scale exit 0. Bun reading .npmrc + .aws/credentials + .ssh/id_ is highly abnormal outside of explicit credential-management tooling, but Bun does read .npmrc legitimately during installs. file_event coverage depends on log source. -->
 ```yaml
-title: ChainDrop npm Worm - Mass Credential File Access by Bun Process
+title: ChainDrop npm Worm - Credential File Access by Bun Process
 id: 6e0f3a4b-8c5d-4f9e-b07c-3d2e1a4f6e8c
 status: experimental
 description: >
@@ -437,12 +438,14 @@ detection:
     condition: selection_process and selection_files
 falsepositives:
     - Legitimate Bun applications reading configuration files
-level: high
+    - Bun reading ~/.npmrc during bun install
+level: medium
 ```
 
 ### Sigma: ChainDrop npm Worm - Token Monitor Persistence Mechanism
 Detects creation of ChainDrop's gh-token-monitor persistence components (systemd service, LaunchAgent, config directory).
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: removed incorrect attack.t1053 tag — T1053 is Scheduled Task/Job; a systemd service is T1543.002 (already present). -->
 <!-- audit: sigma check failed (proxy/MITRE); splunk exit 0; log_scale exit 0. gh-token-monitor is a unique artifact name with no legitimate use. -->
 ```yaml
 title: ChainDrop npm Worm - Token Monitor Persistence Mechanism
@@ -459,7 +462,6 @@ author: Actioner
 date: 2026/08/06
 tags:
     - attack.t1543.002
-    - attack.t1053
 logsource:
     category: file_event
 detection:
@@ -559,9 +561,10 @@ alert dns $HOME_NET any -> any any (
 Snort rules are not generated separately as the Suricata rules above cover the same network indicators. Snort is not installed for compile validation, and the C2 domain detections are better served by Suricata's `dns.query` and `http.host` sticky buffers.
 
 ### YARA: ChainDrop npm Worm Payload and Dropper
-Detects the ChainDrop Stage 2 credential harvester via Dune-themed obfuscation strings and Ethereum contract references, and the Stage 1 dropper via Bun download patterns. Sample-tested against a constructed positive containing published signature strings.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: file containing 4 Dune strings + npmjs whoami + Ethereum contract → fires Malware_ChainDrop_NPM_Worm_Payload. Negative test: benign Express.js module → no match. Dune-themed strings (fedaykin, tleilaxu, sardaukar, ornithopter) combined with credential-harvesting patterns are highly distinctive to this malware family. Hash 9fc2570b… is the published payload hash from Microsoft/StepSecurity/Elastic. -->
+Detects the ChainDrop Stage 2 credential harvester via Dune-themed obfuscation strings and Ethereum contract references, and the Stage 1 dropper via Bun download patterns. Sample-tested against a synthetic positive (constructed file) containing published signature strings.
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic positive
+<!-- revision: relabeled sample: fired ✓ → sample: synthetic positive — test used a constructed file, not the actual malware binary. -->
+<!-- audit: yarac exit 0. Positive test: constructed file containing 4 Dune strings + npmjs whoami + Ethereum contract → fires Malware_ChainDrop_NPM_Worm_Payload. Negative test: benign Express.js module → no match. Dune-themed strings (fedaykin, tleilaxu, sardaukar, ornithopter) combined with credential-harvesting patterns are highly distinctive to this malware family. Hash 9fc2570b… is the published payload hash from Microsoft/StepSecurity/Elastic. -->
 ```yara
 rule Malware_ChainDrop_NPM_Worm_Payload
 {

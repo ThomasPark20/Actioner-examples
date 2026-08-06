@@ -1,0 +1,25 @@
+title: PhantomKiller EDR Evasion Driver Load (N-central Campaign)
+id: 2d8f6b45-c1e3-4a97-9e02-7a3d5f0c8b16
+status: experimental
+description: >
+    Detects loading of k.sys driver from AnyDesk directory, associated with the
+    PhantomKiller EDR evasion tool deployed during CVE-2026-18577 post-exploitation.
+    The tool terminates security products such as Sophos and Microsoft Defender.
+references:
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1562.001
+    - attack.t1014
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|contains: '\ProgramData\AnyDesk\'
+        ImageLoaded|endswith: '\k.sys'
+    condition: selection
+falsepositives:
+    - None known - this is a highly specific malicious indicator
+level: critical

@@ -1,0 +1,34 @@
+title: N-able N-central CVE-2026-18577 Attacker IP Connection
+id: 8e4a3b17-c5d2-4f91-a6e8-9d0b7c3f2a15
+status: experimental
+description: >
+    Detects network connections to or from IP addresses associated with
+    CVE-2026-18577 N-central authentication bypass exploitation campaign.
+    These IPs are VPN exit nodes (Mullvad, NordVPN) used by the threat actor.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://www.n-able.com/blog/n-central-security-update-august-2-2026
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1190
+logsource:
+    category: firewall
+detection:
+    selection:
+        src_ip:
+            - '173.249.252.200'
+            - '173.249.252.176'
+            - '87.249.138.34'
+            - '37.19.210.32'
+            - '37.153.90.88'
+            - '92.118.112.181'
+            - '68.235.46.214'
+            - '68.235.46.235'
+            - '185.156.46.150'
+            - '23.234.94.43'
+    condition: selection
+falsepositives:
+    - Legitimate VPN usage from the same exit nodes (Mullvad, NordVPN)
+level: high

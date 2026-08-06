@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-06
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -149,13 +149,17 @@ No network IOCs -- this is a local-only privilege escalation vulnerability with 
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: dropped T1014 (Rootkit) -- credential manipulation is not rootkit behavior, already covered by T1068. Dropped T1547.006 (Kernel Modules) -- OVSwrap loads an existing legitimate module for exploitation, not for persistence. Caveated T1611 -- OVSwrap starts on host and creates its own namespace, not a container escape. -->
+
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1068 | Exploitation for Privilege Escalation | Kernel memory corruption via OVS `nla_len` wraparound to escalate from unprivileged user to root |
-| T1611 | Escape to Host | Use of `unshare -Urn` to create user/network namespace, then exploiting kernel module to affect host credentials |
 | T1548.003 | Abuse Elevation Control Mechanism: Sudo and Sudo Caching | Post-exploitation injection of passwordless sudo rules into `/etc/sudoers.d/` |
-| T1014 | Rootkit (Kernel Credential Manipulation) | Direct manipulation of kernel `cred` structure to zero out `fsuid`/`fsgid` or wrap capability fields |
-| T1547.006 | Boot or Logon Autostart Execution: Kernel Modules and Extensions | Auto-loading `openvswitch.ko` via Generic Netlink family resolution from unprivileged context |
+
+**Techniques considered and excluded:**
+- **T1014 (Rootkit):** Credential manipulation is not rootkit behavior; the exploit modifies kernel `cred` structs for privilege escalation, not to hide malware. Covered by T1068.
+- **T1547.006 (Kernel Modules and Extensions):** OVSwrap triggers auto-load of an existing legitimate module (`openvswitch.ko`) as an exploitation prerequisite, not as a persistence mechanism.
+- **T1611 (Escape to Host):** OVSwrap starts execution on the host and creates its own user namespace to gain `CAP_NET_ADMIN`; the attacker is not escaping a pre-existing container. Not applicable unless the exploit is chained from within a container environment.
 
 ## Impact Assessment
 
@@ -196,7 +200,7 @@ uname -r
 
 ### Remediation
 
-1. **Immediate mitigation -- block OVS module load:**
+1. **Immediate mitigation -- block OVS module load** (only effective when `openvswitch` is built as a loadable module, i.e. `CONFIG_OPENVSWITCH=m`; has no effect when the module is built-in to the kernel with `CONFIG_OPENVSWITCH=y`):
    ```bash
    echo 'install openvswitch /bin/false' > /etc/modprobe.d/ovswrap.conf
    ```
@@ -204,6 +208,7 @@ uname -r
    ```bash
    modprobe -r openvswitch
    ```
+<!-- revision: added CONFIG_OPENVSWITCH=m caveat per critic — modprobe.d blacklist only works for loadable modules, not built-in. -->
 
 2. **Disable unprivileged user namespaces** (if not needed by containers/Flatpak):
    ```bash
@@ -228,7 +233,7 @@ uname -r
 
 ## Detection Rules
 
-These detections target the OVSwrap (CVE-2026-64531) exploitation chain at multiple stages: PoC execution, namespace creation, module loading, and post-exploitation sudoers modification. All Sigma rules convert to Splunk and CrowdStrike LogScale; `sigma check` was unable to validate ATT&CK tags due to a network-blocked MITRE data endpoint, but all other validators passed with 0 errors. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target the OVSwrap (CVE-2026-64531) exploitation chain at multiple stages: PoC execution, AppArmor bypass, and post-exploitation sudoers modification. All Sigma rules convert to Splunk and CrowdStrike LogScale; `sigma check` was unable to validate ATT&CK tags due to a network-blocked MITRE data endpoint, but all other validators passed with 0 errors. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: OVSwrap Exploit Script Execution
 
@@ -272,20 +277,21 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Suspicious Unshare Namespace Creation for OVS Exploitation
+### Sigma: AppArmor Bypass via aa-exec with Namespace Creation
 
-Detects `unshare -Urn` (user+network namespace) invocation and the AppArmor bypass variant (`aa-exec -p trinity`), both prerequisite commands for OVSwrap exploitation. Scope to non-container hosts to reduce noise.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0; log_scale 0. unshare -Urn is legitimate in container/Flatpak contexts, hence medium confidence. The aa-exec trinity variant is more specific. FP: container runtimes, Flatpak, snap. -->
+<!-- revision: stripped generic selection_unshare branch (fires on ANY unshare -Urn -- container runtimes, Flatpak, snap, Chrome sandbox). Retained only the aa-exec + trinity + unshare branch as the specific-altitude rule. Promoted confidence to high given the extreme specificity of this combination. -->
+Detects the AppArmor bypass variant used by OVSwrap: `aa-exec` with the permissive `trinity` profile chained to `unshare` for namespace creation.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0; log_scale 0. aa-exec + trinity + unshare is highly specific to OVSwrap's AppArmor bypass. FP: kernel fuzzing with trinity fuzzer is the only known benign hit — extremely rare in production. -->
 ```yaml
-title: Suspicious Unshare Namespace Creation for OVS Exploitation
+title: AppArmor Bypass via aa-exec with Namespace Creation
 id: 4a7e2f9b-1c3d-4856-ae90-5b8d6c7f1e2a
 status: experimental
 description: >
-    Detects suspicious use of unshare with user and network namespace flags
-    (-Urn) which is the prerequisite for the OVSwrap (CVE-2026-64531) exploit
-    to obtain CAP_NET_ADMIN without host privileges. Also detects the
-    AppArmor bypass variant using aa-exec.
+    Detects the AppArmor bypass variant used by the OVSwrap (CVE-2026-64531)
+    exploit: aa-exec with the permissive trinity profile chained to unshare
+    for namespace creation. This specific combination is a strong signal of
+    deliberate security-boundary evasion.
 references:
     - https://heyitsas.im/posts/ovswrap/
     - https://github.com/manizada/OVSwrap
@@ -293,44 +299,37 @@ author: Actioner
 date: 2026/08/06
 tags:
     - attack.t1068
-    - attack.t1611
 logsource:
     category: process_creation
     product: linux
 detection:
-    selection_unshare:
-        Image|endswith: '/unshare'
-        CommandLine|contains|all:
-            - '-U'
-            - '-r'
-            - '-n'
     selection_aa_exec_bypass:
         CommandLine|contains|all:
             - 'aa-exec'
             - 'trinity'
             - 'unshare'
-    condition: selection_unshare or selection_aa_exec_bypass
+    condition: selection_aa_exec_bypass
 falsepositives:
-    - Container runtimes creating user namespaces
-    - Development environments using namespace isolation
-    - Flatpak or snap sandbox creation
-level: medium
+    - Legitimate use of aa-exec with the trinity profile is extremely rare outside kernel fuzzing environments
+level: high
 ```
 
-### Sigma: Unauthorized Sudoers Modification (OVSwrap Post-Exploitation)
+### Sigma: Unauthorized Sudoers File Modification
 
-Detects writes to `/etc/sudoers` or `/etc/sudoers.d/` by processes other than package managers or `visudo`, which is the post-exploitation payload of OVSwrap.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0; log_scale 0. Sudoers modification outside package management is a strong signal. Filter excludes dpkg/rpm/yum/dnf/apt/visudo. FP: Ansible/Puppet/Chef config management -- add filters for your environment. -->
+<!-- revision: relabeled as TTP altitude (nothing in detection logic keys on OVSwrap-specific artifacts). Downgraded confidence high→medium. Removed "OVS Exploitation" from title. Expanded filter list with config management tools (ansible, puppet, chef, salt). Site-specific tuning required for non-standard provisioning tools. -->
+Detects writes to `/etc/sudoers` or `/etc/sudoers.d/` by processes other than package managers, `visudo`, or common configuration management tools. Site-specific tuning required -- add filters for your provisioning stack.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0 (excl. attacktag); splunk 0; log_scale 0. TTP-altitude rule — nothing keys on OVSwrap-specific artifacts; fires on any unauthorized sudoers write. Filters: dpkg/rpm/yum/dnf/apt/apt-get/visudo + ansible/puppet/chef/salt. FP: cloud-init, custom provisioning, Ansible run via python not ansible binary. Pair with OVSwrap-specific rules above for CVE-level triage. -->
 ```yaml
-title: Unauthorized Sudoers Modification After OVS Exploitation
+title: Unauthorized Sudoers File Modification
 id: 6c9d3e1f-5a2b-4c7d-8e4f-3b6a0d9e8f1c
 status: experimental
 description: >
-    Detects modification of /etc/sudoers or files in /etc/sudoers.d/ which
-    is the post-exploitation payload of the OVSwrap (CVE-2026-64531) exploit.
-    The exploit corrupts kernel credentials then injects passwordless sudo
-    rules to persist root access.
+    Detects modification of /etc/sudoers or files in /etc/sudoers.d/ by
+    processes other than package managers, visudo, or common configuration
+    management tools. Unauthorized sudoers writes are a post-exploitation
+    persistence technique (T1548.003) observed in OVSwrap and other Linux
+    privilege escalation exploits.
 references:
     - https://heyitsas.im/posts/ovswrap/
     - https://github.com/manizada/OVSwrap
@@ -355,59 +354,31 @@ detection:
             - '/apt'
             - '/apt-get'
             - '/visudo'
-    condition: selection and not filter_package_manager
+    filter_config_mgmt:
+        Image|endswith:
+            - '/ansible'
+            - '/ansible-playbook'
+            - '/puppet'
+            - '/chef-client'
+            - '/salt-minion'
+            - '/salt-call'
+    condition: selection and not filter_package_manager and not filter_config_mgmt
 falsepositives:
-    - Legitimate system administration via configuration management tools
-    - Ansible, Puppet, Chef automated sudoers management
-level: high
+    - Configuration management tools not listed in the filter (add site-specific filters)
+    - Cloud-init or custom provisioning scripts modifying sudoers during instance bootstrap
+level: medium
 ```
 
 ### Sigma: Suspicious OpenVSwitch Kernel Module Load
 
-Detects `modprobe` or `insmod` loading `openvswitch` or `nf_conntrack_ftp` modules, which is the first step in OVSwrap exploitation (auto-triggered by Generic Netlink family resolution from a user namespace).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (excl. attacktag); splunk 0; log_scale 0. Module loading is normal in OVS/SDN environments, hence medium confidence. Best used as a correlating signal alongside the namespace creation rule. FP: legitimate OVS deployments, container networking. -->
-```yaml
-title: Suspicious OpenVSwitch Kernel Module Load
-id: 2e8b5d4c-9a1f-4367-bf2e-7c6d0a3e5f9b
-status: experimental
-description: >
-    Detects loading of the openvswitch or nf_conntrack_ftp kernel modules
-    which may indicate preparation for CVE-2026-64531 (OVSwrap) exploitation.
-    The exploit triggers auto-loading of openvswitch.ko by resolving the OVS
-    Generic Netlink family from within a user namespace.
-references:
-    - https://heyitsas.im/posts/ovswrap/
-    - https://github.com/manizada/OVSwrap
-author: Actioner
-date: 2026/08/06
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_modprobe:
-        Image|endswith: '/modprobe'
-        CommandLine|contains:
-            - 'openvswitch'
-            - 'nf_conntrack_ftp'
-    selection_insmod:
-        Image|endswith: '/insmod'
-        CommandLine|contains:
-            - 'openvswitch'
-            - 'nf_conntrack_ftp'
-    condition: selection_modprobe or selection_insmod
-falsepositives:
-    - Legitimate OVS deployment in virtualization or SDN environments
-    - Container orchestration platforms loading OVS for networking
-level: medium
-```
+<!-- revision: DROPPED. Fires on every modprobe openvswitch / nf_conntrack_ftp on any OVS-using system. No narrowing condition distinguishes exploitation from legitimate use. The exploit triggers module load via kernel autoload (Generic Netlink family resolution), not user-space modprobe — so this rule does not observe the actual exploitation path. -->
+**Dropped** -- fires on every `modprobe openvswitch` / `nf_conntrack_ftp` on any OVS system with no narrowing condition; the exploit triggers module load via kernel autoload, not user-space `modprobe`.
 
 ### YARA: OVSwrap Exploit PoC Detection
 
+<!-- revision: changed sample: fired ✓ → sample: fired (synthetic). The test used constructed strings matching published PoC header content, not the actual published PoC binary. -->
 Detects the OVSwrap exploit script/binary by matching on distinctive strings from the published PoC (CVE ID, exploit name, kernel function targets, and operational commands).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: fired (synthetic)
 <!-- audit: yarac 0. Positive sample (constructed from published PoC header strings) matched; negative sample (benign network script) silent. Keys on "ovswrap" + "CVE-2026-64531" combo and fallback on 3+ kernel function names + 2+ operational commands. FP: security research tools discussing CVE-2026-64531 in depth could match -- acceptable for a file-scan rule. -->
 ```yara
 rule Exploit_CVE_2026_64531_OVSwrap_PoC

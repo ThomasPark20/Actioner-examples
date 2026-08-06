@@ -1,0 +1,25 @@
+title: Suspicious svchost.exe in User Documents Folder (N-central Campaign)
+id: 5a1c9e38-d7f4-4b62-8c0a-2e6f3b7d1a94
+status: experimental
+description: >
+    Detects creation of svchost.exe in user Documents directories, a key indicator
+    of compromise from the CVE-2026-18577 N-central exploitation campaign. Legitimate
+    svchost.exe resides only in System32/SysWOW64.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://www.n-able.com/blog/n-central-security-update-august-2-2026
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Documents\'
+        TargetFilename|endswith: '\svchost.exe'
+    condition: selection
+falsepositives:
+    - Very unlikely - svchost.exe should never be in a Documents folder
+level: critical
