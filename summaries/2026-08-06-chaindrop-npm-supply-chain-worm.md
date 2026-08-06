@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-06
-Version: 1.0 DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -182,12 +182,12 @@ After harvesting credentials, the payload uses stolen npm tokens to propagate:
 | Domain | awqhnjewqjkl[.]icu | Secondary C2 domain |
 | Domain | pypi-get[.]com | Fallback candidate domain |
 | Domain | js-mirror[.]com | Fallback candidate domain |
-| IP | 104.21.35[.]216 | npm-cache[.]com resolution (Cloudflare) |
+| IP | 104.21.35[.]216 | npm-cache[.]com resolution (Cloudflare). Shared Cloudflare infrastructure; do not block by IP alone. |
 | URL Pattern | hxxps://npm-cache[.]com:443/router | Exfiltration POST endpoint |
 | Ethereum Contract | 0xE1f2395ee43e45A1556EC6438a88c31B83493103 | EtherHiding C2 resolver (selector 0x53ed5143) |
-| Domain | eth[.]llamarpc[.]com | Ethereum RPC endpoint used for C2 resolution |
-| Domain | go[.]getblock[.]io | Ethereum RPC endpoint used for C2 resolution |
-| Domain | eth-mainnet[.]nodereal[.]io | Ethereum RPC endpoint used for C2 resolution |
+| Domain | eth.llamarpc.com | Legitimate Ethereum RPC endpoint abused for EtherHiding C2 resolution (not attacker infra) |
+| Domain | go.getblock.io | Legitimate Ethereum RPC endpoint abused for EtherHiding C2 resolution (not attacker infra) |
+| Domain | eth-mainnet.nodereal.io | Legitimate Ethereum RPC endpoint abused for EtherHiding C2 resolution (not attacker infra) |
 | User-Agent | Bun/1.3.13 | Bun runtime HTTP user-agent |
 | User-Agent | npm/11.13.1 node/v24.10.0 | npm client user-agent observed |
 
@@ -211,8 +211,7 @@ After harvesting credentials, the payload uses stolen npm tokens to propagate:
 | T1199 | Trusted Relationship | Abuse of npm trusted publisher OIDC workflow identity for propagation |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Systematic scanning of 140+ credential file paths (~/.npmrc, ~/.aws/credentials, etc.) |
 | T1555 | Credentials from Password Stores | Extraction of tokens from GitHub CLI, cloud CLI tools, and Vault |
-| T1547 | Boot or Logon Autostart Execution | npm preinstall lifecycle hook for automatic execution during package installation |
-| T1546 | Event Triggered Execution | Claude Code SessionStart hooks and VS Code folderOpen tasks |
+| T1546 | Event Triggered Execution | npm preinstall lifecycle hook for automatic execution; Claude Code SessionStart hooks and VS Code folderOpen tasks |
 | T1543.002 | Create or Modify System Process: Systemd Service | gh-token-monitor.service for persistent credential monitoring |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS POST exfiltration to npm-cache[.]com:443/router |
 | T1102 | Web Service | Ethereum smart contract dead-drop for C2 domain resolution; GitHub repos for fallback exfil |
@@ -220,7 +219,7 @@ After harvesting credentials, the payload uses stolen npm tokens to propagate:
 | T1105 | Ingress Tool Transfer | Download of Bun v1.3.13 runtime from official GitHub releases |
 | T1580 | Cloud Infrastructure Discovery | AWS STS GetCallerIdentity, region enumeration across 16 regions |
 | T1526 | Cloud Service Discovery | Secrets Manager, SSM, Vault, Kubernetes service enumeration |
-| T1570 | Lateral Tool Transfer | Worm self-propagation via stolen npm tokens to infect additional packages |
+<!-- revision: T1570 dropped — worm propagation is supply-chain (T1195.002), not lateral tool transfer -->
 
 ## Impact Assessment
 
@@ -289,7 +288,8 @@ These detections target ChainDrop's specific dropper filenames, C2 domains, Bun-
 
 ### Sigma: ChainDrop npm Worm - Suspicious setup.mjs Preinstall Execution
 Detects execution of `setup.mjs` via npm preinstall hook, the ChainDrop dropper's primary delivery mechanism.
-**Status:** compile ✅ compiles · confidence: high
+**Status:** compile ✅ compiles · confidence: medium
+<!-- revision: confidence high→medium, level high→medium — setup.mjs is a plausible developer convention, not unique to this malware. -->
 <!-- audit: sigma check failed (403 fetching MITRE ATT&CK data from proxy — environment issue, not rule defect); splunk exit 0; log_scale exit 0. Fields: ParentCommandLine, CommandLine (process_creation/linux). FP: legitimate preinstall scripts named setup.mjs exist but are uncommon. -->
 ```yaml
 title: ChainDrop npm Worm - Suspicious setup.mjs Preinstall Execution
@@ -321,7 +321,7 @@ detection:
     condition: selection_parent and selection_cmd
 falsepositives:
     - Legitimate npm packages with preinstall scripts named setup.mjs
-level: high
+level: medium
 ```
 
 ### Sigma: ChainDrop npm Worm - Bun Runtime Executing Math Payload
@@ -371,7 +371,7 @@ id: 4b8f1c2d-6e3a-4f7b-9d5c-1a0e8f3b2c4d
 status: experimental
 description: >
     Detects DNS queries to known ChainDrop C2 and exfiltration domains including
-    npm-cache.com and awqhnjewqjkl.icu used for credential exfiltration.
+    npm-cache[.]com and awqhnjewqjkl[.]icu used for credential exfiltration.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
     - https://www.elastic.co/security-labs/shai-hulud-chaindrop-npm-supply-chain
@@ -396,43 +396,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: ChainDrop npm Worm - Ethereum RPC Query from Node/Bun Process
-Detects node or bun processes querying Ethereum RPC endpoints, indicative of ChainDrop's EtherHiding C2 resolver.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (proxy/MITRE); splunk exit 0; log_scale exit 0. Ethereum RPC queries from node/bun are legitimate in Web3 environments — scope to non-Web3 build systems to reduce FPs. -->
-```yaml
-title: ChainDrop npm Worm - Ethereum RPC Endpoint Query from Node/Bun Process
-id: 5d9e2f3a-7b4c-4e8d-af6b-2c1e0a3f5d7b
-status: experimental
-description: >
-    Detects DNS queries to known Ethereum RPC endpoints from node or bun processes,
-    indicative of the ChainDrop EtherHiding C2 resolver querying smart contract
-    0xE1f2395ee43e45A1556EC6438a88c31B83493103 to retrieve exfiltration domains.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
-    - https://www.stepsecurity.io/blog/chaindrop-npm-worm
-author: Actioner
-date: 2026/08/06
-tags:
-    - attack.t1071.001
-    - attack.t1102
-logsource:
-    category: dns_query
-detection:
-    selection_process:
-        Image|endswith:
-            - '/node'
-            - '/bun'
-    selection_domain:
-        QueryName|endswith:
-            - 'eth.llamarpc.com'
-            - 'eth-mainnet.nodereal.io'
-            - 'go.getblock.io'
-    condition: selection_process and selection_domain
-falsepositives:
-    - Legitimate Web3/blockchain applications querying Ethereum RPC endpoints
-level: medium
-```
+<!-- revision: Ethereum RPC Endpoint Query rule DROPPED — altitude violation (public infrastructure, not attacker artifacts), massive FP surface (every Web3 app), trivial evasion (only 3 of 75 RPC endpoints listed). -->
 
 ### Sigma: ChainDrop npm Worm - Mass Credential File Access by Bun Process
 Detects the Bun runtime accessing sensitive credential files targeted by ChainDrop's harvester.
