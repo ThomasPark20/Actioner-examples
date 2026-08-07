@@ -195,11 +195,11 @@ Files cross-reference each other's directories; only `.claude/math_init.js` exis
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies | Trojanized npm packages via stolen publishing credentials |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Bun runtime executing obfuscated JS payload |
-| T1547.014 | Boot or Logon Autostart Execution: Active Setup | Cross-linked VS Code tasks.json / Claude Code settings.json persistence |
+| T1546 | Event Triggered Execution | Cross-linked VS Code tasks.json / Claude Code settings.json persistence |
 | T1543.002 | Create or Modify System Process: Systemd Service | Latent Linux systemd user service (embedded, not invoked) |
-| T1547.015 | Boot or Logon Autostart Execution: Login Items | Latent macOS LaunchAgent (embedded, not invoked) |
+| T1543.001 | Create or Modify System Process: Launch Agent | Latent macOS LaunchAgent (embedded, not invoked) |
 | T1528 | Steal Application Access Token | Harvesting GitHub PATs, npm tokens, cloud credentials |
-| T1555 | Credentials from Password Stores | Stealing dotfile credentials (.npmrc, .aws/credentials, .ssh/) |
+| T1552.001 | Unsecured Credentials: Credentials In Files | Stealing dotfile credentials (.npmrc, .aws/credentials, .ssh/) |
 | T1003 | OS Credential Dumping | GitHub Actions Runner.Worker process memory scraping for OIDC tokens |
 | T1020 | Automated Exfiltration | Serializing GitHub Actions secrets as workflow artifacts |
 | T1041 | Exfiltration Over C2 Channel | AES-256-GCM encrypted data to C2 domains |
@@ -348,39 +348,35 @@ falsepositives:
 level: medium
 ```
 
-### Sigma: Cross-Linked IDE Persistence Files
+### Sigma: ChainDrop Payload Written to .claude Directory
 
-Detects concurrent creation of ChainDrop's .claude/math_init.js alongside IDE persistence configs (.claude/settings.json or .vscode/tasks.json), a combination unique to this worm's dual-IDE persistence scheme.
+Detects creation of `.claude/math_init.js`, the ChainDrop worm payload dropped into the Claude Code configuration directory as part of its IDE persistence scheme. This filename in this path is unique to ChainDrop.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE fetch 403); splunk convert exit 0; log_scale convert exit 0. High confidence: the AND of .claude/math_init.js with either IDE config is extremely specific to ChainDrop. Requires file_event telemetry (Sysmon EID 11 or equivalent). -->
+<!-- audit: sigma check failed (MITRE fetch 403); splunk convert exit 0; log_scale convert exit 0. High confidence: .claude/math_init.js is a ChainDrop-specific artifact. Requires file_event telemetry (Sysmon EID 11 or equivalent). Previous revision ANDed multiple TargetFilename endings (logically impossible on a single event); simplified to detect .claude/math_init.js alone. -->
 ```yaml
-title: ChainDrop Worm - Cross-Linked IDE Persistence Files
+title: ChainDrop Worm - Payload Written to Claude Code Config Directory
 id: 5e9f2a1b-3c4d-6e8f-0b7a-2d1c4f6e8a3b
 status: experimental
 description: >
-    Detects creation of ChainDrop worm's cross-linked persistence files in
-    .vscode and .claude directories. The worm creates .vscode/tasks.json
-    invoking .claude/setup.mjs and .claude/settings.json invoking
-    .vscode/setup.mjs for dual IDE persistence.
+    Detects creation of .claude/math_init.js, the ChainDrop worm payload
+    dropped into the Claude Code configuration directory. This file is part
+    of the worm's cross-linked IDE persistence scheme and is not a legitimate
+    Claude Code artifact.
 references:
     - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
     - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
 author: Actioner
 date: 2026-08-07
 tags:
-    - attack.t1547.014
+    - attack.t1546
 logsource:
     category: file_event
 detection:
-    selection_claude_settings:
-        TargetFilename|endswith: '.claude/settings.json'
-    selection_vscode_tasks:
-        TargetFilename|endswith: '.vscode/tasks.json'
-    selection_claude_math:
+    selection:
         TargetFilename|endswith: '.claude/math_init.js'
-    condition: selection_claude_math and (selection_claude_settings or selection_vscode_tasks)
+    condition: selection
 falsepositives:
-    - Unlikely — concurrent creation of .claude/math_init.js with IDE config files is highly specific to ChainDrop
+    - Legitimate files named math_init.js inside a .claude directory are extremely unlikely
 level: high
 ```
 
