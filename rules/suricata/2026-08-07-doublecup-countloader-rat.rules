@@ -1,0 +1,25 @@
+# DOUBLECUP / CountLoader / DeviceManager RAT - Suricata Detection Rules
+# Date: 2026-08-07
+# Reference: https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+# Version: 1.0
+
+# DeviceManager DNS Tunneling Check-in (confidence: medium)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS Tunneling Check-in via Spoofed Microsoft Domain"; flow:to_server; dns.query; content:".microsoft.com"; endswith; nocase; pcre:"/^[a-f0-9]{16}[a-z0-9\-]*\.microsoft\.com$/i"; threshold:type both, track by_src, count 5, seconds 120; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200101; rev:1;)
+
+# DeviceManager DNS TXT System Info Exfiltration (confidence: high)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS TXT System Info Exfil Pattern"; flow:to_server; dns.query; content:"i-"; startswith; content:".microsoft.com"; endswith; nocase; pcre:"/^i-[a-f0-9]{16}-[a-f0-9]+\.microsoft\.com$/i"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200102; rev:1;)
+
+# DeviceManager DNS TXT Task Polling (confidence: high)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS TXT Task Polling Pattern"; flow:to_server; dns.query; content:"t-"; startswith; content:".microsoft.com"; endswith; nocase; pcre:"/^t-[a-f0-9]{16}-[0-9]+\.microsoft\.com$/i"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200103; rev:1;)
+
+# DOUBLECUP C2 Session Registration (confidence: medium - generic URI)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP C2 Session Registration Endpoint"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/session/reg"; fast_pattern; content:"sid="; content:"ip="; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200104; rev:1;)
+
+# DOUBLECUP C2 Session Signal (confidence: high)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP C2 Session Signal Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/session/signal"; fast_pattern; content:"sid="; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200105; rev:1;)
+
+# CountLoader C2 Initial Beacon with Campaign Key (confidence: high)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CountLoader C2 Initial Beacon with Campaign Key"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/connect"; fast_pattern; content:"hwid="; content:"key=K94DGQ99VYCCH52TKOT2"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200107; rev:1;)
+
+# CountLoader C2 Task Retrieval (confidence: medium - /getUpdates is Telegram Bot API pattern)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CountLoader C2 Task Retrieval via getUpdates"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/getUpdates"; fast_pattern; http.request_body; content:"getUpdates"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200108; rev:1;)
