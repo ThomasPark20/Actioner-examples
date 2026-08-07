@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-07
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -23,7 +23,7 @@ DOUBLECUP targets enterprise users through bogus CRM login pages impersonating N
 | 2026-08-03 | SOCRadar STRU publishes primary technical analysis |
 | 2026-08-04 | The Hacker News, BleepingComputer publish coverage |
 
-## Root Cause: ClickFix Social Engineering (T1204.004)
+## Root Cause: ClickFix Social Engineering (T1204.002)
 
 Initial access is achieved through ClickFix social engineering. Victims visit phishing pages impersonating CRM platforms (login-netsuite[.]com, login-odoo[.]com, login-hubspot[.]com, verification-salesforce[.]com, login-salesforce[.]com). The pages display a fake CAPTCHA UI prompting users to click a "Copy" button, which places browser-specific commands into the clipboard. When the victim pastes and executes the command (typically via Win+R or terminal), it triggers the multi-stage infection chain.
 
@@ -161,9 +161,9 @@ This environmental keying ensures payloads only unpack on the intended victim ma
 | Windows | CountLoader | `bdf28e611d77362c40a0445655a35943c03accf21bb9a5af755da7eac5ea5e40` | CountLoader 4.5p Windows |
 | macOS | setup.sh | `afe273533d6f9d0b8852988f6a4b34571dd52af4c690e54723a86257aa8a015d` | macOS CountLoader stager |
 | macOS | AppleIDVerificationService | `08730fda7366104b1461b12834f55723381bf34a234947689c708b1ee431af69` | macOS CountLoader binary |
-| Windows | `%LOCALAPPDATA%\DeviceManager\config.json` | -- | DeviceManager configuration |
-| Windows | `%LOCALAPPDATA%\DeviceManager\agent.log` | -- | DeviceManager rotating log |
-| Windows | `%LOCALAPPDATA%\DeviceManager\agent_main.pyw` | -- | DeviceManager entry point |
+| Windows | `%LOCALAPPDATA%\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12\config.json` | -- | DeviceManager configuration |
+| Windows | `%LOCALAPPDATA%\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12\agent.log` | -- | DeviceManager rotating log |
+| Windows | `%LOCALAPPDATA%\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12\agent_main.pyw` | -- | DeviceManager entry point |
 | Windows | `%TEMP%\t.xml` | -- | Temporary scheduled task XML (deleted after use) |
 | Windows | `%USERPROFILE%\App_<GUID>.py` | -- | CountLoader process masquerading script |
 
@@ -223,7 +223,7 @@ This environmental keying ensures payloads only unpack on the intended victim ma
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1204.004 | User Execution: Malicious Copy/Paste | ClickFix lures trick users into pasting commands from fake CRM login pages |
+| T1204.002 | User Execution: Malicious File | ClickFix lures trick users into pasting and executing commands from fake CRM login pages (ClickFix variant) |
 | T1059.001 | PowerShell | DOUBLECUP Stage 2 execution, CountLoader C2 communication, DeviceManager task execution |
 | T1059.003 | Windows Command Shell | cmd.exe for-loop extraction from browser cache, CountLoader command dispatch |
 | T1059.006 | Python | CountLoader App.py wrapper, DeviceManager RAT (run.pyw/agent_main.pyw) |
@@ -261,7 +261,6 @@ DOUBLECUP represents a scalable, low-friction delivery platform that commoditize
 Get-ScheduledTask | Where-Object { $_.TaskName -match 'GoogleUpdateService|MSEdgeUpdateService|MicroUpdaterV1' }
 
 # Check for DeviceManager installation directory
-Test-Path "$env:LOCALAPPDATA\DeviceManager"
 Test-Path "$env:LOCALAPPDATA\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12"
 
 # Check for WMI event subscriptions
@@ -281,7 +280,7 @@ Get-ChildItem "$env:LOCALAPPDATA\Microsoft\Edge\User Data" -Recurse -Filter "f_*
 2. **Eradication:**
    - Remove scheduled tasks: `GoogleUpdateService*`, `MSEdgeUpdateService*`, `MicroUpdaterV1`
    - Delete WMI subscriptions: `PythonAppUpdateFilter`, `PythonAppUpdateConsumer`, `PythonAppTimer_600`
-   - Remove installation directories: `%LOCALAPPDATA%\DeviceManager\`, `%LOCALAPPDATA%\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12\`
+   - Remove installation directory: `%LOCALAPPDATA%\Microsoft\WindowsApps\Microsoft.PythonApp_yadfiy2x1ep12\`
    - Delete PE-patched binaries from `%USERPROFILE%`
    - Clear browser cache for affected profiles
    - On macOS: remove LaunchAgent plists from `~/Library/LaunchAgents/`
@@ -337,17 +336,18 @@ level: critical
 
 ### Sigma: DOUBLECUP PowerShell Wildcard Evasion with Hidden Window
 
-Detects cmd.exe spawning PowerShell via wildcard obfuscation (`pow?r?hell`) with hidden window and bypass execution policy, matching the DOUBLECUP ClickFix command pattern.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. The combination of wildcard-expanded PowerShell path with -W Hidden -EP B from a cmd.exe parent is highly specific to DOUBLECUP ClickFix commands. False positives possible from other ClickFix campaigns using similar obfuscation. -->
+Detects cmd.exe executing the DOUBLECUP ClickFix command pattern using literal wildcard characters (`pow?r?hell`) to locate PowerShell, combined with hidden window and bypass execution policy.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. REVISION: replaced generic 'pow'+'hell' substrings (matched every PowerShell invocation) with literal 'pow?r?hell' wildcard pattern — the actual cmd.exe glob used by DOUBLECUP. Medium confidence: other ClickFix campaigns may adopt same wildcard evasion. -->
 ```yaml
 title: DOUBLECUP PowerShell Wildcard Evasion with Hidden Window
 id: b7d24f61-3e98-4a1c-bf52-6c9d8e0a4f37
 status: experimental
 description: >
-    Detects PowerShell execution with the obfuscated wildcard pattern pow?r?hell.exe
-    combined with hidden window and bypass execution policy, as used by DOUBLECUP
-    ClickFix commands to evade process name matching.
+    Detects cmd.exe command lines containing the literal wildcard pattern pow?r?hell
+    (with ? glob characters) combined with hidden window and bypass execution policy,
+    as used by DOUBLECUP ClickFix commands to locate PowerShell while evading
+    process name matching.
 references:
     - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
     - https://thehackernews.com/2026/08/doublecup-uses-clickfix-and-cached-pngs.html
@@ -361,31 +361,30 @@ logsource:
     product: windows
 detection:
     selection_cmd:
-        ParentImage|endswith: '\cmd.exe'
+        Image|endswith: '\cmd.exe'
         CommandLine|contains|all:
-            - 'pow'
-            - 'hell'
+            - 'pow?r?hell'
             - '-W Hidden'
             - '-EP B'
     condition: selection_cmd
 falsepositives:
-    - Custom scripts using abbreviated PowerShell flags with hidden window
+    - Other ClickFix campaigns adopting the same wildcard evasion technique
 level: high
 ```
 
 ### Sigma: DOUBLECUP Browser Cache File Size Search
 
-Detects cmd.exe for-loops searching browser cache directories by file size (`%~zf`), consistent with DOUBLECUP locating cached steganographic PNG payloads.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. The combination of "for /r" + "User Data" + "%~zf" is specific to browser cache enumeration by file size — a DOUBLECUP hallmark. Legitimate browser management scripts may produce FP but are uncommon. -->
+Detects cmd.exe for-loops searching browser cache directories by exact file size 304204 bytes (`%~zf==304204`), consistent with DOUBLECUP locating cached steganographic PNG payloads.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. REVISION: added exact file size 304204 to make detection artifact-specific. Without the size constraint the pattern was too broad. Medium confidence: file size may change across campaigns. -->
 ```yaml
 title: DOUBLECUP Browser Cache File Size Search via CMD For Loop
 id: c8e35a72-4d19-4b7e-9f63-7a1b2c3d4e5f
 status: experimental
 description: >
     Detects cmd.exe for loop searching browser cache directories (Edge, Chrome)
-    for files matching a specific size, consistent with DOUBLECUP locating cached
-    steganographic PNG payloads by exact byte size.
+    for files matching the exact size 304204 bytes, consistent with DOUBLECUP
+    locating cached steganographic PNG payloads by byte size.
 references:
     - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
     - https://thehackernews.com/2026/08/doublecup-uses-clickfix-and-cached-pngs.html
@@ -404,9 +403,10 @@ detection:
             - 'for /r'
             - 'User Data'
             - '%~zf'
+            - '304204'
     condition: selection_cmd
 falsepositives:
-    - Legitimate browser cache management scripts iterating by file size
+    - Legitimate browser cache management scripts iterating by exact file size (unlikely)
 level: high
 ```
 
@@ -448,8 +448,8 @@ level: high
 ### Sigma: DeviceManager RAT MicroUpdaterV1 Scheduled Task
 
 Detects schtasks.exe creating the `MicroUpdaterV1` scheduled task, the primary persistence mechanism for DeviceManager RAT.
-**Status:** compile ✅ compiles · confidence: critical
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. MicroUpdaterV1 is a DeviceManager-specific task name with no known legitimate use. Combined with /Create flag for high specificity. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. REVISION: confidence corrected from invalid "critical" to "high" (valid values: low/medium/high). Sigma level: critical retained — MicroUpdaterV1 is DeviceManager-specific with no known legitimate use. -->
 ```yaml
 title: DeviceManager RAT Scheduled Task Creation - MicroUpdaterV1
 id: e0a57c94-6f3b-4d9e-b185-9c3d4e5f6a71
@@ -480,19 +480,21 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: DeviceManager RAT WMI Event Subscription Artifacts
+### Sigma: DeviceManager RAT WMI Event Subscription Artifacts (Hunt/Remediation)
 
-Detects command lines referencing DeviceManager's WMI persistence object names (`PythonAppUpdateConsumer`, `PythonAppUpdateFilter`, `PythonAppTimer_600`).
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Note: DeviceManager creates WMI objects via direct COM API calls (ctypes to ole32.dll) rather than wmic.exe — this rule will catch WMI-based investigation/cleanup commands or any process referencing these names in its command line, but may miss the initial creation. For full coverage, monitor Sysmon EID 19-21 for these filter/consumer names. -->
+Detects Sysmon WMI event subscription creation (EID 19-21) with DeviceManager-specific object names (`PythonAppUpdateConsumer`, `PythonAppUpdateFilter`, `PythonAppTimer_600`). Note: DeviceManager creates WMI objects via direct COM API calls (ctypes to ole32.dll/oleaut32.dll), bypassing wmic.exe -- this rule requires Sysmon with WMI event logging enabled.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. REVISION: changed logsource from process_creation to wmi_event (Sysmon EID 19-21) — process_creation would never fire because DeviceManager uses COM API, not wmic.exe. Relabeled as hunt/remediation rule. Confidence corrected from invalid "critical" to medium (requires Sysmon WMI event logging which many environments lack). -->
 ```yaml
-title: DeviceManager RAT WMI Event Subscription Persistence
+title: DeviceManager RAT WMI Event Subscription Persistence (Hunt)
 id: f1b68da5-7a4c-4eaf-c296-0d4e5f6a7b82
 status: experimental
 description: >
-    Detects WMI event subscription artifacts with names PythonAppUpdateFilter,
-    PythonAppUpdateConsumer, or PythonAppTimer_600, used by DeviceManager RAT
-    as an alternative persistence mechanism with 10-minute timer intervals.
+    Hunt rule detecting WMI event subscription creation with names
+    PythonAppUpdateFilter, PythonAppUpdateConsumer, or PythonAppTimer_600,
+    used by DeviceManager RAT as an alternative persistence mechanism.
+    DeviceManager creates these objects via direct COM API calls (ctypes),
+    not wmic.exe. Requires Sysmon EID 19-21 logging.
 references:
     - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
 author: Actioner
@@ -500,33 +502,35 @@ date: 2026/08/07
 tags:
     - attack.t1546.003
 logsource:
-    category: process_creation
+    category: wmi_event
     product: windows
 detection:
-    selection_wmic:
-        CommandLine|contains:
+    selection:
+        Name|contains:
             - 'PythonAppUpdateConsumer'
             - 'PythonAppUpdateFilter'
             - 'PythonAppTimer_600'
-    condition: selection_wmic
+    condition: selection
 falsepositives:
     - Unlikely - these are DeviceManager-specific WMI object names
 level: critical
 ```
 
-### Sigma: CountLoader Process Masquerading via Headless Conhost
+### Sigma: CountLoader PE-Patched Binary Masquerading
 
-Detects conhost.exe launched with `--headless` spawning PowerShell with `irm`/`iex` for remote code execution, consistent with CountLoader's PE-patched process masquerading.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. conhost.exe --headless is a legitimate Windows feature but spawning PowerShell with irm+iex from that context is highly suspicious. CountLoader copies and renames conhost.exe with patched PE headers for this exact chain. -->
+Detects execution of CountLoader's PE-header-patched binaries, which are legitimate Windows executables (conhost.exe, powershell.exe, mshta.exe) copied and renamed with single-character prefixes (c, p, m) combined with common system binary names (svchost, OneDrive, conhost).
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. REVISION: replaced generic conhost --headless + irm/iex pattern (too broad) with specific PE-patched binary names from CountLoader's masquerading scheme. c/p/m prefix + svchost/OneDrive/conhost naming convention is highly specific. Medium confidence: new naming patterns may emerge in future versions. -->
 ```yaml
-title: CountLoader Process Masquerading via Headless Conhost Execution
+title: CountLoader PE-Patched Binary Masquerading
 id: a2c79eb6-8b5d-4fb0-d3a7-1e5f6a7b8c93
 status: experimental
 description: >
-    Detects conhost.exe launched with the --headless flag spawning powershell.exe
-    with bypass execution policy, consistent with CountLoader's process masquerading
-    technique where legitimate Windows binaries have their PE headers patched.
+    Detects execution of binaries matching CountLoader's PE-header-patching
+    naming convention, where legitimate Windows executables are copied and
+    renamed with c/p/m prefixes combined with common system binary names
+    (svchost, OneDrive, conhost) to masquerade as legitimate auto-start
+    applications.
 references:
     - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
     - https://thehackernews.com/2026/08/doublecup-uses-clickfix-and-cached-pngs.html
@@ -534,33 +538,32 @@ author: Actioner
 date: 2026/08/07
 tags:
     - attack.t1036.003
-    - attack.t1059.001
 logsource:
     category: process_creation
     product: windows
 detection:
-    selection_parent:
-        ParentCommandLine|contains|all:
-            - 'conhost'
-            - '--headless'
-    selection_child:
+    selection_renamed:
         Image|endswith:
-            - '\powershell.exe'
-            - '\cmd.exe'
-        CommandLine|contains:
-            - 'irm'
-            - 'iex'
-    condition: selection_parent and selection_child
+            - '\csvchost.exe'
+            - '\psvchost.exe'
+            - '\msvchost.exe'
+            - '\cOneDrive.exe'
+            - '\pOneDrive.exe'
+            - '\mOneDrive.exe'
+            - '\cconhost.exe'
+            - '\pconhost.exe'
+            - '\mconhost.exe'
+    condition: selection_renamed
 falsepositives:
-    - Legitimate use of conhost.exe in headless mode with PowerShell is extremely rare
+    - Software using the exact same c/p/m + system binary naming convention (unlikely)
 level: high
 ```
 
 ### Snort: DOUBLECUP C2 Session Registration
 
 Detects DOUBLECUP C2 session registration HTTP requests to `/session/reg` with session ID and IP parameters. Snort not installed -- structural check only.
-**Status:** compile ⚠️ uncompiled (Snort not installed) · confidence: high
-<!-- audit: Snort 3 not installed in this environment. Structural validation: uses http service, http_method/http_uri sticky buffers, proper flow, sid in 2100000+ range, all options semicolon-terminated. Campaign key in URI is highly specific. -->
+**Status:** compile ⚠️ uncompiled (Snort not installed) · confidence: medium
+<!-- audit: Snort 3 not installed in this environment. Structural validation: uses http service, http_method/http_uri sticky buffers, proper flow, sid in 2100000+ range, all options semicolon-terminated. REVISION: downgraded confidence from high to medium — /session/reg is a generic URI pattern that could match legitimate session management APIs. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"DOUBLECUP C2 Session Registration"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/session/reg", fast_pattern; content:"sid="; content:"ip="; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created 2026-08-07; sid:2100101; rev:1;)
 ```
@@ -604,8 +607,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS TXT Ta
 ### Suricata: DOUBLECUP C2 Session Registration
 
 Detects DOUBLECUP C2 HTTP session registration requests to `/session/reg` with session ID and IP parameters.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. /session/reg with sid= and ip= parameters is the exact published DOUBLECUP session registration endpoint. Generic URI path but the combination of all three content matches is distinctive. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: suricata -T exit 0. REVISION: downgraded confidence from high to medium — /session/reg is a generic URI pattern that could match legitimate session management APIs. The combination with sid= and ip= adds some specificity but is not unique to DOUBLECUP. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP C2 Session Registration Endpoint"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/session/reg"; fast_pattern; content:"sid="; content:"ip="; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200104; rev:1;)
 ```
@@ -631,8 +634,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CountLoader C2 In
 ### Suricata: CountLoader C2 Task Retrieval
 
 Detects CountLoader C2 HTTP POST to `/getUpdates` for command retrieval.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. POST to /getUpdates with "getUpdates" in the body matches the exact published CountLoader command retrieval protocol. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: suricata -T exit 0. REVISION: downgraded confidence from high to medium — /getUpdates is a standard Telegram Bot API endpoint pattern. While CountLoader uses this path, it will produce false positives in environments with legitimate Telegram bot integrations. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CountLoader C2 Task Retrieval via getUpdates"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/getUpdates"; fast_pattern; http.request_body; content:"getUpdates"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-07; sid:2200108; rev:1;)
 ```
@@ -640,8 +643,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CountLoader C2 Ta
 ### YARA: DOUBLECUP Steganographic PNG Marker
 
 Detects PNG files containing the `ZZ1984` steganographic extraction marker used by DOUBLECUP to embed payloads in browser-cached images.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: PNG with ZZ1984 marker matched (Malware_DOUBLECUP_Steganographic_PNG_Marker). Negative test: PNG without marker did not match. ZZ1984 is the published extraction marker from SOCRadar analysis — grounded in the source, not invented. -->
+**Status:** compile ✅ compiles · confidence: high · sample: not validated
+<!-- audit: yarac exit 0. REVISION: relabeled sample status from "fired" to "not validated" — previous test used a constructed sample, not a real DOUBLECUP steganographic PNG. ZZ1984 is the published extraction marker from SOCRadar analysis — grounded in the source, not invented. -->
 ```yara
 rule Malware_DOUBLECUP_Steganographic_PNG_Marker
 {
