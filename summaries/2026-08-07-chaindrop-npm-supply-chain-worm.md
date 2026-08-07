@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-07
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -380,40 +380,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: GitHub Actions Runner Memory Scraping
-
-Detects access to /proc/*/mem (excluding /proc/self/), consistent with ChainDrop scraping Runner.Worker process memory for ephemeral OIDC tokens on GitHub Actions runners. Hunt-only; pair with CI runner context for triage.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed (MITRE fetch 403); splunk convert exit 0; log_scale convert exit 0. Medium confidence: /proc/*/mem access can occur from debugging tools and performance monitors. The filter_self exclusion reduces noise. Best deployed on CI runners specifically. -->
-```yaml
-title: ChainDrop Worm - GitHub Actions Runner Memory Scraping
-id: 8c1d3e5f-2b4a-6c8d-0e9f-1a3b5c7d9e2f
-status: experimental
-description: >
-    Detects access to /proc/*/mem targeting the Runner.Worker process on
-    GitHub Actions runners, used by ChainDrop to extract ephemeral OIDC
-    tokens and runner secrets from live process memory.
-references:
-    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
-author: Actioner
-date: 2026-08-07
-tags:
-    - attack.t1003
-logsource:
-    category: file_event
-    product: linux
-detection:
-    selection:
-        TargetFilename|contains: '/proc/'
-        TargetFilename|endswith: '/mem'
-    filter_self:
-        TargetFilename|contains: '/proc/self/'
-    condition: selection and not filter_self
-falsepositives:
-    - Debugging tools reading process memory
-    - Performance monitoring agents
-level: medium
-```
+<!-- DROPPED: Sigma rule "GitHub Actions Runner Memory Scraping" (8c1d3e5f) removed — behavioral /proc/*/mem rule with no ChainDrop-specific artifact; high FP from debugging tools and performance monitors. -->
 
 ### Sigma: _NODE_RUNTIME_INIT Environment Variable
 
@@ -445,43 +412,13 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Malicious GitHub Workflow File Creation
-
-Detects creation of YAML files in .github/workflows/, which may indicate ChainDrop's injection of secrets-exfiltrating workflow files. Low confidence due to high legitimate baseline; pair with other ChainDrop indicators.
-**Status:** compile ✅ compiles · confidence: low
-<!-- audit: sigma check failed (MITRE fetch 403); splunk convert exit 0; log_scale convert exit 0. Low confidence: workflow file creation is common in legitimate development. This is a hunt-only signal best correlated with other ChainDrop IOCs. Cannot match file content (toJSON(secrets)) via file_event category alone. -->
-```yaml
-title: ChainDrop Worm - Malicious GitHub Workflow Secrets Exfiltration
-id: 4f7a2b8c-1d3e-5f9a-7b0c-2e4d6f8a1c3b
-status: experimental
-description: >
-    Detects creation of a GitHub Actions workflow file containing
-    toJSON(secrets) serialization, used by ChainDrop to exfiltrate all
-    GitHub Actions secrets as workflow artifacts.
-references:
-    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
-author: Actioner
-date: 2026-08-07
-tags:
-    - attack.t1020
-logsource:
-    category: file_event
-detection:
-    selection_path:
-        TargetFilename|contains: '.github/workflows/'
-        TargetFilename|endswith: '.yml'
-    condition: selection_path
-falsepositives:
-    - Legitimate GitHub Actions workflow file creation
-    - CI/CD pipeline configuration changes
-level: low
-```
+<!-- DROPPED: Sigma rule "Malicious GitHub Workflow Secrets Exfiltration" (4f7a2b8c) removed — only matches TargetFilename with no content matching; fires on every workflow file creation. -->
 
 ### Snort: ChainDrop C2 HTTP Beacons and Ethereum Contract Query
 
 Detects HTTP traffic to ChainDrop C2 endpoints (/router on npm-cache.com, /cdn-cgi/rum on DGA domain) and Ethereum JSON-RPC calls targeting the worm's smart contract for domain resolution.
 **Status:** compile ⚠️ uncompiled (Snort not installed; structural check only) · confidence: high
-<!-- audit: snort binary not available in this environment. Rules follow Snort 3 syntax with http service, sticky buffers (http_uri, http_method, http_header, http_client_body), flow:established, valid sids 2100001-2100003. Structural review confirms balanced parentheses, semicolons, and correct buffer usage. -->
+<!-- audit: snort binary not available in this environment. Rules follow Snort 3 syntax with http service, sticky buffers (http_uri, http_method, http_header, http_client_body), flow:established, valid sids 2100001-2100003. Structural review confirms balanced parentheses, semicolons, and correct buffer usage. NOTE: SID 2100001 and 2100002 use http_header for host matching; recommend switching to http_host for precision if deploying on Snort 3.1.70+ where http_host is available. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop Worm HTTP C2 Beacon to /router Endpoint on npm-cache.com"; flow:established, to_server; http_uri; content:"/router", fast_pattern; http_header; content:"npm-cache.com"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created 2026-08-07; sid:2100001; rev:1;)
 
@@ -639,6 +576,8 @@ rule ChainDrop_NPM_Persistence_Config
 - [The Hacker News - Keyv-Linked npm Worm](https://thehackernews.com/2026/08/keyv-linked-npm-worm-poisons-hundreds.html) — scope assessment (1,684 poisoned versions, 420 packages), timeline, and remediation context
 - [The Hacker News - NullReceiver/EtherHiding Blockchain C2](https://thehackernews.com/2026/08/trojanized-npm-packages-decode-c2-ip.html) — related blockchain C2 technique (NullReceiver) using Ethereum transaction destination addresses for IP resolution
 - [PaloAltoNetworks/Unit42-Threat-Intelligence-Article-Information](https://github.com/PaloAltoNetworks/Unit42-Threat-Intelligence-Article-Information) — full affected package list (referenced by Unit42)
+
+<!-- revision: v1.1 2026-08-07 — DROPPED Sigma rules "GitHub Actions Runner Memory Scraping" (no ChainDrop-specific artifact, high FP) and "Malicious GitHub Workflow Secrets Exfiltration" (no content matching, fires on all workflow creates). FIXED Sigma "Cross-Linked IDE Persistence Files" → simplified to detect .claude/math_init.js alone (prior AND of multiple TargetFilename endings was logically impossible on a single event). FIXED ATT&CK: T1547.014→T1546, T1547.015→T1543.001, T1555→T1552.001. Added http_host recommendation note to Snort SID 2100001/2100002 audit comment. -->
 
 ---
 *Report generated by Actioner*

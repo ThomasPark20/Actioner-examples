@@ -1,0 +1,26 @@
+# ChainDrop npm Supply Chain Worm - Suricata Rules
+# Author: Actioner
+# Date: 2026-08-07
+# Reference: https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+
+# DNS Queries to C2 Domains
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to C2 Domain npm-cache.com"; flow:to_server; dns.query; content:"npm-cache.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200001; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to C2 Domain awqhnjewqjkl.icu"; flow:to_server; dns.query; content:"awqhnjewqjkl.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200002; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to Historical C2 Domain pypi-get.com"; flow:to_server; dns.query; content:"pypi-get.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200003; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop Worm DNS Query to Historical C2 Domain js-mirror.com"; flow:to_server; dns.query; content:"js-mirror.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200004; rev:1;)
+
+# HTTP C2 Beacons
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm HTTP C2 Beacon to /router Endpoint"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/router"; fast_pattern; http.host; content:"npm-cache.com"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200005; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm HTTP C2 Beacon to /cdn-cgi/rum on DGA Domain"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/cdn-cgi/rum"; fast_pattern; http.host; content:"awqhnjewqjkl.icu"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200006; rev:1;)
+
+# TLS SNI Match
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm TLS Connection to C2 Domain npm-cache.com"; flow:established,to_server; tls.sni; content:"npm-cache.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200007; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm TLS Connection to DGA C2 Domain awqhnjewqjkl.icu"; flow:established,to_server; tls.sni; content:"awqhnjewqjkl.icu"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200008; rev:1;)
+
+# Ethereum Smart Contract C2 Resolution
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Worm Ethereum Smart Contract C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"eth_call"; fast_pattern; content:"e1f2395ee43e45a1556ec6438a88c31b83493103"; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-07; sid:2200009; rev:1;)

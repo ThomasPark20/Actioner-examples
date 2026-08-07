@@ -1,0 +1,113 @@
+title: ChainDrop Worm - Bun Runtime Executing Malicious Payload
+id: 7a3c1e4b-9f2d-4a6e-8b7c-1d5e0f3a2c9b
+status: experimental
+description: >
+    Detects the Bun JavaScript runtime executing ChainDrop worm payloads
+    (math_init.js, Math_Symbol.js, or setup.mjs) as observed in the npm
+    supply chain compromise campaign affecting 400+ packages.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-07
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+detection:
+    selection_bun:
+        Image|endswith:
+            - '/bun'
+            - '\bun.exe'
+    selection_payload:
+        CommandLine|contains:
+            - 'math_init.js'
+            - 'Math_Symbol.js'
+    condition: selection_bun and selection_payload
+falsepositives:
+    - Legitimate use of files named math_init.js or Math_Symbol.js with Bun runtime is unlikely
+level: high
+---
+title: ChainDrop Worm - npm Preinstall Hook Executing setup.mjs
+id: 2b8d4f6a-1c3e-5d7b-9a0f-4e2c8b6d1a3f
+status: experimental
+description: >
+    Detects node or npm executing setup.mjs as a preinstall lifecycle hook,
+    characteristic of ChainDrop worm-infected npm packages. The worm uses
+    preinstall hooks to launch its credential-stealing payload.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://thehackernews.com/2026/08/keyv-linked-npm-worm-poisons-hundreds.html
+author: Actioner
+date: 2026-08-07
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+detection:
+    selection_node:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+    selection_setup:
+        CommandLine|contains: 'setup.mjs'
+    selection_parent:
+        ParentImage|endswith:
+            - '/npm'
+            - '\npm.cmd'
+            - '/npx'
+            - '\npx.cmd'
+    condition: selection_node and selection_setup and selection_parent
+falsepositives:
+    - Legitimate npm packages using setup.mjs as a preinstall script
+level: medium
+---
+title: ChainDrop Worm - Payload Written to Claude Code Config Directory
+id: 5e9f2a1b-3c4d-6e8f-0b7a-2d1c4f6e8a3b
+status: experimental
+description: >
+    Detects creation of .claude/math_init.js, the ChainDrop worm payload
+    dropped into the Claude Code configuration directory. This file is part
+    of the worm's cross-linked IDE persistence scheme and is not a legitimate
+    Claude Code artifact.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-07
+tags:
+    - attack.t1546
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith: '.claude/math_init.js'
+    condition: selection
+falsepositives:
+    - Legitimate files named math_init.js inside a .claude directory are extremely unlikely
+level: high
+---
+title: ChainDrop Worm - NODE_RUNTIME_INIT Environment Variable
+id: 6d2e4f8a-3b1c-5e7d-9f0a-8c4b2d6e1f3a
+status: experimental
+description: >
+    Detects processes spawned with the _NODE_RUNTIME_INIT=1 environment
+    variable, which ChainDrop uses to mark its detached background payload
+    process. This is a distinctive marker of the Shai-Hulud toolchain.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+author: Actioner
+date: 2026-08-07
+tags:
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains: '_NODE_RUNTIME_INIT'
+    condition: selection
+falsepositives:
+    - Custom Node.js runtime initialization scripts using this exact variable name
+level: high
