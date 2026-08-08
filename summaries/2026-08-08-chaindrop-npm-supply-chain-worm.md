@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-08-08
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
@@ -223,7 +223,7 @@ An embedded **Python helper** performs process memory extraction:
 | T1059.006 | Command and Scripting Interpreter: Python | Python helper used for Runner.Worker process memory scraping |
 | T1528 | Steal Application Access Token | Harvests GitHub PATs, npm tokens, OIDC tokens, cloud provider tokens |
 | T1555 | Credentials from Password Stores | Scans filesystem for SSH keys, .env files, cloud configs, Vault tokens, Kubernetes secrets |
-| T1003 | OS Credential Dumping | Reads /proc/<pid>/mem of Runner.Worker to extract workflow secrets |
+| T1003.007 | OS Credential Dumping: Proc Filesystem | Reads /proc/<pid>/mem of Runner.Worker to extract workflow secrets |
 | T1547 | Boot or Logon Autostart Execution | VS Code tasks.json (folderOpen) and Claude Code settings.json (SessionStart) persistence |
 | T1543 | Create or Modify System Process | LaunchAgent (macOS) and systemd user service (Linux) for gh-token-monitor |
 | T1027 | Obfuscated Files or Information | Three-layer obfuscation: Base91 + byte-permutation cipher + AES-256-GCM |
@@ -286,7 +286,7 @@ ls -la ~/.config/systemd/user/gh-token-monitor.service \
 
 ## Detection Rules
 
-These detections target ChainDrop's distinctive artifacts at PoC/advisory-specific altitude: the Bun-based execution chain, Runner.Worker memory scraping, IDE persistence files, C2 domain beaconing, and Ethereum contract-based C2 resolution. `sigma check` could not run (MITRE ATT&CK data fetch blocked by proxy), but all Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline.
+These detections target ChainDrop's distinctive artifacts at PoC/advisory-specific altitude: the Bun-based execution chain, Runner.Worker memory scraping, IDE persistence files, C2 domain beaconing, and Ethereum contract-based C2 resolution. `sigma check` could not run (MITRE ATT&CK data fetch blocked by proxy), but all Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale. **TLS inspection caveat:** the worm's primary C2 uses HTTPS (port 443); HTTP-inspection Snort and Suricata rules for `npm-cache[.]com` and `awqhnjewqjkl[.]icu` require TLS decryption to inspect request content. The DNS query rule (`sid:2200012`) provides coverage without TLS inspection. Compiles != fires -- verify in your pipeline.
 
 ### Sigma: ChainDrop Bun Runtime Payload Execution
 
@@ -365,9 +365,10 @@ level: medium
 
 ### Sigma: ChainDrop Runner.Worker Memory Scraping
 
-Detects the Python helper reading `/proc/*/mem` of the GitHub Actions Runner.Worker process to extract OIDC tokens and masked secrets.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (ATT&CK data 403); splunk convert exit 0; log_scale convert exit 0. High confidence: the AND of python + /proc/*/mem + Runner.Worker or isSecret is highly distinctive. Only fires if process_creation telemetry captures the full command line. -->
+Detects the Python helper reading `/proc/*/mem` of the GitHub Actions Runner.Worker process to extract OIDC tokens and masked secrets. Detection gap: `Runner.Worker` and `isSecret` are search strings inside the dropped Python script, not CLI arguments -- this rule fires only if the helper is invoked inline via `python3 -c`; a dropped temp-file execution will match only `selection_python` + `selection_proc_mem`.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check blocked (ATT&CK data 403); splunk convert exit 0; log_scale convert exit 0. Downgraded from high to medium per critic review: Runner.Worker and isSecret are string literals searched inside the Python helper code, not CLI args. The helper is likely executed as a dropped temp file or piped to stdin, so CommandLine won't contain these strings. Rule fires fully only if helper is passed via python3 -c inline (unlikely for 727KB payload). selection_proc_mem alone (python + /proc/*/mem) is the reliable anchor; selection_context narrows but may not match in practice. -->
+<!-- revision: confidence high→medium; tag T1003→T1003.007; added detection-gap caveat per critic verdict. -->
 ```yaml
 title: ChainDrop Worm - GitHub Actions Runner Memory Scraping
 id: 5e9b3c7a-1d4f-42e8-a6b0-8f2c5d3e1a94
@@ -375,14 +376,16 @@ status: experimental
 description: >
     Detects the ChainDrop Python helper reading /proc/*/mem of the GitHub Actions
     Runner.Worker process to extract OIDC tokens and runner secrets from live
-    process memory.
+    process memory. Note: Runner.Worker and isSecret are search strings inside the
+    helper script; this rule fires fully only if the helper is passed inline via
+    python3 -c rather than as a dropped temp file.
 references:
     - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
     - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
 author: Actioner
 date: 2026/08/08
 tags:
-    - attack.t1003
+    - attack.t1003.007
     - attack.t1528
 logsource:
     category: process_creation
@@ -403,7 +406,7 @@ detection:
     condition: selection_python and selection_proc_mem and selection_context
 falsepositives:
     - Debugging tools legitimately inspecting Runner.Worker process memory
-level: high
+level: medium
 ```
 
 ### Sigma: ChainDrop Claude/VSCode Cross-Persistence File Creation
@@ -447,7 +450,7 @@ level: high
 
 Detects outbound HTTP traffic to the primary ChainDrop C2 domain `npm-cache.com` with the `/router` exfiltration endpoint.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c snort_test.conf -T exit 0. Snort 2.9.20. Campaign-specific domain+path combination. Requires HTTP inspection enabled. -->
+<!-- audit: snort -c snort_test.conf -T exit 0. Snort 2.9.20. Campaign-specific domain+path combination. Requires HTTP inspection enabled. TLS inspection required: worm uses HTTPS (port 443); without TLS decryption this rule cannot inspect request content. DNS-based detection (Suricata sid:2200012) covers the gap. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ChainDrop C2 Beacon to npm-cache.com"; flow:established,to_server; content:"npm-cache.com"; http_header; fast_pattern; content:"/router"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; sid:2100010; rev:1;)
 ```
@@ -465,7 +468,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ChainDrop 
 
 Detects HTTP traffic to the primary ChainDrop C2 domain with the `/router` exfiltration path.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Suricata 7.0.3. Uses dot-notation sticky buffers (http.host, http.uri). Campaign-specific domain+path. -->
+<!-- audit: suricata -T exit 0. Suricata 7.0.3. Uses dot-notation sticky buffers (http.host, http.uri). Campaign-specific domain+path. TLS inspection required: worm uses HTTPS (port 443); without TLS decryption this rule cannot inspect HTTP content. DNS-based detection (sid:2200012) covers the gap. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop C2 Beacon to npm-cache.com /router"; flow:established,to_server; http.host; content:"npm-cache.com"; http.uri; content:"/router"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-08; sid:2200010; rev:1;)
 ```
