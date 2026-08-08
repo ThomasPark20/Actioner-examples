@@ -1,0 +1,9 @@
+# ChainDrop npm Supply Chain Worm - Snort Rules
+# Author: Actioner
+# Date: 2026-08-08
+# Reference: https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+# Note: TLS inspection required for C2 beacon rule (sid:2100010) -- worm uses HTTPS port 443.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ChainDrop C2 Beacon to npm-cache.com"; flow:established,to_server; content:"npm-cache.com"; http_header; fast_pattern; content:"/router"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; sid:2100010; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - ChainDrop Ethereum C2 Resolver eth_call Selector 0x53ed5143"; flow:established,to_server; content:"0x53ed5143"; fast_pattern; content:"eth_call"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; sid:2100011; rev:1;)

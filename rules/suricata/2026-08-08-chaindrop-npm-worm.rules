@@ -1,0 +1,14 @@
+# ChainDrop npm Supply Chain Worm - Suricata Rules
+# Author: Actioner
+# Date: 2026-08-08
+# Reference: https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+# Note: TLS inspection required for HTTP-based rules (sid:2200010, 2200011, 2200013) -- worm uses HTTPS port 443.
+#       DNS query rule (sid:2200012) provides coverage without TLS inspection.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop C2 Beacon to npm-cache.com /router"; flow:established,to_server; http.host; content:"npm-cache.com"; http.uri; content:"/router"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-08; sid:2200010; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop DGA C2 Domain awqhnjewqjkl.icu"; flow:established,to_server; http.host; content:"awqhnjewqjkl.icu"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-08; sid:2200011; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ChainDrop DNS Query for C2 Domain npm-cache.com"; dns.query; content:"npm-cache.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-08; sid:2200012; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ChainDrop Ethereum C2 Resolver Function Selector 0x53ed5143"; flow:established,to_server; http.request_body; content:"0x53ed5143"; fast_pattern; content:"eth_call"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created_at 2026-08-08; sid:2200013; rev:1;)
