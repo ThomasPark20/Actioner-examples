@@ -7,7 +7,7 @@ Version: 1.0
 
 ## Executive Summary
 
-A critical (CVSS 10.0) unauthenticated SQL injection vulnerability in Metabase versions 1.58 and above has been actively exploited as a zero-day to steal customer data from multiple organizations. The flaw resides in the `/api/session/reset_password` endpoint and allows a remote, unauthenticated attacker to inject arbitrary SQL into the Metabase application database, gaining administrator access. From there, the attacker can modify application configuration, steal stored database credentials for connected data warehouses, read any accessible data, and export it. Metabase Cloud SaaS and self-hosted installations are both affected.
+A critical (CVSS 10.0) unauthenticated SQL injection vulnerability in Metabase versions 0.58+ (OSS) / 1.58+ (Enterprise) has been actively exploited as a zero-day to steal customer data from multiple organizations. The flaw resides in the `/api/session/reset_password` endpoint and allows a remote, unauthenticated attacker to inject arbitrary SQL into the Metabase application database, gaining administrator access. From there, the attacker can modify application configuration, steal stored database credentials for connected data warehouses, read any accessible data, and export it. Metabase Cloud SaaS and self-hosted installations are both affected.
 
 Framework (modular laptop manufacturer) disclosed that all customers' names, emails, IP addresses, billing/shipping addresses, phone numbers, and company names were stolen. Tally (form-building platform) disclosed that customer email addresses and cryptographic password hashes were exposed. LexisNexis also reported compromise of its Metabase-connected services (Diligence, Metabase API, Newsdesk) through a third-party vendor. Active exploitation was confirmed on August 3, 2026, with Metabase issuing patches and notifications on August 6, 2026. No CVE identifier has been assigned; the vulnerability is tracked as GHSA-vwf4-m7j8-wcjf.
 
@@ -118,7 +118,7 @@ Additional post-exploitation behaviors to monitor:
 
 ## Impact Assessment
 
-**Breadth:** All Metabase Cloud and self-hosted instances running versions 1.58+ are vulnerable. Metabase is used by thousands of organizations. At least three victims are publicly confirmed: Framework (all customers affected -- estimated hundreds of thousands), Tally (email addresses and password hashes), and LexisNexis (Diligence, API, and Newsdesk services).
+**Breadth:** All Metabase Cloud and self-hosted instances running versions 0.58+ (OSS) / 1.58+ (Enterprise) are vulnerable. Metabase is used by thousands of organizations. At least three victims are publicly confirmed: Framework (all customers affected -- estimated hundreds of thousands), Tally (email addresses and password hashes), and LexisNexis (Diligence, API, and Newsdesk services).
 
 **Depth:** CVSS 10.0 -- maximum severity. The vulnerability requires no authentication, no user interaction, has low attack complexity, and impacts confidentiality, integrity, and availability with changed scope. Successful exploitation grants full administrator access to the Metabase instance and, by extension, to all connected databases.
 
