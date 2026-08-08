@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-08
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -70,14 +70,14 @@ No specific anti-forensics techniques have been disclosed in the available repor
 
 ### Package / Software Level
 
-| Package / Component | Vulnerable Versions | Description |
-|---------------------|---------------------|-------------|
-| Metabase OSS | >= 1.58.0, < 1.58.24 | Unauthenticated SQLi in `/api/session/reset_password` |
-| Metabase OSS | >= 1.59.0, < 1.59.21 | Same vulnerability |
-| Metabase OSS | >= 1.60.0, < 1.60.17 | Same vulnerability |
-| Metabase OSS | >= 1.61.0, < 1.61.11 | Same vulnerability |
-| Metabase OSS | >= 1.62.0, < 1.62.9 | Same vulnerability |
-| Metabase OSS | >= 1.63.0, < 1.63.5 | Same vulnerability |
+| Package / Component | Vulnerable Versions (OSS 0.x / Enterprise 1.x) | Description |
+|---------------------|--------------------------------------------------|-------------|
+| Metabase OSS / Enterprise | >= 0.58.0 / 1.58.0, < 0.58.24 / 1.58.24 | Unauthenticated SQLi in `/api/session/reset_password` |
+| Metabase OSS / Enterprise | >= 0.59.0 / 1.59.0, < 0.59.21 / 1.59.21 | Same vulnerability |
+| Metabase OSS / Enterprise | >= 0.60.0 / 1.60.0, < 0.60.17 / 1.60.17 | Same vulnerability |
+| Metabase OSS / Enterprise | >= 0.61.0 / 1.61.0, < 0.61.11 / 1.61.11 | Same vulnerability |
+| Metabase OSS / Enterprise | >= 0.62.0 / 1.62.0, < 0.62.9 / 1.62.9 | Same vulnerability |
+| Metabase OSS / Enterprise | >= 0.63.0 / 1.63.0, < 0.63.5 / 1.63.5 | Same vulnerability |
 
 ### File System
 
@@ -112,9 +112,9 @@ Additional post-exploitation behaviors to monitor:
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated SQL injection against Metabase `/api/session/reset_password` endpoint |
 | T1078 | Valid Accounts | Attacker gains legitimate administrator access through SQLi privilege escalation |
-| T1552.001 | Unsecured Credentials: Credentials In Files | Stored database connection credentials accessed via compromised Metabase admin panel |
-| T1530 | Data from Cloud Storage Object | Customer data exported from connected databases/data warehouses via Metabase queries |
-| T1048 | Exfiltration Over Alternative Protocol | Data exfiltration through Metabase's built-in data export capabilities |
+| T1555 | Credentials from Password Stores | Stored database connection credentials retrieved from Metabase's application database (which stores DB creds for all connected sources) |
+| T1213 | Data from Information Repositories | Customer data accessed and exported via Metabase's query interface into connected databases/data warehouses |
+| T1041 | Exfiltration Over C2 Channel | Data exfiltration over HTTP, the same protocol used for the initial exploitation |
 
 ## Impact Assessment
 
@@ -154,7 +154,8 @@ SELECT * FROM api_key ORDER BY created_at DESC;
 ### Remediation
 
 1. **Upgrade immediately** to the minimum safe release for your major version:
-   - 0.58.24, 0.59.21, 0.60.17, 0.61.11, 0.62.9, or 0.63.5
+   - OSS: 0.58.24, 0.59.21, 0.60.17, 0.61.11, 0.62.9, or 0.63.5
+   - Enterprise: 1.58.24, 1.59.21, 1.60.17, 1.61.11, 1.62.9, or 1.63.5
 2. **If unable to upgrade immediately**, block access to `/api/session/reset_password` at the reverse proxy or WAF level as a temporary mitigation (this will disable password reset functionality)
 3. **Revoke all active sessions**: `DELETE FROM core_session;` or `TRUNCATE TABLE core_session;`
 4. **Review and revoke unrecognized API keys**
@@ -210,39 +211,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Metabase Post-Exploitation Admin Access Validation
-
-Detects GET requests to `/api/user/current` returning HTTP 200, which — when correlated with the password reset exploitation pattern — confirms the attacker gained authenticated admin access. Hunt-only; pair with the reset_password anchor rule for context.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy (ATT&CK data download 403); splunk convert 0; log_scale convert 0. This endpoint is used by legitimate authenticated Metabase users on every page load, so standalone it produces high FP volume. Value is in temporal correlation with the POST /api/session/reset_password 400 pattern (within seconds, from the same source IP). Cannot express cross-event correlation in a single Sigma rule — the consumer SIEM must handle that. -->
-```yaml
-title: Metabase Post-Exploitation Admin Access Validation
-id: b7d1e0c3-8a2f-4d6e-9c5b-0f1d7e3a2b5d
-status: experimental
-description: >
-    Detects GET requests to the Metabase /api/user/current endpoint returning 200.
-    Standalone this is benign; it becomes a strong exploitation indicator when
-    correlated with a preceding POST /api/session/reset_password returning 400
-    from the same source IP within a short time window (GHSA-vwf4-m7j8-wcjf).
-references:
-    - https://www.metabase.com/blog/security-update
-    - https://github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf
-author: Actioner
-date: 2026-08-08
-tags:
-    - attack.t1078
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-method: 'GET'
-        cs-uri-stem|endswith: '/api/user/current'
-        sc-status: 200
-    condition: selection
-falsepositives:
-    - All legitimate authenticated Metabase users generate this request on every page load
-level: informational
-```
+<!-- revision: Dropped "Sigma: Metabase Post-Exploitation Admin Access Validation" — GET /api/user/current returning 200 fires on every authenticated page load (normal session validation); pure noise without SIEM-specific cross-event correlation that Sigma cannot express. -->
 
 ### Snort: Metabase SQLi POST to reset_password Endpoint
 
