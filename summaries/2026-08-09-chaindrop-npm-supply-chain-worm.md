@@ -3,7 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-09
-Version: DRAFT
+Version: FINAL v1.0
+
+<!-- revision: critic-driven changes (FINAL v1.0): removed product:windows from Sigma rules 1-3 (cross-platform worm, not Windows-specific); added TLS inspection caveat to Snort section; fixed YARA Setup Dropper meta description (string-matching, not hash-matching); corrected T1003→T1003.007 (Proc Filesystem sub-technique). -->
 
 ## Executive Summary
 
@@ -254,7 +256,7 @@ A monitoring component maintains credential access and contains a destructive ha
 | T1027 | Obfuscated Files or Information | Three-layer obfuscation (Base91 + byte-permutation + AES-256-GCM) |
 | T1041 | Exfiltration Over C2 Channel | Encrypted credential exfiltration over HTTPS to C2 domains |
 | T1567.001 | Exfiltration Over Web Service: Exfiltration to Code Repository | Stolen tokens committed to attacker-created GitHub repositories |
-| T1003 | OS Credential Dumping | Reading /proc/<pid>/mem to extract OIDC tokens from runner process memory |
+| T1003.007 | OS Credential Dumping: Proc Filesystem | Reading /proc/<pid>/mem to extract OIDC tokens from runner process memory |
 | T1078 | Valid Accounts | Using stolen npm tokens and GitHub PATs for worm propagation |
 | T1105 | Ingress Tool Transfer | Downloading Bun runtime from GitHub; server-side RCE code delivery |
 
@@ -347,7 +349,6 @@ tags:
     - attack.t1195.002
 logsource:
     category: process_creation
-    product: windows
 detection:
     selection_bun:
         Image|endswith:
@@ -387,7 +388,6 @@ tags:
     - attack.t1059.007
 logsource:
     category: process_creation
-    product: windows
 detection:
     selection_parent:
         ParentImage|endswith:
@@ -426,7 +426,6 @@ tags:
     - attack.t1059.007
 logsource:
     category: file_event
-    product: windows
 detection:
     selection:
         TargetFilename|endswith:
@@ -514,7 +513,7 @@ level: high
 
 ### Snort: ChainDrop C2 HTTP Communication
 
-Detects HTTP traffic to known ChainDrop C2 domains (npm-cache[.]com /router endpoint and awqhnjewqjkl[.]icu).
+Detects HTTP traffic to known ChainDrop C2 domains (npm-cache[.]com /router endpoint and awqhnjewqjkl[.]icu). These rules match plaintext HTTP; the actual C2 endpoints use HTTPS through Cloudflare, so these rules require TLS inspection/termination or an HTTP-decrypting proxy to fire.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -c /etc/snort/snort.conf -T exit 0 (rules appended to local.rules for Snort 2.9.20 validation). Snort 2 format: http_uri and http_header as post-content modifiers. Domain-based matching is precise but rotates; update rule when new domains are observed. -->
 
@@ -606,7 +605,7 @@ Detects the ChainDrop setup.mjs dropper by the combination of setup filename, ru
 rule ChainDrop_Setup_Dropper
 {
     meta:
-        description = "Detects the ChainDrop setup.mjs dropper based on known SHA256 hashes of observed variants"
+        description = "Detects the ChainDrop setup.mjs dropper via distinctive string combinations including the runtime guard variable, preinstall hooks, and Bun download indicators"
         author = "Actioner"
         date = "2026-08-09"
         reference = "https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/"
