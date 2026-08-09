@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-09
-Version: DRAFT 1.0
+Version: FINAL 1.1
 
 ## Executive Summary
 
@@ -112,10 +112,9 @@ No attacker IP addresses, domains, or C2 infrastructure were disclosed in any so
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated SQL injection against the Metabase `/api/session/reset_password` endpoint to gain initial access |
-| T1505 | Server Software Component | Exploitation of the Metabase web application server component to achieve code execution via SQL injection |
 | T1078 | Valid Accounts | Attacker uses SQL injection to create or hijack administrator accounts, gaining legitimate-appearing access |
-| T1552.001 | Unsecured Credentials: Credentials In Files | Metabase stores database connection credentials in its application database; attacker extracts these after gaining admin access |
-| T1530 | Data from Cloud Storage Object | Attacker uses stolen database credentials to access and exfiltrate data from connected databases and data warehouses |
+| T1552 | Unsecured Credentials | Metabase stores database connection credentials in its application database; attacker extracts these after gaining admin access |
+| T1213 | Data from Information Repositories | Attacker uses stolen database credentials to access and exfiltrate data from connected databases and data warehouses |
 
 ## Impact Assessment
 
@@ -148,6 +147,8 @@ grep -E 'POST /api/session/reset_password.*" 400' /var/log/apache2/access.log
 Check for unauthorized admin accounts or API keys in the Metabase admin interface.
 
 ### Remediation
+
+> These remediation steps are advisory guidance derived from the vendor advisory; they have not been independently validated.
 
 1. **Patch immediately**: Upgrade to the fixed version for your branch:
    - v1.58.24, v1.59.21, v1.60.17, v1.61.11, v1.62.9, or v1.63.5
@@ -192,7 +193,6 @@ author: Actioner
 date: 2026/08/09
 tags:
     - attack.t1190
-    - attack.t1505
 logsource:
     category: webserver
 detection:
@@ -210,9 +210,10 @@ level: high
 
 Detects HTTP POST requests to the Metabase `/api/session/reset_password` endpoint on the wire.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf -T -i lo exit 0 ("Snort successfully validated the configuration!"). Rule appended to local.rules for validation, then removed. Snort 2.9.20. Confidence medium: matches all POST requests to the endpoint (legitimate and malicious); cannot distinguish SQL injection payloads from normal reset requests at this altitude without payload-specific content matches (no PoC payload published). -->
+<!-- audit: snort -c /etc/snort/snort.conf -T -i lo exit 0 ("Snort successfully validated the configuration!"). Snort 2.9.20. Confidence medium: matches all POST requests to the endpoint (legitimate and malicious); cannot distinguish SQL injection payloads from normal reset requests at this altitude without payload-specific content matches (no PoC payload published). -->
+<!-- revision: fixed direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (detects inbound exploitation of self-hosted Metabase); rev bumped to 2; re-validated snort -T exit 0. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Metabase SQLi Exploit POST to reset_password Endpoint (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; content:"POST"; http_method; content:"/api/session/reset_password"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf; sid:2100001; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Metabase SQLi Exploit POST to reset_password Endpoint (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; content:"POST"; http_method; content:"/api/session/reset_password"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf; sid:2100001; rev:2;)
 ```
 
 ### Suricata: Metabase SQLi Exploit POST to reset_password Endpoint
@@ -220,8 +221,9 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Metabase S
 Detects HTTP POST requests to the Metabase `/api/session/reset_password` endpoint on the wire.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: suricata -T -S /tmp/actioner/metabase-sqli-suricata.rules -l /tmp/actioner exit 0 ("Configuration provided was successfully loaded. Exiting."). Suricata 7.0.3. Uses dot-notation sticky buffers (http.method, http.uri). Confidence medium: same reasoning as Snort rule — matches all POSTs to the endpoint. For environments where the endpoint should be fully blocked (per mitigation guidance), confidence is effectively high since any POST is suspect. -->
+<!-- revision: fixed direction $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET (detects inbound exploitation of self-hosted Metabase); restricted dest port from any to $HTTP_PORTS; rev bumped to 2; re-validated suricata -T exit 0. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Metabase SQLi Exploit POST to reset_password Endpoint (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/session/reset_password"; fast_pattern; classtype:web-application-attack; reference:url,github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf; metadata:author Actioner, created_at 2026-08-09; sid:2200001; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Metabase SQLi Exploit POST to reset_password Endpoint (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/session/reset_password"; fast_pattern; classtype:web-application-attack; reference:url,github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf; metadata:author Actioner, created_at 2026-08-09; sid:2200001; rev:2;)
 ```
 
 ### YARA: N/A
@@ -247,3 +249,4 @@ No file-level indicators suitable for YARA detection in this topic. The vulnerab
 
 ---
 *Report generated by Actioner*
+<!-- revision: v1.1 — critic NEEDS-REVISION applied. Snort/Suricata direction inverted to $EXTERNAL_NET->$HOME_NET, Suricata dest port restricted to $HTTP_PORTS, rev bumped to 2. ATT&CK: removed T1505 (no persistent server component); T1552.001→T1552 (credentials in app DB, not files); T1530→T1213 (relational DB, not cloud storage). Sigma tag attack.t1505 removed. Remediation advisory caveat added. All changed rules re-validated. -->
