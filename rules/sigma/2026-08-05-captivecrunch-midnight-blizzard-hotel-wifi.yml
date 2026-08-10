@@ -1,0 +1,225 @@
+# CaptiveCrunch / Midnight Blizzard Hotel Wi-Fi Campaign - Sigma Rules
+# Generated: 2026-08-05
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+# 7 rules (Rule 7 AMSI bypass dropped -- generic TTP; ChocoShell-specific AMSI coverage in YARA)
+
+---
+
+title: CaptiveCrunch CornFlake RAT Process Execution - svchost32.exe
+id: 7a3b1c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects execution of svchost32.exe from %APPDATA%\svchost32, the known
+    installation path of the CornFlake RAT deployed by Midnight Blizzard
+    (Storm-2945/APT29) in the CaptiveCrunch hotel Wi-Fi campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\svchost32\svchost32.exe'
+    condition: selection
+falsepositives:
+    - Unlikely; svchost32.exe in an AppData subdirectory is not a legitimate Windows binary
+level: high
+
+---
+
+title: CaptiveCrunch CornFlake RAT Service Installation
+id: 8b4c2d5e-6f7a-4b9c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects installation of the Windows service named "svchost32" with display
+    name "Cloud Sync Service", used by CornFlake RAT for persistence in the
+    CaptiveCrunch campaign (Midnight Blizzard/APT29).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1543.003
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName|contains: 'svchost32'
+    selection_display:
+        EventID: 7045
+        ServiceFileName|contains: 'svchost32'
+    condition: selection or selection_display
+falsepositives:
+    - Unlikely; legitimate software would not name a service svchost32
+level: high
+
+---
+
+# revision: downgraded from high to medium; relabeled as hunt-level; removed ChocoShell from title since logic is not tool-specific
+title: UAC Bypass via Registry Hijack (CaptiveCrunch Hunt)
+id: 9c5d3e6f-7a8b-4c0d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects registry modifications associated with three UAC bypass techniques
+    observed in the CaptiveCrunch campaign (SilentCleanup task hijack via
+    Environment\windir, COM handler hijack for wsreset.exe, sdclt.exe folder
+    hijack). These registry paths are used by multiple tools and are not
+    exclusive to ChocoShell; treat as a hunt-level detection.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1548.002
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_silentcleanup:
+        TargetObject|contains: 'HKCU\Environment\windir'
+    selection_com_hijack:
+        TargetObject|contains|all:
+            - 'HKCU\Software\Classes'
+            - 'wsreset'
+    selection_sdclt:
+        TargetObject|contains: 'HKCU\Software\Classes\Folder\shell\open\command'
+    condition: selection_silentcleanup or selection_com_hijack or selection_sdclt
+falsepositives:
+    - Developer tools that modify HKCU Environment variables
+    - Software installers that register COM handlers under HKCU
+    - Security testing and red team tools using the same UAC bypass techniques
+level: medium
+
+---
+
+title: CaptiveCrunch CornFlake RAT File Drop
+id: 0d6e4f7a-8b9c-4d1e-2f3a-4b5c6d7e8f9a
+status: experimental
+description: >
+    Detects creation of svchost32.exe or sync.dat configuration file in the
+    AppData\Roaming\svchost32 directory, indicating CornFlake RAT deployment
+    from the CaptiveCrunch campaign (Midnight Blizzard/APT29).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\AppData\Roaming\svchost32\'
+        TargetFilename|endswith:
+            - '\svchost32.exe'
+            - '\sync.dat'
+    condition: selection
+falsepositives:
+    - Unlikely; no legitimate software uses this exact path and filename combination
+level: high
+
+---
+
+title: CaptiveCrunch Phishing Domain DNS Query
+id: 1e7f5a8b-9c0d-4e2f-3a4b-5c6d7e8f9a0b
+status: experimental
+description: >
+    Detects DNS queries to phishing domains used by Midnight Blizzard in the
+    CaptiveCrunch campaign for Device Code Flow abuse targeting Microsoft 365
+    credentials.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1528
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - 'ms365-device.com'
+            - 'ms365-live.com'
+            - 'm365-owa.com'
+            - 'owa-ms365.com'
+    condition: selection
+falsepositives:
+    - None expected; these are known malicious domains
+level: critical
+
+---
+
+title: CaptiveCrunch C2 Infrastructure Network Connection
+id: 2f8a6b9c-0d1e-4f3a-4b5c-6d7e8f9a0b1c
+status: experimental
+description: >
+    Detects outbound network connections to known CaptiveCrunch C2 and AitM
+    infrastructure IP addresses used by Midnight Blizzard (Storm-2945/APT29).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '213.145.86.112'
+            - '31.57.243.154'
+            - '38.146.28.75'
+            - '38.146.28.132'
+            - '104.194.159.150'
+            - '107.189.26.194'
+    condition: selection
+falsepositives:
+    - Unlikely; these are dedicated attacker infrastructure IPs
+level: critical
+
+---
+
+# revision: ATT&CK tag changed from t1555.003 to t1552.001; downgraded from medium to low; added parent-process filter for PowerShell -NoP; relabeled as hunt-level
+title: Wi-Fi Credential Harvesting via Netsh (CaptiveCrunch Hunt)
+id: 4b0c8d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
+status: experimental
+description: >
+    Detects execution of netsh wlan show profile with key=clear parameter,
+    used by ChocoShell and other tools to harvest stored Wi-Fi credentials.
+    Narrowed with a parent-process filter requiring PowerShell with -NoP flag,
+    consistent with ChocoShell execution context. Hunt-level; netsh wifi
+    enumeration is a well-known technique not exclusive to this campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026-08-05
+tags:
+    - attack.t1552.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'netsh'
+            - 'wlan'
+            - 'show'
+            - 'profile'
+            - 'key=clear'
+    filter_parent:
+        ParentCommandLine|contains:
+            - '-NoP'
+            - '-nop'
+            - 'NoProfile'
+    condition: selection and filter_parent
+falsepositives:
+    - IT administrators running Wi-Fi diagnostics from PowerShell with NoProfile flag
+    - Automated network diagnostic scripts using PowerShell -NoP
+level: low

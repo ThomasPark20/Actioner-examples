@@ -1,0 +1,22 @@
+# CaptiveCrunch / Midnight Blizzard Hotel Wi-Fi Campaign - Snort 3 Rules
+# Generated: 2026-08-05
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+# 6 rules (SIDs 2100101-2100106)
+# Note: IP rules (#15-17, SIDs 2100104-2100106) are parallel to Suricata IP rules (SIDs 2100208-2100210) for multi-engine coverage
+
+# ChocoShell C2 Beacon via Tracking Pixel
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch ChocoShell C2 Beacon via Tracking Pixel"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/t/pixel.gif?m=", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100101; rev:1;)
+
+# ChocoShell C2 Payload Delivery via Polyfill URI
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CaptiveCrunch ChocoShell C2 Payload Delivery via Polyfill"; flow:established, to_server; http_uri; content:"/cdn/chunks/polyfill-7e2b.min.js", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100102; rev:1;)
+
+# ChocoShell C2 Exfil via Event Endpoint (IP-restricted to reduce FPs)
+# revision: added destination IP restriction to C2 IPs; bumped rev to 2
+alert http $HOME_NET any -> [213.145.86.112,107.189.26.194] any (msg:"Actioner - CaptiveCrunch ChocoShell C2 Exfil via Event Endpoint"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/t/event", fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100103; rev:2;)
+
+# C2 IP Address Alerts
+alert ip $HOME_NET any -> 213.145.86.112 any (msg:"Actioner - CaptiveCrunch C2 IP 213.145.86.112 (ChocoShell C2)"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100104; rev:1;)
+
+alert ip $HOME_NET any -> 107.189.26.194 any (msg:"Actioner - CaptiveCrunch C2 IP 107.189.26.194 (ChocoShell C2/DNS)"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100105; rev:1;)
+
+alert ip $HOME_NET any -> [31.57.243.154,38.146.28.75,38.146.28.132,104.194.159.150] any (msg:"Actioner - CaptiveCrunch AitM Infrastructure IP"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/; metadata:author Actioner, created 2026-08-05; sid:2100106; rev:1;)
