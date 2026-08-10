@@ -1,0 +1,30 @@
+title: DNS Query to ViteVenom/PolinRider C2 Vercel Domains
+id: c8d4a1e7-6f3b-4e92-8a5c-d7b0f2e9c163
+status: experimental
+description: >
+    Detects DNS resolution of Vercel-hosted C2 domains used by the
+    ViteVenom/ChainVeil/PolinRider supply chain campaign for payload delivery
+    and RAT command retrieval.
+references:
+    - https://thehackernews.com/2026/07/seven-malicious-vite-npm-packages-use.html
+    - https://github.com/OpenSourceMalware/PolinRider
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1102.001
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - '260120.vercel.app'
+            - 'default-configuration.vercel.app'
+            - 'vscode-settings-bootstrap.vercel.app'
+            - 'vscode-settings-config.vercel.app'
+            - 'vscode-bootstrapper.vercel.app'
+            - 'vscode-load-config.vercel.app'
+    condition: selection
+falsepositives:
+    - Unlikely - these are confirmed malicious C2 infrastructure domains
+level: high

@@ -1,0 +1,27 @@
+title: DNS Query to HollowGraph C2 Domain cloudlanecdn.com
+id: 7a3e9b1c-4d2f-48e6-a5c7-9f0b8e2d1a3c
+status: experimental
+description: >
+    Detects DNS queries to cloudlanecdn.com or its subdomains, used by the
+    HollowGraph malware for DNS tunneling to refresh Microsoft Entra ID
+    credentials. Subdomain patterns .p. and .q. are used for length and
+    data queries respectively.
+references:
+    - https://www.group-ib.com/blog/hollowgraph-microsoft-365/
+    - https://thehackernews.com/2026/07/hollowgraph-malware-hides-c2-and-stolen.html
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1071.004
+    - attack.t1132.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: '.cloudlanecdn.com'
+    selection_exact:
+        QueryName: 'cloudlanecdn.com'
+    condition: selection or selection_exact
+falsepositives:
+    - Legitimate use of cloudlanecdn.com domain (unlikely - attacker-controlled)
+level: high

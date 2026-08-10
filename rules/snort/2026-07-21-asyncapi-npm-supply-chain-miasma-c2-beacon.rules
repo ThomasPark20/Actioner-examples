@@ -1,0 +1,1 @@
+alert tcp $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - Miasma RAT HTTP C2 Beacon to Known Server"; flow:established,to_server; content:"/api/v1/beacon"; http_uri; fast_pattern:only; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery; sid:2100101; rev:1;)

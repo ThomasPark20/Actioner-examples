@@ -1,0 +1,37 @@
+title: Suspicious M365 Calendar Event with Far-Future Date
+id: 9c4d1e6f-3b8a-42e5-a7f9-5d0c2b1e8a4f
+status: experimental
+description: >
+    Detects calendar event creation or modification in Microsoft 365 audit
+    logs where the item references the year 2050 alongside calendar context,
+    consistent with HollowGraph malware using calendar events as a covert C2
+    dead drop. The malware schedules events on 2050-05-13 between 22:00-23:00
+    UTC. Tuning: add application-identity filter (e.g., UserType = Application)
+    if your audit log pipeline exposes actor type.
+references:
+    - https://www.group-ib.com/blog/hollowgraph-microsoft-365/
+    - https://thehackernews.com/2026/07/hollowgraph-malware-hides-c2-and-stolen.html
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1102.002
+    - attack.t1567.002
+logsource:
+    product: m365
+    service: exchange
+detection:
+    selection_operation:
+        Operation:
+            - 'Create'
+            - 'Update'
+    selection_calendar:
+        Item|contains:
+            - 'calendar'
+            - 'Calendar'
+    selection_year:
+        Item|contains: '2050'
+    condition: selection_operation and selection_calendar and selection_year
+falsepositives:
+    - Legitimate calendar events intentionally scheduled for the year 2050
+    - Calendar items containing the number 2050 in non-date context (room numbers, ticket IDs)
+level: medium

@@ -1,0 +1,34 @@
+title: WordPress wp2shell SQL Injection in Batch Request Parameters
+id: 9e5c3a1d-6b4f-4ac8-d7ea-bf2a9c3d4e5f
+status: experimental
+description: >
+    Detects HTTP requests to WordPress endpoints containing both the
+    author_exclude / author__not_in parameter AND SQL injection keywords,
+    targeting the wp2shell exploit chain (CVE-2026-60137). Covers
+    query-string variant only; batch POST body covered by Snort/Suricata.
+references:
+    - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
+    - https://www.picussecurity.com/resource/blog/cve-2026-63030-and-cve-2026-60137-wp2shell-wordpress-rce-explained
+    - https://github.com/Icex0/wp2shell-poc
+author: Actioner
+date: 2026/07/21
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_author_param:
+        cs-uri-query|contains:
+            - 'author_exclude'
+            - 'author__not_in'
+    selection_sqli_keywords:
+        cs-uri-query|contains:
+            - 'UNION'
+            - 'SELECT'
+            - 'SLEEP'
+            - 'EXTRACTVALUE'
+            - 'UPDATEXML'
+    condition: selection_author_param and selection_sqli_keywords
+falsepositives:
+    - Generic SQL injection scanners using author_exclude parameter
+level: medium
