@@ -1,0 +1,123 @@
+title: GigaWiper Scheduled Task Persistence via OneDrive Update
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects creation of a scheduled task named "OneDrive Update" used by GigaWiper
+    for persistence. The task runs every minute and at system startup to re-execute
+    the backdoor binary via hidden PowerShell invocation.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'OneDrive Update'
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Register-ScheduledTask'
+            - 'OneDrive Update'
+    condition: selection_schtasks or selection_powershell
+falsepositives:
+    - Legitimate Microsoft OneDrive update mechanisms use different task names (e.g., "OneDrive Reporting Task")
+level: high
+---
+title: GigaWiper Registry Execution Counter Modification
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects modification of the HKCU\SOFTWARE\OneDrive\Environment registry key
+    used by GigaWiper as an execution counter to determine first-run status and
+    track subsequent executions.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\SOFTWARE\OneDrive\Environment'
+    filter_onedrive:
+        Image|endswith: '\OneDrive.exe'
+    condition: selection and not filter_onedrive
+falsepositives:
+    - Legitimate OneDrive application writing to its own registry subkeys (filtered by Image)
+level: high
+---
+title: GigaWiper Event Log Clearing via wevutil.exe
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects the use of wevutil.exe (note deliberate typo matching the malware's
+    hardcoded binary name) or wevtutil.exe to clear multiple Windows event logs,
+    a defense evasion technique used by GigaWiper Command 19.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1070.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\wevtutil.exe'
+            - '\wevutil.exe'
+        CommandLine|contains: 'clear'
+    selection_logs:
+        CommandLine|contains:
+            - 'System'
+            - 'Setup'
+            - 'Application'
+            - 'ForwardedEvents'
+            - 'Security'
+    condition: selection and selection_logs
+falsepositives:
+    - Legitimate administrator clearing event logs during maintenance (should be rare and auditable)
+level: high
+---
+title: GigaWiper Network Connection to Known C2 Infrastructure
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: >
+    Detects outbound network connections to GigaWiper C2 infrastructure including
+    the RabbitMQ command server (185.182.193.21:5544), Redis results server
+    (185.182.193.21:7542), and secondary C2 (212.8.248.104).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/11
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection_rabbitmq:
+        DestinationIp: '185.182.193.21'
+        DestinationPort: 5544
+    selection_redis:
+        DestinationIp: '185.182.193.21'
+        DestinationPort: 7542
+    selection_c2:
+        DestinationIp: '212.8.248.104'
+    condition: selection_rabbitmq or selection_redis or selection_c2
+falsepositives:
+    - Legitimate traffic to these IPs (unlikely given specific port combinations)
+level: critical
