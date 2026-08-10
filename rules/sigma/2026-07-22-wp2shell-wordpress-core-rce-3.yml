@@ -1,0 +1,31 @@
+title: WordPress wp2shell Exploitation from Known Attacker IPs
+id: d4e5f6a7-b8c9-0123-defa-234567890123
+status: experimental
+description: >
+    Detects web requests originating from IP addresses observed conducting
+    wp2shell exploitation (CVE-2026-63030 / CVE-2026-60137) against WordPress
+    installations in the wild as reported by Wiz and other security vendors.
+references:
+    - https://www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137
+    - https://thehackernews.com/2026/07/wordpress-wp2shell-exploitation-grows.html
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - cve.2026-63030
+    - cve.2026-60137
+logsource:
+    category: webserver
+detection:
+    selection:
+        c-ip:
+            - '34.81.132.62'
+            - '79.177.131.206'
+            - '15.157.135.170'
+            - '94.100.52.128'
+            - '172.235.128.52'
+    condition: selection
+falsepositives:
+    - IP addresses may be reassigned over time; validate against current threat intelligence before blocking
+level: medium

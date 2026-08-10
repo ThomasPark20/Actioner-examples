@@ -1,0 +1,27 @@
+title: WordPress wp2shell Exploit Tool User-Agent Detection
+id: e5f6a7b8-c9d0-1234-efab-345678901234
+status: experimental
+description: >
+    Detects HTTP requests with User-Agent strings containing wp2shell or
+    rezwp2shell, which are signatures of purpose-built exploitation tools
+    targeting the wp2shell vulnerability chain (CVE-2026-63030 / CVE-2026-60137).
+references:
+    - https://www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137
+    - https://thehackernews.com/2026/07/wordpress-wp2shell-exploitation-grows.html
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - cve.2026-63030
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-useragent|contains:
+            - 'wp2shell'
+            - 'rezwp2shell'
+    condition: selection
+falsepositives:
+    - Security scanners or penetration testing tools that include wp2shell in their user-agent string
+level: critical

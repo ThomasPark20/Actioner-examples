@@ -1,0 +1,36 @@
+title: UTA0533 Malware Artifacts on SonicWall SMA Appliance
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects creation or presence of files associated with UTA0533 tooling
+    on SonicWall SMA appliances, including ROOTRUN, KNUCKLEBALL, and
+    exploit staging artifacts.
+references:
+    - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.persistence
+    - attack.t1547.004
+    - attack.t1548.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_rootrun:
+        TargetFilename|endswith: '/xzfind'
+        TargetFilename|contains: '/usr/bin/'
+    selection_knuckleball:
+        TargetFilename|endswith: '/deploy_new.py'
+        TargetFilename|contains: '/site-packages/'
+    selection_staging:
+        TargetFilename:
+            - '/tmp/hypdate.b64'
+            - '/tmp/agent_wp8.jar'
+            - '/tmp/agent_wp9.jar'
+    selection_persistence:
+        TargetFilename: '/var/tmp/lib.sh'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely on SonicWall appliances; xzfind is not a legitimate SonicWall binary
+level: critical

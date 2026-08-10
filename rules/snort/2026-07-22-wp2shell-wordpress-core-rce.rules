@@ -1,0 +1,7 @@
+# Actioner - WordPress wp2shell Batch Endpoint UNION-based SQLi (CVE-2026-63030 / CVE-2026-60137)
+# Detects POST to the WordPress batch endpoint with author__not_in followed by UNION in the HTTP body.
+# Targets the UNION-based injection variant used for row forgery in the wp2shell RCE chain.
+# SLEEP-based and Boolean-based variants are not covered by this rule.
+# Requires TLS termination upstream — fires only on decrypted HTTP traffic.
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - WordPress wp2shell Batch Endpoint UNION-based SQLi via author__not_in (CVE-2026-63030/CVE-2026-60137)"; flow:established,to_server; content:"POST"; http_method; content:"/batch/v1"; http_uri; fast_pattern; content:"author__not_in"; http_client_body; content:"UNION"; http_client_body; distance:0; within:200; classtype:web-application-attack; reference:url,www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137; reference:cve,2026-63030; reference:cve,2026-60137; metadata:author Actioner, created_at 2026_07_22; sid:2100063; rev:2;)

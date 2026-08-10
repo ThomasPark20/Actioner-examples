@@ -1,0 +1,26 @@
+title: ORANGETAIL and Suo5 Malformed User-Agent Gate String
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
+status: experimental
+description: >
+    Detects HTTP requests using the malformed User-Agent string hardcoded
+    in both ORANGETAIL and Suo5 web shell components as an authentication
+    mechanism. Contains fictitious version numbers (Mozilla/6.0, Windows
+    NT 11.0, Chrome/149.0.0.1).
+references:
+    - https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/
+author: Actioner
+date: 2026/07/22
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-user-agent|contains: 'Mozilla/6.0 (Windows NT 11.0'
+    selection_chrome:
+        cs-user-agent|contains: 'Chrome/149.0.0.1'
+    condition: selection and selection_chrome
+falsepositives:
+    - None expected - this User-Agent string contains deliberately invalid version numbers
+level: critical

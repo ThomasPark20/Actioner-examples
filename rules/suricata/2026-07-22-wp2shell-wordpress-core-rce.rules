@@ -1,0 +1,7 @@
+# Actioner - WordPress wp2shell Batch Endpoint Nested Request with SQLi (CVE-2026-63030 / CVE-2026-60137)
+# Detects POST to the WordPress batch endpoint containing nested batch request structure
+# ("path":"/batch/v1" inside the body) combined with author__not_in -- the specific pattern
+# of the wp2shell route confusion + SQLi chain.
+# Requires TLS termination upstream — fires only on decrypted HTTP traffic.
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - WordPress wp2shell Batch Endpoint Nested Request with SQLi (CVE-2026-63030/CVE-2026-60137)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/batch/v1"; fast_pattern; http.request_body; content:"\"path\""; content:"\"/batch/v1\""; distance:0; within:30; content:"author__not_in"; classtype:web-application-attack; reference:url,www.wiz.io/blog/wp2shell-cve-2026-63030-cve-2026-60137; reference:cve,2026-63030; reference:cve,2026-60137; metadata:author Actioner, created_at 2026-07-22; sid:2200063; rev:1;)
