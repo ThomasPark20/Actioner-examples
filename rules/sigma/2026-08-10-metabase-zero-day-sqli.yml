@@ -1,0 +1,23 @@
+title: Metabase SQLi Exploitation via Reset Password Endpoint
+id: 5b178f50-db2d-41e8-ba14-9dabfdac3710
+status: experimental
+description: >
+    Detects HTTP POST requests to the Metabase /api/session/reset_password endpoint, the attack vector for the critical unauthenticated SQL injection (GHSA-vwf4-m7j8-wcjf, CVSS 10.0).
+references:
+    - https://www.metabase.com/blog/security-update
+    - https://www.bleepingcomputer.com/news/security/framework-tally-disclose-metabase-data-theft-attacks/
+    - https://thehackernews.com/2026/08/metabase-zero-day-exploited-in-wild.html
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-method: 'POST'
+        cs-uri-stem|contains: '/api/session/reset_password'
+    condition: selection
+falsepositives:
+    - Legitimate password reset requests by authenticated Metabase users
+level: high

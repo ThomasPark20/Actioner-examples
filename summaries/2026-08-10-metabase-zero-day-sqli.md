@@ -1,9 +1,11 @@
 # Technical Analysis Report: Metabase Zero-Day SQL Injection — GHSA-vwf4-m7j8-wcjf (2026-08-10)
 
+<!-- revision: v1.0 DRAFT -> v1.1 FINAL. Dropped 4 rules (Sigma 2/3, Suricata SID 2026081002/2026081003) — all fire on normal authenticated traffic, pure noise without correlation. Fixed ATT&CK mapping: removed T1552.001 (credentials are in DB not files, kept T1552 parent), replaced T1005 with T1213 (data from remote repositories not local system), removed T1530 (Snowflake/BigQuery are SQL warehouses not storage buckets). Added dual-versioning note for 0.x/1.x. Added reverse-proxy caveat to remediation. Updated detection rule count from 6 to 2. -->
+
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -75,7 +77,7 @@ With admin access and database credentials, attackers accessed connected data wa
 
 ### 4. Platform-Specific Behavior
 
-The vulnerability affects Metabase regardless of deployment platform (Docker, JAR, cloud). Both Metabase Cloud and self-hosted instances running versions 1.58+ are vulnerable. The application database backend (H2, PostgreSQL, MySQL) may influence exploitation specifics, but all are confirmed affected.
+The vulnerability affects Metabase regardless of deployment platform (Docker, JAR, cloud). Both Metabase Cloud and self-hosted instances running vulnerable versions are affected. Metabase uses dual version numbering: 0.x releases are the open-source (Community) edition and 1.x releases are the Enterprise/Pro edition, but both share the same codebase and are affected by this vulnerability. The patched versions listed in this report use the 0.x numbering convention; the corresponding Enterprise versions are 1.58.24, 1.59.21, 1.60.17, 1.61.11, 1.62.9, and 1.63.5. The application database backend (H2, PostgreSQL, MySQL) may influence exploitation specifics, but all are confirmed affected.
 
 ### 5. Anti-Forensics / Evasion Techniques
 
@@ -92,12 +94,12 @@ No specific anti-forensic techniques have been documented. The attack is notable
 
 | Package / Component | Vulnerable Versions | Description |
 |---------------------|---------------------|-------------|
-| Metabase (all editions) | >= 1.58.0, < 1.58.24 | Unauthenticated SQLi in application database via `/api/session/reset_password` |
-| Metabase (all editions) | >= 1.59.0, < 1.59.21 | Same vulnerability |
-| Metabase (all editions) | >= 1.60.0, < 1.60.17 | Same vulnerability |
-| Metabase (all editions) | >= 1.61.0, < 1.61.11 | Same vulnerability |
-| Metabase (all editions) | >= 1.62.0, < 1.62.9 | Same vulnerability |
-| Metabase (all editions) | >= 1.63.0, < 1.63.5 | Same vulnerability |
+| Metabase (all editions) | >= 0.58.0 / 1.58.0, < 0.58.24 / 1.58.24 | Unauthenticated SQLi in application database via `/api/session/reset_password` |
+| Metabase (all editions) | >= 0.59.0 / 1.59.0, < 0.59.21 / 1.59.21 | Same vulnerability |
+| Metabase (all editions) | >= 0.60.0 / 1.60.0, < 0.60.17 / 1.60.17 | Same vulnerability |
+| Metabase (all editions) | >= 0.61.0 / 1.61.0, < 0.61.11 / 1.61.11 | Same vulnerability |
+| Metabase (all editions) | >= 0.62.0 / 1.62.0, < 0.62.9 / 1.62.9 | Same vulnerability |
+| Metabase (all editions) | >= 0.63.0 / 1.63.0, < 0.63.5 / 1.63.5 | Same vulnerability |
 
 ### Network
 
@@ -129,13 +131,11 @@ Additional post-exploitation indicators:
 | T1190 | Exploit Public-Facing Application | Unauthenticated SQLi against the Metabase `/api/session/reset_password` endpoint to gain admin access |
 | T1078 | Valid Accounts | Attacker gains legitimate admin session after SQLi exploitation; subsequent API calls use valid session tokens |
 | T1552 | Unsecured Credentials | Database connection credentials stored in Metabase application database are extracted post-exploitation |
-| T1552.001 | Credentials In Files | Metabase stores connected database credentials in its application database configuration tables |
-| T1005 | Data from Local System | Attacker exports data from connected databases using stolen credentials and Metabase query capabilities |
-| T1530 | Data from Cloud Storage Object | Exfiltration of data from cloud-hosted data warehouses (Snowflake, BigQuery, etc.) connected to Metabase |
+| T1213 | Data from Information Repositories | Attacker exports data from connected data warehouses (Snowflake, BigQuery, PostgreSQL) using stolen credentials and Metabase query capabilities |
 
 ## Impact Assessment
 
-**Breadth:** All Metabase deployments running versions 1.58+ are affected. Metabase has millions of downloads and is widely used across enterprises, startups, and SaaS platforms. Internet-facing self-hosted instances are directly exploitable without authentication.
+**Breadth:** All Metabase deployments running versions 0.58+ / 1.58+ are affected. Metabase has millions of downloads and is widely used across enterprises, startups, and SaaS platforms. Internet-facing self-hosted instances are directly exploitable without authentication.
 
 **Depth:** CVSS 10.0 — the maximum severity score. The vulnerability requires no authentication, no user interaction, and grants complete administrative control. The cascading impact through stored database credentials can expose entire data infrastructure.
 
@@ -175,8 +175,8 @@ SELECT * FROM api_key ORDER BY created_at DESC;
 
 ### Remediation
 
-1. **Patch immediately** to one of the fixed versions: 0.58.24, 0.59.21, 0.60.17, 0.61.11, 0.62.9, or 0.63.5
-2. **If patching is not immediately possible**, block access to `/api/session/reset_password` at the reverse proxy / WAF / load balancer level
+1. **Patch immediately** to one of the fixed versions: 0.58.24, 0.59.21, 0.60.17, 0.61.11, 0.62.9, or 0.63.5 (Enterprise: 1.58.24, 1.59.21, 1.60.17, 1.61.11, 1.62.9, or 1.63.5)
+2. **If patching is not immediately possible**, block access to `/api/session/reset_password` at the reverse proxy / WAF / load balancer level. Note: this assumes a reverse proxy or WAF is deployed in front of Metabase; if the application is exposed directly, use host-based firewall rules or iptables with string matching, or take the instance offline until patching is complete.
 3. **Revoke all active sessions** — delete all rows from the `core_session` table in the Metabase application database
 4. **Audit API keys** — review and delete any unrecognized API keys
 5. **Audit admin accounts** — verify all superuser accounts are legitimate; remove unauthorized ones
@@ -195,14 +195,16 @@ SELECT * FROM api_key ORDER BY created_at DESC;
 
 ## Detection Rules
 
-Three Sigma rules and three Suricata rules target the documented attack chain: initial exploitation via the reset_password endpoint, post-exploitation admin verification, and credential theft through the database API. No file-level indicators exist, so YARA rules are not applicable.
+One Sigma rule and one Suricata rule target the initial exploitation vector: POST requests to the `/api/session/reset_password` endpoint. No file-level indicators exist, so YARA rules are not applicable.
 
-### Sigma Rule 1: Metabase SQLi Exploitation via Reset Password Endpoint
+> **Note:** Four additional rules covering post-exploitation endpoints (`/api/user/current` and `/api/database`) were evaluated and dropped during review — both endpoints are called routinely during normal authenticated Metabase usage, making standalone rules against them high-false-positive noise without temporal correlation to the initial exploit request.
+
+### Sigma Rule: Metabase SQLi Exploitation via Reset Password Endpoint
 
 Detects POST requests to the vulnerable `/api/session/reset_password` endpoint, the documented attack vector for GHSA-vwf4-m7j8-wcjf.
-**Compile: ✅ compiles (Splunk + LogScale) | Confidence: high**
+**Compile: compiles (Splunk + LogScale) | Confidence: high**
 
-<!-- audit: sigma check exit 0 (excluding attacktag — MITRE data unreachable from sandbox). sigma convert --without-pipeline -t splunk exit 0 → "cs-method"="POST" "cs-uri-stem"="*/api/session/reset_password*". sigma convert --without-pipeline -t log_scale exit 0. No defanged values. Field names match webserver logsource conventions (cs-method, cs-uri-stem). FP: legitimate password resets exist but are uncommon and worth investigating during an active campaign. -->
+<!-- audit: sigma check exit 0 (excluding attacktag — MITRE data unreachable from sandbox). sigma convert --without-pipeline -t splunk exit 0 -> "cs-method"="POST" "cs-uri-stem"="*/api/session/reset_password*". sigma convert --without-pipeline -t log_scale exit 0. No defanged values. Field names match webserver logsource conventions (cs-method, cs-uri-stem). FP: legitimate password resets exist but are uncommon and worth investigating during an active campaign. -->
 
 ```yaml
 title: Metabase SQLi Exploitation via Reset Password Endpoint
@@ -240,110 +242,18 @@ level: high
 "cs-method"=/^POST$/i "cs-uri-stem"=/\/api\/session\/reset_password/i
 ```
 
-### Sigma Rule 2: Metabase Post-Exploitation Admin Verification via User Current API
+### Suricata Rule
 
-Detects GET requests to `/api/user/current` returning HTTP 200, indicating an attacker verifying admin access gained through exploitation.
-**Compile: ✅ compiles (Splunk + LogScale) | Confidence: medium**
+One Suricata rule targeting the initial exploitation endpoint. This rule uses Suricata's `http.method` and `http.uri` sticky buffers for efficient matching.
+**Compile: uncompiled (structural check only) | Confidence: high**
 
-<!-- audit: sigma check exit 0 (excluding attacktag). sigma convert --without-pipeline -t splunk exit 0 → "cs-method"="GET" "cs-uri-stem"="*/api/user/current*" "sc-status"=200. sigma convert --without-pipeline -t log_scale exit 0. This endpoint is called frequently by legitimate users, so this rule is best used in correlation with Rule 1 (same source IP, short time window). Standalone, it will generate significant FPs. sc-status is integer 200, matching how webserver logs encode HTTP status codes. -->
-
-```yaml
-title: Metabase Post-Exploitation Admin Verification via User Current API
-id: b25d3248-9455-41e5-ba75-4657ccf4cc90
-status: experimental
-description: >
-    Detects GET requests to /api/user/current returning HTTP 200 shortly after exploitation, indicating an attacker verifying admin access gained through the Metabase SQLi zero-day (GHSA-vwf4-m7j8-wcjf).
-references:
-    - https://www.metabase.com/blog/security-update
-    - https://www.bleepingcomputer.com/news/security/framework-tally-disclose-metabase-data-theft-attacks/
-    - https://thehackernews.com/2026/08/metabase-zero-day-exploited-in-wild.html
-author: Actioner
-date: 2026-08-10
-tags:
-    - attack.t1190
-    - attack.t1078
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-method: 'GET'
-        cs-uri-stem|contains: '/api/user/current'
-        sc-status: 200
-    condition: selection
-falsepositives:
-    - Normal Metabase user sessions querying current user context
-level: medium
-```
-
-**Splunk conversion:**
-```
-"cs-method"="GET" "cs-uri-stem"="*/api/user/current*" "sc-status"=200
-```
-
-**CrowdStrike LogScale conversion:**
-```
-"cs-method"=/^GET$/i "cs-uri-stem"=/\/api\/user\/current/i "sc-status"=200
-```
-
-### Sigma Rule 3: Metabase Database Credential Enumeration via API
-
-Detects access to the Metabase database configuration API, a key post-exploitation objective for stealing stored database credentials.
-**Compile: ✅ compiles (Splunk + LogScale) | Confidence: medium**
-
-<!-- audit: sigma check exit 0 (excluding attacktag). sigma convert --without-pipeline -t splunk exit 0 → "cs-uri-stem"="*/api/database*" "sc-status"=200. sigma convert --without-pipeline -t log_scale exit 0. This endpoint is used by legitimate admins, so FP rate depends on environment. Best used in correlation with Rules 1 and 2. -->
-
-```yaml
-title: Metabase Database Credential Enumeration via API
-id: 2fd99512-a031-4f82-9260-eb0c242dc1c8
-status: experimental
-description: >
-    Detects access to Metabase database configuration API endpoints that expose stored credentials, a key post-exploitation objective after gaining admin access via the SQLi zero-day (GHSA-vwf4-m7j8-wcjf).
-references:
-    - https://www.metabase.com/blog/security-update
-    - https://www.bleepingcomputer.com/news/security/framework-tally-disclose-metabase-data-theft-attacks/
-    - https://securityaffairs.com/196874/hacking/metabase-zero-day-exploited-in-the-wild-exposing-admin-access-and-sensitive-data.html
-author: Actioner
-date: 2026-08-10
-tags:
-    - attack.t1552
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-uri-stem|contains: '/api/database'
-        sc-status: 200
-    condition: selection
-falsepositives:
-    - Legitimate Metabase admin users managing database connections
-level: medium
-```
-
-**Splunk conversion:**
-```
-"cs-uri-stem"="*/api/database*" "sc-status"=200
-```
-
-**CrowdStrike LogScale conversion:**
-```
-"cs-uri-stem"=/\/api\/database/i "sc-status"=200
-```
-
-### Suricata Rules
-
-Three Suricata rules covering the same attack chain stages. These rules use Suricata's `http.method` and `http.uri` sticky buffers for efficient matching.
-**Compile: ⚠️ uncompiled (structural check only) | Confidence: high**
-
-<!-- audit: suricata/snort not installed in sandbox; rules validated by manual structural review only. Uses standard Suricata 7.x syntax: flow:established,to_server, http.method/http.uri sticky buffers. SIDs in 2026081001-2026081003 range. -->
+<!-- audit: suricata/snort not installed in sandbox; rule validated by manual structural review only. Uses standard Suricata 7.x syntax: flow:established,to_server, http.method/http.uri sticky buffers. SID 2026081001. -->
 
 ```
-# Metabase SQLi Zero-Day (GHSA-vwf4-m7j8-wcjf) - Suricata Rules
+# Metabase SQLi Zero-Day (GHSA-vwf4-m7j8-wcjf) - Suricata Rule
 # Reference: https://www.metabase.com/blog/security-update
 
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"METABASE SQLi - POST to /api/session/reset_password (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/session/reset_password"; classtype:web-application-attack; sid:2026081001; rev:1; metadata:created_at 2026_08_10, updated_at 2026_08_10;)
-
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"METABASE Post-Exploit - GET /api/user/current after SQLi"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/api/user/current"; classtype:web-application-attack; sid:2026081002; rev:1; metadata:created_at 2026_08_10, updated_at 2026_08_10;)
-
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"METABASE Post-Exploit - Database credential access via /api/database"; flow:established,to_server; http.uri; content:"/api/database"; classtype:web-application-attack; sid:2026081003; rev:1; metadata:created_at 2026_08_10, updated_at 2026_08_10;)
 ```
 
 ### YARA Rules
