@@ -1,0 +1,22 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5544 (
+    msg:"Actioner - GigaWiper RabbitMQ C2 AMQP on Non-Standard Port 5544";
+    flow:established,to_server;
+    content:"AMQP"; depth:4; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;
+    metadata:author Actioner, created 2026-07-15;
+    sid:2100101;
+    rev:1;
+)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 7542 (
+    msg:"Actioner - GigaWiper Redis C2 Results on Non-Standard Port 7542";
+    flow:established,to_server;
+    content:"*"; depth:1;
+    content:"|0D 0A|"; distance:0; within:3;
+    classtype:trojan-activity;
+    reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;
+    metadata:author Actioner, created 2026-07-15;
+    sid:2100102;
+    rev:1;
+)

@@ -1,0 +1,28 @@
+title: GigaWiper AV Enumeration via WMI PnP Entity Query
+id: b2f8d6a9-3c7e-4d1f-e546-8a0c2a4f7d39
+status: experimental
+description: >
+    Detects the specific PowerShell WMI query pattern used by GigaWiper to
+    enumerate antivirus and endpoint security products via Win32_PnPEntity.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1518.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Win32_PnPEntity'
+            - 'Antivirus'
+            - 'Endpoint'
+    condition: selection
+falsepositives:
+    - IT asset inventory or compliance scanning scripts
+level: medium

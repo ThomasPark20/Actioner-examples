@@ -1,0 +1,10 @@
+alert tcp $HOME_NET any -> 57.128.246.79 any (
+    msg:"Actioner - jscrambler IronWorm C2 Connection to 57.128.246.79";
+    flow:established,to_server;
+    classtype:trojan-activity;
+    reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html;
+    reference:url,research.jfrog.com/post/ironworm-returns-rustier-than-ever/;
+    metadata:author Actioner, created 2026-07-15;
+    sid:2100011;
+    rev:1;
+)

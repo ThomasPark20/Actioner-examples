@@ -1,0 +1,33 @@
+title: GigaWiper Event Log Clearing via wevtutil
+id: e9c5a3d6-0f4b-4a8c-b213-5d7f9a1c4a06
+status: experimental
+description: >
+    Detects wevtutil.exe clearing one of the five event log channels targeted
+    by GigaWiper Command 19 anti-forensics: System, Setup, Application,
+    ForwardedEvents, and Security. Each invocation clears a single channel;
+    correlate multiple hits in a short window for higher confidence.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1070.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_wevtutil:
+        Image|endswith: '\wevtutil.exe'
+        CommandLine|contains: ' cl '
+    selection_logname:
+        CommandLine|contains:
+            - 'System'
+            - 'Setup'
+            - 'Application'
+            - 'ForwardedEvents'
+            - 'Security'
+    condition: selection_wevtutil and selection_logname
+falsepositives:
+    - Legitimate log maintenance or rotation scripts targeting these channels
+    - SIEM log collection agents clearing logs after forwarding
+level: medium

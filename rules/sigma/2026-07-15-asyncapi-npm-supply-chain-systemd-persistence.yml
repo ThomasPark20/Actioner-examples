@@ -1,0 +1,21 @@
+title: Miasma RAT Systemd Persistence Service Creation
+id: 9a655001-3e44-4606-8cc8-d636e6242287
+status: experimental
+description: Detects creation of the miasma-monitor.service systemd user service file used for persistence by the Miasma RAT delivered via compromised AsyncAPI npm packages.
+references:
+    - https://socket.dev/blog/asyncapi-supply-chain-attack
+    - https://www.stepsecurity.io/blog/compromised-next-branch-pushes-malicious-asyncapi-generator-generator-helpers-and-generator-components-to-npm
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/miasma-monitor.service'
+    condition: selection
+falsepositives:
+    - Legitimate software named miasma-monitor (none known)
+level: critical

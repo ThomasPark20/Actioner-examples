@@ -1,0 +1,11 @@
+alert tls $HOME_NET any -> $EXTERNAL_NET any (
+    msg:"Actioner - IronWorm Exfiltration via temp.sh";
+    flow:established,to_server;
+    tls.sni; content:"temp.sh"; endswith; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html;
+    reference:url,research.jfrog.com/post/ironworm-returns-rustier-than-ever/;
+    metadata:author Actioner, created_at 2026-07-15;
+    sid:2200011;
+    rev:1;
+)

@@ -1,0 +1,31 @@
+title: GigaWiper Boot File Ownership Takeover
+id: d8b4f2c5-9e3a-4f7b-a102-4c6e8a0b3f95
+status: experimental
+description: >
+    Detects takeown or icacls commands targeting Windows boot files such as
+    bootmgr or ntoskrnl.exe, consistent with GigaWiper Command 2 BSOD attack.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026/07/15
+tags:
+    - attack.t1222.001
+    - attack.t1529
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_takeown:
+        Image|endswith: '\takeown.exe'
+        CommandLine|contains:
+            - 'bootmgr'
+            - 'ntoskrnl'
+    selection_icacls:
+        Image|endswith: '\icacls.exe'
+        CommandLine|contains:
+            - 'bootmgr'
+            - 'ntoskrnl'
+    condition: selection_takeown or selection_icacls
+falsepositives:
+    - OS servicing or patching operations by TrustedInstaller
+level: critical
