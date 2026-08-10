@@ -1,0 +1,25 @@
+title: JadePuffer C2 Network Connection to Known Infrastructure
+id: 7a3b9c1e-4d5f-6a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects outbound network connections to JadePuffer C2 server
+    (45.131.66.106 port 4444), used for beaconing every 30 minutes
+    during the first documented agentic ransomware operation.
+references:
+    - https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+    - https://www.bleepingcomputer.com/news/security/jadepuffer-ransomware-used-ai-agent-to-automate-entire-attack/
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '45.131.66.106'
+        DestinationPort: 4444
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known malicious IP and non-standard port combination
+level: critical

@@ -1,0 +1,8 @@
+# JadePuffer Agentic Ransomware - Snort Rules
+# Date: 2026-07-06
+# Author: Actioner
+# Reference: https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+
+alert tcp $HOME_NET any -> 45.131.66.106 4444 (msg:"Actioner - JadePuffer C2 Beacon to 45.131.66.106:4444"; flow:established,to_server; content:"/beacon"; fast_pattern; classtype:trojan-activity; reference:url,sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion; metadata:author Actioner, created_at 2026-07-06; sid:2100010; rev:1;)
+
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Langflow CVE-2025-3248 Code Validation RCE Attempt"; flow:established,to_server; content:"POST"; depth:4; content:"/api/v1/validate/code"; fast_pattern; classtype:web-application-attack; reference:url,sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion; reference:cve,2025-3248; metadata:author Actioner, created_at 2026-07-06; sid:2100011; rev:1;)

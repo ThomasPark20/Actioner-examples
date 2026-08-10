@@ -1,0 +1,31 @@
+title: DNS Query to PolinRider Vercel C2 Subdomain
+id: 4007e702-0415-4c87-8470-b2e5447666dd
+status: experimental
+description: >
+    Detects DNS queries to known Vercel-hosted C2 subdomains used by the
+    PolinRider North Korean supply chain campaign for payload delivery and
+    command-and-control communication.
+references:
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+    - https://github.com/OpenSourceMalware/PolinRider
+    - https://thehackernews.com/2026/07/north-korean-hackers-publish-108.html
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1071.001
+    - attack.t1102
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '260120.vercel.app'
+            - 'default-configuration.vercel.app'
+            - 'vscode-settings-bootstrap.vercel.app'
+            - 'vscode-settings-config.vercel.app'
+            - 'vscode-bootstrapper.vercel.app'
+            - 'vscode-load-config.vercel.app'
+    condition: selection
+falsepositives:
+    - Unlikely - these are known malicious subdomains with no legitimate use
+level: high

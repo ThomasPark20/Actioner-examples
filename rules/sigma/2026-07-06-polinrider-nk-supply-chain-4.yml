@@ -1,0 +1,24 @@
+title: DNS Query to JSONKeeper - Potential PolinRider Payload Staging
+id: 955cb601-f031-4ea4-bdab-a6699c107974
+status: experimental
+description: >
+    Detects DNS queries to jsonkeeper.com which is used by the PolinRider
+    campaign to host second-stage JavaScript payloads. This is a
+    correlation-only indicator; pair with other PolinRider detections
+    before escalating.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1102
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'jsonkeeper.com'
+    condition: selection
+falsepositives:
+    - Legitimate developer usage of JSONKeeper for JSON storage
+level: medium

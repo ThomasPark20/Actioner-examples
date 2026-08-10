@@ -1,0 +1,26 @@
+title: JadePuffer MySQL Container Escape Reconnaissance Files
+id: 0d6e2f4b-7a8c-9d0e-1f2a-3b4c5d6e7f8a
+status: experimental
+description: >
+    Detects creation of JadePuffer's distinctive reconnaissance and cleanup
+    marker files in MySQL's secure file directory, used to test write
+    primitives and probe for container escape vectors.
+references:
+    - https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1083
+    - attack.t1613
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - '/var/lib/mysql-files/_pwn_test.txt'
+            - '/var/lib/mysql-files/_pwn_cleanup.txt'
+    condition: selection
+falsepositives:
+    - Unlikely - these filenames are distinctive artifacts of JadePuffer reconnaissance
+level: critical

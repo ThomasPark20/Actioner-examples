@@ -1,0 +1,10 @@
+# PolinRider NK Supply Chain Campaign - Snort Rules
+# Date: 2026-07-06
+# Author: Actioner
+# Reference: https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+
+alert tcp $HOME_NET any -> 216.126.236.244 any (msg:"Actioner - PolinRider C2 Connection to Known Malicious IP 216.126.236.244"; flow:established,to_server; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100010; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PolinRider C2 API Service Endpoint"; flow:established,to_server; content:"/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68"; http_uri; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100011; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PolinRider Exfiltration Upload Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/upload"; http_uri; content:"216.126.236.244"; http_header; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; sid:2100012; rev:1;)

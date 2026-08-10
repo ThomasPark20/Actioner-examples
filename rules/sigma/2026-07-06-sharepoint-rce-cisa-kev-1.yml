@@ -1,0 +1,46 @@
+title: SharePoint Worker Process Spawning Suspicious Child Process
+id: 7c3a9d1e-4b2f-48e5-a6c0-3d8f1e9b5a72
+status: experimental
+description: >
+    Detects the SharePoint IIS worker process (w3wp.exe) spawning command interpreters
+    or compilation tools, indicating potential exploitation of CVE-2026-45659 or similar
+    SharePoint deserialization RCE vulnerabilities. Code execution from deserialization
+    runs inside w3wp.exe and typically spawns cmd.exe, powershell.exe, or csc.exe.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-microsoft-sharepoint-rce-flaw-now-actively-exploited/
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-45659
+    - https://www.microsoft.com/en-us/security/blog/2025/07/22/disrupting-active-exploitation-of-on-premises-sharepoint-vulnerabilities/
+author: Actioner
+date: 2026/07/06
+tags:
+    - attack.t1190
+    - attack.t1059.001
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\w3wp.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\csc.exe'
+            - '\certutil.exe'
+            - '\mshta.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\rundll32.exe'
+            - '\msbuild.exe'
+    filter_iisreset:
+        CommandLine|contains:
+            - 'iisreset'
+            - 'appcmd'
+    condition: selection_parent and selection_child and not filter_iisreset
+falsepositives:
+    - Legitimate SharePoint administration tasks that spawn command interpreters
+    - SharePoint health monitoring scripts
+    - Custom SharePoint solutions with server-side code execution
+level: medium

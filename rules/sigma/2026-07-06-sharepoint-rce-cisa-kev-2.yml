@@ -1,0 +1,31 @@
+title: Suspicious ASPX File Creation in SharePoint Layouts Directory
+id: 2e8b4f1a-9c3d-4a7e-b5f2-6d1c0e8a3b94
+status: experimental
+description: >
+    Detects creation of ASPX files in SharePoint TEMPLATE LAYOUTS directories,
+    which may indicate webshell deployment following exploitation of CVE-2026-45659
+    or similar SharePoint RCE vulnerabilities. Observed in Storm-2603 campaigns
+    deploying spinstall variants and other webshells.
+references:
+    - https://www.bleepingcomputer.com/news/security/cisa-microsoft-sharepoint-rce-flaw-now-actively-exploited/
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-45659
+    - https://www.microsoft.com/en-us/security/blog/2025/07/22/disrupting-active-exploitation-of-on-premises-sharepoint-vulnerabilities/
+author: Actioner
+date: 2026/07/06
+tags:
+    - attack.t1505.003
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: '\Microsoft Shared\Web Server Extensions\'
+    selection_layouts:
+        TargetFilename|contains: '\TEMPLATE\LAYOUTS\'
+    selection_ext:
+        TargetFilename|endswith: '.aspx'
+    condition: selection_path and selection_layouts and selection_ext
+falsepositives:
+    - Legitimate SharePoint feature deployment or solution installation
+    - SharePoint cumulative update installation creating ASPX files in LAYOUTS directories
+level: medium

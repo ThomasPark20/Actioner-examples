@@ -1,0 +1,16 @@
+# PolinRider NK Supply Chain Campaign - Suricata Rules
+# Date: 2026-07-06
+# Author: Actioner
+# Reference: https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider C2 API Service Beacon"; flow:established,to_server; http.uri; content:"/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; metadata:author Actioner, created_at 2026-07-06; sid:2200010; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PolinRider Clipboard Exfiltration to Makelog Endpoint"; flow:established,to_server; http.uri; content:"/api/service/makelog"; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; metadata:author Actioner, created_at 2026-07-06; sid:2200011; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to Vercel C2 Domain 260120.vercel.app"; dns.query; content:"260120.vercel.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands; metadata:author Actioner, created_at 2026-07-06; sid:2200012; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to Vercel C2 Domain default-configuration.vercel.app"; dns.query; content:"default-configuration.vercel.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands; metadata:author Actioner, created_at 2026-07-06; sid:2200013; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to Vercel C2 Domain vscode-settings-bootstrap.vercel.app"; dns.query; content:"vscode-settings-bootstrap.vercel.app"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands; metadata:author Actioner, created_at 2026-07-06; sid:2200014; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - PolinRider DNS Query to JSONKeeper Staging Domain"; flow:to_server; dns.query; content:"jsonkeeper.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; metadata:author Actioner, created_at 2026-07-06; sid:2200015; rev:1;)

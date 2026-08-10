@@ -1,0 +1,23 @@
+title: JadePuffer Connection to Data Staging Server
+id: 1e7f3a5c-8b9d-0e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: >
+    Detects outbound network connections to JadePuffer's claimed data
+    staging server at 64.20.53.230, referenced in payload annotations
+    as the destination for backed-up data prior to database destruction.
+references:
+    - https://www.sysdig.com/blog/jadepuffer-agentic-ransomware-for-automated-database-extortion
+    - https://securityaffairs.com/194713/ai/jadepuffer-first-end-to-end-ai-driven-ransomware-operation.html
+author: Actioner
+date: 2026-07-06
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '64.20.53.230'
+    condition: selection
+falsepositives:
+    - Legitimate connections to InterServer (AS19318) hosted services at this IP
+level: medium
