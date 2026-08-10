@@ -1,0 +1,145 @@
+title: ChainDrop Bun Runtime Payload Execution
+id: 8f3a1c4e-7d2b-4e6a-9c5f-1a8b3d0e2f7c
+status: experimental
+description: >
+    Detects the Bun runtime executing ChainDrop worm payloads (Math_Symbol.js
+    or math_init.js), the distinctive execution pattern of the ChainDrop npm
+    supply chain worm observed across 400+ compromised packages.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/09
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+detection:
+    selection_bun:
+        Image|endswith:
+            - '\bun.exe'
+            - '/bun'
+    selection_payload:
+        CommandLine|contains:
+            - 'Math_Symbol.js'
+            - 'math_init.js'
+    condition: selection_bun and selection_payload
+falsepositives:
+    - Legitimate use of files named Math_Symbol.js or math_init.js is extremely unlikely
+level: high
+---
+title: ChainDrop Credential Harvesting via GitHub CLI
+id: 2e9d4b7a-6c1f-48a3-b5e0-3f7c8d2a1e9b
+status: experimental
+description: >
+    Detects the Bun runtime spawning GitHub CLI credential extraction commands,
+    a distinctive credential harvesting pattern used by the ChainDrop worm to
+    steal GitHub PATs for subsequent npm package poisoning.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/09
+tags:
+    - attack.t1555
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\bun.exe'
+            - '/bun'
+    selection_cmdline:
+        CommandLine|contains: 'gh auth token'
+    condition: selection_parent and selection_cmdline
+falsepositives:
+    - Legitimate automation scripts using Bun to invoke gh auth token
+level: high
+---
+title: ChainDrop IDE Persistence Hook File Creation
+id: 4b8c2e1d-9a3f-47d6-8e0b-5c6a7f3d2e1a
+status: experimental
+description: >
+    Detects creation of cross-linked persistence hooks in Claude Code and VS Code
+    project directories (.claude/settings.json referencing .vscode/setup.mjs and
+    vice versa), the distinctive mutual-dependency persistence pattern used by
+    the ChainDrop worm.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/09
+tags:
+    - attack.t1546
+    - attack.t1059.007
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '.claude\setup.mjs'
+            - '.claude/setup.mjs'
+            - '.vscode\setup.mjs'
+            - '.vscode/setup.mjs'
+    condition: selection
+falsepositives:
+    - Legitimate project setup scripts named setup.mjs in .claude or .vscode directories
+level: high
+---
+title: ChainDrop C2 Domain DNS Query
+id: 7a5e3c9d-1b4f-42e8-a6d0-8f2c5b7e3a1d
+status: experimental
+description: >
+    Detects DNS queries to known ChainDrop C2 domains (npm-cache.com,
+    pypi-get.com, js-mirror.com, awqhnjewqjkl.icu) used for exfiltration
+    and remote code execution.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+author: Actioner
+date: 2026/08/09
+tags:
+    - attack.t1071.001
+    - attack.t1568
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'npm-cache.com'
+            - 'pypi-get.com'
+            - 'js-mirror.com'
+            - 'awqhnjewqjkl.icu'
+    condition: selection
+falsepositives:
+    - Extremely unlikely given domain specificity
+level: critical
+---
+title: ChainDrop Token Monitor Persistence Installation
+id: 6d1f9e3a-8c4b-47a2-b5d0-2e7a3f6c9b1d
+status: experimental
+description: >
+    Detects creation of ChainDrop OS-level persistence artifacts including the
+    gh-token-monitor LaunchAgent (macOS) or systemd user service (Linux) used
+    for credential monitoring and destructive revocation handling.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/09
+tags:
+    - attack.t1543.001
+    - attack.t1543.002
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'com.user.gh-token-monitor.plist'
+            - 'gh-token-monitor.service'
+            - 'gh-token-monitor.sh'
+    condition: selection
+falsepositives:
+    - Legitimate software named gh-token-monitor is extremely unlikely
+level: high
