@@ -1,0 +1,29 @@
+title: Suspicious Process Enumeration via N-central Take Control Session
+id: 6f0b8d54-a2c7-4e13-b791-3e5c9d1a0f82
+status: experimental
+description: >
+    Detects process enumeration commands piped to findstr targeting security
+    products, consistent with reconnaissance observed after CVE-2026-18577
+    N-central Take Control abuse. Attackers ran tasklist piped to findstr
+    searching for security product strings.
+references:
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1057
+    - attack.t1518.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_tasklist:
+        Image|endswith: '\tasklist.exe'
+    selection_parent:
+        ParentCommandLine|contains:
+            - 'findstr ms'
+            - 'findstr soph'
+    condition: selection_tasklist and selection_parent
+falsepositives:
+    - IT administration scripts checking for running services
+level: medium

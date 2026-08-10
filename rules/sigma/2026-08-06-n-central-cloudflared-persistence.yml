@@ -1,0 +1,27 @@
+title: Cloudflared Service Installation as Persistence (N-central Campaign)
+id: 3f7d2e91-a8b4-4c06-b3e5-1d9f0a5c8e72
+status: experimental
+description: >
+    Detects installation of a Windows service named Cloudflared, consistent with
+    post-exploitation persistence observed in CVE-2026-18577 N-central compromise
+    campaigns. Attackers registered Cloudflare Tunnel as a service surviving reboots.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://www.sophos.com/en-us/blog/nable-ncentral-exploitation-results-in-rmm-tool-deployment
+    - https://www.n-able.com/blog/n-central-security-update-august-2-2026
+author: Actioner
+date: 2026/08/06
+tags:
+    - attack.t1543.003
+    - attack.t1572
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName|contains: 'Cloudflared'
+    condition: selection
+falsepositives:
+    - Legitimate Cloudflare Tunnel deployments by IT administrators
+level: medium
