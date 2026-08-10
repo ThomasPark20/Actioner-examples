@@ -1,0 +1,11 @@
+# SID 2200020 - Detect POST to ajax/render/pagenav endpoint
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - vBulletin CVE-2026-61511 Pre-Auth RCE via ajax/render/pagenav"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"ajax/render/pagenav"; classtype:web-application-attack; sid:2200020; rev:1; metadata:created_at 2026_07_29, cve CVE_2026_61511;)
+
+# SID 2200021 - Detect routestring targeting pagenav in POST body
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - vBulletin CVE-2026-61511 Pre-Auth RCE routestring pagenav POST"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"routestring=ajax"; content:"render/pagenav"; distance:0; classtype:web-application-attack; sid:2200021; rev:1; metadata:created_at 2026_07_29, cve CVE_2026_61511;)
+
+# SID 2200022 - Detect phpfuck XOR payload in pagenav parameter (URL-encoded)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - vBulletin CVE-2026-61511 PHPFuck XOR Payload in pagenumber"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"pagenav"; content:"%5E"; distance:0; within:2000; classtype:web-application-attack; sid:2200022; rev:1; metadata:created_at 2026_07_29, cve CVE_2026_61511;)
+
+# SID 2200023 - Detect phpfuck XOR payload in pagenav parameter (raw caret)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - vBulletin CVE-2026-61511 PHPFuck XOR Payload raw caret"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"pagenav"; content:"^"; distance:0; within:2000; classtype:web-application-attack; sid:2200023; rev:1; metadata:created_at 2026_07_29, cve CVE_2026_61511;)

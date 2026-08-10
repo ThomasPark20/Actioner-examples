@@ -1,0 +1,38 @@
+title: FastJson CVE-2026-16723 Exploit Payload in HTTP Request Logs
+id: 8e3f2a1b-c4d5-4e6f-a7b8-9c0d1e2f3a4b
+status: experimental
+description: >
+    Detects HTTP requests containing FastJson CVE-2026-16723 exploitation payloads.
+    The exploit uses crafted @type values with jar:http or jar:file URI schemes to trigger
+    class-resource lookups in Spring Boot fat-JAR deployments. Active exploitation targeting
+    US organizations in financial services, healthcare, computing, and retail sectors was
+    confirmed by ThreatBook and Imperva starting July 25, 2026.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-target-us-firms-in-fastjson-rce-zero-day-attacks/
+    - https://threatbook.io/blog/fastjson-rce-1.2.83-active-exploitation-detected-detection-mitigation
+    - https://www.imperva.com/blog/imperva-customers-protected-against-cve-2026-16723-critical-fastjson-1-x-zero-day-rce/
+    - https://github.com/alibaba/fastjson2/wiki/Security-Advisory:-Remote-Code-Execution-in-fastjson-1.2.68%E2%80%931.2.83
+author: Actioner
+date: 2026/07/29
+tags:
+    - attack.t1190
+    - cve.2026.16723
+logsource:
+    category: webserver
+detection:
+    selection_uri_type:
+        cs-uri|contains: '@type'
+    selection_uri_jar_http:
+        cs-uri|contains: 'jar:http'
+    selection_uri_jar_file:
+        cs-uri|contains: 'jar:file'
+    selection_body_jar_http:
+        request_body|contains: 'jar:http'
+    selection_body_jar_file:
+        request_body|contains: 'jar:file'
+    selection_body_type_field:
+        request_body|contains: '@type'
+    condition: (selection_uri_type and (selection_uri_jar_http or selection_uri_jar_file)) or (selection_body_type_field and (selection_body_jar_http or selection_body_jar_file))
+falsepositives:
+    - Legitimate applications using jar: URI schemes in JSON payloads (unlikely in typical web applications)
+level: high
