@@ -1,0 +1,11 @@
+# DOUBLECUP / CountLoader / DeviceManager RAT - Snort Detection Rules
+# Date: 2026-08-07
+# Reference: https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+# Version: 1.0
+# Note: Snort 3 not installed in build environment - structural validation only
+
+# DOUBLECUP C2 Session Registration (confidence: medium - generic URI pattern)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"DOUBLECUP C2 Session Registration"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/session/reg", fast_pattern; content:"sid="; content:"ip="; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created 2026-08-07; sid:2100101; rev:1;)
+
+# CountLoader C2 Beacon with Campaign Key (confidence: high - K94DGQ99VYCCH52TKOT2 is unique)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CountLoader C2 Beacon with Campaign Key K94DGQ99VYCCH52TKOT2"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/connect", fast_pattern; content:"key=K94DGQ99VYCCH52TKOT2"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created 2026-08-07; sid:2100102; rev:1;)

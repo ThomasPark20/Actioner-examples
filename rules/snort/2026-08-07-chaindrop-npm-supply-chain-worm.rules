@@ -1,0 +1,11 @@
+# ChainDrop npm Supply Chain Worm - Snort 3 Rules
+# Author: Actioner
+# Date: 2026-08-07
+# Reference: https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+# NOTE: SID 2100001 and 2100002 use http_header for host matching; consider http_host on Snort 3.1.70+
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop Worm HTTP C2 Beacon to /router Endpoint on npm-cache.com"; flow:established, to_server; http_uri; content:"/router", fast_pattern; http_header; content:"npm-cache.com"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created 2026-08-07; sid:2100001; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop Worm HTTP C2 Beacon to /cdn-cgi/rum on DGA Domain"; flow:established, to_server; http_uri; content:"/cdn-cgi/rum", fast_pattern; http_header; content:"awqhnjewqjkl.icu"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created 2026-08-07; sid:2100002; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop Worm Ethereum Smart Contract C2 Query"; flow:established, to_server; http_method; content:"POST"; http_client_body; content:"eth_call", fast_pattern; http_client_body; content:"e1f2395ee43e45a1556ec6438a88c31b83493103", nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/; metadata:author Actioner, created 2026-08-07; sid:2100003; rev:1;)
