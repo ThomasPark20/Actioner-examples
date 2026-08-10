@@ -1,0 +1,28 @@
+title: GitHub Commit Search API Request - Potential OWAReaper C2 Channel
+id: b3f4a892-1e7d-4c5a-9b3e-8d2f6a1c0e7b
+status: experimental
+description: >
+    Detects HTTP requests to the GitHub Commit Search API (api.github.com/search/commits)
+    containing an email address in the query string, consistent with OWAReaper's C2 polling
+    pattern. The implant queries this endpoint every 24 hours for commit messages containing
+    the target email address to receive encrypted commands.
+references:
+    - https://www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/
+    - https://thehackernews.com/2026/07/russian-hackers-exploit-microsoft-owa.html
+author: Actioner
+date: 2026/07/30
+tags:
+    - attack.t1102.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-host: 'api.github.com'
+        cs-uri-stem|contains: '/search/commits'
+        cs-uri-query|contains: '@'
+    condition: selection
+falsepositives:
+    - Legitimate developer tools querying the GitHub Commit Search API with email-scoped filters
+    - CI/CD pipeline integrations searching commits by author email
+level: medium

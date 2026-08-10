@@ -1,0 +1,10 @@
+# Actioner - North Korea-Attributed npm Supply Chain Attack (2026-07-30)
+# References:
+#   https://thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html
+#   https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to typo-crypto C2 Domain npmjs.store"; flow:to_server; dns.query; content:"npmjs.store"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html; metadata:author Actioner, created_at 2026-07-30; sid:2200001; rev:1;)
+
+alert tcp $HOME_NET any -> 216.74.123.126 any (msg:"Actioner - Connection to typo-crypto C2 IP 216.74.123.126"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html; metadata:author Actioner, created_at 2026-07-30; sid:2200002; rev:1;)
+
+alert tcp $HOME_NET any -> 23.27.13.43 any (msg:"Actioner - Connection to Joyfill RAT C2 IP 23.27.13.43"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html; metadata:author Actioner, created_at 2026-07-30; sid:2200003; rev:1;)

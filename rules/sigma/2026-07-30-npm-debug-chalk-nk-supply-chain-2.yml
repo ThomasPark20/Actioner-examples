@@ -1,0 +1,24 @@
+title: Network Connection to typo-crypto C2 IP 216.74.123.126
+id: 8e2b4c5d-3f9a-4d1e-b7c6-2a0f5e8d9b4c
+status: experimental
+description: >
+    Detects outbound network connections to 216.74.123.126, the C2 IP used by
+    the malicious typo-crypto npm package for stage-two payload delivery.
+    Attributed to North Korean Sapphire Sleet threat actor.
+references:
+    - https://thehackernews.com/2026/07/amazon-links-debug-and-chalk-npm-hijack.html
+    - https://cyberscoop.com/amazon-north-korea-open-source-software-attacks/
+author: Actioner
+date: 2026/07/30
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '216.74.123.126'
+    condition: selection
+falsepositives:
+    - Unlikely - this IP is associated with confirmed malicious infrastructure
+level: high

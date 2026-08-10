@@ -1,0 +1,23 @@
+title: Network Connection to Joyfill RAT C2 IP 23.27.13.43
+id: 9d1c3e6f-4a8b-5c2d-e0f7-3b1a6d9e8c5f
+status: experimental
+description: >
+    Detects outbound network connections to 23.27.13.43, the C2 IP used by the
+    compromised @joyfill npm packages to retrieve boot payloads. The RAT is
+    linked to the PolinRider/DEV#POPPER threat cluster.
+references:
+    - https://thehackernews.com/2026/07/two-compromised-joyfill-npm-packages.html
+author: Actioner
+date: 2026/07/30
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '23.27.13.43'
+    condition: selection
+falsepositives:
+    - Unlikely - this IP is associated with confirmed malicious infrastructure
+level: high
