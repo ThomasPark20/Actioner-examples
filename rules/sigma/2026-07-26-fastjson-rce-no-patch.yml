@@ -1,0 +1,25 @@
+title: Fastjson CVE-2026-16723 RCE Exploit Payload in HTTP Request
+id: f8e3a47b-9c12-4d56-8a1f-3b7e2c9d0f14
+status: experimental
+description: >
+    Detects HTTP requests containing Fastjson deserialization exploit payload
+    with @type field pointing to a jar:http scheme, characteristic of
+    CVE-2026-16723 exploitation targeting Spring Boot fat-JAR deployments.
+references:
+    - https://thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html
+    - https://github.com/alibaba/fastjson2/wiki/Security-Advisory:-Remote-Code-Execution-in-fastjson-1.2.68%E2%80%931.2.83
+author: Actioner
+date: 2026/07/26
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-body|contains|all:
+            - '@type'
+            - 'jar:http'
+    condition: selection
+falsepositives:
+    - Legitimate JSON payloads with @type fields containing jar:http values are extremely unlikely
+level: high

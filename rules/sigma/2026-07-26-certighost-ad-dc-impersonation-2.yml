@@ -1,0 +1,26 @@
+title: Computer Account Creation with Certighost Default Naming Pattern
+id: 2a9e6b1d-4c83-4f5a-b7d2-1e0f3c8a5d96
+status: experimental
+description: >
+    Detects creation of computer accounts matching the Certighost PoC default naming
+    convention (GHOST prefix followed by random characters). The Certighost exploit
+    (CVE-2026-54121) creates a machine account to host rogue LDAP/SMB services for
+    redirecting CA authentication.
+references:
+    - https://thehackernews.com/2026/07/certighost-exploit-lets-low-privileged.html
+    - https://github.com/aniqfakhrul/CVE-2026-54121
+author: Actioner
+date: 2026/07/26
+tags:
+    - attack.t1136.002
+logsource:
+    product: windows
+    service: security
+detection:
+    selection:
+        EventID: 4741
+        SamAccountName|startswith: 'GHOST'
+    condition: selection
+falsepositives:
+    - Legitimate computer accounts with names beginning with GHOST
+level: medium
