@@ -1,0 +1,22 @@
+title: GigaWiper Direct Security Event Log File Deletion
+id: da9e7bac-fd8e-4eaf-eb2c-7d6f9c8abcde
+status: experimental
+description: >
+    Detects direct deletion of the Security.evtx log file, used as a fallback
+    anti-forensics technique by GigaWiper when wevtutil clearing fails.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1070.001
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\winevt\Logs\Security.evtx'
+    condition: selection
+falsepositives:
+    - Legitimate log rotation or backup tools operating on event log files
+level: critical

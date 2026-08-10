@@ -1,0 +1,31 @@
+title: PoisonX Kernel Driver Load - GodDamn Ransomware BYOVD
+id: d3a7f8b1-4e2c-4f9a-b5d6-8c1e3f7a9d2b
+status: experimental
+description: >
+    Detects loading of the PoisonX kernel driver (g11.sys), a Microsoft-signed
+    malicious driver used by GodDamn ransomware (Hyadina group) and GentleKiller
+    to disable EDR/AV via BYOVD. The driver uses device GUID
+    {F8284233-48F4-4680-ADDD-F8284233} and terminates security processes via
+    ZwTerminateProcess.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1553.002
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection_hash_sha256:
+        Hashes|contains: '2d91a78e739891c9854c254f5b2a6b84c0e167dfa253466cbccd2cdd1c20145d'
+    selection_hash_sha1:
+        Hashes|contains: '56BEE9DF5833A637F5C54D5911DF98B0812FE643'
+    selection_name:
+        ImageLoaded|endswith: '\g11.sys'
+    condition: selection_hash_sha256 or selection_hash_sha1 or selection_name
+falsepositives:
+    - Unknown legitimate use of g11.sys filename - verify loaded driver hash against known PoisonX samples
+level: high

@@ -1,0 +1,32 @@
+title: Network Connection to UAT-7810 C2 Infrastructure
+id: 6e171ec6-fb61-405d-b576-d489237dc83d
+status: experimental
+description: >
+    Detects outbound network connections to known UAT-7810 C2 IP addresses
+    on characteristic ports (99, 2222, 8088) used for LONGLEASH and DOGLEASH
+    command and control communications.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection_ip:
+        DestinationIp:
+            - '194.233.92.26'
+            - '217.15.160.247'
+            - '217.15.164.147'
+            - '95.182.100.231'
+    selection_port:
+        DestinationPort:
+            - 99
+            - 2222
+            - 8088
+    condition: selection_ip and selection_port
+falsepositives:
+    - Legitimate services hosted on these IPs (unlikely given port combination)
+level: critical

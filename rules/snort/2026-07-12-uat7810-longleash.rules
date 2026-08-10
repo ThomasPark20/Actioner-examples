@@ -1,0 +1,10 @@
+# UAT-7810 LONGLEASH / DOGLEASH / JARLEASH -- Snort 3 Rules
+# Author: Actioner
+# Date: 2026-07-12
+# Reference: https://blog.talosintelligence.com/uat-7810/
+
+alert tcp $HOME_NET any -> [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] [99,2222,8088] (msg:"Actioner - UAT-7810 Outbound C2 Traffic to Known Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100201; rev:1;)
+
+alert tcp [194.233.92.26,217.15.160.247,217.15.164.147,95.182.100.231] any -> $HOME_NET any (msg:"Actioner - UAT-7810 Inbound Traffic from Known C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100202; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET [99,2222,8088] (msg:"Actioner - LONGLEASH C2 Beacon Chrome/122 UA to Non-Standard Port"; flow:established,to_server; http_header; content:"Chrome/122.0.6261.95"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-7810/; metadata:author Actioner, created 2026-07-12; sid:2100203; rev:1;)

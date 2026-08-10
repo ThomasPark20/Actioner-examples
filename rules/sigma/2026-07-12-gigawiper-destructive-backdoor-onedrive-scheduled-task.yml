@@ -1,0 +1,32 @@
+title: GigaWiper Persistence via OneDrive Update Scheduled Task
+id: 7a3e1b4c-9d2f-4e5a-8b6c-1f0d3e2a5b7c
+status: experimental
+description: >
+    Detects creation of a scheduled task named "OneDrive Update" used by GigaWiper
+    for persistence, triggering every minute and at system startup.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'OneDrive Update'
+            - '/create'
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Register-ScheduledTask'
+            - 'OneDrive Update'
+    condition: selection_schtasks or selection_powershell
+falsepositives:
+    - Legitimate OneDrive update mechanisms using this exact task name are uncommon but possible
+level: high

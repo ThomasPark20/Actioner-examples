@@ -1,0 +1,9 @@
+# GigaWiper Destructive Backdoor - Snort Rules
+# Author: Actioner
+# Date: 2026-07-12
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+# Note: Generic "AMQP on Non-Standard Port" rule (SID 2100104) was dropped in v1.1 review -- not GigaWiper-specific; any RabbitMQ deployment would trigger it.
+
+alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper C2 RabbitMQ AMQP Connection to 185.182.193[.]21:5544"; flow:established, to_server; content:"AMQP"; depth:4; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created 2026-07-12; sid:2100101; rev:1;)
+alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper C2 Redis Connection to 185.182.193[.]21:7542"; flow:established, to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created 2026-07-12; sid:2100102; rev:1;)
+alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Connection to 212.8.248[.]104"; flow:established, to_server; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/; metadata:author Actioner, created 2026-07-12; sid:2100103; rev:1;)

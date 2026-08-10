@@ -1,0 +1,27 @@
+title: Firewall Traffic to UAT-7810 C2 Infrastructure
+id: 2d531cf3-bb15-48bf-90f6-26d5b476fa14
+status: experimental
+description: >
+    Detects firewall log entries showing traffic to known UAT-7810 C2 IP
+    addresses. These IPs host LONGLEASH and DOGLEASH C2 servers on ports
+    99, 2222, and 8088.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip:
+            - '194.233.92.26'
+            - '217.15.160.247'
+            - '217.15.164.147'
+            - '95.182.100.231'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted at these IPs (verify with threat intelligence)
+level: high

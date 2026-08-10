@@ -1,0 +1,25 @@
+title: Network Connection to Injective Labs Exfiltration Domain
+id: 6c4d8e2f-3a1b-4d5c-b9e7-2f0a1c3d5e4b
+status: experimental
+description: >
+    Detects outbound network connections to the exfiltration domain used
+    by the compromised @injectivelabs npm packages. The malware sends
+    stolen private keys and seed phrases via HTTPS POST requests to this
+    domain, batching multiple key derivations over a two-second window.
+references:
+    - https://thehackernews.com/2026/07/injective-labs-github-compromise-pushes.html
+    - https://www.bleepingcomputer.com/news/security/injective-sdk-on-npm-infected-with-cryptocurrency-wallet-stealer/
+author: Actioner
+date: 2026-07-12
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationHostname|endswith:
+            - 'testnet.archival.chain.grpc-web.injective.network'
+    condition: selection
+falsepositives:
+    - Unlikely. This subdomain was purpose-built for exfiltration.
+level: critical
