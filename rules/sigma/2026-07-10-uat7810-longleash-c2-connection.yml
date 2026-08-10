@@ -1,0 +1,31 @@
+title: Connection to UAT-7810 C2 Infrastructure
+id: 8f3a1c7e-4d2b-4e9a-b6f0-1a3c5e7d9b2f
+status: experimental
+description: >
+    Detects network connections to known UAT-7810 (China-nexus APT) C2 infrastructure
+    on non-standard ports used for LONGLEASH and DOGLEASH backdoor communications.
+references:
+    - https://blog.talosintelligence.com/uat-7810/
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1571
+    - attack.t1090
+logsource:
+    category: firewall
+detection:
+    selection_ip:
+        dst_ip:
+            - '194.233.92.26'
+            - '217.15.160.247'
+            - '217.15.164.147'
+            - '95.182.100.231'
+    selection_port:
+        dst_port:
+            - 99
+            - 2222
+            - 8088
+    condition: selection_ip and selection_port
+falsepositives:
+    - Legitimate services hosted on these IP addresses (unlikely given port combination)
+level: high

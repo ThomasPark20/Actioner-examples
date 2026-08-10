@@ -1,0 +1,32 @@
+title: Hyadina Defense Evasion Tool Masquerading as Symantec Product
+id: 2514556e-94d9-4f89-b014-8c5fa41011c4
+status: experimental
+description: >
+    Detects execution of the Hyadina defense evasion dropper disguised as symantec.exe,
+    which drops the PoisonX kernel driver (g11.sys) into the system driver store. In the
+    observed attack this binary was staged in the user Music folder.
+references:
+    - https://securityaffairs.com/195042/malware/goddamn-ransomware-uses-poisonx-to-blind-security-software.html
+    - https://www.broadcom.com/support/security-center/protection-bulletin/goddamn-ransomware-latest-beast-rebrand-uses-malicious-driver-to-disable-defenses
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1036.005
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains: 'b29f91a440527fb621d106a2048f6379fff3263c60aeda9c82ff8c1d5ae880a8'
+    selection_path:
+        Image|endswith: '\symantec.exe'
+        Image|contains:
+            - '\Music\'
+            - '\Downloads\'
+            - '\Temp\'
+            - '\AppData\'
+    condition: selection_hash or selection_path
+falsepositives:
+    - Legitimate Symantec executables would not reside in user profile Music or Downloads folders
+level: high

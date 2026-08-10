@@ -1,0 +1,27 @@
+title: PoisonX Malicious Kernel Driver Load (g11.sys)
+id: f832c397-8bb5-43e0-b784-f2d31d62d466
+status: experimental
+description: >
+    Detects the loading of the PoisonX malicious kernel driver (g11.sys) used by the Hyadina
+    threat group (GodDamn ransomware) to terminate security processes at the kernel level via
+    BYOVD. The driver carries a Microsoft Hardware Compatibility Publisher signature.
+references:
+    - https://securityaffairs.com/195042/malware/goddamn-ransomware-uses-poisonx-to-blind-security-software.html
+    - https://www.broadcom.com/support/security-center/protection-bulletin/goddamn-ransomware-latest-beast-rebrand-uses-malicious-driver-to-disable-defenses
+    - https://threatlabsnews.xcitium.com/blog/reverse-engineering-a-0-day-poisonx-byovd-driver-bypasses-crowdstrike-edr/
+author: Actioner
+date: 2026/07/10
+tags:
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection_name:
+        ImageLoaded|endswith: '\g11.sys'
+    selection_hash:
+        Hashes|contains: '2d91a78e739891c9854c254f5b2a6b84c0e167dfa253466cbccd2cdd1c20145d'
+    condition: selection_name or selection_hash
+falsepositives:
+    - Unknown legitimate software using g11.sys driver name
+level: critical
