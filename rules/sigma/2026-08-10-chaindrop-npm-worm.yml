@@ -1,0 +1,144 @@
+title: ChainDrop NPM Worm - Suspicious Preinstall Script Spawning Bun Runtime
+id: d8d4af41-6319-4f16-9632-ffda004cb7e8
+status: experimental
+description: >
+    Detects npm preinstall lifecycle hooks executing setup.mjs which then downloads
+    and launches the Bun runtime, consistent with the ChainDrop worm's Stage 1 loader.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '/npm'
+            - '\node.exe'
+            - '\npm.cmd'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'setup.mjs'
+    condition: selection_parent and selection_cmdline
+falsepositives:
+    - Legitimate npm packages with setup.mjs preinstall scripts (uncommon)
+level: high
+---
+title: ChainDrop NPM Worm - Bun Runtime Download and Execution
+id: 993d829a-434e-4268-ae1f-ee0c0340b2c5
+status: experimental
+description: >
+    Detects execution of Bun runtime from temporary or non-standard paths containing
+    'bun-dl-' in the path, consistent with ChainDrop downloading Bun 1.3.13 as a portable runtime.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1059.007
+    - attack.t1105
+logsource:
+    category: process_creation
+detection:
+    selection:
+        Image|contains: 'bun-dl-'
+    condition: selection
+falsepositives:
+    - Developers deliberately downloading and running Bun from temporary directories
+level: high
+---
+title: ChainDrop NPM Worm - IDE Persistence File Creation
+id: 56dd8b29-6938-4e48-951f-686431a06a8e
+status: experimental
+description: >
+    Detects creation of .claude/settings.json or .vscode/tasks.json persistence files
+    by node/npm processes, matching ChainDrop's developer tooling infection vector.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1546
+    - attack.t1547
+logsource:
+    category: file_event
+detection:
+    selection_process:
+        Image|endswith:
+            - '/node'
+            - '/bun'
+            - '\node.exe'
+            - '\bun.exe'
+    selection_target:
+        TargetFilename|contains:
+            - '.claude/settings.json'
+            - '.claude/setup.mjs'
+            - '.claude/math_init.js'
+            - '.vscode/setup.mjs'
+    condition: selection_process and selection_target
+falsepositives:
+    - IDE extensions generating configuration files during normal operation
+level: high
+---
+title: ChainDrop NPM Worm - C2 Domain DNS Resolution
+id: a1bc9ec0-f88f-4936-b85d-aa72b2005485
+status: experimental
+description: >
+    Detects DNS queries to known ChainDrop C2 domains used for command-and-control
+    communication and payload delivery.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1071.001
+    - attack.t1568
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'npm-cache.com'
+            - 'pypi-get.com'
+            - 'js-mirror.com'
+            - 'awqhnjewqjkl.icu'
+    condition: selection
+falsepositives:
+    - None expected; these are attacker-registered domains
+level: critical
+---
+title: ChainDrop NPM Worm - GitHub Actions Runner Memory Scraping
+id: c10fbafd-0f6c-4426-989f-7189689dc5bc
+status: experimental
+description: >
+    Detects access to /proc/*/mem targeting GitHub Actions Runner.Worker processes,
+    consistent with ChainDrop's OIDC token theft from CI runner memory.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+author: Actioner
+date: 2026-08-10
+tags:
+    - attack.t1003
+    - attack.t1528
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: '/proc/'
+        TargetFilename|endswith: '/mem'
+        Image|endswith:
+            - '/bun'
+            - '/node'
+    condition: selection
+falsepositives:
+    - Debugging tools or profilers that read process memory via procfs
+level: high
