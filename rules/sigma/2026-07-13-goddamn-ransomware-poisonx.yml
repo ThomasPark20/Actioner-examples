@@ -1,0 +1,133 @@
+# GodDamn Ransomware with PoisonX Driver - Sigma Detection Rules
+# Report: /home/user/Actioner-examples/summaries/2026-07-13-goddamn-ransomware-poisonx.md
+# Coverage gap: 15+ PoisonX driver variants exist (all Microsoft-signed).
+# Append additional variant hashes to selection_hash as they become available.
+# ---
+# Rule 1: PoisonX Malicious Driver Load
+title: PoisonX Malicious Driver Load - GodDamn Ransomware
+id: 8a3f1c2e-4b5d-6e7f-9a0b-1c2d3e4f5a6b
+status: experimental
+description: >
+    Detects loading of the PoisonX kernel driver (g11.sys) used by GodDamn ransomware
+    operators to terminate security product processes and strip user-mode API hooks via
+    BYOVD technique. The driver carries a legitimate Microsoft WHCP signature.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection_name:
+        ImageLoaded|endswith: '\g11.sys'
+    selection_hash:
+        Hashes|contains: '2d91a78e739891c9854c254f5b2a6b84c0e167dfa253466cbccd2cdd1c20145d'
+    condition: selection_name or selection_hash
+falsepositives:
+    - Unknown
+level: critical
+---
+# Rule 2: GodDamn Defense Evasion Tool Masquerading as Symantec
+title: GodDamn Ransomware Defense Evasion Tool Masquerading as Symantec
+id: 7b4e2d1f-5c6a-8e9d-0f1a-2b3c4d5e6f7a
+status: experimental
+description: >
+    Detects execution of the GodDamn ransomware defense evasion tool (symantec.exe)
+    that loads the PoisonX driver to disable endpoint security. The tool masquerades
+    as a Symantec product and is typically staged in the user Music folder.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1036.005
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains: 'b29f91a440527fb621d106a2048f6379fff3263c60aeda9c82ff8c1d5ae880a8'
+    selection_path:
+        Image|endswith: '\music\symantec.exe'
+    condition: selection_hash or selection_path
+falsepositives:
+    - Unknown
+level: critical
+---
+# Rule 3: GodDamn Ransomware Encryptor Execution
+title: GodDamn Ransomware Encryptor Execution
+id: 9c5f3e2d-6a7b-0f1e-2d3c-4e5f6a7b8c9d
+status: experimental
+description: >
+    Detects execution of the GodDamn ransomware encryptor binary
+    (encrypter-windows-gui-x86.exe), the latest rebrand of Beast ransomware.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+    - https://thehackernews.com/2026/07/goddamn-ransomware-uses-poisonx-driver.html
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1486
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_name:
+        Image|endswith: '\encrypter-windows-gui-x86.exe'
+    selection_hash:
+        Hashes|contains: 'e097f3b445b63b07afacde8d6a67f0be654dd51e228a3610fb0710a1f7e29a69'
+    condition: selection_name or selection_hash
+falsepositives:
+    - Unknown
+level: critical
+---
+# Rule 4: GodDamn NirSoft Credential Harvesting Toolkit
+# Confidence: medium (NirSoft hashes are identical to legitimate nirsoft.net downloads)
+title: GodDamn Ransomware NirSoft Credential Harvesting Toolkit
+id: 0d6a4f3e-7b8c-1a2d-3e4f-5a6b7c8d9e0f
+status: experimental
+description: >
+    Detects execution of NirSoft credential harvesting tools and renamed Mimikatz
+    binary (mimik.exe) used in GodDamn ransomware intrusions. The toolkit is typically
+    staged under the user profile Music folder.
+references:
+    - https://www.security.com/threat-intelligence/goddamn-ransomware-beast-rebrand
+author: Actioner
+date: 2026/07/13
+tags:
+    - attack.t1555
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mimikatz:
+        Hashes|contains: '31eb1de7e840a342fd468e558e5ab627bcb4c542a8fe01aec4d5ba01d539a0fc'
+    selection_nirsoft_hashes:
+        Hashes|contains:
+            - '17fb52476016677db5a93505c4a1c356984bc1f6a4456870f920ac90a7846180'
+            - '19bab15a34d5ad838ccf4d187eb40379c335fa56446d0f9621865b2767d4ac7d'
+            - '35296e7a34688ca3e3159bcdf92b4d60ba4173a2369aca531bb7bc959f68ed9c'
+            - '5be325905df8aab7089ab2348d89343f55a2f88dadd75de8f382e8fa026451bd'
+            - '5c4c98d774eb100f9a89ae4e984c27a4f532e58c7cf8c87046dc87db5a065404'
+            - '5e85446910e732111ca9ac90f9ed8b1dee13c3314d2c5117dcf672994ce73bd6'
+            - '7a313840d25adf94c7bf1d17393f5b991ba8baf50b8cacb7ce0420189c177e26'
+            - '816d7616238958dfe0bb811a063eb3102efd82eff14408f5cab4cb5258bfd019'
+            - '8e4b218bdbd8e098fff749fe5e5bbf00275d21f398b34216a573224e192094b8'
+            - '8ff1c1967841a595d996a649c8134b7a5970dcf94624b237d1b089e7c6266167'
+            - 'c92580318be4effdb37aa67145748826f6a9e285bc2426410dc280e61e3c7620'
+            - 'ece33e4b7e2d26eeca8ad9db4439f9801a7a77e332611116156738b1b0316046'
+            - 'faca9e856c369b63d6698c74b1d59b062a9a8d9fe84b8f753c299c9961026395'
+    selection_path:
+        Image|contains: '\music\mimik'
+    condition: selection_mimikatz or selection_nirsoft_hashes or selection_path
+falsepositives:
+    - Legitimate use of NirSoft password recovery tools by IT administrators
+    - Identical hashes will match legitimate downloads of the same NirSoft tool versions from nirsoft.net
+level: medium

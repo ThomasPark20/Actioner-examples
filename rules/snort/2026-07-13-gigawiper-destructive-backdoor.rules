@@ -1,0 +1,6 @@
+# GigaWiper C2 Communication to Known Infrastructure
+# Detects TCP connections to GigaWiper's known C2 IP addresses.
+# Deployment note: SIDs 2100001-2100003 may collide with ET rulesets. Rebase into your local SID range if needed.
+alert tcp $HOME_NET any -> 185.182.193.21 5544 (msg:"Actioner - GigaWiper C2 Communication to Known AMQP Server"; flow:established,to_server; content:"AMQP"; depth:4; sid:2100001; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;)
+alert tcp $HOME_NET any -> 185.182.193.21 7542 (msg:"Actioner - GigaWiper C2 Communication to Known Redis Server"; flow:established,to_server; sid:2100002; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;)
+alert tcp $HOME_NET any -> 212.8.248.104 any (msg:"Actioner - GigaWiper C2 Communication to Known Infrastructure"; flow:established,to_server; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/;)
