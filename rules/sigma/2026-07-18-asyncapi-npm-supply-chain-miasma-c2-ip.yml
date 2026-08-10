@@ -1,0 +1,29 @@
+title: AsyncAPI Miasma C2 IP Communication (85.137.53.71)
+id: 72f8d355-3883-4877-b565-e2d808f8d963
+status: experimental
+description: >
+    Detects network connections to the Miasma runtime C2 server at
+    85.137.53.71 on ports 8080 (primary C2), 8081 (upload), or 8091
+    (management). This IP was used as the command-and-control server for
+    the AsyncAPI npm supply chain compromise discovered July 14, 2026.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1071.001
+    - attack.t1008
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '85.137.53.71'
+        DestinationPort:
+            - 8080
+            - 8081
+            - 8091
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on this IP (verify context before blocking)
+level: critical

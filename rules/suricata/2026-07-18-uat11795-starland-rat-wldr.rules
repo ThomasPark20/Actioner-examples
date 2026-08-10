@@ -1,0 +1,23 @@
+# UAT-11795 Starland RAT & WLDR C2 Campaign - Suricata Detection Rules
+# Author: Actioner
+# Date: 2026-07-18
+# Reference: https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+# Total: 9 rules (SIDs 2200101-2200105, 2200107, 2200109-2200111)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain eorthopaedics.com"; dns.query; content:"eorthopaedics.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain sastoro.com"; dns.query; content:"sastoro.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain web-devtools.com"; dns.query; content:"web-devtools.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain zynaris.io"; dns.query; content:"zynaris.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain polygon-rpc.com"; dns.query; content:"polygon-rpc.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200105; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11795 Blockchain Smart Contract Query Function Selector 0xc659f3b8"; flow:established,to_server; http.method; content:"POST"; http.content_type; content:"application/json"; http.request_body; content:"0xc659f3b8"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200107; rev:1;)
+
+alert tcp $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - UAT-11795 Known Miasma Shared C2 IP 85.137.53.71"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18, expiration 2026_10_16; sid:2200109; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain windowscreenrepairnearme.com"; dns.query; content:"windowscreenrepairnearme.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200110; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11795 Known C2 Domain aipythondevs.com"; dns.query; content:"aipythondevs.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created_at 2026_07_18; sid:2200111; rev:1;)

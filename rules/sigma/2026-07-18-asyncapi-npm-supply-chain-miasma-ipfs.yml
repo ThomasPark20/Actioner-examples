@@ -1,0 +1,29 @@
+title: AsyncAPI Miasma IPFS Payload Download via Known CIDs
+id: 7358cb78-b72e-4c7c-8ce6-32a9e7a0b862
+status: experimental
+description: >
+    Detects HTTP requests to IPFS gateways fetching the specific CIDs used by
+    the AsyncAPI npm supply chain compromise to download the Miasma runtime
+    payload. The malware fetches sync.js via IPFS with CIDs
+    Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf and
+    QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026/07/18
+tags:
+    - attack.t1105
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_ipfs_gateway:
+        cs-uri|contains: '/ipfs/'
+    selection_cids:
+        cs-uri|contains:
+            - 'Qmet4fhsAaWMBUxNDfREHwgiyDeSWy4YSYs9wiKUW5jGyf'
+            - 'QmQobZSp1wRPrpSEQ56qnyq7ecZh5Bg5k1fnjt4SUwwHb9'
+    condition: selection_ipfs_gateway and selection_cids
+falsepositives:
+    - Security researchers investigating these specific IPFS CIDs
+level: critical

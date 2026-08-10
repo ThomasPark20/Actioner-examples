@@ -1,0 +1,89 @@
+title: WordPress wp2shell Batch Endpoint RCE Exploitation (CVE-2026-63030 + CVE-2026-60137)
+id: 8a3c7e1f-4d6b-4f92-b5e8-1c9a3d7f2e06
+status: experimental
+description: >
+    Detects exploitation of the WordPress wp2shell RCE chain targeting
+    /wp-json/batch/v1 (or rest_route=/batch/v1). The attack chains
+    CVE-2026-63030 (batch-route confusion) with CVE-2026-60137 (SQL injection
+    via author__not_in string injection in WP_Query). Keys on the distinctive
+    batch endpoint combined with author__not_in manipulation indicators.
+references:
+    - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
+    - https://wordpress.org/news/2026/07/wordpress-6-9-5-security-release/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.t1190
+    - attack.initial_access
+    - cve.2026-63030
+    - cve.2026-60137
+logsource:
+    category: webserver
+detection:
+    selection_batch_path:
+        cs-uri-stem|contains:
+            - '/wp-json/batch/v1'
+    selection_batch_query:
+        cs-uri-query|contains:
+            - 'rest_route=/batch/v1'
+            - 'rest_route=%2Fbatch%2Fv1'
+    selection_sqli_indicator:
+        cs-body|contains:
+            - 'author__not_in'
+            - 'author%5F%5Fnot%5Fin'
+    condition: (selection_batch_path or selection_batch_query) and selection_sqli_indicator
+falsepositives:
+    - Legitimate batch API requests that reference author__not_in in the POST body are uncommon but possible in custom REST clients
+level: high
+---
+title: WordPress wp2shell Batch POST with SQLi Indicators (CVE-2026-60137)
+id: 2b4d8f3a-7e1c-4a59-9d6f-3c8b5e2a1f07
+status: experimental
+description: >
+    Detects HTTP POST requests to the WordPress batch/v1 endpoint where the
+    request body contains author__not_in with SQL injection indicators. The
+    wp2shell chain uses a deliberately malformed batch request to misalign
+    sub-request arrays (CVE-2026-63030) and then injects SQL via author__not_in
+    passed as a string rather than an array (CVE-2026-60137).
+references:
+    - https://thehackernews.com/2026/07/new-wp2shell-wordpress-core-flaw-lets.html
+    - https://wordpress.org/news/2026/07/wordpress-6-9-5-security-release/
+author: Actioner
+date: 2026-07-18
+tags:
+    - attack.t1190
+    - attack.initial_access
+    - cve.2026-63030
+    - cve.2026-60137
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_batch_path:
+        cs-uri-stem|contains:
+            - '/wp-json/batch/v1'
+    selection_batch_query:
+        cs-uri-query|contains:
+            - 'rest_route=/batch/v1'
+            - 'rest_route=%2Fbatch%2Fv1'
+    selection_sqli_body:
+        cs-body|contains:
+            - 'author__not_in'
+    selection_sqli_patterns:
+        cs-body|contains:
+            - 'UNION SELECT'
+            - 'UNION%20SELECT'
+            - "' OR "
+            - "' AND "
+            - 'ORDER BY'
+            - 'SLEEP('
+            - 'BENCHMARK('
+            - 'EXTRACTVALUE('
+            - 'UPDATEXML('
+            - '--'
+            - '/*'
+    condition: selection_method and (selection_batch_path or selection_batch_query) and selection_sqli_body and selection_sqli_patterns
+falsepositives:
+    - Very unlikely; the combination of batch endpoint + author__not_in + SQL keywords in POST body is highly specific
+level: critical

@@ -1,0 +1,12 @@
+# UAT-11795 Starland RAT & WLDR C2 Campaign - Snort Detection Rules
+# Author: Actioner
+# Date: 2026-07-18
+# Reference: https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+# Total: 3 rules (SIDs 3200101-3200103)
+# Note: Structural check only - Snort not available for compilation validation
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11795 Starland RAT Blockchain Smart Contract Function Selector 0xc659f3b8"; flow:established,to_server; content:"POST"; http_method; content:"0xc659f3b8"; http_client_body; fast_pattern; content:"0x6ae382ed2154cc84c6672e4e908cd2c69c1b35ba"; http_client_body; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200101; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 DNS Query for eorthopaedics.com"; content:"|0d|eorthopaedics|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200102; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 C2 DNS Query for zynaris.io"; content:"|07|zynaris|02|io|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign; metadata:author Actioner, created_at 2026_07_18; sid:3200103; rev:2;)
