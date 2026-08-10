@@ -1,0 +1,28 @@
+title: msaRAT MSI Delivery via Curl to ProgramData
+id: 7a3e1f92-4b8c-4d5e-a6f1-2c9d0e8b7a4f
+status: experimental
+description: >
+    Detects curl.exe downloading an MSI file to C:\ProgramData, consistent with
+    the Chaos ransomware group's msaRAT delivery chain where the initial payload
+    is fetched from an attacker-controlled server on port 443 over plain HTTP.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1105
+    - attack.t1218.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_curl:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains|all:
+            - 'http'
+            - '.msi'
+            - '\programdata\'
+    condition: selection_curl
+falsepositives:
+    - Legitimate software deployment scripts using curl to download MSI installers to ProgramData
+level: high

@@ -1,0 +1,3 @@
+alert tcp $HOME_NET any -> 85.137.53.71 any (msg:"Actioner - AsyncAPI Supply Chain Miasma C2 Communication to 85.137.53.71"; flow:established,to_server; content:"/api/v1/beacon"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; sid:2100101; rev:1;)
+
+alert tcp $HOME_NET any -> 85.137.53.71 8081 (msg:"Actioner - AsyncAPI Supply Chain Miasma Data Exfiltration Upload"; flow:established,to_server; content:"/api/v1/file-result"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/; sid:2100102; rev:1;)

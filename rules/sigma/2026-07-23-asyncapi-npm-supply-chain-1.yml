@@ -1,0 +1,30 @@
+title: AsyncAPI NPM Supply Chain - Suspicious Detached Node.js Process Spawn
+id: 7a1c3d5e-2b4f-4e8a-9c6d-1f3e5a7b9c2d
+status: experimental
+description: >
+    Detects the import-time payload execution pattern used in the AsyncAPI npm supply chain
+    compromise where a detached hidden Node.js child process is spawned to execute a downloaded
+    sync.js payload from OS-specific drop directories.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://securitylabs.datadoghq.com/articles/compromised-asyncapi-npm-packages/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\node.exe'
+    selection_child:
+        Image|endswith: '\node.exe'
+        CommandLine|contains:
+            - '\NodeJS\sync.js'
+            - 'const _0x5af5e1'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Node.js applications spawning child processes with similar path patterns
+level: high

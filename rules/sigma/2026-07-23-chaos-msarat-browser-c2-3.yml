@@ -1,0 +1,23 @@
+title: msaRAT C2 Signaling Domain DNS Query
+id: 9c5a3b14-6d0e-4f7a-c8b3-4e1f2a0d9c6b
+status: experimental
+description: >
+    Detects DNS queries to the Cloudflare Workers domain used by msaRAT for
+    WebRTC SDP signaling relay. The domain is-01-ast[.]ols-img-12[.]workers[.]dev
+    serves as the rendezvous point for SDP Offer/Answer exchange.
+references:
+    - https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+author: Actioner
+date: 2026/07/23
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'is-01-ast.ols-img-12.workers.dev'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known malicious Cloudflare Workers subdomain
+level: critical
