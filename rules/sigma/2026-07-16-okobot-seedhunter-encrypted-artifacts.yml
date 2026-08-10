@@ -1,0 +1,26 @@
+title: OkoBot SeedHunter Encrypted Artifact Creation
+id: 1e9d4b7c-3a2f-4c8e-b5d6-9f0e1a2c3d4b
+status: experimental
+description: >
+    Detects creation of SeedHunter RC4-encrypted JSON files (sh_*.json) in the
+    user temp directory, indicating OkoBot has captured seed phrase data from
+    a hardware cryptocurrency wallet application.
+references:
+    - https://securelist.com/okobot-framework-targets-cryptocurrency-wallets/120660/
+    - https://thehackernews.com/2026/07/okobot-malware-framework-injects-seed.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1005
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Temp\sh_'
+        TargetFilename|endswith: '.json'
+    condition: selection
+falsepositives:
+    - Applications writing JSON files with sh_ prefix to temp directory
+level: high

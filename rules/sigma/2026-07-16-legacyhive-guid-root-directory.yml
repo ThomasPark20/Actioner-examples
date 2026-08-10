@@ -1,0 +1,27 @@
+title: LegacyHive - GUID-Named Directory Created at Drive Root
+id: fce24a01-645e-4309-a999-2910b98c9207
+status: experimental
+description: >
+    Detects creation of a directory with a GUID-like name directly under the
+    system drive root (e.g. C:\{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}). The
+    LegacyHive exploit creates such a directory as a temporary working directory
+    that is the target of a symbolic link from the kernel object namespace.
+references:
+    - https://github.com/MSNightmare/LegacyHive
+    - https://www.securityweek.com/nightmare-eclipse-drops-legacyhive-windows-zero-day/
+    - https://securityaffairs.com/195418/hacking/chaotic-eclipse-unveils-legacyhive-exploit-affecting-fully-patched-windows-systems.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|re: '^[A-Z]:\\\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}\\'
+    condition: selection
+falsepositives:
+    - Software installers using GUID-named temporary directories at drive root
+    - Windows Update operations creating temporary GUID directories
+level: medium

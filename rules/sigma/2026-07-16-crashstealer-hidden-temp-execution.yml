@@ -1,0 +1,28 @@
+title: CrashStealer Execution from Hidden Temp Directory
+id: b8f24d6e-3a17-4c9b-a2e5-1f0d8c7b6a93
+status: experimental
+description: >
+    Detects execution of the CrashReporter payload from the hidden staging directory
+    /private/tmp/.CrashReporter or /tmp/.CrashReporter, characteristic of the CrashStealer
+    macOS infostealer dropper chain.
+references:
+    - https://www.jamf.com/blog/crashstealer-macos-infostealer-analysis/
+    - https://www.scworld.com/news/macos-crashstealer-malware-poses-as-crash-reporter-to-steal-credentials
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1074.001
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        Image|contains:
+            - '/tmp/.CrashReporter/'
+            - '/private/tmp/.CrashReporter/'
+            - '/private/tmp/,CrashReporter'
+    condition: selection
+falsepositives:
+    - Unlikely - hidden directories under /tmp with CrashReporter naming are highly anomalous
+level: critical

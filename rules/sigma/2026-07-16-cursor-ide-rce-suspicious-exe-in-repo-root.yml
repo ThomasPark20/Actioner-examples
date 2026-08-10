@@ -1,0 +1,47 @@
+title: Suspicious Executable in Repository Root Mimicking Developer Tool
+id: 1d8e5f3a-b7c2-4a96-8e0d-9f4b6c1a2d5e
+status: experimental
+description: >
+    Detects execution of binaries named after common developer tools
+    (git.exe, npx.exe, node.exe, where.exe) from repository or workspace
+    root directories. Attackers can place trojanized binaries in cloned
+    repositories to achieve code execution when an IDE or CLI tool resolves
+    them via path search.
+references:
+    - https://mindgard.ai/blog/cursor-0day-when-full-disclosure-becomes-the-only-protection-left
+    - https://www.securityweek.com/unpatched-cursor-vulnerability-exposes-users-to-code-execution/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1204.002
+    - attack.t1036.005
+    - attack.t1574.008
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_name:
+        Image|endswith:
+            - '\git.exe'
+            - '\npx.exe'
+            - '\node.exe'
+            - '\where.exe'
+    selection_path:
+        Image|contains:
+            - '\source\repos\'
+            - '\Documents\GitHub\'
+            - '\Projects\'
+            - '\repos\'
+            - '\workspace\'
+    filter_legitimate:
+        Image|contains:
+            - '\node_modules\.bin\'
+            - '\Program Files\'
+            - '\Program Files (x86)\'
+            - '\AppData\Local\Programs\'
+            - '\nvm\'
+    condition: selection_name and selection_path and not filter_legitimate
+falsepositives:
+    - Developers running portable tool installations from within project trees
+    - Build scripts that compile and run git/node wrappers locally
+level: medium

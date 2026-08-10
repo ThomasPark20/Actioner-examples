@@ -1,0 +1,34 @@
+title: LegacyHive - Notepad Spawned via Secondary Logon as Different User
+id: a0eb7d2d-bd90-4db8-9990-9508ddc58968
+status: experimental
+description: >
+    Detects notepad.exe being spawned under a different user context than the
+    parent process, consistent with the LegacyHive exploit which uses
+    CreateProcessWithLogonW to launch notepad.exe as a target user to trigger
+    the User Profile Service to load the manipulated registry hive.
+references:
+    - https://github.com/MSNightmare/LegacyHive
+    - https://www.securityweek.com/nightmare-eclipse-drops-legacyhive-windows-zero-day/
+    - https://securityaffairs.com/195418/hacking/chaotic-eclipse-unveils-legacyhive-exploit-affecting-fully-patched-windows-systems.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1068
+    - attack.t1134.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\notepad.exe'
+        ParentImage|endswith: '\svchost.exe'
+    filter_interactive:
+        User|contains:
+            - 'SYSTEM'
+            - 'LOCAL SERVICE'
+            - 'NETWORK SERVICE'
+    condition: selection and not filter_interactive
+falsepositives:
+    - Legitimate use of runas to open notepad as a different user
+    - Administrative scripting that spawns notepad under alternate credentials
+level: medium

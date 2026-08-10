@@ -1,0 +1,29 @@
+title: LegacyHive - User Shell Folders Local AppData Redirected to Globalroot
+id: 01e1778b-5afd-413c-8316-90985e278cdd
+status: experimental
+description: >
+    Detects modification of the User Shell Folders "Local AppData" registry value
+    to point to a globalroot object namespace path, a technique used by the
+    LegacyHive exploit to redirect profile loading and mount another user's
+    registry hive under the current user's classes root.
+references:
+    - https://github.com/MSNightmare/LegacyHive
+    - https://www.securityweek.com/nightmare-eclipse-drops-legacyhive-windows-zero-day/
+    - https://securityaffairs.com/195418/hacking/chaotic-eclipse-unveils-legacyhive-exploit-affecting-fully-patched-windows-systems.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1068
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
+    selection_value:
+        Details|contains: '\globalroot\BaseNamedObjects'
+    condition: selection_key and selection_value
+falsepositives:
+    - Unknown - globalroot paths in User Shell Folders are highly anomalous
+level: critical

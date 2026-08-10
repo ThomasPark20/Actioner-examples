@@ -1,0 +1,46 @@
+title: LegacyHive - Suspicious UsrClass.dat Access by Non-System Process
+id: 98167032-1389-4caa-a6dd-1067d2daba67
+status: experimental
+description: >
+    Detects a non-system process accessing or copying UsrClass.dat hive files
+    from another user's profile directory. The LegacyHive exploit reads and
+    modifies UsrClass.dat files of other users using the offline registry
+    library to manipulate the hive while unmounted.
+references:
+    - https://github.com/MSNightmare/LegacyHive
+    - https://www.securityweek.com/nightmare-eclipse-drops-legacyhive-windows-zero-day/
+    - https://securityaffairs.com/195418/hacking/chaotic-eclipse-unveils-legacyhive-exploit-affecting-fully-patched-windows-systems.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1068
+    - attack.t1112
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\UsrClass.dat'
+    filter_system:
+        Image|endswith:
+            - '\svchost.exe'
+            - '\lsass.exe'
+            - '\services.exe'
+            - '\smss.exe'
+            - '\csrss.exe'
+            - '\winlogon.exe'
+            - '\wininit.exe'
+            - '\RuntimeBroker.exe'
+            - '\SearchProtocolHost.exe'
+            - '\TiWorker.exe'
+    filter_system_path:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+            - 'C:\Windows\servicing\'
+    condition: selection and not (filter_system or filter_system_path)
+falsepositives:
+    - Backup software accessing user registry hives
+    - System administration tools performing registry hive operations
+    - Forensic analysis tools
+level: high

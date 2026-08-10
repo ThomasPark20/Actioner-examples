@@ -1,0 +1,34 @@
+title: SonicWall SMA1000 CVE-2026-15410 Hotfix Rollback Path Traversal
+id: 2d4e6a8c-1b3f-5c7d-9e0a-4f2b8d6c1e3a
+status: experimental
+description: >
+    Detects exploitation of CVE-2026-15410 (CVSS 7.2) via POST requests to the
+    /rollbackConfirm.action endpoint on SonicWall SMA1000 AMC (port 8443) with
+    path traversal sequences in the hotfix parameter. Attackers use this to
+    execute arbitrary scripts as root after chaining with CVE-2026-15409.
+    NOTE: This rule uses cs-body to match POST body content; the log source must
+    capture HTTP request bodies, which is not default in most web server
+    configurations. Verify your logging pipeline populates this field before
+    deploying.
+references:
+    - https://www.rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/
+    - https://www.sonicwall.com/support/notices/product-notice-sma-1000-series-affected-by-multiple-vulnerabilities/kA1VN000001nv6D0AQ
+author: Actioner
+date: 2026-07-16
+tags:
+    - attack.t1068
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/rollbackConfirm.action'
+    selection_method:
+        cs-method: 'POST'
+    selection_traversal:
+        cs-body|contains: '../'
+    condition: selection_uri and selection_method and selection_traversal
+falsepositives:
+    - Legitimate hotfix rollback operations do not contain path traversal sequences
+    - This rule depends on cs-body (HTTP request body) being logged; if your web server or proxy does not capture POST bodies, this rule will not fire
+level: critical

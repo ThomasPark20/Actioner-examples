@@ -1,0 +1,26 @@
+title: AsyncAPI Supply Chain - Miasma sync.js Payload Drop
+id: 8c1f4a2e-3b7d-4e9f-a5c6-1d8e0f2b3a4c
+status: experimental
+description: >
+    Detects creation of sync.js in NodeJS masquerade directories used by the
+    Miasma malware dropped via compromised AsyncAPI npm packages. The malware
+    writes an encrypted payload to OS-specific paths under a NodeJS directory.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+    - https://securityaffairs.com/195395/security/asyncapi-npm-supply-chain-attack-malware-injected-into-packages-with-2-million-weekly-downloads.html
+author: Actioner
+date: 2026-07-16
+tags:
+    - attack.t1195.002
+    - attack.t1105
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\NodeJS\sync.js'
+            - '/NodeJS/sync.js'
+    condition: selection
+falsepositives:
+    - Legitimate applications creating files in a NodeJS directory with the exact name sync.js
+level: high

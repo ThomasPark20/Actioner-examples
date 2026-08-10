@@ -1,0 +1,29 @@
+title: AsyncAPI Supply Chain - Node.js Spawning Miasma Payload
+id: 5f4a3d2c-6b8e-4c1f-d9a0-4e1b2c3d5f7a
+status: experimental
+description: >
+    Detects Node.js process execution with command-line references to the Miasma
+    payload sync.js in NodeJS masquerade directories used by the AsyncAPI supply
+    chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/15/unpacking-asyncapi-npm-supply-chain-compromise-import-time-payload-delivery/
+author: Actioner
+date: 2026-07-16
+tags:
+    - attack.t1059.007
+    - attack.t1036.005
+logsource:
+    category: process_creation
+detection:
+    selection_binary:
+        Image|endswith:
+            - '\node.exe'
+            - '/node'
+    selection_payload:
+        CommandLine|contains:
+            - 'NodeJS\sync.js'
+            - 'NodeJS/sync.js'
+    condition: selection_binary and selection_payload
+falsepositives:
+    - Unlikely - the combination of node executing sync.js from a NodeJS masquerade path is highly specific
+level: high

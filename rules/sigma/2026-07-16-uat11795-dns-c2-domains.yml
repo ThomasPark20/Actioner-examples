@@ -1,0 +1,30 @@
+title: UAT-11795 Campaign - DNS Query to Known C2 Domains
+id: 4e5f6a7b-8c9d-0e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: >
+    Detects DNS queries to domains associated with UAT-11795 C2 and staging
+    infrastructure used for Starland RAT and WLDR implant delivery.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+    - https://github.com/Cisco-Talos/IOCs/tree/main/2026/07
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'eorthopaedics.com'
+            - 'sastoro.com'
+            - 'zynaris.io'
+            - 'alphabitcapital.info'
+            - 'niggerdemon.in'
+            - 'web-devtools.com'
+            - 'aipythondevs.com'
+            - 'windowscreenrepairnearme.com'
+    condition: selection
+falsepositives:
+    - None known - these are confirmed malicious domains
+level: critical

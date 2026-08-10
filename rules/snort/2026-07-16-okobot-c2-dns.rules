@@ -1,0 +1,21 @@
+alert udp $HOME_NET any -> any 53 (
+    msg:"Actioner - OkoBot C2 DNS Query to moonsand.store";
+    flow:to_server;
+    content:"|08|moonsand|05|store|00|", nocase, fast_pattern;
+    classtype:trojan-activity;
+    reference:url,securelist.com/okobot-framework-targets-cryptocurrency-wallets/120660/;
+    metadata:author Actioner, created 2026-07-16;
+    sid:2100001;
+    rev:1;
+)
+
+alert udp $HOME_NET any -> any 53 (
+    msg:"Actioner - OkoBot TookPS C2 DNS Query to 2baserec2.guru";
+    flow:to_server;
+    content:"|09|2baserec2|04|guru|00|", nocase, fast_pattern;
+    classtype:trojan-activity;
+    reference:url,securelist.com/okobot-framework-targets-cryptocurrency-wallets/120660/;
+    metadata:author Actioner, created 2026-07-16;
+    sid:2100002;
+    rev:1;
+)

@@ -1,0 +1,39 @@
+title: Cursor IDE Executing Git Binary From Project Directory
+id: 7c3a91f2-e4b8-4d1a-9f6e-2a5c8b0d3e7f
+status: experimental
+description: >
+    Detects Cursor IDE spawning a git.exe process from a project/workspace
+    directory rather than the legitimate Git installation path. This is the
+    specific exploitation vector for the unpatched Cursor 0-day where a
+    malicious git.exe placed in a repository root is executed automatically
+    during project load.
+references:
+    - https://mindgard.ai/blog/cursor-0day-when-full-disclosure-becomes-the-only-protection-left
+    - https://www.securityweek.com/unpatched-cursor-vulnerability-exposes-users-to-code-execution/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1204.002
+    - attack.t1036.005
+    - attack.t1574.008
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\Cursor.exe'
+    selection_child:
+        Image|endswith: '\git.exe'
+    filter_legitimate_git:
+        Image|contains:
+            - '\Program Files\Git\'
+            - '\Program Files (x86)\Git\'
+            - '\AppData\Local\Programs\Git\'
+            - '\Git\usr\bin\'
+            - '\Git\mingw64\bin\'
+            - '\Git\mingw32\bin\'
+    condition: selection_parent and selection_child and not filter_legitimate_git
+falsepositives:
+    - Portable Git installations in non-standard paths
+    - Custom Git builds used by developers
+level: high

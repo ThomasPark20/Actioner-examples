@@ -1,0 +1,24 @@
+title: CrashStealer macOS LaunchAgent Persistence
+id: 7a3e1c4f-9b2d-4e8a-b5f6-d0c7e3a1f284
+status: experimental
+description: >
+    Detects creation of the CrashStealer LaunchAgent plist that masquerades as an
+    Apple crash reporter helper, establishing persistence via com.apple.crashreporter.helper.
+references:
+    - https://www.jamf.com/blog/crashstealer-macos-infostealer-analysis/
+    - https://www.scworld.com/news/macos-crashstealer-malware-poses-as-crash-reporter-to-steal-credentials
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1543.001
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_path:
+        TargetFilename|endswith: '/Library/LaunchAgents/com.apple.crashreporter.helper.plist'
+    condition: selection_path
+falsepositives:
+    - Legitimate Apple crash reporter components (Apple-signed, not third-party)
+level: high

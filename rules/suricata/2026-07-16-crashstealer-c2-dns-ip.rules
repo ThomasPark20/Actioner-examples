@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - CrashStealer DNS Query to C2 Domain endpoint-api-v1.com"; flow:to_server; dns.query; content:"endpoint-api-v1.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/crashstealer-macos-infostealer-analysis/; metadata:author Actioner, created_at 2026-07-16; sid:2200001; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - CrashStealer DNS Query to Dropper Domain werkbit.io"; flow:to_server; dns.query; content:"werkbit.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/crashstealer-macos-infostealer-analysis/; metadata:author Actioner, created_at 2026-07-16; sid:2200002; rev:1;)
+
+alert ip $HOME_NET any -> 179.43.166.242 any (msg:"Actioner - CrashStealer Connection to Known C2 IP 179.43.166.242"; classtype:trojan-activity; reference:url,www.jamf.com/blog/crashstealer-macos-infostealer-analysis/; metadata:author Actioner, created_at 2026-07-16; sid:2200003; rev:1;)

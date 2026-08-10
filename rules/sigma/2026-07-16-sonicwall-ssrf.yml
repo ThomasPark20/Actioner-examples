@@ -1,0 +1,33 @@
+title: SonicWall SMA1000 CVE-2026-15409 SSRF via wsproxy Endpoint
+id: 8f3a1b7c-4e92-4d6f-b1a3-9c5e7d2f0b84
+status: experimental
+description: >
+    Detects exploitation of CVE-2026-15409 (CVSS 10.0) via HTTP requests to the
+    /wsproxy endpoint on SonicWall SMA1000 appliances with parameters indicative
+    of SSRF abuse to tunnel to localhost services (Erlang port 1050, ctrl-service
+    port 8188). Attackers specify host=0.0.0.0, localhost, or IPv6 loopback to
+    pivot to internal services.
+references:
+    - https://www.rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/
+    - https://cyberscoop.com/sonicwall-zero-day-vulnerabilities-exploited/
+    - https://www.sonicwall.com/support/notices/product-notice-sma-1000-series-affected-by-multiple-vulnerabilities/kA1VN000001nv6D0AQ
+author: Actioner
+date: 2026-07-16
+tags:
+    - attack.t1190
+    - attack.t1090
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/wsproxy'
+    selection_params:
+        cs-uri-query|contains:
+            - 'host=0.0.0.0'
+            - 'host=localhost'
+            - 'host=127.0.0.1'
+            - 'host=::ffff:127.0.0.1'
+    condition: selection_uri and selection_params
+falsepositives:
+    - Legitimate SMA1000 WebSocket proxy connections to localhost are not expected in normal operation
+level: critical

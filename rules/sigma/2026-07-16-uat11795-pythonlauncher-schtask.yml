@@ -1,0 +1,24 @@
+title: UAT-11795 Starland RAT - PythonLauncher Scheduled Task Persistence
+id: 5c8d2e7f-9a1b-4f3d-c6e0-7b4a8d5f1e2c
+status: experimental
+description: >
+    Detects creation of scheduled tasks matching the naming pattern
+    PythonLauncher-{3 chars} used by Starland RAT for persistence.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\schtasks.exe'
+        CommandLine|contains: 'PythonLauncher-'
+    condition: selection
+falsepositives:
+    - Legitimate software using PythonLauncher task naming convention
+level: high

@@ -1,0 +1,26 @@
+title: OkoBot OkoSpyware Metadata Artifacts
+id: 2f4a8c1e-6d3b-4e7f-a9c5-1b0d2e3f4a5c
+status: experimental
+description: >
+    Detects creation of OkoSpyware metadata files (oko_*.json) in the temp
+    directory, indicating active window surveillance of cryptocurrency and
+    credential management applications by the OkoBot malware framework.
+references:
+    - https://securelist.com/okobot-framework-targets-cryptocurrency-wallets/120660/
+    - https://thehackernews.com/2026/07/okobot-malware-framework-injects-seed.html
+author: Actioner
+date: 2026/07/16
+tags:
+    - attack.t1113
+    - attack.t1056.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_metadata:
+        TargetFilename|contains: '\Temp\oko_'
+        TargetFilename|endswith: '.json'
+    condition: selection_metadata
+falsepositives:
+    - Unlikely - oko_ prefix in temp directory JSON files is not a known legitimate software pattern
+level: high
