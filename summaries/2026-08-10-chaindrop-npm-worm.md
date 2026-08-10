@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -247,7 +247,7 @@ Unit 42 identified 453 public GitHub repositories across 5 accounts matching thi
 | T1528 | Steal Application Access Token | npm tokens, GitHub PATs, cloud access tokens harvested from config files |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Reading .npmrc, .netrc, .aws/credentials, .docker/config.json, .ssh/id_* |
 | T1555 | Credentials from Password Stores | Extraction of credentials from Docker, Helm, Git credential stores |
-| T1003 | OS Credential Dumping | /proc/<pid>/mem scraping of GitHub Actions Runner.Worker for OIDC tokens |
+| T1055.009 | Process Injection: Proc Memory | /proc/<pid>/mem scraping of GitHub Actions Runner.Worker for OIDC tokens |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS-based C2 communication to npm-cache[.]com/router |
 | T1568 | Dynamic Resolution | Ethereum smart contract used for C2 domain rotation and resolution |
 | T1098 | Account Manipulation | Republishing packages under compromised maintainer accounts |
@@ -312,7 +312,9 @@ npm audit signatures 2>/dev/null
 
 ## Detection Rules
 
-These rules target ChainDrop's distinctive artifacts: the `setup.mjs` preinstall loader, Bun runtime download to temporary paths, IDE/editor persistence file injection, C2 domain resolution, and credential file access patterns. All Sigma rules compile against Splunk and LogScale backends; the YARA rules compile with `yarac`. Snort/Suricata rules are structurally valid but were not compiled (tooling not available in the validation environment).
+<!-- revision: v1.1 2026-08-10 -- dropped Sigma Rule 6 (credential file access, unacceptable FP on normal npm/aws-sdk reads; covered by YARA ChainDrop_Credential_Harvester); fixed Sigma Rule 1 redundant |all modifier; fixed Sigma Rule 3 ATT&CK tag t1137->t1547; fixed Snort SID 2026081006 http.uri->http.host for domain match; replaced T1003 with T1055.009 in MITRE table -->
+
+These rules target ChainDrop's distinctive artifacts: the `setup.mjs` preinstall loader, Bun runtime download to temporary paths, IDE/editor persistence file injection, C2 domain resolution, and runner memory scraping. Five Sigma rules compile against Splunk and LogScale backends; the four YARA rules compile with `yarac`. Eight Snort/Suricata rules are structurally valid but were not compiled (tooling not available in the validation environment). One draft Sigma rule (credential file access by node/bun) was cut for unacceptable false-positive volume -- credential harvesting is covered by YARA rule `ChainDrop_Credential_Harvester`.
 
 ### Sigma Rules
 
@@ -349,7 +351,7 @@ detection:
             - '\node.exe'
             - '\npm.cmd'
     selection_cmdline:
-        CommandLine|contains|all:
+        CommandLine|contains:
             - 'setup.mjs'
     condition: selection_parent and selection_cmdline
 falsepositives:
@@ -395,7 +397,7 @@ level: high
 
 Detects creation of `.claude/` or `.vscode/` persistence files by node/bun processes, matching ChainDrop's developer tooling infection.
 
-<!-- audit: sigma check passed; sigma convert splunk/log_scale exit 0; tags attack.t1546, attack.t1137; file_event logsource; persistence files documented in both Unit42 and Microsoft analyses -->
+<!-- audit: sigma check passed; sigma convert splunk/log_scale exit 0; tags attack.t1546, attack.t1547; file_event logsource; persistence files documented in both Unit42 and Microsoft analyses -->
 
 **Compile status:** ✅ compiles | **Confidence:** high
 
@@ -413,7 +415,7 @@ author: Actioner
 date: 2026-08-10
 tags:
     - attack.t1546
-    - attack.t1137
+    - attack.t1547
 logsource:
     category: file_event
 detection:
@@ -509,53 +511,6 @@ detection:
 falsepositives:
     - Debugging tools or profilers that read process memory via procfs
 level: high
-```
-
-#### 6. ChainDrop NPM Worm - Credential File Access by Node/Bun Process
-
-Detects node/bun processes reading sensitive credential files.
-
-<!-- audit: sigma check passed; sigma convert splunk/log_scale exit 0; tags attack.t1552.001, attack.t1555; file_event logsource; credential paths from Unit42 comprehensive harvesting list; medium confidence due to legitimate npm/node tools that may access .npmrc -->
-
-**Compile status:** ✅ compiles | **Confidence:** medium
-
-```yaml
-title: ChainDrop NPM Worm - Credential File Access by Node/Bun Process
-id: e5be4891-964f-4d41-9a04-80892a38b893
-status: experimental
-description: >
-    Detects Node.js or Bun processes reading sensitive credential files such as
-    .npmrc, .netrc, SSH keys, and cloud configs, matching ChainDrop's credential harvesting.
-references:
-    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
-    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
-author: Actioner
-date: 2026-08-10
-tags:
-    - attack.t1552.001
-    - attack.t1555
-logsource:
-    category: file_event
-detection:
-    selection_process:
-        Image|endswith:
-            - '/node'
-            - '/bun'
-            - '\node.exe'
-            - '\bun.exe'
-    selection_files:
-        TargetFilename|contains:
-            - '.npmrc'
-            - '.netrc'
-            - '.ssh/id_'
-            - '.docker/config.json'
-            - '.kube/config'
-            - '.aws/credentials'
-            - '.config/gh/hosts.yml'
-    condition: selection_process and selection_files
-falsepositives:
-    - Node.js applications that legitimately read Docker, Kubernetes, or cloud credentials
-level: medium
 ```
 
 ### YARA Rules
@@ -703,7 +658,7 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Fallback
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Ethereum Smart Contract C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"eth_call"; content:"e1f2395ee43e45a1556ec6438a88c31b83493103"; nocase; classtype:trojan-activity; sid:2026081005; rev:1;)
 
 # Rule 5: GitHub commit search for fallback C2 marker
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - GitHub Fallback C2 Marker Search"; flow:established,to_server; http.uri; content:"api.github.com"; content:"search/commits"; content:"thebeautifulmarchoftime"; classtype:trojan-activity; sid:2026081006; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - GitHub Fallback C2 Marker Search"; flow:established,to_server; http.host; content:"api.github.com"; http.uri; content:"/search/commits"; http.uri; content:"thebeautifulmarchoftime"; classtype:trojan-activity; sid:2026081006; rev:2;)
 
 # Rule 6: ChainDrop C2 beacon URI pattern
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - C2 Router Endpoint"; flow:established,to_server; http.uri; content:"/router"; http.host; content:"npm-cache.com"; classtype:trojan-activity; sid:2026081007; rev:1;)
