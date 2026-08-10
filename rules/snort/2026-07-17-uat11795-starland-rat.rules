@@ -1,0 +1,17 @@
+# UAT-11795 Starland RAT / WLDR C2 Campaign - DNS Queries
+# Reference: https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+# Author: Actioner | Date: 2026-07-17
+# NOTE: SIDs 2100001-2100006 overlap the Emerging Threats reserved range.
+# Deployers MUST renumber to a local SID range (e.g. 1000001+) before loading into production rulesets.
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Starland RAT C2 DNS Query (windowscreenrepairnearme.com)"; flow:to_server; content:"|18|windowscreenrepairnearme|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100001; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Starland RAT C2 DNS Query (aipythondevs.com)"; flow:to_server; content:"|0c|aipythondevs|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100002; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 WLDR C2 DNS Query (eorthopaedics.com)"; flow:to_server; content:"|0d|eorthopaedics|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100003; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 WLDR C2 DNS Query (sastoro.com)"; flow:to_server; content:"|07|sastoro|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100004; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Staging DNS Query (web-devtools.com)"; flow:to_server; content:"|0c|web-devtools|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100005; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11795 Staging DNS Query (zynaris.io)"; flow:to_server; content:"|07|zynaris|02|io|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/; metadata:author Actioner, created 2026-07-17; sid:2100006; rev:1;)

@@ -1,0 +1,55 @@
+title: UAT-11795 Starland RAT Trojanized Installer Execution via pythonw.exe
+id: 7c3a1d8e-4f2b-4e9a-b6c1-d5e8f0a3c2b1
+status: experimental
+description: >
+    Detects execution of pythonw.exe with a LICENSE.txt argument, consistent with UAT-11795's
+    trojanized NSIS installer technique where a compiled Python loader is disguised as LICENSE.txt
+    and executed via the bundled Python runtime.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1059.006
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\pythonw.exe'
+        CommandLine|contains: 'LICENSE.txt'
+    condition: selection
+falsepositives:
+    - Legitimate Python applications that reference a LICENSE.txt file as an argument (unlikely in normal operations)
+level: high
+---
+title: UAT-11795 Starland RAT Scheduled Task Persistence
+id: 9a4b2c6d-3e7f-4d1a-8b5c-0f9e8d7c6b5a
+status: experimental
+description: >
+    Detects creation of scheduled tasks matching the PythonLauncher naming pattern used by
+    Starland RAT for persistence. The task is created via PowerShell New-ScheduledTask with
+    AtLogOn trigger and Highest RunLevel.
+references:
+    - https://blog.talosintelligence.com/uat-11795-deploys-novel-starland-rat-and-bespoke-wldr-c2-implant-in-financially-motivated-campaign/
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ps:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_task:
+        CommandLine|contains|all:
+            - 'Register-ScheduledTask'
+            - 'PythonLauncher-'
+    condition: selection_ps and selection_task
+falsepositives:
+    - Legitimate Python applications using scheduled tasks with the PythonLauncher prefix (uncommon)
+level: high

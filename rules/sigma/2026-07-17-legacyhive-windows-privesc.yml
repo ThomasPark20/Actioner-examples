@@ -1,0 +1,64 @@
+# Combined Sigma rules for LegacyHive Windows User Profile Service Privilege Escalation
+# Source: summaries/2026-07-17-legacyhive-windows-privesc.md
+---
+title: Registry Set - Local AppData Redirection to Object Manager Namespace (LegacyHive)
+id: f79767cc-7071-4ea1-8e65-f53123ade73a
+status: experimental
+description: >
+    Detects modification of the Local AppData value in User Shell Folders to point to
+    the Object Manager namespace (BaseNamedObjects), a key step in the LegacyHive
+    Windows User Profile Service privilege escalation exploit that enables cross-user
+    registry hive redirection.
+references:
+    - https://www.cyderes.com/howler-cell/legacyhive-windows-user-profile-loading-vulnerability
+    - https://thehackernews.com/2026/07/researcher-drops-new-windows-zero-day.html
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1112
+    - attack.t1574
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|endswith: '\Explorer\User Shell Folders\Local AppData'
+    selection_value:
+        Details|contains: 'BaseNamedObjects\Restricted'
+    condition: selection_key and selection_value
+falsepositives:
+    - None known - this registry value should never point to an Object Manager namespace path
+level: critical
+---
+title: Registry Hive File Created Outside User Profile Directory (LegacyHive Staging)
+id: 5c4b0764-b5a9-45dd-97e9-b91f1cefe3bf
+status: experimental
+description: >
+    Detects creation of Windows registry hive files (ntuser.dat, UsrClass.dat) outside
+    the normal user profile directory, which may indicate staging for the LegacyHive
+    privilege escalation exploit that copies and modifies hive files in attacker-controlled
+    directories.
+references:
+    - https://www.cyderes.com/howler-cell/legacyhive-windows-user-profile-loading-vulnerability
+    - https://thehackernews.com/2026/07/researcher-drops-new-windows-zero-day.html
+author: Actioner
+date: 2026/07/17
+tags:
+    - attack.t1574
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\ntuser.dat'
+            - '\UsrClass.dat'
+    filter_normal_paths:
+        TargetFilename|startswith:
+            - 'C:\Users\'
+            - 'C:\Windows\'
+    condition: selection and not filter_normal_paths
+falsepositives:
+    - System provisioning or imaging tools that create user profiles outside default locations
+    - MDT or SCCM offline profile operations
+level: high
