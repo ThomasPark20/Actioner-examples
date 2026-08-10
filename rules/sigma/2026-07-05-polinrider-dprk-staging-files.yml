@@ -1,0 +1,29 @@
+title: PolinRider Staging File Creation in Temp Directory
+id: e6f7a8b9-0c1d-2e3f-4a5b-6c7d8e9f0a1b
+status: experimental
+description: >
+    Detects creation of PolinRider staging artifacts in temporary
+    directories: the remote access component (scdata) and the npm
+    process marker (.npm/vhost.ctl).
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+author: Actioner
+date: 2026-07-05
+tags:
+    - attack.t1074.001
+    - attack.t1059.007
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_scdata:
+        TargetFilename|endswith:
+            - '\scdata'
+    selection_vhost:
+        TargetFilename|contains:
+            - '\.npm\vhost.ctl'
+    condition: selection_scdata or selection_vhost
+falsepositives:
+    - Legitimate software creating files named scdata in temp directories
+level: low

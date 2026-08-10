@@ -1,0 +1,28 @@
+title: Cursor Sandbox Helper Modification on Linux
+id: d4a6f1b3-0e7c-4d2a-e8f4-a1b5c6d9e7f0
+status: experimental
+description: Detects modification of the cursorsandbox helper on Linux, targeting the DuneSlide CVE-2026-50548/CVE-2026-50549 sandbox overwrite attack.
+references:
+    - https://www.catonetworks.com/blog/duneslide-two-critical-rce-vulnerabilities/
+    - https://github.com/cursor/cursor/security/advisories/GHSA-3v8f-48vw-3mjx
+author: Actioner CTI
+date: 2026-07-05
+tags:
+    - attack.defense-evasion
+    - attack.t1562.001
+    - cve.2026-50548
+    - cve.2026-50549
+logsource:
+    category: file_change
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/resources/helpers/cursorsandbox'
+        TargetFilename|contains:
+            - '/Cursor'
+            - '/cursor'
+    condition: selection
+falsepositives:
+    - Legitimate Cursor IDE updates or installations
+level: high

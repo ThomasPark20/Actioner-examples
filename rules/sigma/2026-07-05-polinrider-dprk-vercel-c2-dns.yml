@@ -1,0 +1,29 @@
+title: DNS Query to PolinRider Vercel C2 Subdomains
+id: d5e6f7a8-9b0c-1d2e-3f4a-5b6c7d8e9f0a
+status: experimental
+description: >
+    Detects DNS queries to known PolinRider Vercel-hosted C2 subdomains used
+    for payload staging and VS Code settings bootstrapping in the campaign.
+references:
+    - https://github.com/OpenSourceMalware/PolinRider
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+author: Actioner
+date: 2026-07-05
+tags:
+    - attack.t1583.006
+    - attack.t1105
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - '260120.vercel.app'
+            - 'default-configuration.vercel.app'
+            - 'vscode-settings-bootstrap.vercel.app'
+            - 'vscode-settings-config.vercel.app'
+            - 'vscode-bootstrapper.vercel.app'
+            - 'vscode-load-config.vercel.app'
+    condition: selection
+falsepositives:
+    - Legitimate use of these specific Vercel subdomains is extremely unlikely
+level: critical

@@ -1,0 +1,32 @@
+title: Cursor IDE Process Writing to Shell Configuration Files on Linux
+id: f6c8b3d5-2a9e-4f4c-a0b6-c3d7e8f1a9b2
+status: experimental
+description: Detects Cursor IDE or its child processes writing to shell configuration files like .zshrc or .bashrc on Linux, a persistence technique enabled by DuneSlide sandbox escape.
+references:
+    - https://www.catonetworks.com/blog/duneslide-two-critical-rce-vulnerabilities/
+    - https://www.securityweek.com/critical-cursor-ai-ide-flaws-could-lead-to-os-level-remote-code-execution/
+author: Actioner CTI
+date: 2026-07-05
+tags:
+    - attack.persistence
+    - attack.t1546.004
+    - cve.2026-50548
+logsource:
+    category: file_change
+    product: linux
+detection:
+    selection_process:
+        Image|contains:
+            - '/usr/share/cursor/'
+            - '/opt/Cursor/'
+            - '/usr/lib/cursor/'
+    selection_target:
+        TargetFilename|endswith:
+            - '/.zshrc'
+            - '/.bashrc'
+            - '/.bash_profile'
+            - '/.profile'
+    condition: selection_process and selection_target
+falsepositives:
+    - Cursor IDE legitimately modifying shell config for PATH integration
+level: high

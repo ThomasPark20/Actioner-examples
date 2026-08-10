@@ -1,0 +1,30 @@
+title: Node.js Outbound Connection to JSONKeeper Payload Host - PolinRider
+id: a2b3c4d5-6e7f-8a9b-0c1d-2e3f4a5b6c7d
+status: experimental
+description: >
+    Detects Node.js or npm processes making outbound HTTP connections to
+    jsonkeeper.com, which the PolinRider campaign uses to host second-stage
+    JavaScript payloads retrieved via eval() of the JSON model field.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+author: Actioner
+date: 2026-07-05
+tags:
+    - attack.t1105
+    - attack.t1059.007
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.jsonkeeper.com'
+            - 'jsonkeeper.com'
+        Image|endswith:
+            - '\node.exe'
+            - '/node'
+    condition: selection
+falsepositives:
+    - Developers using JSONKeeper as a legitimate JSON hosting service
+    - Development environments where JSONKeeper is used for JSON mocking or prototyping
+level: medium
