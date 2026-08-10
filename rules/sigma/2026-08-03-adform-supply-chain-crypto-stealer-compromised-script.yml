@@ -1,0 +1,30 @@
+title: Adform Supply-Chain Crypto Stealer - Compromised Script Load
+id: 7a3c1e5f-9b2d-4f8a-b6c1-d3e7f0a2b4c8
+status: experimental
+description: >
+  Retrospective hunt rule -- detects HTTP requests to the compromised Adform
+  trackpoint-async.js script served from s2.adform.net, associated with a
+  supply-chain attack delivering cryptocurrency-stealing JavaScript.
+  Designed for log review covering the incident window (approx. July 20-27, 2026).
+references:
+    - https://www.bleepingcomputer.com/news/security/online-ad-firm-adforms-script-compromised-to-steal-cryptocurrency/
+    - https://thehackernews.com/2026/08/hackers-poison-adform-script-to-swap.html
+    - https://doublepulsar.com/adform-compromised-to-serve-crypto-stealer-via-supply-chain-attack-2f1ec024f33e
+author: Actioner CTI
+date: 2026-08-03
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+    - attack.execution
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection_url:
+        c-uri|contains: '/banners/scripts/st/trackpoint-async.js'
+        r-dns|contains: 'adform.net'
+    condition: selection_url
+falsepositives:
+    - Legitimate Adform tracking script loads after remediation (post July 27, 2026);
+      correlate with timeline
+level: high
