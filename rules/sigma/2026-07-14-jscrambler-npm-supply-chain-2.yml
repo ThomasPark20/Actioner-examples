@@ -1,0 +1,31 @@
+title: Jscrambler Malicious Preinstall Hook Execution
+id: 2f7e9a1b-6c3d-4e8f-a5b0-9d4c1e7f2a3b
+status: experimental
+description: >
+    Detects execution of the malicious setup.js or intro.js scripts dropped
+    by the compromised jscrambler npm package via preinstall hook. The scripts
+    were added to the dist/ directory and executed as part of npm install.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://www.bleepingcomputer.com/news/security/hackers-backdoor-jscrambler-npm-package-with-infostealer-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'node'
+            - 'jscrambler'
+        CommandLine|contains:
+            - 'dist/setup.js'
+            - 'dist\\setup.js'
+            - 'dist/intro.js'
+            - 'dist\\intro.js'
+    condition: selection
+falsepositives:
+    - Legitimate jscrambler package versions using different dist/ entry points (review version number)
+level: high

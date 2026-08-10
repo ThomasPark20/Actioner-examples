@@ -1,0 +1,26 @@
+title: Jscrambler IronWorm Data Exfiltration via temp.sh
+id: 4d8f2e6a-1b3c-4a7e-9f5d-0c8b1a2e3d4f
+status: experimental
+description: >
+    Detects HTTP PUT requests to temp.sh, a public file hosting service used
+    by the IronWorm infostealer (from the compromised jscrambler npm package)
+    for bulk exfiltration of harvested credentials and data.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1567.002
+logsource:
+    category: proxy
+detection:
+    selection_method:
+        cs-method: 'PUT'
+    selection_host_exact:
+        r-dns: 'temp.sh'
+    selection_host_sub:
+        r-dns|endswith: '.temp.sh'
+    condition: selection_method and (selection_host_exact or selection_host_sub)
+falsepositives:
+    - Developers legitimately using temp.sh for file sharing
+level: high

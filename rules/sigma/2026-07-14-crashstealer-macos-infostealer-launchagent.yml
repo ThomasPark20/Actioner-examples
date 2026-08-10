@@ -1,0 +1,26 @@
+title: CrashStealer macOS LaunchAgent Persistence
+id: 7a3c1e2f-9b4d-4f8a-a5c6-d7e0f1b2c3d4
+status: experimental
+description: >
+    Detects creation of a LaunchAgent plist file mimicking Apple's CrashReporter
+    service, as used by the CrashStealer macOS infostealer for persistence.
+    The malware installs com.apple.crashreporter.helper.plist in the user
+    LaunchAgents directory to survive reboots.
+references:
+    - https://thehackernews.com/2026/07/crashstealer-macos-malware-uses.html
+    - https://www.bleepingcomputer.com/news/security/new-crashstealer-malware-poses-as-apple-crash-reporting-tool/
+    - https://securityaffairs.com/195278/malware/crashstealer-new-macos-infostealer-uses-signed-apps-to-evade-gatekeeper.html
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1543.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith: '/Library/LaunchAgents/com.apple.crashreporter.helper.plist'
+    condition: selection
+falsepositives:
+    - Legitimate Apple CrashReporter LaunchAgent updates (Apple does not use this exact plist name)
+level: high

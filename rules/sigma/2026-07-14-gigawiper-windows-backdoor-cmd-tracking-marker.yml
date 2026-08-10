@@ -1,0 +1,25 @@
+title: GigaWiper Command Tracking Marker in Shell Execution
+id: 4d7e2f9a-3c1b-4e8d-a6f5-9b0c1d2e3f4a
+status: experimental
+description: >
+    Detects the distinctive command tracking marker string ;"|?????|$pwd
+    appended by GigaWiper to executed shell commands. This marker is used
+    internally by the malware to correlate command output with task tracking
+    and is a strong GigaWiper-specific artifact with near-zero false positive
+    rate in legitimate environments.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: ';"|?????|$pwd'
+    condition: selection
+falsepositives:
+    - None expected; the marker string is a GigaWiper-specific internal artifact
+level: critical

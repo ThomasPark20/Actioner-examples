@@ -1,0 +1,25 @@
+title: GigaWiper Network Connection to Known C2 IP Addresses
+id: 2f9b4d6a-8c1e-4a3f-b7d5-0e2c9f1a6b8d
+status: experimental
+description: >
+    Detects any outbound network connection to GigaWiper C2 IP addresses
+    regardless of port, providing broader coverage for infrastructure reuse.
+    Note: this rule intentionally overlaps with the port-specific C2 rule
+    (8a3c1e7f) to catch C2 migration to alternate ports on the same hosts.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/09/gigawiper-anatomy-of-a-destructive-backdoor-assembled-from-multiple-malware/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1071
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '185.182.193.21'
+            - '212.8.248.104'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to these IP addresses
+level: high

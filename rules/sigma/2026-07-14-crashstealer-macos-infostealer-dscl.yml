@@ -1,0 +1,34 @@
+title: CrashStealer Credential Validation via dscl
+id: 8b4d2f3a-0c5e-4a9b-b6d7-e8f1a2c3d4e5
+status: experimental
+description: >
+    Detects use of the macOS Directory Service command-line tool (dscl) with
+    the -authonly flag in the context of CrashStealer activity. The malware
+    locally validates harvested user credentials before exfiltration via
+    dscl -authonly, avoiding sending invalid passwords to the C2 server.
+    Scoped to CrashStealer process context (veltod binary or crashreporter
+    parent) to avoid false positives from legitimate admin scripts.
+references:
+    - https://thehackernews.com/2026/07/crashstealer-macos-malware-uses.html
+    - https://www.bleepingcomputer.com/news/security/new-crashstealer-malware-poses-as-apple-crash-reporting-tool/
+    - https://securityaffairs.com/195278/malware/crashstealer-new-macos-infostealer-uses-signed-apps-to-evade-gatekeeper.html
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1110.001
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'dscl'
+            - '-authonly'
+    selection_context_parent:
+        ParentImage|endswith: '/veltod'
+    selection_context_image:
+        Image|contains: 'crashreporter'
+    condition: selection_cmd and (selection_context_parent or selection_context_image)
+falsepositives:
+    - Legitimate system administration scripts using dscl for authentication checks launched from a process path containing crashreporter
+level: high

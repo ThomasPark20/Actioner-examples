@@ -1,0 +1,27 @@
+title: Jscrambler IronWorm C2 Network Connection
+id: 8a3c1e7f-4b2d-4f9a-b6e8-1c5d0a9f3e2b
+status: experimental
+description: >
+    Detects outbound network connections to known C2 IP addresses used by
+    the IronWorm infostealer delivered via the compromised jscrambler npm
+    package (versions 8.14.0 through 8.20.0). July 2026 supply-chain attack.
+references:
+    - https://thehackernews.com/2026/07/compromised-jscrambler-8140-npm-release.html
+    - https://www.bleepingcomputer.com/news/security/hackers-backdoor-jscrambler-npm-package-with-infostealer-malware/
+    - https://www.securityweek.com/multiple-jscrambler-packages-impacted-by-supply-chain-attack/
+author: Actioner
+date: 2026-07-14
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '37.27.122.124'
+            - '57.128.246.79'
+    condition: selection
+falsepositives:
+    - Unlikely; these IPs are dedicated attacker infrastructure
+level: critical
