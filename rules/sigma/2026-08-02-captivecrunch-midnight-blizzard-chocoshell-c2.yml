@@ -1,0 +1,25 @@
+title: ChocoShell C2 Beacon URI Pattern
+id: c4d5e6f7-a8b9-4012-cdef-123456789012
+status: experimental
+description: >
+    Detects HTTP requests matching the ChocoShell C2 beacon and payload URI patterns
+    used in the CaptiveCrunch campaign including the tracking pixel beacon and
+    polyfill-disguised payload delivery paths.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_beacon:
+        cs-uri-stem|contains: '/t/pixel.gif'
+        cs-uri-query|contains: 'm='
+    selection_payload:
+        cs-uri-stem: '/cdn/chunks/polyfill-7e2b.min.js'
+    condition: selection_beacon or selection_payload
+falsepositives:
+    - Legitimate tracking pixels with similar URI structure (filter by destination)
+level: high

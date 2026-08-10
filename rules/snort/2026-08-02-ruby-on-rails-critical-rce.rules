@@ -1,0 +1,7 @@
+# CVE-2026-66066 KindaRails2Shell - Snort Rules
+# Rails Active Storage arbitrary file read / RCE via libvips matload
+# Author: Actioner | Date: 2026-08-02
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 Rails Active Storage Direct Upload Request"; flow:established,to_server; content:"POST"; depth:4; content:"/rails/active_storage/direct_uploads"; fast_pattern; nocase; sid:2100010; rev:2; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)
+
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-66066 MATLAB HDF5 Payload Upload to Rails"; flow:established,to_server; content:"MATLAB 5.0"; content:"|89 48 44 46 0D 0A 1A 0A|"; distance:0; within:1024; sid:2100011; rev:2; classtype:web-application-attack; reference:cve,2026-66066; reference:url,github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm;)

@@ -1,0 +1,26 @@
+title: CVE-2026-66066 Active Storage Variant Representation Access
+id: 2a9f5b1c-3d4e-4f8a-b6c7-1e2d3f4a5b6c
+status: experimental
+description: >
+    Detects HTTP GET requests to Rails Active Storage representation endpoints
+    which trigger variant processing via libvips. In CVE-2026-66066 exploitation,
+    the attacker requests a representation URL to trigger processing of a crafted
+    MATLAB/HDF5 file that reads arbitrary server files.
+references:
+    - https://github.com/rails/rails/security/advisories/GHSA-xr9x-r78c-5hrm
+    - https://www.rapid7.com/blog/post/etr-kindarails2shell-cve-2026-66066-critical-arbitrary-file-read-and-possible-remote-code-execution-in-ruby-on-rails/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1190
+    - attack.t1005
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/rails/active_storage/representations/'
+        cs-method: 'GET'
+    condition: selection
+falsepositives:
+    - Legitimate image variant requests from application users viewing resized images
+level: low

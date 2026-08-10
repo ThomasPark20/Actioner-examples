@@ -1,0 +1,24 @@
+title: CornFlake RAT File Drop and Persistence
+id: a2b3c4d5-e6f7-4890-abcd-ef1234567890
+status: experimental
+description: >
+    Detects CornFlake RAT persistence indicators including the distinctive file path
+    svchost32\svchost32.exe under AppData\Roaming used by Storm-2945 in the
+    CaptiveCrunch campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/02
+tags:
+    - attack.t1547.001
+    - attack.t1053.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\svchost32\svchost32.exe'
+    condition: selection
+falsepositives:
+    - Unknown; path is campaign-specific
+level: high
