@@ -1,0 +1,81 @@
+# Actioner - PamStealer macOS Infostealer Sigma Rules
+# Date: 2026-07-03
+# Reference: https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+---
+title: PamStealer macOS Fake Finder Process Spawning pbpaste
+id: 7a3c1e9d-4f2b-48e6-a1d5-b8c6f3e20a74
+status: experimental
+description: >
+    Detects a process impersonating Finder running from Application Support and
+    repeatedly spawning pbpaste, consistent with PamStealer clipboard theft behavior.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://thehackernews.com/2026/07/pamstealer-uses-fake-maccy-sites-and.html
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1115
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        ParentImage|contains: '/Library/Application Support/com.apple.finder'
+        Image|endswith: '/pbpaste'
+    condition: selection
+falsepositives:
+    - Legitimate automation scripts running from Application Support directories
+level: high
+---
+title: PamStealer Script Editor Spawning Codesign for Application Support Bundle
+id: 2d8a6f1c-5b3e-49d7-8c4a-e9f0d2a71b36
+status: experimental
+description: >
+    Detects Script Editor spawning codesign to ad-hoc sign a bundle inside
+    Application Support, consistent with PamStealer staging its fake Finder payload.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://thehackernews.com/2026/07/pamstealer-uses-fake-maccy-sites-and.html
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1059.002
+    - attack.t1553.002
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        ParentImage|endswith: '/Script Editor'
+        Image|endswith: '/codesign'
+        CommandLine|contains: '/Library/Application Support/'
+    condition: selection
+falsepositives:
+    - Developers using Script Editor to sign legitimate scripts
+level: high
+---
+title: PamStealer System Settings Helper in Private Tmp
+id: 9e5b2c8a-1d4f-47a3-b6e9-c3d0f8a52e17
+status: experimental
+description: >
+    Detects execution of a binary named System Settings from /private/tmp,
+    consistent with PamStealer dropping its persistence helper to register login items.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://thehackernews.com/2026/07/pamstealer-uses-fake-maccy-sites-and.html
+author: Actioner
+date: 2026/07/03
+tags:
+    - attack.t1547.015
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection:
+        Image: '/private/tmp/System Settings'
+    condition: selection
+falsepositives:
+    - None expected - legitimate System Settings runs from /System/Applications
+level: critical

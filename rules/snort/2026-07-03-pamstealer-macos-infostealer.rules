@@ -1,0 +1,5 @@
+# Actioner - PamStealer macOS Infostealer Snort Rules
+# Date: 2026-07-03
+# Reference: https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+# Note: Requires TLS inspection or decrypted mirror to fire on HTTPS sessions.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PamStealer C2 Exfiltration to avenger-sync.live"; flow:established,to_server; content:"avenger-sync.live"; http_header; fast_pattern; content:"/api/sync"; http_uri; sid:2100010; rev:1; classtype:trojan-activity; reference:url,www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/;)
