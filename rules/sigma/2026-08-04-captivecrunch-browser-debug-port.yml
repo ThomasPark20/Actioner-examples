@@ -1,0 +1,31 @@
+title: Browser Launched with Remote Debugging Port - Cookie Theft
+id: 3b7e0c9d-f2a4-4d1b-8c6e-a5f3d9b1e2c8
+status: experimental
+description: >
+    Detects Chromium-based browsers launched with --remote-debugging-port, used by
+    ChocoShell to bypass App-Bound Encryption and steal cookies via Chrome DevTools Protocol.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1555.003
+    - attack.t1185
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_browser:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+            - '\brave.exe'
+            - '\opera.exe'
+            - '\vivaldi.exe'
+    selection_debug:
+        CommandLine|contains: '--remote-debugging-port'
+    condition: selection_browser and selection_debug
+falsepositives:
+    - Web developers using Chrome DevTools remote debugging
+    - Automated testing frameworks (Selenium, Puppeteer, Playwright)
+level: medium

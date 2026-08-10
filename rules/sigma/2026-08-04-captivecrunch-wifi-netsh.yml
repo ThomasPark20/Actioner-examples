@@ -1,0 +1,29 @@
+title: Wi-Fi Credential Harvesting via Netsh
+id: 8e4f1b2c-d6a3-4c9e-b7f0-5a1d8c3e2f9b
+status: experimental
+description: >
+    Detects use of netsh to enumerate Wi-Fi profiles with cleartext keys, a technique
+    observed in ChocoShell (Storm-2945/Midnight Blizzard CaptiveCrunch campaign).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1005
+    - attack.t1552.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\netsh.exe'
+        CommandLine|contains|all:
+            - 'wlan'
+            - 'show'
+            - 'profile'
+            - 'key=clear'
+    condition: selection
+falsepositives:
+    - IT administrators auditing Wi-Fi configurations
+    - Network troubleshooting scripts
+level: high

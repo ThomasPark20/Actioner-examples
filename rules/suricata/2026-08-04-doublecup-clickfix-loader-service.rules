@@ -1,0 +1,9 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DeviceManager RAT DNS Tunneling to Spoofed microsoft.com"; flow:to_server; dns.query; content:"microsoft.com"; endswith; fast_pattern; pcre:"/^[a-f0-9]{16}[a-z0-9]*\.microsoft\.com$/i"; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200103; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishing Domain login-netsuite"; flow:established,to_server; http.host; content:"login-netsuite.com"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200104; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishing Domain login-odoo"; flow:established,to_server; http.host; content:"login-odoo.com"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200105; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - DOUBLECUP Phishing Domain verification-salesforce"; flow:established,to_server; http.host; content:"verification-salesforce.com"; fast_pattern; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200106; rev:1;)
+
+alert http $HOME_NET any -> [91.92.240.100] any (msg:"Actioner - DeviceManager C2 Server Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/; metadata:author Actioner, created_at 2026-08-04; sid:2200107; rev:2;)

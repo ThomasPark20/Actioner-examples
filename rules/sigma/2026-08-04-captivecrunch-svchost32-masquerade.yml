@@ -1,0 +1,25 @@
+title: CornFlake RAT Persistence via Svchost32 Masquerade
+id: 7a3c1e4f-9b2d-4f8a-b6c5-e1d0f3a2b7c9
+status: experimental
+description: >
+    Detects execution of the CornFlake RAT (Storm-2945/Midnight Blizzard) which persists
+    as svchost32.exe in the user AppData directory, masquerading as a legitimate Windows service host.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1036.005
+    - attack.t1543.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\svchost32\svchost32.exe'
+    selection_appdata:
+        Image|contains: '\AppData\Roaming\'
+    condition: selection and selection_appdata
+falsepositives:
+    - Unlikely; svchost32.exe in user AppData is not a legitimate Windows binary
+level: high

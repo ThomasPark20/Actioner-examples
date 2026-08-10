@@ -1,0 +1,33 @@
+title: DOUBLECUP Browser Cache PNG Extraction via Findstr or Certutil
+id: 6c9d4e13-ae5f-4b7c-d8e3-1f2c4e5d6b7a
+status: experimental
+description: >
+    Detects use of findstr or certutil to search browser cache directories for PNG
+    files, consistent with DOUBLECUP steganographic payload extraction from cached
+    images.
+references:
+    - https://socradar.io/blog/doublecup-clickfix-loader-devicemanager-rats/
+    - https://www.bleepingcomputer.com/news/security/new-doublecup-clickfix-service-hides-malware-in-browser-cache-images/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1140
+    - attack.t1027.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_findstr:
+        Image|endswith: '\findstr.exe'
+        CommandLine|contains|all:
+            - 'Cache'
+            - '.png'
+    selection_certutil:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains|all:
+            - 'Cache'
+            - '.png'
+    condition: selection_findstr or selection_certutil
+falsepositives:
+    - System administrators searching browser cache for diagnostic purposes
+level: medium

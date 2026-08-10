@@ -1,0 +1,26 @@
+title: CornFlake RAT Service Registration - Cloud Sync Service
+id: 2f8b4d6e-a1c3-4e7f-9d5b-0c2a3e8f1d4b
+status: experimental
+description: >
+    Detects registry modification consistent with CornFlake RAT service registration,
+    which creates a service named svchost32 with display name Cloud Sync Service.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/07/31/captivecrunch-midnight-blizzard-targets-travelers-worldwide-for-malware-delivery-and-credential-theft/
+author: Actioner
+date: 2026/08/04
+tags:
+    - attack.t1543.003
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_path:
+        TargetObject|contains: '\SYSTEM\CurrentControlSet\Services\svchost32'
+    selection_value:
+        Details|contains:
+            - 'Cloud Sync Service'
+            - 'Synchronizes files with the cloud storage provider'
+    condition: selection_path and selection_value
+falsepositives:
+    - Legitimate software using the exact service name svchost32 with Cloud Sync Service display name is extremely unlikely
+level: high
