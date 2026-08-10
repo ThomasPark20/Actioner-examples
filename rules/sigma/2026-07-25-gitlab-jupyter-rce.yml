@@ -1,0 +1,94 @@
+title: Suspicious Command Execution by Git User After GitLab Notebook Diff Processing
+id: ebfbb5ba-ef5b-445d-a143-4303eb2447d8
+status: experimental
+description: >
+    Detects suspicious command execution by the git user on a GitLab server, which may
+    indicate exploitation of the Oj JSON parser memory corruption chain (CVE-2026-54592 /
+    CVE-2026-54500) via malicious Jupyter notebook diffs. The exploit corrupts a parser
+    callback pointer in the Puma worker process, redirecting execution to system() when
+    a subsequent notebook diff is rendered. Commands run as the git user with access to
+    repository data, Rails secrets, and CI/CD credentials.
+references:
+    - https://thehackernews.com/2026/07/researcher-publishes-gitlab-rce-poc.html
+    - https://depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities
+    - https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-0-2-released/
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1190
+    - attack.t1059
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_user:
+        User: 'git'
+    selection_parent:
+        ParentImage|endswith:
+            - '/puma'
+            - '/ruby'
+            - '/bundle'
+    selection_commands:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/curl'
+            - '/wget'
+            - '/python'
+            - '/python3'
+            - '/perl'
+            - '/nc'
+            - '/ncat'
+    filter_legitimate:
+        CommandLine|contains:
+            - 'git-hook'
+            - 'gitlab-shell'
+            - 'authorized_keys'
+    condition: selection_user and selection_parent and selection_commands and not filter_legitimate
+falsepositives:
+    - GitLab custom hooks executed via git-hook mechanisms
+    - GitLab maintenance scripts running under the git user via Puma workers
+level: medium
+---
+title: GitLab Puma Worker Crash During Notebook Diff Rendering
+id: d6aeaa44-cd9e-43fb-991e-15b522cb6876
+status: experimental
+description: >
+    Detects Puma worker process crashes (SIGSEGV, SIGABRT) or abnormal termination on
+    GitLab servers, which may indicate active exploitation of the Oj parser memory corruption
+    vulnerabilities. The exploit chain causes controlled crashes during the ASLR bypass
+    probing phase (5-10 minutes of repeated requests causing worker hangs) before achieving
+    code execution. A single crash is not necessarily malicious; this rule should be used
+    as a correlation signal. Five or more matches within 10 minutes from the same process
+    strongly suggests active ASLR probing.
+references:
+    - https://thehackernews.com/2026/07/researcher-publishes-gitlab-rce-poc.html
+    - https://depthfirst.com/research/going-depthfirst-achieving-gitlab-rce-via-two-ruby-memory-corruption-vulnerabilities
+author: Actioner
+date: 2026/07/25
+tags:
+    - attack.t1190
+    - attack.t1499.004
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_process:
+        SyslogIdentifier|contains:
+            - 'puma'
+            - 'ruby'
+    selection_signal:
+        message|contains:
+            - 'SIGSEGV'
+            - 'SIGABRT'
+            - 'segfault'
+            - 'signal 11'
+            - 'signal 6'
+            - 'core dumped'
+    condition: selection_process and selection_signal
+falsepositives:
+    - Puma worker crashes due to memory pressure or out-of-memory conditions
+    - Ruby gem compatibility issues causing segmentation faults
+    - Legitimate application bugs in custom GitLab extensions
+level: medium
