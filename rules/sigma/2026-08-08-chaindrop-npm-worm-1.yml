@@ -1,0 +1,29 @@
+title: ChainDrop Worm - Bun Runtime Executing Malicious Payload
+id: 7a3c1e9f-4b2d-48a6-9f5e-1c8d3a6b7e20
+status: experimental
+description: >
+    Detects the ChainDrop npm worm execution chain where the Bun JavaScript
+    runtime is used to execute the obfuscated math_init.js or Math_Symbol.js
+    payload files, characteristic of the August 2026 supply-chain campaign.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/08
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_bun:
+        Image|endswith: '/bun'
+    selection_payload:
+        CommandLine|contains:
+            - 'math_init.js'
+            - 'Math_Symbol.js'
+    condition: selection_bun and selection_payload
+falsepositives:
+    - Unlikely - these filenames are specific to ChainDrop campaign artifacts
+level: high

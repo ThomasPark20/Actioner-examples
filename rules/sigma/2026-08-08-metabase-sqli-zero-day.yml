@@ -1,0 +1,27 @@
+title: Metabase SQLi Exploitation via Password Reset Endpoint
+id: c8e2f1a4-9b3d-4e7f-a5c6-1d0e8f2b3a4c
+status: experimental
+description: >
+    Detects POST requests to the Metabase /api/session/reset_password endpoint
+    returning HTTP 400, indicating potential exploitation of the unauthenticated
+    SQL injection vulnerability (GHSA-vwf4-m7j8-wcjf, CVSS 10.0).
+references:
+    - https://www.metabase.com/blog/security-update
+    - https://github.com/metabase/metabase/security/advisories/GHSA-vwf4-m7j8-wcjf
+    - https://www.bleepingcomputer.com/news/security/framework-tally-disclose-metabase-data-theft-attacks/
+author: Actioner
+date: 2026-08-08
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-method: 'POST'
+        cs-uri-stem|endswith: '/api/session/reset_password'
+        sc-status: 400
+    condition: selection
+falsepositives:
+    - Misconfigured clients sending malformed password reset requests
+    - Security scanners probing the endpoint
+level: high

@@ -1,0 +1,30 @@
+title: ChainDrop Worm - NPM Preinstall Executing setup.mjs Dropper
+id: 2d8f5a1c-9e3b-47d0-8c6f-4a5b2e7d9f31
+status: experimental
+description: >
+    Detects Node.js executing setup.mjs as a preinstall hook, the initial
+    dropper mechanism used by ChainDrop to bootstrap the Bun runtime and
+    launch the obfuscated credential-stealing payload.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/08
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/node'
+            - '/npm'
+        CommandLine|contains: 'setup.mjs'
+    selection_env:
+        ParentCommandLine|contains: 'npm'
+    condition: selection and selection_env
+falsepositives:
+    - Legitimate npm packages using setup.mjs as a preinstall script (uncommon naming)
+level: medium

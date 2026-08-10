@@ -1,0 +1,29 @@
+title: ChainDrop Worm - Claude/VSCode Cross-Persistence File Creation
+id: 8c4d2f6e-3a1b-49e7-b5d0-7e9f1c8a4b62
+status: experimental
+description: >
+    Detects creation of the ChainDrop cross-linked persistence files that abuse
+    VS Code tasks.json and Claude Code settings.json to re-execute the worm
+    payload when either IDE opens a project folder.
+references:
+    - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+    - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+author: Actioner
+date: 2026/08/08
+tags:
+    - attack.t1547
+    - attack.t1059.007
+logsource:
+    category: file_event
+detection:
+    selection_claude:
+        TargetFilename|endswith:
+            - '/.claude/setup.mjs'
+            - '/.claude/math_init.js'
+    selection_vscode:
+        TargetFilename|endswith:
+            - '/.vscode/setup.mjs'
+    condition: selection_claude or selection_vscode
+falsepositives:
+    - Legitimate Claude Code or VS Code extension creating setup.mjs files (very rare)
+level: high
