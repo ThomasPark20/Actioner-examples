@@ -1,0 +1,26 @@
+title: OWAReaper C2 Channel via GitHub Commit Search API
+id: 8f3a71d2-e4b9-4c6e-a1f5-9d2b7e0c8a43
+status: experimental
+description: >
+    Detects outbound HTTP requests to GitHub Commit Search API endpoint,
+    consistent with OWAReaper backdoor C2 polling mechanism that queries
+    for commit messages containing the target email address every 24 hours.
+references:
+    - https://www.bleepingcomputer.com/news/security/russian-hackers-exploit-exchange-owa-zero-day-for-long-term-mailbox-access/
+    - https://thehackernews.com/2026/07/russian-hackers-exploit-microsoft-owa.html
+author: Actioner
+date: 2026/07/31
+tags:
+    - attack.t1102.001
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains: '/search/commits'
+        r-dns: 'api.github.com'
+    condition: selection
+falsepositives:
+    - Developer tooling and CI/CD pipelines querying GitHub API
+    - Security scanning tools using GitHub search endpoints
+level: medium
