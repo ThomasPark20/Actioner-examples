@@ -1,0 +1,95 @@
+title: PolinRider Node.js Execution of Fake Font Payload
+id: 7a3e1f29-4c8b-4d5a-9e2f-1b6c8d7a0e34
+status: experimental
+description: >
+    Detects Node.js executing .woff2 files from public/fonts/ directories,
+    a distinctive delivery technique used in the PolinRider and TaskJacker
+    supply chain campaigns attributed to DPRK Contagious Interview.
+references:
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://github.com/OpenSourceMalware/PolinRider
+author: Actioner
+date: 2026/07/07
+tags:
+    - attack.t1059.007
+    - attack.t1036
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_node:
+        Image|endswith:
+            - '\node.exe'
+            - '\node'
+    selection_woff2:
+        CommandLine|contains|all:
+            - 'public/fonts/'
+            - '.woff2'
+    condition: selection_node and selection_woff2
+falsepositives:
+    - Legitimate build tools that process font files via Node.js (extremely unlikely to match this path pattern)
+level: high
+---
+title: PolinRider Silent npm Package Installation
+id: 9b4e2c18-7d6f-4a3e-8c1b-5f0d9a2e7b63
+status: experimental
+description: >
+    Detects npm install commands using the distinctive PolinRider flag combination
+    (--no-save --silent --no-audit --no-fund) to silently install second-stage
+    malicious packages without leaving traces in package.json or lockfiles.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://socket.dev/blog/polinrider-north-korea-linked-supply-chain-campaign-expands
+author: Actioner
+date: 2026/07/07
+tags:
+    - attack.t1059.007
+    - attack.t1195.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'npm install'
+            - '--no-save'
+            - '--silent'
+            - '--no-audit'
+            - '--no-fund'
+    condition: selection
+falsepositives:
+    - CI/CD scripts using all four flags simultaneously for dependency caching (uncommon)
+level: high
+---
+title: PolinRider C2 Network Connection to Known Infrastructure
+id: 4f1a8d35-6c2e-4b9f-a7d3-8e5c0f1b2a46
+status: experimental
+description: >
+    Detects outbound network connections to confirmed PolinRider campaign C2 IP
+    addresses. Infrastructure confirmed active as of June 30, 2026.
+references:
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+    - https://panther.com/blog/inside-dprk%E2%80%99s-npm-malware-factory-108-packages-261-versions-and-a-31-day-campaign-wave
+author: Actioner
+date: 2026/07/07
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '216.126.236.244'
+            - '216.126.237.71'
+            - '216.126.224.220'
+            - '107.189.20.115'
+            - '95.216.26.109'
+            - '166.88.54.158'
+            - '198.105.127.210'
+            - '23.27.202.27'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on the same IP addresses (verify with port and process context)
+level: high
