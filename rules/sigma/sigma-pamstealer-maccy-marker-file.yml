@@ -1,0 +1,29 @@
+title: PamStealer macOS Infostealer - Maccy Marker and Config File Creation
+id: f1a68e52-0bc8-4d97-ef46-7c2d58ba1a34
+status: experimental
+description: >
+    Detects creation of the .Maccy marker file, .lock file, or .config file
+    associated with the PamStealer infostealer. The .Maccy dot file is dropped
+    next to the malicious bundle as an infection flag. The .lock file prevents
+    concurrent execution, and the .config file stores the C2 URL in cleartext.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_marker:
+        TargetFilename|endswith: '/.Maccy'
+    selection_cache_artifacts:
+        TargetFilename|contains:
+            - '/Caches/com.apple.finder.core/'
+            - '/HTTPStorages/com.apple.finder.core/'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate Maccy clipboard manager may create dot files in its own application support directory but not named .Maccy in arbitrary locations
+level: high

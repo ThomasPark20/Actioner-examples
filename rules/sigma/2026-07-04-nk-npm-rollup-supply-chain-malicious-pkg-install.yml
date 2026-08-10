@@ -1,0 +1,37 @@
+title: Malicious Rollup Polyfill npm Package Installation
+id: 7a3b1c4e-5d6f-4a8b-9c2d-3e4f5a6b7c8d
+status: experimental
+description: >
+    Detects npm install commands for known malicious packages associated with the North Korea-linked
+    Contagious Interview campaign that impersonate legitimate Rollup polyfill tooling. These packages
+    deliver OtterCookie/BeaverTail malware for credential theft and remote access.
+references:
+    - https://thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html
+    - https://research.jfrog.com/post/rollup-polyfill-masquerading/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1195.001
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_npm:
+        Image|endswith: '/npm'
+    selection_install:
+        CommandLine|contains:
+            - 'install'
+    selection_packages:
+        CommandLine|contains:
+            - 'rollup-packages-polyfill-core'
+            - 'rollup-runtime-polyfill-core'
+            - 'swift-parse-stream'
+            - 'quirky-token'
+            - 'react-icon-svgs'
+            - 'rollup-plugin-polyfill-connect'
+            - 'rollup-plugin-polyfill-route'
+    condition: selection_npm and selection_install and selection_packages
+falsepositives:
+    - None known - these package names are known malicious
+level: critical

@@ -1,0 +1,29 @@
+title: PamStealer macOS Infostealer - Fake Finder App Bundle Persistence
+id: b7f29a1e-6d84-4c53-9ab2-3e8f14d67c90
+status: experimental
+description: >
+    Detects file creation in the com.apple.finder.core application support directory
+    used by the PamStealer infostealer to stage its Rust-based second-stage payload.
+    The malware drops a fake Finder.app bundle at ~/Library/Application Support/
+    com.apple.finder.core/ with the payload binary named 77617EA0 inside
+    Contents/MacOS/. This path is not used by the legitimate macOS Finder.
+references:
+    - https://www.jamf.com/blog/pamstealer-macos-infostealer-applescript-rust/
+    - https://hackread.com/pamstealer-malware-macos-fake-maccy-clipboard-app/
+author: Actioner
+date: 2026/07/04
+tags:
+    - attack.t1036.005
+    - attack.t1547.015
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_app_support:
+        TargetFilename|contains: '/Application Support/com.apple.finder.core/'
+    selection_payload:
+        TargetFilename|contains: '/Contents/MacOS/77617EA0'
+    condition: 1 of selection_*
+falsepositives:
+    - None expected - com.apple.finder.core is not a legitimate Apple application support directory
+level: critical

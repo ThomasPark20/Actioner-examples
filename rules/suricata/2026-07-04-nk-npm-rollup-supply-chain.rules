@@ -1,0 +1,11 @@
+alert tcp $HOME_NET any -> 216.126.236.244 4801 (msg:"MALWARE OtterCookie C2 Socket.IO Communication to Lazarus Infrastructure"; flow:established,to_server; content:"socket.io"; nocase; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070401; rev:1;)
+
+alert http $HOME_NET any -> 216.126.236.244 4806 (msg:"MALWARE OtterCookie File Upload to Lazarus C2 Server"; flow:established,to_server; content:"POST"; http_method; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070402; rev:2;)
+
+alert http $HOME_NET any -> 216.126.236.244 4809 (msg:"MALWARE OtterCookie Browser/Wallet Data Exfil to Lazarus C2"; flow:established,to_server; content:"/cldbs"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070403; rev:2;)
+
+alert http $HOME_NET any -> any any (msg:"MALWARE OtterCookie Payload Fetch from JSONKeeper"; flow:established,to_server; content:"jsonkeeper.com"; http_host; content:"/b/3P9BF"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070404; rev:1;)
+
+alert http $HOME_NET any -> 216.126.236.244 any (msg:"MALWARE OtterCookie C2 API Beacon"; flow:established,to_server; content:"/api/service/98cb54c0b4ac259d30c9c1ca1ae87c68"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070405; rev:1;)
+
+alert http $HOME_NET any -> 216.126.236.244 any (msg:"MALWARE OtterCookie Clipboard Data Exfil"; flow:established,to_server; content:"/api/service/makelog"; http_uri; reference:url,thehackernews.com/2026/07/north-korea-linked-npm-packages-mimic.html; reference:url,research.jfrog.com/post/rollup-polyfill-masquerading/; classtype:trojan-activity; sid:2026070406; rev:1;)
