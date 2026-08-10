@@ -1,0 +1,7 @@
+# Snort rules for Chaos ransomware msaRAT browser-based C2
+# Reference: https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+# Generated: 2026-07-27
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - msaRAT Plain HTTP over Port 443 to Staging IP"; flow:established,to_server; content:"GET"; depth:3; content:"172.86.126.18"; content:"update_ms.msi"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created 2026-07-27; sid:2100201; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - msaRAT CDP JSON List Endpoint on Loopback"; flow:established,to_server; http_uri; content:"/json/list/"; fast_pattern; http_header; content:"Host|3A| 127.0.0.1"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created 2026-07-27; sid:2100202; rev:1;)

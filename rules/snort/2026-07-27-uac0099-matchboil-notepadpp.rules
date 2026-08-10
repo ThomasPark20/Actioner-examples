@@ -1,0 +1,5 @@
+# UAC-0099 MATCHBOIL.V2 via Fake Notepad++ Plugin -- Snort Rules
+# Generated: 2026-07-27
+# Source: Actioner
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAC-0099 MATCHBOIL.V2 DNS Query to C2 Domain geostat.lat"; content:"|07|geostat|03|lat|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/07/fake-notepad-plugin-delivers.html; sid:2100010; rev:1;)

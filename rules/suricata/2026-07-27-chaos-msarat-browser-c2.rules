@@ -1,0 +1,11 @@
+# Suricata rules for Chaos ransomware msaRAT browser-based C2
+# Reference: https://blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/
+# Generated: 2026-07-27
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - msaRAT Cloudflare Worker C2 Signaling Domain"; flow:established,to_server; http.host; content:"is-01-ast.ols-img-12.workers.dev"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created_at 2026-07-27; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - msaRAT CDP JSON List Endpoint Query"; flow:established,to_server; http.uri; content:"/json/list/"; fast_pattern; http.host; content:"127.0.0.1"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created_at 2026-07-27; sid:2100102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query for msaRAT Cloudflare Worker C2 Domain"; flow:to_server; dns.query; content:"is-01-ast.ols-img-12.workers.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created_at 2026-07-27; sid:2100103; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - msaRAT WebRTC SDP Token Exchange via Workers"; flow:established,to_server; http.uri; content:"/token/v1/"; fast_pattern; http.host; content:".workers.dev"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/chaos-msarat-living-off-the-browser-to-build-covert-c2-channel/; metadata:author Actioner, created_at 2026-07-27; sid:2100104; rev:1;)

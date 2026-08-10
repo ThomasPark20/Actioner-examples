@@ -1,0 +1,9 @@
+# Actioner - Fastjson @JSONType RCE (CVE-2026-16723) - Snort Rules
+# Date: 2026-07-27
+# Reference: https://thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html
+
+# JDK 8 Route (Broad Match): @type + jar:http in HTTP client body (intentionally omits .probe!. for variant coverage)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Fastjson @type jar:http RCE Payload in HTTP Request Body - Broad Match (CVE-2026-16723)"; flow:established,to_server; content:"@type"; http_client_body; fast_pattern; content:"jar|3a|http"; http_client_body; classtype:web-application-attack; reference:url,thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html; reference:cve,2026-16723; metadata:author Actioner, created 2026-07-27; sid:9900001; rev:1;)
+
+# JDK 17+ Route: @type + /proc/self/fd/ in HTTP client body
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Fastjson @type /proc/self/fd RCE Payload in HTTP Request Body (CVE-2026-16723)"; flow:established,to_server; content:"@type"; http_client_body; fast_pattern; content:"/proc/self/fd/"; http_client_body; classtype:web-application-attack; reference:url,thehackernews.com/2026/07/fastjson-1x-rce-vulnerability-targeted.html; reference:cve,2026-16723; metadata:author Actioner, created 2026-07-27; sid:9900002; rev:1;)
