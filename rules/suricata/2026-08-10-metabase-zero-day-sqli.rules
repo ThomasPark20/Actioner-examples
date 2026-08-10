@@ -1,0 +1,4 @@
+# Metabase SQLi Zero-Day (GHSA-vwf4-m7j8-wcjf) - Suricata Rule
+# Reference: https://www.metabase.com/blog/security-update
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"METABASE SQLi - POST to /api/session/reset_password (GHSA-vwf4-m7j8-wcjf)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/session/reset_password"; classtype:web-application-attack; sid:2026081001; rev:1; metadata:created_at 2026_08_10, updated_at 2026_08_10;)

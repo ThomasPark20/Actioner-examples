@@ -1,0 +1,27 @@
+# ChainDrop NPM Worm - Network Detection Rules (Snort format)
+# References:
+#   - https://unit42.paloaltonetworks.com/chaindrop-npm-worm-analysis/
+#   - https://www.microsoft.com/en-us/security/blog/2026/08/04/chaindrop-supply-chain-compromise-anatomy-self-propagating-worm/
+
+# Rule 1: ChainDrop C2 beacon to primary domain
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - C2 Communication to npm-cache.com"; tls.sni; content:"npm-cache.com"; endswith; classtype:trojan-activity; sid:2026081001; rev:1;)
+
+# Rule 2: ChainDrop C2 beacon to secondary domain
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - C2 Communication to awqhnjewqjkl.icu"; tls.sni; content:"awqhnjewqjkl.icu"; endswith; classtype:trojan-activity; sid:2026081002; rev:1;)
+
+# Rule 3: ChainDrop fallback C2 domains
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Fallback C2 pypi-get.com"; tls.sni; content:"pypi-get.com"; endswith; classtype:trojan-activity; sid:2026081003; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Fallback C2 js-mirror.com"; tls.sni; content:"js-mirror.com"; endswith; classtype:trojan-activity; sid:2026081004; rev:1;)
+
+# Rule 4: Ethereum API call for blockchain C2 resolution (eth_call to ChainDrop smart contract)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Ethereum Smart Contract C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"eth_call"; content:"e1f2395ee43e45a1556ec6438a88c31b83493103"; nocase; classtype:trojan-activity; sid:2026081005; rev:1;)
+
+# Rule 5: GitHub commit search for fallback C2 marker
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - GitHub Fallback C2 Marker Search"; flow:established,to_server; http.host; content:"api.github.com"; http.uri; content:"/search/commits"; http.uri; content:"thebeautifulmarchoftime"; classtype:trojan-activity; sid:2026081006; rev:2;)
+
+# Rule 6: ChainDrop C2 beacon URI pattern
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - C2 Router Endpoint"; flow:established,to_server; http.uri; content:"/router"; http.host; content:"npm-cache.com"; classtype:trojan-activity; sid:2026081007; rev:1;)
+
+# Rule 7: ChainDrop exfiltration via Cloudflare-mimicking URI
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ChainDrop NPM Worm - Cloudflare-Mimicking C2 Endpoint"; flow:established,to_server; http.uri; content:"/cdn-cgi/rum"; http.host; content:"awqhnjewqjkl.icu"; classtype:trojan-activity; sid:2026081008; rev:1;)
