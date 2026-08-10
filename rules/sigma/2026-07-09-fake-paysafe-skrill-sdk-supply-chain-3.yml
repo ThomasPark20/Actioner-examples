@@ -1,0 +1,23 @@
+title: DNS Query to Paysafe SDK Campaign C2 Domain
+id: e5f8a3c1-7d2b-4e9a-b6f4-8c0d1e3a5f72
+status: experimental
+description: >
+    Detects DNS queries to the ngrok-based C2 domain used by the malicious Paysafe/Skrill
+    SDK typosquatting campaign for credential exfiltration.
+references:
+    - https://socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps
+    - https://www.bleepingcomputer.com/news/security/fake-paysafe-skrill-sdks-on-npm-and-pypi-steal-credentials/
+author: Actioner
+date: 2026/07/09
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|contains: 'caliber-spinner-finishing.ngrok-free.dev'
+    condition: selection
+falsepositives:
+    - None expected - this is a known malicious C2 domain
+level: critical

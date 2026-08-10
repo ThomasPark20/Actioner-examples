@@ -1,0 +1,28 @@
+title: Network Connection to Paysafe SDK Campaign C2 by Node or Python
+id: a2c9f4e1-3b8d-4a7e-9c5f-6d0e1b2a8f43
+status: experimental
+description: >
+    Detects outbound network connections from Node.js or Python to the ngrok C2 domain
+    used by the malicious Paysafe SDK campaign, indicating active credential exfiltration.
+references:
+    - https://socket.dev/blog/npm-pypi-campaign-typosquats-popular-secure-payment-apps
+    - https://www.bleepingcomputer.com/news/security/fake-paysafe-skrill-sdks-on-npm-and-pypi-steal-credentials/
+author: Actioner
+date: 2026/07/09
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection_process:
+        Image|endswith:
+            - '\node.exe'
+            - '\python.exe'
+            - '\python3.exe'
+    selection_dest:
+        DestinationHostname|contains: 'caliber-spinner-finishing.ngrok-free.dev'
+    condition: selection_process and selection_dest
+falsepositives:
+    - Legitimate developer use of this specific ngrok subdomain is not expected
+level: critical
