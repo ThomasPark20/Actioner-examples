@@ -1,0 +1,17 @@
+# DeadLock Ransomware Suricata Detection Rules
+# Generated: 2026-08-11
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DeadLock Leak Site deadlock.liveblog365.com"; flow:to_server; dns.query; content:"deadlock.liveblog365.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/; metadata:author Actioner, created_at 2026-08-11; sid:2200005; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DeadLock Leak Site deadlockblog.medianewsonline.com"; flow:to_server; dns.query; content:"deadlockblog.medianewsonline.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/; metadata:author Actioner, created_at 2026-08-11; sid:2200006; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DeadLock Leak Site dlock.liveblog365.com"; flow:to_server; dns.query; content:"dlock.liveblog365.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/; metadata:author Actioner, created_at 2026-08-11; sid:2200010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to DeadLock Leak Site deadlockblog.great-site.net"; flow:to_server; dns.query; content:"deadlockblog.great-site.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/; metadata:author Actioner, created_at 2026-08-11; sid:2200011; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP POST to DeadLock Ransomware Proxy Endpoint prrq.php"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/prrq.php"; fast_pattern; classtype:trojan-activity; reference:url,www.group-ib.com/blog/deadlock-ransomware-polygon-smart-contracts/; metadata:author Actioner, created_at 2026-08-11; sid:2200007; rev:1;)
+
+alert http $HOME_NET any -> 138.226.236.51 any (msg:"Actioner - HTTP to DeadLock Ransomware Proxy Server 138.226.236.51"; flow:established,to_server; http.uri; content:"/prrq.php"; fast_pattern; classtype:trojan-activity; reference:url,www.group-ib.com/blog/deadlock-ransomware-polygon-smart-contracts/; metadata:author Actioner, created_at 2026-08-11; sid:2200008; rev:1;)
+
+alert http $HOME_NET any -> 94.74.164.207 any (msg:"Actioner - HTTP to DeadLock Ransomware Proxy Server 94.74.164.207"; flow:established,to_server; http.uri; content:"/prrq.php"; fast_pattern; classtype:trojan-activity; reference:url,www.group-ib.com/blog/deadlock-ransomware-polygon-smart-contracts/; metadata:author Actioner, created_at 2026-08-11; sid:2200009; rev:1;)

@@ -1,0 +1,5 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"BdThemes Supply Chain - C2 Beacon to ia-cdn.com"; flow:established,to_server; content:"ia-cdn.com"; http_header; content:"/fz/c"; http_uri; fast_pattern; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"BdThemes Supply Chain - w2.js Payload Request"; flow:established,to_server; content:"ia-cdn.com"; http_header; content:"/w2.js"; http_uri; fast_pattern; sid:2100102; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/;)
+
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"BdThemes Supply Chain - Magic Login Backdoor _wplogin Parameter"; flow:established,to_server; content:"_wplogin="; http_uri; fast_pattern; sid:2100103; rev:1; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/;)
