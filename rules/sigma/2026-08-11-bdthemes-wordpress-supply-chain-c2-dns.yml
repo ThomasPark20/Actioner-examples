@@ -1,0 +1,23 @@
+title: BdThemes Supply Chain - DNS Query for C2 Domain ia-cdn.com
+id: 2b4e6f8a-1c3d-5e7f-9a0b-2d4c6e8f0a1b
+status: experimental
+description: >
+    Detects DNS resolution of ia-cdn.com, the command and control domain used in the BdThemes
+    WordPress supply chain attack to deliver w2.js payloads and targeting instructions.
+references:
+    - https://www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/
+    - https://www.wordfence.com/blog/2026/08/psa-supply-chain-compromise-in-bdthemes-ecosystem-via-poisoned-api-response/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'ia-cdn.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of ia-cdn.com domain (unlikely given its role as C2 infrastructure)
+level: high

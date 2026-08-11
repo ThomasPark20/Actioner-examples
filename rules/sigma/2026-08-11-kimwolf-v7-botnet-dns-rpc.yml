@@ -1,0 +1,22 @@
+title: Kimwolf v7 DNS Query to Operator-Controlled Ethereum RPC Domain
+id: 7c3a1e9d-4b2f-48a5-9c6e-1d8f3a5b7e2c
+status: experimental
+description: >
+    Detects DNS queries to the operator-controlled Ethereum RPC facade domain
+    rpcuniverse.com used by Kimwolf v7 botnet for C2 resolution via ENS.
+references:
+    - https://unit42.paloaltonetworks.com/kimwolf-v7-botnet-malware/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1071.001
+    - attack.t1568
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'rpcuniverse.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of rpcuniverse.com Ethereum RPC services (unlikely in enterprise environments)
+level: high

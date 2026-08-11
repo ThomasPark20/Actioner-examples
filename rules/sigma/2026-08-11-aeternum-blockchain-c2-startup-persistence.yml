@@ -1,0 +1,28 @@
+title: Aeternum Botnet Startup Folder Persistence via WMI Framework Shortcut
+id: 3b8d2e5f-1a4c-4f9e-a6b7-d8e9f0c1a2b3
+status: experimental
+description: >
+    Detects creation of suspicious LNK files in the Windows Startup folder matching
+    the Aeternum botnet naming convention (Wmi_Framework_APIKEY_wmsnet_*.lnk)
+    used for persistence after initial infection.
+references:
+    - https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Start Menu\Programs\Startup\'
+        TargetFilename|endswith: '.lnk'
+        TargetFilename|contains|all:
+            - 'Wmi_Framework'
+            - 'APIKEY'
+            - 'wmsnet'
+    condition: selection
+falsepositives:
+    - Unlikely - highly specific naming convention
+level: high

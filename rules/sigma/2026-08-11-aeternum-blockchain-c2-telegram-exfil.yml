@@ -1,0 +1,29 @@
+title: Aeternum Botnet Telegram Bot API Exfiltration
+id: 5e7a9c1d-3b6f-4d2e-a8c0-f1e2d3b4a5c6
+status: experimental
+description: >
+    Detects outbound HTTP POST requests to the Telegram Bot API sendDocument
+    endpoint using User-Agent strings associated with the Aeternum botnet
+    (SystemInfo Bot/2.0 or cpp-httplib/0.18.3) for data exfiltration.
+references:
+    - https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_telegram:
+        cs-uri|contains: '/bot'
+        cs-host: 'api.telegram.org'
+        cs-uri|endswith: '/sendDocument'
+    selection_ua:
+        c-useragent|contains:
+            - 'SystemInfo Bot/2.0'
+            - 'cpp-httplib/0.18.3'
+    condition: selection_telegram and selection_ua
+falsepositives:
+    - Legitimate applications using Telegram Bot API with matching User-Agent strings
+level: high

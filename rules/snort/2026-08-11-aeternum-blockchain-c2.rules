@@ -1,0 +1,9 @@
+# Actioner - Aeternum Blockchain C2 Detection Rules (Snort 2.9)
+# Reference: https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+# Date: 2026-08-11
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Aeternum C2 SystemInfo Bot User-Agent Exfiltration"; flow:established,to_server; content:"SystemInfo Bot/2.0"; http_header; fast_pattern; content:"systeminfoboundary"; http_header; content:"POST"; http_method; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; sid:2100101; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Aeternum C2 Blockchain RPC getDomain Function Selector"; flow:established,to_server; content:"POST"; http_method; content:"0xb68d1809"; http_client_body; fast_pattern; content:"eth_call"; http_client_body; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; sid:2100102; rev:1;)
+
+alert tcp $HOME_NET any -> 193.221.200.219 any (msg:"Actioner - Aeternum C2 Known Exfiltration Server"; flow:established,to_server; content:"POST"; http_method; content:"uqhash"; http_client_body; fast_pattern; content:"data"; http_client_body; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; sid:2100103; rev:1;)
