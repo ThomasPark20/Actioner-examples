@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-12
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -68,7 +68,7 @@ The exploit creates Object Manager directory objects at `\BaseNamedObjects\Restr
 
 **Stage 5: Race Condition Exploitation and File Replacement**
 
-Using the oplock on the alternate data stream and the Cloud Files callback to freeze Defender mid-operation, the exploit wins the race condition. It then writes the payload (`Warden.dll`) to `C:\Windows\System32\phoneinfo.dll` via a UNC loopback path (`\\127.0.0.1\C$\Windows\System32\phoneinfo.dll`), bypassing direct path-based protections.
+Using the oplock on the alternate data stream and the Cloud Files callback to freeze Defender mid-operation, the exploit wins the race condition. It then writes the payload (`Warden.dll`) to `C:\Windows\System32\phoneinfo.dll` via a UNC loopback path (`\\127[.]0[.]0[.]1\C$\Windows\System32\phoneinfo.dll`), bypassing direct path-based protections.
 
 **Stage 6: WER Report Staging and QueueReporting Trigger**
 
@@ -149,7 +149,7 @@ The QueueReporting task executes `wermgr.exe` as SYSTEM. Due to the DLL search o
 - Manual triggering of `\Microsoft\Windows\Windows Error Reporting\QueueReporting` scheduled task
 - Cloud Files sync root registration (`CfRegisterSyncRoot`) from user-mode exploit processes
 - NTFS Alternate Data Streams created on files in `C:\ShieldBreak_*` directories
-- UNC path access to `\\127.0.0.1\C$\Windows\System32\` from non-administrative processes
+- UNC path access to `\\127[.]0[.]0[.]1\C$\Windows\System32\` from non-administrative processes
 - Defender detection: `Exploit:Win32/DfndrRugPlnt.BB` (RoguePlanet signature; may or may not trigger on ShieldBreak)
 
 ## MITRE ATT&CK Mapping
@@ -158,7 +158,6 @@ The QueueReporting task executes `wermgr.exe` as SYSTEM. Due to the DLL search o
 |-----|-----------|-------------------|
 | T1068 | Exploitation for Privilege Escalation | Race condition in Defender Malware Protection Engine exploited for SYSTEM privileges |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | phoneinfo.dll overwritten in System32 to be loaded by wermgr.exe via QueueReporting task |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | MpClient.dll loaded by exploit binary to invoke internal Defender APIs |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | QueueReporting scheduled task manually triggered via COM to execute payload as SYSTEM |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Payload staged as phoneinfo.dll in System32; WER report mimics legitimate crash data |
 | T1106 | Native API | Extensive use of NT Native APIs (NtCreateSection, NtCreateSymbolicLinkObject, NtCreateDirectoryObjectEx) |
@@ -233,93 +232,9 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: MpClient.dll Loaded by Non-Defender Process
-Detects loading of MpClient.dll by non-Defender processes, a technique shared by both RoguePlanet and ShieldBreak to programmatically invoke Defender scanning APIs.
-<!-- audit: sigma convert splunk 0; sigma convert log_scale 0. Requires Sysmon Event ID 7 (Image Loaded) or equivalent. Filter covers all known Defender executables. FP: third-party security tools integrating with Defender. -->
-**Status:** compile ✅ compiles · confidence: medium
-```yaml
-title: MpClient.dll Loaded by Non-Defender Process
-id: c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f
-status: experimental
-description: >
-    Detects loading of MpClient.dll by processes other than legitimate Microsoft
-    Defender components. Both the RoguePlanet and ShieldBreak exploits dynamically
-    load MpClient.dll to resolve and invoke internal Defender APIs (MpManagerOpen,
-    MpScanStart, MpThreatOpen, MpCleanOpen) to programmatically trigger scanning
-    and remediation as part of the privilege escalation chain.
-references:
-    - https://github.com/MSNightmare/ShieldBreak
-    - https://www.threatlocker.com/blog/microsoft-defender-zero-day-rogueplanet-grants-system-privileges
-    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
-author: Actioner
-date: 2026/08/12
-tags:
-    - attack.t1068
-    - attack.t1574.002
-logsource:
-    category: image_load
-    product: windows
-detection:
-    selection:
-        ImageLoaded|endswith: '\MpClient.dll'
-    filter_defender:
-        Image|endswith:
-            - '\MsMpEng.exe'
-            - '\MpCmdRun.exe'
-            - '\NisSrv.exe'
-            - '\MpSigStub.exe'
-            - '\MpDlpCmd.exe'
-            - '\MpCopyAccelerator.exe'
-            - '\MsMpEngCP.exe'
-            - '\ConfigSecurityPolicy.exe'
-    filter_system:
-        Image|startswith:
-            - 'C:\Program Files\Windows Defender\'
-            - 'C:\Program Files\Windows Defender Advanced Threat Protection\'
-            - 'C:\ProgramData\Microsoft\Windows Defender\'
-    condition: selection and not 1 of filter_*
-falsepositives:
-    - Third-party security tools that integrate with Defender APIs
-    - Microsoft security management tools (e.g., SCCM Endpoint Protection)
-level: high
-```
+<!-- revision: DROPPED "Sigma: MpClient.dll Loaded by Non-Defender Process" — altitude violation; generic TTP detection (DLL loading from non-standard path) with zero ShieldBreak-specific artifacts; not valid at PoC-specific altitude. -->
 
-### Sigma: WER QueueReporting Scheduled Task Manual Trigger
-Detects command-line triggering of the QueueReporting task, the final execution stage in the ShieldBreak chain. Note: the PoC triggers this via COM, not schtasks.exe; this rule catches manual/scripted variants.
-<!-- audit: sigma convert splunk 0; sigma convert log_scale 0. The actual PoC uses COM (CoCreateInstance → ITaskService), which will not match this schtasks-based rule. This catches manual/script-based reproduction only. Caveat stated in rule description. -->
-**Status:** compile ✅ compiles · confidence: medium
-```yaml
-title: WER QueueReporting Scheduled Task Manual Trigger
-id: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a
-status: experimental
-description: >
-    Detects manual triggering of the Windows Error Reporting QueueReporting scheduled
-    task, which runs as SYSTEM. Both RoguePlanet and ShieldBreak exploit this task to
-    execute a payload binary (wermgr.exe or phoneinfo.dll) that has been replaced via
-    the TOCTOU race condition, achieving SYSTEM-level code execution.
-references:
-    - https://github.com/MSNightmare/ShieldBreak
-    - https://www.cyderes.com/howler-cell/rogueplanet-windows-zero-day
-    - https://www.threatlocker.com/blog/microsoft-defender-zero-day-rogueplanet-grants-system-privileges
-author: Actioner
-date: 2026/08/12
-tags:
-    - attack.t1068
-    - attack.t1053.005
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_schtasks:
-        Image|endswith: '\schtasks.exe'
-        CommandLine|contains|all:
-            - '/Run'
-            - 'QueueReporting'
-    condition: selection_schtasks
-falsepositives:
-    - Legitimate manual triggering of WER QueueReporting by administrators for diagnostics
-level: high
-```
+<!-- revision: DROPPED "Sigma: WER QueueReporting Scheduled Task Manual Trigger" — does not detect PoC behavior; ShieldBreak triggers QueueReporting via COM (ITaskService), not schtasks.exe process creation. -->
 
 ### Sigma: Suspicious phoneinfo.dll Write to System32
 Detects writes to `C:\Windows\System32\phoneinfo.dll` by non-servicing processes, the DLL overwrite target in the ShieldBreak exploit chain.
@@ -407,7 +322,7 @@ level: critical
 
 ### Sigma: Suspicious WER ReportQueue Kernel Directory Creation
 Detects creation of WER ReportQueue directories with a `Kernel_` prefix by non-WER processes, used by ShieldBreak to stage the crafted `Report.wer` that triggers SYSTEM execution.
-<!-- audit: sigma convert splunk 0; sigma convert log_scale 0. The filter_system clause is intentionally broad to allow through non-System32 processes; refine in production based on environment baseline. -->
+<!-- audit: sigma convert splunk 0; sigma convert log_scale 0. revision: tightened filter_system — replaced overly broad C:\Windows\System32\*.exe exclusion with specific WER service host and kernel crash-dump processes. -->
 **Status:** compile ✅ compiles · confidence: medium
 ```yaml
 title: Suspicious WER ReportQueue Kernel Directory Creation
@@ -437,9 +352,12 @@ detection:
             - '\WerFault.exe'
             - '\wermgr.exe'
             - '\WerFaultSecure.exe'
-    filter_system:
-        Image|startswith: 'C:\Windows\System32\'
-        Image|endswith: '.exe'
+    filter_svchost:
+        Image|endswith: '\svchost.exe'
+    filter_crashdump:
+        Image|endswith:
+            - '\WerFaultHost.exe'
+            - '\crashpad_handler.exe'
     condition: selection and not 1 of filter_*
 falsepositives:
     - Third-party crash reporting tools that write to the WER ReportQueue
@@ -448,7 +366,7 @@ level: high
 
 ### YARA: ShieldBreak Exploit Tool Detection
 Detects PE files containing the combination of ShieldBreak-specific strings, Cloud Files API imports, NT Object Manager API calls, and Defender API references characteristic of the ShieldBreak exploit binary.
-<!-- audit: yarac exit 0. Condition uses layered OR clauses requiring convergence of multiple string families (pipes + directories, pipes + APIs, directories + Defender APIs, target paths + Defender APIs) to minimize FP on legitimate binaries that may reference individual strings. -->
+<!-- audit: yarac exit 0. revision: fixed $pipe2 to match \\?\pipe\SHIELDBREAK (the format used by the PoC), added $pipe3 for NT \??\pipe\ variant; tightened condition to require at least one pipe or ShieldBreak-specific directory string in every branch. -->
 **Status:** compile ✅ compiles · confidence: high
 ```yara
 rule Exploit_ShieldBreak_Defender_LPE
@@ -463,7 +381,8 @@ rule Exploit_ShieldBreak_Defender_LPE
 
     strings:
         $pipe1 = "\\\\.\\pipe\\SHIELDBREAK" ascii wide
-        $pipe2 = "\\??\\pipe\\SHIELDBREAK" ascii wide
+        $pipe2 = "\\\\?\\pipe\\SHIELDBREAK" ascii wide
+        $pipe3 = "\\??\\pipe\\SHIELDBREAK" ascii wide
 
         $dir1 = "ShieldBreak_" ascii wide
         $dir2 = "WD_TARGET_" ascii wide
@@ -473,8 +392,7 @@ rule Exploit_ShieldBreak_Defender_LPE
         $file1 = "phoneinfo.dll" ascii wide
         $file2 = "Warden.dll" ascii wide
         $file3 = "Report.wer" ascii wide
-        $file4 = "BERLIN" ascii wide
-        $file5 = "eicar_com.zip" ascii wide
+        $file4 = "eicar_com.zip" ascii wide
 
         $api1 = "NtCreateSymbolicLinkObject" ascii fullword
         $api2 = "NtCreateDirectoryObjectEx" ascii fullword
@@ -504,10 +422,10 @@ rule Exploit_ShieldBreak_Defender_LPE
             ($dir1 and $dir2 and $dir3) or
             ($file1 and 1 of ($mp*) and 1 of ($api4, $api5, $api6, $api7)) or
             ($path3 and 1 of ($mp*)) or
-            (3 of ($dir*) and 2 of ($mp*)) or
+            ($dir1 and 2 of ($mp*) and 1 of ($api*)) or
             (1 of ($pipe*) and $file1 and 1 of ($path*)) or
-            ($file2 and 1 of ($dir*) and 1 of ($mp*)) or
-            (2 of ($file*) and 2 of ($dir*))
+            ($file2 and $dir1 and 1 of ($mp*)) or
+            (3 of ($file*) and $dir1)
         )
 }
 
@@ -538,7 +456,7 @@ rule Exploit_Warden_Payload_DLL
 
 ### Snort / Suricata: Not Generated
 
-ShieldBreak is a local privilege escalation exploit with no outbound network indicators. The UNC loopback path (`\\127.0.0.1\C$\...`) is internal SMB traffic on localhost. No C2 infrastructure specific to ShieldBreak has been identified. Network-level detection rules are not applicable for this exploit chain. For C2 infrastructure associated with the broader Nightmare Eclipse campaign (BeigeBurrow), refer to the [RoguePlanet report (2026-06-10)](2026-06-10-defender-rogueplanet-zero-day.md).
+ShieldBreak is a local privilege escalation exploit with no outbound network indicators. The UNC loopback path (`\\127.0.0.1\C$\...`) is internal SMB traffic on localhost. No C2 infrastructure specific to ShieldBreak has been identified. Network-level detection rules are not applicable for this exploit chain. For C2 infrastructure associated with the broader Nightmare Eclipse campaign (BeigeBurrow), refer to the [RoguePlanet report (2026-06-10)](https://github.com/ThomasPark20/Actioner-examples/blob/main/summaries/2026-06-10-defender-rogueplanet-zero-day.md).
 
 ## Remediation
 
