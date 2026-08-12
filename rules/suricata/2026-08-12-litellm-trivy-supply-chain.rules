@@ -1,0 +1,27 @@
+# LiteLLM Supply Chain Attack (TeamPCP/UNC6780) - Suricata Rules
+# Date: 2026-08-12
+# SID range: 1000101-1000108 (local)
+
+# Rule 13: HTTP to models.litellm.cloud (primary exfiltration)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to models.litellm.cloud"; flow:established,to_server; http.host; content:"models.litellm.cloud"; classtype:trojan-activity; sid:1000101; rev:1;)
+
+# Rule 14: HTTP to checkmarx.zone (backdoor C2 polling)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to checkmarx.zone C2"; flow:established,to_server; http.host; content:"checkmarx.zone"; http.uri; content:"/raw"; classtype:trojan-activity; sid:1000102; rev:1;)
+
+# Rule 15: HTTP to scan.aquasecurtiy.org (Trivy campaign C2)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to scan.aquasecurtiy.org"; flow:established,to_server; http.host; content:"scan.aquasecurtiy.org"; classtype:trojan-activity; sid:1000103; rev:1;)
+
+# Rule 16: tpcp.tar.gz exfiltration header detection
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain tpcp.tar.gz Exfiltration Header"; flow:established,to_server; http.header; content:"X-Filename|3a 20|tpcp.tar.gz"; classtype:trojan-activity; sid:1000104; rev:1;)
+
+# Rule 17: DNS query for models.litellm.cloud
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query models.litellm.cloud"; dns.query; content:"models.litellm.cloud"; nocase; classtype:trojan-activity; sid:1000105; rev:1;)
+
+# Rule 18: DNS query for checkmarx.zone
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query checkmarx.zone"; dns.query; content:"checkmarx.zone"; nocase; classtype:trojan-activity; sid:1000106; rev:1;)
+
+# Rule 19: DNS query for scan.aquasecurtiy.org
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query scan.aquasecurtiy.org"; dns.query; content:"scan.aquasecurtiy.org"; nocase; classtype:trojan-activity; sid:1000107; rev:1;)
+
+# Rule 20: DNS query for litellm.cloud (catch-all for subdomains)
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query litellm.cloud"; dns.query; content:"litellm.cloud"; endswith; nocase; classtype:trojan-activity; sid:1000108; rev:2;)

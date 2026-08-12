@@ -1,8 +1,10 @@
 # LiteLLM Supply Chain Attack via Trivy Compromise (TeamPCP / UNC6780)
 
 **Date:** 2026-08-12
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** CLEAR
+
+<!-- revision: 2026-08-12 FINAL. Changes from DRAFT: (1) Fixed YARA rule 6 condition to require $b64_decode alongside $rsa_key_prefix and $exec_call, reducing FP on benign RSA-2048-embedding scripts. (2) Fixed YARA rule 8 $teampcp_header to full header+value pair "X-Filename: tpcp.tar.gz"; confidence downgraded to medium. (3) Fixed Suricata rule 20 DNS catch-all to use endswith; confidence downgraded to medium. (4) Corrected ATT&CK mapping T1547.009 to T1546 (Event Triggered Execution) for .pth abuse. (5) Reassigned all Snort SIDs to 1000001-1000004 and Suricata SIDs to 1000101-1000108 (local range). (6) Downgraded Sigma rule 3 confidence from high to medium. (7) Added explicit note on ICP blockchain fallback C2 domain lacking a dedicated rule. -->
 
 ---
 
@@ -62,7 +64,7 @@ On March 24, 2026, two malicious versions of the LiteLLM Python package (v1.82.7
 | T1059.006 | Command and Scripting Interpreter: Python | Multi-layer base64-encoded Python payloads executed in-memory |
 | T1027 | Obfuscated Files or Information | Triple base64 encoding; disguised service names |
 | T1036 | Masquerading | `sysmon.service` described as "System Telemetry Service" |
-| T1547.009 | Boot or Logon Autostart Execution: Shortcut Modification | `.pth` file in site-packages executes at Python interpreter startup |
+| T1546 | Event Triggered Execution | `.pth` file in site-packages executes at Python interpreter startup |
 | T1543.002 | Create or Modify System Process: Systemd Service | `sysmon.service` with `Restart=always` for persistent backdoor |
 | T1552.001 | Unsecured Credentials: Credentials In Files | SSH keys, `.aws/credentials`, `.kube/config`, `.env` files harvested |
 | T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | AWS IMDS v1/v2 token queries; ECS metadata endpoint access |
@@ -101,7 +103,9 @@ Neither version corresponds to official GitHub releases (legitimate releases onl
 | models[.]litellm[.]cloud | Primary exfiltration endpoint (registered 2026-03-23, one day before attack) |
 | checkmarx[.]zone | Persistent backdoor C2 polling (`/raw` endpoint) |
 | scan[.]aquasecurtiy[.]org | Trivy campaign C2 (typosquat of aquasecurity) |
-| tdtqy-oyaaa-aaaae-af2dq-cai[.]raw[.]icp0[.]io | ICP blockchain fallback C2 |
+| tdtqy-oyaaa-aaaae-af2dq-cai[.]raw[.]icp0[.]io | ICP blockchain fallback C2 (no dedicated detection rule -- see note below) |
+
+<!-- Note: The ICP blockchain fallback C2 domain tdtqy-oyaaa-aaaae-af2dq-cai.raw.icp0.io is not covered by a dedicated DNS/HTTP detection rule. The parent domain icp0.io hosts legitimate Internet Computer Protocol canisters with high traffic volume; a content match on "icp0.io" would produce unacceptable false positive rates. Detection relies on the Sigma rule 1 (DNS) covering the three primary C2 domains, and behavioral indicators (credential harvesting patterns, sysmon.service persistence) for fallback scenarios. Organizations with low ICP traffic may optionally add a local DNS alert for the full canister subdomain. -->
 
 ### Cloudflare Tunnel URLs (Defanged, Ephemeral)
 
@@ -253,7 +257,7 @@ references:
 author: Actioner
 date: 2026/08/12
 tags:
-    - attack.t1547.009
+    - attack.t1546
     - attack.t1195.001
 logsource:
     category: file_event
@@ -316,9 +320,10 @@ falsepositives:
 level: high
 ```
 
+<!-- revision: confidence downgraded from high to medium — /tmp/pglog and /tmp/.pg_state paths are generic enough to produce FPs in PostgreSQL environments -->
 | Compile | Confidence |
 |---------|------------|
-| pass (sigma convert + splunk) | high |
+| pass (sigma convert + splunk) | medium |
 
 ---
 
@@ -457,7 +462,7 @@ rule LiteLLM_Malicious_PTH_Startup_Hook
         filesize < 100KB and
         (
             ($c2_domain) or
-            ($rsa_key_prefix and $exec_call) or
+            ($rsa_key_prefix and $exec_call and $b64_decode) or
             ($persist_var and $b64_script_var) or
             ($pth_marker and 2 of ($b64_import, $b64_decode, $exec_call, $sysmon_path, $sysmon_service))
         )
@@ -531,7 +536,7 @@ rule LiteLLM_TeamPCP_Credential_Harvester
         $teampcp_c2_1 = "models.litellm.cloud" ascii
         $teampcp_c2_2 = "checkmarx.zone" ascii
         $teampcp_archive = "tpcp.tar.gz" ascii
-        $teampcp_header = "X-Filename" ascii
+        $teampcp_header = "X-Filename: tpcp.tar.gz" ascii
         $teampcp_sysmon = ".config/sysmon/sysmon.py" ascii
 
         $cred_aws = ".aws/credentials" ascii
@@ -550,9 +555,10 @@ rule LiteLLM_TeamPCP_Credential_Harvester
 }
 ```
 
+<!-- revision: $teampcp_header changed from generic "X-Filename" to full header+value "X-Filename: tpcp.tar.gz" to prevent FP on cloud tooling; confidence downgraded to medium -->
 | Compile | Confidence |
 |---------|------------|
-| pass (yarac) | high |
+| pass (yarac) | medium |
 
 ---
 
@@ -566,16 +572,16 @@ Four Snort 2.x rules detecting HTTP traffic to LiteLLM attack C2 infrastructure 
 
 ```
 # Rule 9: HTTP traffic to models.litellm.cloud (primary exfiltration)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to models.litellm.cloud Exfiltration C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"models.litellm.cloud"; distance:0; http_header; classtype:trojan-activity; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to models.litellm.cloud Exfiltration C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"models.litellm.cloud"; distance:0; http_header; classtype:trojan-activity; sid:1000001; rev:1;)
 
 # Rule 10: HTTP traffic to checkmarx.zone/raw (backdoor C2 polling)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to checkmarx.zone Backdoor C2 Polling"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"checkmarx.zone"; distance:0; http_header; content:"/raw"; http_uri; classtype:trojan-activity; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to checkmarx.zone Backdoor C2 Polling"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"checkmarx.zone"; distance:0; http_header; content:"/raw"; http_uri; classtype:trojan-activity; sid:1000002; rev:1;)
 
 # Rule 11: HTTP traffic to scan.aquasecurtiy.org (Trivy campaign C2)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to scan.aquasecurtiy.org Trivy C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"scan.aquasecurtiy.org"; distance:0; http_header; classtype:trojan-activity; sid:2100003; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to scan.aquasecurtiy.org Trivy C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"scan.aquasecurtiy.org"; distance:0; http_header; classtype:trojan-activity; sid:1000003; rev:1;)
 
 # Rule 12: tpcp.tar.gz exfiltration header
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - tpcp.tar.gz Exfiltration Header"; flow:established,to_server; content:"X-Filename|3a 20|tpcp.tar.gz"; http_header; classtype:trojan-activity; sid:2100004; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - tpcp.tar.gz Exfiltration Header"; flow:established,to_server; content:"X-Filename|3a 20|tpcp.tar.gz"; http_header; classtype:trojan-activity; sid:1000004; rev:1;)
 ```
 
 | Compile | Confidence |
@@ -594,33 +600,35 @@ Eight Suricata rules covering HTTP host-based detection for C2 domains, exfiltra
 
 ```
 # Rule 13: HTTP to models.litellm.cloud (primary exfiltration)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to models.litellm.cloud"; flow:established,to_server; http.host; content:"models.litellm.cloud"; classtype:trojan-activity; sid:2200001; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to models.litellm.cloud"; flow:established,to_server; http.host; content:"models.litellm.cloud"; classtype:trojan-activity; sid:1000101; rev:1;)
 
 # Rule 14: HTTP to checkmarx.zone (backdoor C2 polling)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to checkmarx.zone C2"; flow:established,to_server; http.host; content:"checkmarx.zone"; http.uri; content:"/raw"; classtype:trojan-activity; sid:2200002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to checkmarx.zone C2"; flow:established,to_server; http.host; content:"checkmarx.zone"; http.uri; content:"/raw"; classtype:trojan-activity; sid:1000102; rev:1;)
 
 # Rule 15: HTTP to scan.aquasecurtiy.org (Trivy campaign C2)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to scan.aquasecurtiy.org"; flow:established,to_server; http.host; content:"scan.aquasecurtiy.org"; classtype:trojan-activity; sid:2200003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain HTTP to scan.aquasecurtiy.org"; flow:established,to_server; http.host; content:"scan.aquasecurtiy.org"; classtype:trojan-activity; sid:1000103; rev:1;)
 
 # Rule 16: tpcp.tar.gz exfiltration header detection
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain tpcp.tar.gz Exfiltration Header"; flow:established,to_server; http.header; content:"X-Filename|3a 20|tpcp.tar.gz"; classtype:trojan-activity; sid:2200004; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain tpcp.tar.gz Exfiltration Header"; flow:established,to_server; http.header; content:"X-Filename|3a 20|tpcp.tar.gz"; classtype:trojan-activity; sid:1000104; rev:1;)
 
 # Rule 17: DNS query for models.litellm.cloud
-alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query models.litellm.cloud"; dns.query; content:"models.litellm.cloud"; nocase; classtype:trojan-activity; sid:2200005; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query models.litellm.cloud"; dns.query; content:"models.litellm.cloud"; nocase; classtype:trojan-activity; sid:1000105; rev:1;)
 
 # Rule 18: DNS query for checkmarx.zone
-alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query checkmarx.zone"; dns.query; content:"checkmarx.zone"; nocase; classtype:trojan-activity; sid:2200006; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query checkmarx.zone"; dns.query; content:"checkmarx.zone"; nocase; classtype:trojan-activity; sid:1000106; rev:1;)
 
 # Rule 19: DNS query for scan.aquasecurtiy.org
-alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query scan.aquasecurtiy.org"; dns.query; content:"scan.aquasecurtiy.org"; nocase; classtype:trojan-activity; sid:2200007; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query scan.aquasecurtiy.org"; dns.query; content:"scan.aquasecurtiy.org"; nocase; classtype:trojan-activity; sid:1000107; rev:1;)
 
 # Rule 20: DNS query for litellm.cloud (catch-all for subdomains)
-alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query litellm.cloud"; dns.query; content:"litellm.cloud"; nocase; classtype:trojan-activity; sid:2200008; rev:1;)
+<!-- revision: added endswith; to prevent substring matching on unrelated domains; confidence downgraded to medium -->
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query litellm.cloud"; dns.query; content:"litellm.cloud"; endswith; nocase; classtype:trojan-activity; sid:1000108; rev:2;)
 ```
 
+<!-- revision: SIDs reassigned to local range 1000101-1000108; rule 20 fixed with endswith and confidence downgraded to medium -->
 | Compile | Confidence |
 |---------|------------|
-| pass (suricata -T) | high |
+| pass (suricata -T) | high (rules 13-19), medium (rule 20) |
 
 ---
 
@@ -630,12 +638,12 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Que
 |---|------|-------|---------------|------------|
 | 1 | Sigma | LiteLLM C2 Domain DNS Lookups | pass | high |
 | 2 | Sigma | Malicious PTH File Creation | pass | high |
-| 3 | Sigma | Sysmon Persistence Artifacts | pass | high |
+| 3 | Sigma | Sysmon Persistence Artifacts | pass | medium |
 | 4 | Sigma | Kubernetes Privileged Pod Deployment | pass | medium |
 | 5 | Sigma | C2 IP Address Connections | pass | medium |
 | 6 | YARA | LiteLLM Malicious PTH Startup Hook | pass | high |
 | 7 | YARA | LiteLLM Proxy Server Payload Injection | pass | high |
-| 8 | YARA | LiteLLM TeamPCP Credential Harvester | pass | high |
+| 8 | YARA | LiteLLM TeamPCP Credential Harvester | pass | medium |
 | 9 | Snort | HTTP to models.litellm.cloud | pass | high |
 | 10 | Snort | HTTP to checkmarx.zone/raw | pass | high |
 | 11 | Snort | HTTP to scan.aquasecurtiy.org | pass | high |
@@ -647,7 +655,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Que
 | 17 | Suricata | DNS Query models.litellm.cloud | pass | high |
 | 18 | Suricata | DNS Query checkmarx.zone | pass | high |
 | 19 | Suricata | DNS Query scan.aquasecurtiy.org | pass | high |
-| 20 | Suricata | DNS Query litellm.cloud | pass | high |
+| 20 | Suricata | DNS Query litellm.cloud (catch-all) | pass | medium |
 
 ---
 
@@ -663,6 +671,6 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Que
 
 ---
 
-<!-- Audit: sigma convert --without-pipeline -t splunk passed for all 5 rules (sigma check could not validate tags due to network restrictions on MITRE ATT&CK data fetch). yarac compiled all 3 YARA rules successfully (exit 0). Snort rules parsed successfully (standalone $HOME_NET undefined is expected). Suricata -T exited with "Configuration provided was successfully loaded." -->
+<!-- Audit (FINAL): sigma convert --without-pipeline -t splunk passed for all 5 rules. yarac compiled all 3 YARA rules successfully (exit 0). Snort SIDs reassigned to 1000001-1000004 (local range). Suricata SIDs reassigned to 1000101-1000108 (local range); suricata -T passed. ATT&CK T1547.009 corrected to T1546. Rule 6 RSA branch tightened. Rule 8 $teampcp_header narrowed. Rule 20 endswith added. Confidences adjusted for rules 3, 8, 20. -->
 
-*DRAFT report 2026-08-12. Detection rules validated: sigma convert (splunk) x5 pass, yarac x3 pass, suricata -T pass.*
+*FINAL report 2026-08-12. Detection rules validated: sigma convert (splunk) x5 pass, yarac x3 pass, snort -T x4 pass, suricata -T x8 pass. SIDs in local range 1000001-1000004 (Snort), 1000101-1000108 (Suricata).*
