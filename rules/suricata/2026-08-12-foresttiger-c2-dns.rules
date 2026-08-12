@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - Lazarus ForestTiger C2 Domain DNS Lookup (envell.xyz)"; dns.query; content:"envell.xyz"; nocase; endswith; sid:2200001; rev:1; metadata:created_at 2026_08_12, updated_at 2026_08_12; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Lazarus ForestTiger C2 Domain DNS Lookup (enveil.online)"; dns.query; content:"enveil.online"; nocase; endswith; sid:2200002; rev:1; metadata:created_at 2026_08_12, updated_at 2026_08_12; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Lazarus ForestTiger C2 Domain DNS Lookup (uxtramine.org)"; dns.query; content:"uxtramine.org"; nocase; endswith; sid:2200003; rev:1; metadata:created_at 2026_08_12, updated_at 2026_08_12; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/;)

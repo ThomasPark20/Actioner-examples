@@ -1,0 +1,43 @@
+title: Potential CVE-2026-68820 Post-Exploitation - SYSTEM Process from User Context
+id: e5c38a72-91d4-4f5e-b267-4a8d9c3e7f56
+status: experimental
+description: >
+    Supplementary behavioral heuristic: detects a user-mode process with
+    a low-privilege parent spawning a child running as SYSTEM. This
+    pattern is consistent with post-exploitation of privilege escalation
+    vulnerabilities such as CVE-2026-68820, but is not specific to any
+    single CVE or campaign. Correlate with ForestTiger/Troy IOC-based
+    rules for higher-confidence alerting.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-68820
+    - https://nvd.nist.gov/vuln/detail/CVE-2026-68820
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_system:
+        User|contains: 'SYSTEM'
+    selection_suspicious_parent:
+        ParentImage|endswith:
+            - '\rundll32.exe'
+            - '\regsvr32.exe'
+            - '\msiexec.exe'
+    filter_normal_parents:
+        ParentImage|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+        ParentUser|contains:
+            - 'SYSTEM'
+            - 'LOCAL SERVICE'
+            - 'NETWORK SERVICE'
+    condition: selection_system and selection_suspicious_parent and not filter_normal_parents
+falsepositives:
+    - Legitimate software installations using msiexec or rundll32 that transition to SYSTEM
+    - SCCM or other deployment tools
+    - Any non-malicious privilege escalation to SYSTEM via these parent processes
+level: medium

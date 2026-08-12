@@ -1,0 +1,33 @@
+title: SecurityPDF Trojanized Viewer Drops Payload to TEMP
+id: b8e15d3a-62c7-4f09-ae21-5c9d7b4e8f13
+status: experimental
+description: >
+    Detects creation of new.exe in the user TEMP directory by a process with
+    PDF-viewer-like characteristics. The Lazarus SecurityPDF trojanized
+    viewer (a modified MuPDF binary) extracts a payload from a crafted PDF,
+    XOR-decrypts it (key 0x39), and writes it to %TEMP%\new.exe before
+    reflectively loading the Troy backdoor DLL.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+    - https://www.securityweek.com/fresh-windows-zero-day-exploited-in-north-korean-cyberattacks/
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1204.002
+    - attack.t1055
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Temp\new.exe'
+    selection_parent:
+        Image|endswith:
+            - '\SecurityPDF.exe'
+            - '\mupdf.exe'
+            - '\mupdf-gl.exe'
+            - '\mupdf-x11.exe'
+    condition: selection and selection_parent
+falsepositives:
+    - Unknown - this combination of parent process and file path is highly specific to the attack
+level: critical
