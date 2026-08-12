@@ -1,0 +1,27 @@
+title: LiteLLM Supply Chain Attack - C2 IP Address Connections
+id: bd7e5f6a-8b9c-0d12-3e4f-a5b6c7d8e9f0
+status: experimental
+description: >
+    Detects network connections to IP addresses associated with the LiteLLM/TeamPCP supply
+    chain attack infrastructure hosted on AS205759 (Ghosty Networks / DEMENIN B.V.).
+    Confidence is medium due to IP address reassignment risk over time.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '46.151.182.203'
+            - '83.142.209.11'
+            - '83.142.209.203'
+            - '45.148.10.212'
+    condition: selection
+falsepositives:
+    - IP address reassignment after infrastructure takedown
+level: medium

@@ -1,0 +1,34 @@
+title: LiteLLM Supply Chain Attack - Sysmon Persistence Artifacts
+id: 9b5c3d4e-6f7a-8b90-1c2d-e3f4a5b6c7d8
+status: experimental
+description: >
+    Detects creation of persistence artifacts used by the LiteLLM supply chain attack payload.
+    The attacker deploys a fake systemd user service named sysmon.service described as
+    System Telemetry Service with Restart=always, backed by sysmon.py in ~/.config/sysmon/.
+    The /tmp/pglog file is the downloaded second-stage payload and /tmp/.pg_state tracks
+    C2 state. Both sysmon.* paths are required for file_event detection to avoid matching
+    legitimate Sysmon for Linux installations.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1543.002
+    - attack.t1036
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_sysmon_service:
+        TargetFilename|endswith: '/.config/systemd/user/sysmon.service'
+    selection_sysmon_script:
+        TargetFilename|endswith: '/.config/sysmon/sysmon.py'
+    selection_stage2:
+        TargetFilename:
+            - '/tmp/pglog'
+            - '/tmp/.pg_state'
+    condition: selection_sysmon_service or selection_sysmon_script or selection_stage2
+falsepositives:
+    - Legitimate Sysmon for Linux uses /opt/sysmon/ paths, not ~/.config/sysmon/
+level: high
