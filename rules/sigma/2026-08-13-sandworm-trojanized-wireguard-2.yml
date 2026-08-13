@@ -1,0 +1,32 @@
+title: Scheduled Task Created by WireGuard-Spawned PowerShell
+id: 9b2d4f8c-5a3e-4b0f-c6d9-e7f8a1b2c3d4
+status: experimental
+description: >
+    Detects schtasks.exe creating a scheduled task with PowerShell as the parent
+    process, consistent with UAC-0145 Windows persistence where the trojanized
+    VPN client executes PowerShell that creates a scheduled task to download
+    secondary payloads. Broader than the WireGuard-spawns-PowerShell rule;
+    pair with that anchor for campaign attribution.
+references:
+    - https://cert.gov.ua/article/6318863
+    - https://thehackernews.com/2026/08/sandworm-linked-uac-0145-uses-fake-job.html
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1053.005
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: '/create'
+        ParentImage|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    condition: selection_schtasks
+falsepositives:
+    - Legitimate PowerShell scripts creating scheduled tasks for administrative purposes
+    - Software installation routines that use PowerShell to register scheduled tasks
+level: medium
