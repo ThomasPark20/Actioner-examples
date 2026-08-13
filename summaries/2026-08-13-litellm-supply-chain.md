@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-13
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -247,7 +247,7 @@ grep -E "models\.litellm\.cloud|checkmarx\.zone|scan\.aquasecurtiy\.org" /var/lo
 
 ## Detection Rules
 
-These detections target the LiteLLM/TeamPCP supply chain attack artifacts at PoC/advisory-specific altitude. Sigma rules cover host-level persistence and lateral movement indicators; Suricata rules cover C2/exfiltration network traffic; Snort rules provide equivalent network coverage; YARA rules detect the malicious `.pth` and `sysmon.py` files. All rules use real (non-defanged) indicator values. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target the LiteLLM/TeamPCP supply chain attack artifacts at PoC/advisory-specific altitude. Sigma rules cover host-level persistence and lateral movement; Snort and Suricata rules cover C2/exfiltration network traffic; YARA rules detect the malicious `.pth` and `sysmon.py` files. All rules use real (non-defanged) indicator values; compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: LiteLLM Malicious PTH File Creation
 
@@ -395,7 +395,7 @@ level: critical
 
 Detects HTTP POST exfiltration to `models.litellm.cloud` and GET-based C2 polling to `checkmarx.zone/raw`.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: snort binary not available in environment. Rules structurally validated: http service protocol, http_header/http_uri/http_method sticky buffers (underscore notation), flow:established,to_server, unique SIDs in 2100000+ range, all options semicolon-terminated. No Suricata-only keywords used. -->
+<!-- audit: snort binary not available in environment. Rules structurally validated: http service protocol, http_header/http_uri/http_method sticky buffers (underscore notation), flow:established,to_server, unique SIDs in 2100000+ range, all options semicolon-terminated. No Suricata-only keywords used. Advisory: http_header matches anywhere in the header block; http_host would be more precise for domain matching if your Snort version supports it. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM TeamPCP Exfiltration to models.litellm.cloud"; flow:established,to_server; http_header; content:"models.litellm.cloud"; fast_pattern; http_method; content:"POST"; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-13; sid:2100001; rev:1;)
 
@@ -422,8 +422,12 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - TeamPCP DNS Query to Typosqu
 ### YARA: LiteLLM TeamPCP PTH Backdoor and Sysmon Backdoor
 
 Detects the malicious `litellm_init.pth` launcher and the `sysmon.py` persistent backdoor via distinctive string combinations (C2 domains, file paths, encryption markers).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test fired on constructed sample containing published indicators (C2 domains, file paths, crypto markers from Snyk/Datadog analysis); negative test (clean litellm import) quiet. Two rules: PTH backdoor keys on C2 domains + exfil archive + persistence path combo OR subprocess+base64+litellm+crypto combo; sysmon backdoor keys on checkmarx.zone + pglog/pg_state/sysmon.service combo. filesize caps prevent scanning large binaries. -->
+
+**PTH Backdoor —** **Status:** compile ✅ compiles · confidence: medium · sample: constructed
+<!-- audit: yarac exit 0. Positive test fired on constructed sample containing published indicators (tpcp variable name, subprocess.Popen, crypto markers from Snyk/Datadog analysis); negative test (clean litellm import) quiet. revision: replaced $tpcp_marker="litellm" (matched every legitimate litellm file) with $tpcp_var="tpcp" (attacker group variable name) and added $session_key_enc="session.key.enc" (encryption temp file); downgraded confidence high→medium per critic — second condition branch still relies on common strings (subprocess.Popen, base64, AES/RSA) whose distinctiveness depends on co-occurrence with "tpcp". -->
+
+**Sysmon Backdoor —** **Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive test fired on constructed sample (checkmarx.zone + pglog + pg_state); negative test quiet. revision: relabeled sample: fired→constructed (test used synthetic sample, not upstream malware binary). Confidence stays high — checkmarx.zone + persistence file combo is highly distinctive. -->
 ```yara
 rule Supply_Chain_LiteLLM_TeamPCP_PTH_Backdoor
 {
@@ -438,7 +442,8 @@ rule Supply_Chain_LiteLLM_TeamPCP_PTH_Backdoor
     strings:
         $pth_exec = "subprocess.Popen" ascii
         $b64_import = "base64" ascii
-        $tpcp_marker = "litellm" ascii
+        $tpcp_var = "tpcp" ascii
+        $session_key_enc = "session.key.enc" ascii
         $crypto1 = "AES" ascii
         $crypto2 = "RSA" ascii
         $crypto3 = "OAEP" ascii
@@ -452,7 +457,8 @@ rule Supply_Chain_LiteLLM_TeamPCP_PTH_Backdoor
         filesize < 100KB and
         (
             (2 of ($c2_domain*, $exfil_archive, $sysmon_path, $k8s_lateral)) or
-            ($pth_exec and $b64_import and $tpcp_marker and 1 of ($crypto*))
+            ($pth_exec and $b64_import and $tpcp_var and 1 of ($crypto*)) or
+            ($pth_exec and $b64_import and $session_key_enc)
         )
 }
 

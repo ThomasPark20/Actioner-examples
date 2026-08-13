@@ -1,0 +1,28 @@
+title: ShieldBreak Exploit - phoneinfo.dll Dropped in System32
+id: 8f4e2a1b-3c7d-4e9a-b6f5-2d0a1e8c7b4f
+status: experimental
+description: >
+    Detects creation of phoneinfo.dll in System32, a file that does not exist
+    by default in Windows. The ShieldBreak exploit abuses Defender's cloud
+    hydration scan via Cloud Filter API to swap a malicious phoneinfo.dll into
+    System32, which is subsequently loaded by wer.dll during QueueReporting
+    scheduled task execution to achieve SYSTEM privileges.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\System32\phoneinfo.dll'
+    condition: selection
+falsepositives:
+    - Unlikely - phoneinfo.dll does not exist by default in Windows
+level: critical

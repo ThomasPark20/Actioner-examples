@@ -1,0 +1,28 @@
+title: LiteLLM Supply Chain - Sysmon Backdoor Persistence
+id: 7b4e6d2a-1c8f-4a3e-9d5b-0f7c2e8a4b6d
+status: experimental
+description: >
+    Detects creation of the TeamPCP sysmon backdoor script or systemd service
+    used for persistence in the LiteLLM supply chain attack. The attacker
+    deploys sysmon.py to ~/.config/sysmon/ and a systemd user service named
+    sysmon.service that polls checkmarx.zone for secondary payloads.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1543.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_sysmon_script:
+        TargetFilename|endswith: '/.config/sysmon/sysmon.py'
+    selection_systemd_unit:
+        TargetFilename|endswith: '/.config/systemd/user/sysmon.service'
+    condition: selection_sysmon_script or selection_systemd_unit
+falsepositives:
+    - Legitimate Microsoft Sysmon for Linux installations use different paths
+level: high

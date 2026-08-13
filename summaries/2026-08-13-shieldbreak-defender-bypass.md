@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-13
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -11,7 +11,7 @@ On August 11-12, 2026, security researcher Chaotic Eclipse (also tracked as Nigh
 
 Unlike RoguePlanet, which exploited a filesystem race condition using virtual disk mounting and NT native file manipulation, ShieldBreak employs a fundamentally different attack vector: it abuses the Cloud Filter API (cfapi) user-mode callback hooks to manipulate file contents during a Defender cloud-hydration scan. The exploit combines CLFS (Common Log File System) log manipulation with Object Manager symbolic links to redirect Defender's scanning pipeline, ultimately causing the SYSTEM-privileged wermgr.exe process to load an attacker-controlled DLL (phoneinfo.dll) placed in System32. This is the eighth public exploit in an escalating campaign by this researcher against Microsoft Defender. No patch is available as of August 13, 2026.
 
-**Prior Actioner Coverage:** This report builds on [2026-06-10-defender-rogueplanet-zero-day.md](2026-06-10-defender-rogueplanet-zero-day.md), which covers the original RoguePlanet exploit (CVE-2026-50656) and the broader Nightmare Eclipse campaign history.
+**Prior Actioner Coverage:** This report builds on the [RoguePlanet Zero-Day Analysis (2026-06-10)](summaries/2026-06-10-defender-rogueplanet-zero-day.md) (internal Actioner report), which covers the original RoguePlanet exploit (CVE-2026-50656) and the broader Nightmare Eclipse campaign history.
 
 ## Background: CVE-2026-50656 and the RoguePlanet Patch
 
@@ -87,11 +87,13 @@ Process chain: QueueReporting scheduled task -> wermgr.exe (SYSTEM) -> wer.dll -
 
 ### File System
 
+> **Note:** SHA256 hashes are N/A because the ShieldBreak PoC is distributed as source code (C++ Visual Studio project); no pre-built binaries are published. Each compilation produces unique hashes. Warden.dll is the only pre-built binary in the repository but its hash varies across commits.
+
 | Platform | Path | Hash (SHA256) | Description |
 |----------|------|---------------|-------------|
 | Windows | ShieldBreak.exe | N/A (compile-from-source PoC) | ShieldBreak exploit binary (C++, Visual Studio project) |
-| Windows | Warden.dll | N/A | Malicious DLL payload dropped as phoneinfo.dll in System32 |
-| Windows | C:\Windows\System32\phoneinfo.dll | N/A | Attacker-placed DLL; file does not exist by default in Windows |
+| Windows | Warden.dll | N/A (binary varies across repo commits) | Malicious DLL payload dropped as phoneinfo.dll in System32 |
+| Windows | C:\Windows\System32\phoneinfo.dll | N/A (attacker-compiled artifact) | Attacker-placed DLL; file does not exist by default in Windows |
 | Windows | Report.wer | N/A | Windows Error Reporting artifact included in PoC repository |
 | Windows | eicar_com.zip | N/A | EICAR antivirus test file used to trigger Defender scan |
 
@@ -177,7 +179,7 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -FilterHashtable @{
 
 ## Detection Rules
 
-These detections target the ShieldBreak exploit chain at PoC/advisory-specific altitude. The rules cover the key exploit stages: malicious DLL placement, exploitation process chain, anomalous DLL co-loading pattern, and known exploit binary execution. Note: `sigma check` is unavailable in this environment (MITRE ATT&CK data fetch blocked by proxy); portability is proven via `sigma convert` to both Splunk and CrowdStrike LogScale.
+These detections target the ShieldBreak exploit chain at PoC/advisory-specific altitude, covering DLL placement, process chain, DLL loading anomaly, binary execution, and infrastructure indicators. Compiles does not mean fires -- verify in your pipeline. `sigma check` is unavailable (MITRE ATT&CK data fetch blocked by proxy); portability proven via `sigma convert` to Splunk and CrowdStrike LogScale.
 
 ### Sigma: ShieldBreak - phoneinfo.dll Dropped in System32
 Detects creation of phoneinfo.dll in System32 -- a file that does not exist by default in Windows, making its presence a definitive ShieldBreak indicator.
@@ -214,20 +216,20 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: ShieldBreak - wermgr.exe Spawning conhost.exe as SYSTEM
-Detects wermgr.exe spawning conhost.exe outside normal console host inheritance, the final exploitation step where the attacker-planted phoneinfo.dll executes with SYSTEM privileges.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. Filter excludes normal conhost inheritance (0xffffffff). wermgr.exe spawning conhost.exe without the standard console inheritance parameter is abnormal. Low FP expected. -->
+### Sigma: ShieldBreak - wermgr.exe Spawning conhost.exe
+Detects wermgr.exe spawning conhost.exe outside normal console host inheritance, the final exploitation step where the attacker-planted phoneinfo.dll executes. No User/IntegrityLevel filter -- pair with host context to confirm SYSTEM.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. Filter excludes normal conhost inheritance (0xffffffff). wermgr.exe spawning conhost.exe without the standard console inheritance parameter is uncommon but not impossible in legitimate WER edge cases. Downgraded from high to medium: title "as SYSTEM" removed because the rule has no User or IntegrityLevel condition to enforce that claim. -->
+<!-- revision: retitled (removed "as SYSTEM" — no User/IntegrityLevel filter); confidence high→medium per critic. -->
 ```yaml
-title: ShieldBreak Exploit - wermgr.exe Spawning conhost.exe as SYSTEM
+title: ShieldBreak Exploit - wermgr.exe Spawning conhost.exe
 id: 5a2b9c3d-7e8f-4d1a-b0c6-4f3e2d1a8b7c
 status: experimental
 description: >
-    Detects wermgr.exe spawning conhost.exe, which is the final exploitation
-    step of the ShieldBreak exploit. After the QueueReporting scheduled task
-    runs wermgr.exe -upload with highest privileges, wer.dll loads the
-    attacker-planted phoneinfo.dll from System32, which spawns conhost.exe
-    with SYSTEM privileges.
+    Detects wermgr.exe spawning conhost.exe outside normal console host
+    inheritance (0xffffffff). This is the final step of the ShieldBreak exploit
+    where wer.dll loads attacker-planted phoneinfo.dll, which spawns conhost.exe.
+    Pair with host context to confirm SYSTEM privilege level.
 references:
     - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
     - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
@@ -253,20 +255,20 @@ level: high
 ```
 
 ### Sigma: ShieldBreak - Non-Standard Process Loading MpClient.dll or cldapi.dll
-Detects processes outside Defender and System32 loading MpClient.dll or cldapi.dll, the library co-loading pattern identified by Kevin Beaumont as a ShieldBreak exploitation indicator.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. Based on Kevin Beaumont's MDE detection methodology. OR logic (either DLL) broadens this beyond the strict co-loading correlation — MDE KQL performs a 5-min temporal join on same device+PID which Sigma cannot express. FP: some third-party tools outside standard paths may load cldapi.dll legitimately. -->
+Detects a non-standard process loading MpClient.dll or cldapi.dll individually. Sigma cannot replicate Beaumont's KQL temporal join (both DLLs by same PID within 5 min); treat as hunt-only and pair with additional context.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. CRITICAL FIX: title previously said "Both" but condition is OR — fires on EITHER DLL loaded by non-standard process. cldapi.dll is loaded by OneDrive, backup tools, cloud sync apps — high FP on cldapi.dll alone. Sigma has no temporal-join primitive, so the KQL co-loading correlation cannot be replicated. Confidence downgraded to low. -->
+<!-- revision: retitled ("Both"→"or") to match OR condition; confidence medium→low; caveat added re Sigma temporal-join limitation vs KQL per critic. -->
 ```yaml
-title: ShieldBreak Exploit - Non-Standard Process Loading Both MpClient.dll and cldapi.dll
+title: ShieldBreak Exploit - Non-Standard Process Loading MpClient.dll or cldapi.dll
 id: 1e7f3a2b-9c4d-4b8e-a5d6-6f0c3e2d1a9b
 status: experimental
 description: >
-    Detects a non-standard process loading both MpClient.dll (Defender library)
-    and cldapi.dll (Cloud Filter API). This combination should not occur in
-    normal operations and indicates potential ShieldBreak exploitation where the
-    exploit binary interfaces with both Defender's scanning pipeline and the
-    Cloud Filter API to perform the cloud hydration scan file swap attack.
-    Based on Kevin Beaumont's ShieldBreak detection methodology.
+    Detects a non-standard process (outside Defender/System32/Program Files)
+    loading MpClient.dll or cldapi.dll. The OR condition is an approximation
+    of Kevin Beaumont's MDE co-loading detection — Sigma cannot express the
+    temporal join. High FP expected on cldapi.dll alone (OneDrive, cloud sync).
+    Hunt-only; pair with additional context.
 references:
     - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
     - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
@@ -295,14 +297,16 @@ detection:
             - 'C:\Program Files (x86)\'
     condition: (selection_mpclient or selection_cldapi) and not filter_defender and not filter_system
 falsepositives:
-    - Third-party security tools that legitimately interact with both Defender and Cloud Filter APIs
-level: high
+    - OneDrive, backup tools, and cloud sync applications loading cldapi.dll
+    - Third-party security tools loading MpClient.dll
+level: medium
 ```
 
 ### Sigma: ShieldBreak / Nightmare Eclipse Exploit Binary Execution
-Detects execution of the ShieldBreak exploit binary or related Nightmare Eclipse exploit tools by filename, covering the full tool family.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. Simple filename match — trivially evaded by rename, but catches unmodified PoC usage. Pair with the YARA rule for content-based detection. -->
+Detects execution of ShieldBreak or related Nightmare Eclipse exploit tools by filename. Trivially evaded by rename; pair with the YARA rule for content-based detection.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check unavailable (MITRE data fetch 403); splunk 0; log_scale 0; splunk_windows 0. Simple filename match — trivially evaded by rename. Family names like undef.exe could collide with unrelated binaries. Confidence downgraded from high to medium. -->
+<!-- revision: confidence high→medium per critic (rename evasion + undef.exe collision risk). -->
 ```yaml
 title: ShieldBreak Exploit Binary Execution
 id: 3d8e5f2a-1b4c-4a7d-9e6f-0c3a2b1d8e5f
@@ -341,11 +345,21 @@ level: critical
 ```
 
 ### Suricata: HTTP Request to Nightmare Eclipse Project Nightcrawler Infrastructure
-Detects HTTP requests to the projectnightcrawler[.]dev domain used for ShieldBreak exploit hosting and Nightmare Eclipse blog posts.
+Detects HTTP requests to the projectnightcrawler[.]dev domain. The .dev TLD is HSTS-preloaded so browsers enforce HTTPS; the http.host rule catches non-browser tools and the tls.sni companion below covers browser/HTTPS traffic.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Matches HTTP host header containing "projectnightcrawler.dev". Domain is researcher-controlled infrastructure used for exploit distribution after GitHub/GitLab takedowns. Will rotate if researcher changes infrastructure. -->
+<!-- audit: suricata -T exit 0. Matches HTTP host header containing "projectnightcrawler.dev". Domain is researcher-controlled infrastructure used for exploit distribution. .dev TLD is HSTS-preloaded so browsers will use HTTPS — http.host won't match HTTPS traffic. The tls.sni companion rule (sid:2200011) covers that case. Will rotate if researcher changes infrastructure. -->
+<!-- revision: added tls.sni companion rule (sid:2200011) per critic advisory; added .dev HSTS caveat. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to Nightmare Eclipse Project Nightcrawler Infrastructure"; flow:established,to_server; http.host; content:"projectnightcrawler.dev"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html; metadata:author Actioner, created_at 2026-08-13; sid:2200010; rev:1;)
+```
+
+### Suricata: TLS SNI to Nightmare Eclipse Project Nightcrawler Infrastructure
+Detects TLS connections with SNI matching the projectnightcrawler[.]dev domain, covering HTTPS traffic that the HTTP host rule cannot see.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T exit 0. Companion to sid:2200010 — covers HTTPS/TLS traffic via SNI inspection. Required because .dev is HSTS-preloaded and browsers enforce HTTPS. -->
+<!-- revision: new rule added per critic advisory (tls.sni companion for .dev HSTS). -->
+```suricata
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Nightmare Eclipse Project Nightcrawler Infrastructure"; flow:established,to_server; tls.sni; content:"projectnightcrawler.dev"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html; metadata:author Actioner, created_at 2026-08-13; sid:2200011; rev:1;)
 ```
 
 ### Snort: N/A
@@ -353,8 +367,9 @@ ShieldBreak is a local privilege escalation exploit with no distinctive network-
 
 ### YARA: ShieldBreak Exploit Tool
 Detects PE files containing Cloud Filter API imports, ShieldBreak-specific strings, and Defender/WER target paths characteristic of the ShieldBreak exploit tool.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos_shieldbreak.txt: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.txt: no match. Positive sample constructed from published PoC repository strings (CfRegisterSyncRoot, CfConnectSyncRoot, cldapi.dll, ShieldBreak, phoneinfo.dll, Warden.dll, System32 path). Condition: PE + size<10MB + (2 cfapi APIs + 1 lib + 1 distinctive string) OR (ShieldBreak + path) OR (phoneinfo.dll + 2 APIs) OR (3 of the most distinctive strings). -->
+**Status:** compile ✅ compiles · confidence: medium · sample: constructed
+<!-- audit: yarac exit 0. yara pos_shieldbreak.txt: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.txt: no match. Positive sample constructed (not a confirmed upstream binary — PoC is source-only) from published PoC repository strings. First condition branch tightened: now requires 2 cfapi APIs + 1 lib + 1 DISTINCTIVE string ($str1-$str5 only, excluding common $str6/$str7) to avoid FP from generic "wermgr" or "QueueReporting" matches combined with common ntdll.dll. -->
+<!-- revision: sample label "fired"→"constructed" (synthetic sample, not upstream binary); confidence high→medium; first condition branch tightened to require distinctive $str* only per critic. -->
 ```yara
 rule Exploit_ShieldBreak_Defender_LPE
 {
@@ -382,8 +397,6 @@ rule Exploit_ShieldBreak_Defender_LPE
         $str3 = "Warden.dll" ascii wide nocase
         $str4 = "Nightmare" ascii wide
         $str5 = "IHATEMICROSOFT" ascii wide
-        $str6 = "QueueReporting" ascii wide
-        $str7 = "wermgr" ascii wide nocase
 
         $path1 = "Windows\\system32\\phoneinfo.dll" ascii wide nocase
         $path2 = "ProgramData\\Microsoft\\Windows Defender" ascii wide nocase
@@ -392,7 +405,7 @@ rule Exploit_ShieldBreak_Defender_LPE
         uint16(0) == 0x5A4D and
         filesize < 10MB and
         (
-            (2 of ($api*) and 1 of ($lib*) and 1 of ($str*)) or
+            (2 of ($api*) and 1 of ($lib*) and 1 of ($str1, $str2, $str3, $str4, $str5)) or
             ($str1 and 1 of ($path*)) or
             ($str2 and 2 of ($api*)) or
             (3 of ($str1, $str2, $str3, $str5))
@@ -420,7 +433,7 @@ rule Exploit_ShieldBreak_Defender_LPE
 - [The Hacker News - Microsoft Patches RoguePlanet Defender Flaw](https://thehackernews.com/2026/07/microsoft-patches-rogueplanet-defender.html) -- July 2026 CVE-2026-50656 patch details (engine v1.1.26060.3008)
 - [CSO Online - Researcher bypasses Microsoft Defender patch](https://www.csoonline.com/article/4208760/researcher-bypasses-microsoft-defender-security-patch-seizing-control.html) -- Brian Levine analysis on SYSTEM shell detection
 - [Cyber Kendra - ShieldBreak PoC Bypasses Microsoft's RoguePlanet Defender Fix](https://www.cyberkendra.com/2026/08/shieldbreak-poc-bypasses-microsofts.html) -- repository file inventory (Warden.dll, Report.wer, eicar_com.zip) and QueueReporting scheduled task details
-- [Actioner - RoguePlanet Zero-Day Analysis (2026-06-10)](2026-06-10-defender-rogueplanet-zero-day.md) -- prior Actioner coverage of the original CVE-2026-50656 exploit and Nightmare Eclipse campaign history
+- [Actioner - RoguePlanet Zero-Day Analysis (2026-06-10)](summaries/2026-06-10-defender-rogueplanet-zero-day.md) -- prior Actioner coverage of the original CVE-2026-50656 exploit and Nightmare Eclipse campaign history (internal report; link is repo-relative)
 
 ---
 *Report generated by Actioner*

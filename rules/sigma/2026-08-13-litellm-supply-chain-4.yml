@@ -1,0 +1,27 @@
+title: LiteLLM Supply Chain - C2 Domain DNS Query
+id: d2e8f4a6-3b9c-4d1e-a7f5-6c0b8e2d4a9f
+status: experimental
+description: >
+    Detects DNS queries to the attacker-controlled C2 domains used in the
+    LiteLLM/TeamPCP supply chain attack for credential exfiltration and
+    secondary payload delivery.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'models.litellm.cloud'
+            - 'checkmarx.zone'
+            - 'scan.aquasecurtiy.org'
+    condition: selection
+falsepositives:
+    - None expected - these are attacker-controlled domains
+level: critical

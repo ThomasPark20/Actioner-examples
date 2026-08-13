@@ -1,0 +1,9 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM TeamPCP Exfiltration to models.litellm.cloud"; flow:established,to_server; http.host; content:"models.litellm.cloud"; http.method; content:"POST"; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-13; sid:2200001; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM TeamPCP C2 Polling checkmarx.zone"; flow:established,to_server; http.host; content:"checkmarx.zone"; http.uri; content:"/raw"; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-13; sid:2200002; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM TeamPCP DNS Query to Exfil Domain"; dns.query; content:"models.litellm.cloud"; nocase; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-13; sid:2200003; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM TeamPCP DNS Query to C2 Domain"; dns.query; content:"checkmarx.zone"; nocase; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-13; sid:2200004; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - TeamPCP DNS Query to Typosquat Aqua Security"; dns.query; content:"scan.aquasecurtiy.org"; nocase; classtype:trojan-activity; reference:url,www.kaspersky.com/blog/critical-supply-chain-attack-trivy-litellm-checkmarx-teampcp/55510/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-13; sid:2200005; rev:1;)

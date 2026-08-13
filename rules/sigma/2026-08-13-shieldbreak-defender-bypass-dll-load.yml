@@ -1,0 +1,40 @@
+title: ShieldBreak Exploit - Non-Standard Process Loading MpClient.dll or cldapi.dll
+id: 1e7f3a2b-9c4d-4b8e-a5d6-6f0c3e2d1a9b
+status: experimental
+description: >
+    Detects a non-standard process (outside Defender/System32/Program Files)
+    loading MpClient.dll or cldapi.dll. The OR condition is an approximation
+    of Kevin Beaumont's MDE co-loading detection -- Sigma cannot express the
+    temporal join. High FP expected on cldapi.dll alone (OneDrive, cloud sync).
+    Hunt-only; pair with additional context.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/GossiTheDog/ThreatHunting/blob/master/AdvancedHuntingQueries/ShieldBreak.kql
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1068
+    - attack.t1562.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_mpclient:
+        ImageLoaded|endswith: '\MpClient.dll'
+    selection_cldapi:
+        ImageLoaded|endswith: '\cldapi.dll'
+    filter_defender:
+        Image|contains:
+            - '\Windows Defender\'
+            - '\Microsoft\Windows Defender\'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: (selection_mpclient or selection_cldapi) and not filter_defender and not filter_system
+falsepositives:
+    - OneDrive, backup tools, and cloud sync applications loading cldapi.dll
+    - Third-party security tools loading MpClient.dll
+level: medium

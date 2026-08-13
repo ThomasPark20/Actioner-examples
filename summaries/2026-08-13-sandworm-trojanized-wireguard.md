@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-13
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -251,18 +251,20 @@ level: high
 ```
 
 ### Sigma: Scheduled Task Created by WireGuard-Spawned PowerShell
-Detects schtasks.exe creating a scheduled task from a PowerShell process whose command line references WireGuard/SopraVPN/SymmetricKey, matching the UAC-0145 Windows persistence mechanism.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (excluding attacktag); splunk convert 0; log_scale convert 0. Relies on ParentCommandLine containing campaign-specific strings; requires Sysmon or enhanced audit policy logging command lines. ParentCommandLine is populated in Sysmon EID 1 but not always in native 4688 without extra config. -->
+Detects schtasks.exe creating a scheduled task from a PowerShell parent process, consistent with the UAC-0145 Windows persistence chain; pair with the WireGuard-spawns-PowerShell rule above for campaign attribution.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0 (excluding attacktag due to env network restriction on MITRE data fetch); splunk convert 0; log_scale convert 0. ParentImage endswith matching is standard for Sysmon EID 1. -->
+<!-- revision: removed speculative selection_grandparent (ParentCommandLine contains wireguard/SopraVPN/SymmetricKey) — no evidence CERT-UA published those command-line artifacts. Rule now matches PowerShell→schtasks /create only; broader but honest. Confidence downgraded high→medium per critic. -->
 ```yaml
 title: Scheduled Task Created by WireGuard-Spawned PowerShell
 id: 9b2d4f8c-5a3e-4b0f-c6d9-e7f8a1b2c3d4
 status: experimental
 description: >
-    Detects schtasks.exe or PowerShell creating a scheduled task with a parent
-    chain involving WireGuard or SopraVPN, consistent with UAC-0145 Windows
-    persistence where the trojanized VPN client executes PowerShell that creates
-    a scheduled task to download secondary payloads.
+    Detects schtasks.exe creating a scheduled task with PowerShell as the parent
+    process, consistent with UAC-0145 Windows persistence where the trojanized
+    VPN client executes PowerShell that creates a scheduled task to download
+    secondary payloads. Broader than the WireGuard-spawns-PowerShell rule;
+    pair with that anchor for campaign attribution.
 references:
     - https://cert.gov.ua/article/6318863
     - https://thehackernews.com/2026/08/sandworm-linked-uac-0145-uses-fake-job.html
@@ -281,15 +283,11 @@ detection:
         ParentImage|endswith:
             - '\powershell.exe'
             - '\pwsh.exe'
-    selection_grandparent:
-        ParentCommandLine|contains:
-            - 'wireguard'
-            - 'SopraVPN'
-            - 'SymmetricKey'
-    condition: selection_schtasks and selection_grandparent
+    condition: selection_schtasks
 falsepositives:
-    - Legitimate WireGuard PostUp scripts that create scheduled tasks for network maintenance
-level: high
+    - Legitimate PowerShell scripts creating scheduled tasks for administrative purposes
+    - Software installation routines that use PowerShell to register scheduled tasks
+level: medium
 ```
 
 ### Sigma: DNS Query to UAC-0145 SopraVPN Campaign Infrastructure
@@ -359,9 +357,10 @@ alert dns $HOME_NET any -> any any (
 ```
 
 ### Suricata: HTTP Request to Malicious SourceForge VPN Project
-Detects HTTP requests to SourceForge projects used by UAC-0145 to host the trojanized SopraVPN client (soprabulgariavpn, sopravpn, soprasteriavpn).
+Detects HTTP requests to the three specific SourceForge project slugs used by UAC-0145 to host the trojanized SopraVPN client.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Warning: removed nocase from http.host (Suricata normalizes to lowercase). URI prefix /projects/sopra is broad enough to catch all three project names (soprabulgariavpn, sopravpn, soprasteriavpn) while host constraint limits to sourceforge.net. Legitimate SourceForge projects starting with "sopra" are theoretically possible but unlikely in practice for this URI prefix. -->
+<!-- audit: suricata -T exit 0. Uses content "/projects/sopra" as fast_pattern prefilter, then PCRE anchors to exact project slugs (soprabulgariavpn|sopravpn|soprasteriavpn) followed by / or end-of-path. Eliminates false positives on unrelated SourceForge projects starting with "sopra". -->
+<!-- revision: added PCRE for exact slug matching — original prefix-only content "/projects/sopra" matched unrelated SourceForge projects (soprano, sopra-banking, etc). Confidence restored to high with precise matching. rev bumped 1→2. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (
     msg:"Actioner - HTTP Request to UAC-0145 Malicious SourceForge VPN Project";
@@ -370,11 +369,12 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
     content:"sourceforge.net";
     http.uri;
     content:"/projects/sopra"; fast_pattern;
+    pcre:"/\/projects\/(soprabulgariavpn|sopravpn|soprasteriavpn)(\/|$)/";
     classtype:trojan-activity;
     reference:url,cert.gov.ua/article/6318863;
     metadata:author Actioner, created_at 2026-08-13;
     sid:2200002;
-    rev:1;
+    rev:2;
 )
 ```
 
