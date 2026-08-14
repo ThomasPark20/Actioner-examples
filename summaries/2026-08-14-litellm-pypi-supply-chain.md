@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-14
-Version: 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -126,7 +126,7 @@ The payload deployed privileged pods for lateral movement:
 > **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through:
 > - URLs: `hxxps://` or `hxxp://` (e.g., `hxxps://evil[.]com/payload`)
 > - Domains: `[.]` replacing dots (e.g., `evil[.]com`, `c2[.]attacker[.]net`)
-> - IP addresses: `[.]` replacing dots (e.g., `1.2.3[.]4`, `192.168[.]1[.]100`)
+> - IP addresses: `[.]` replacing all dots (e.g., `83[.]142[.]209[.]203`)
 > - Email addresses: `[at]` replacing @ (e.g., `attacker[at]evil[.]com`)
 
 ### Package / Software Level
@@ -194,7 +194,7 @@ The payload deployed privileged pods for lateral movement:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Poisoned LiteLLM PyPI packages 1.82.7/1.82.8 published via stolen publishing token |
-| T1547.013 | Boot or Logon Initialization Scripts: XDG Autostart Entries | `.pth` file executed at Python interpreter startup, running malicious code before any application logic |
+| T1546 | Event Triggered Execution | `.pth` file executed at Python interpreter startup, running malicious code before any application logic |
 | T1059.006 | Command and Scripting Interpreter: Python | Malicious payload executed via Python subprocess spawning and base64-decoded execution |
 | T1543.002 | Create or Modify System Process: Systemd Service | sysmon.service installed as user systemd unit for persistent C2 polling |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvested SSH keys, cloud credentials, API keys, database configs, and wallet files from disk |
@@ -299,7 +299,7 @@ references:
 author: Actioner
 date: 2026-08-14
 tags:
-    - attack.t1547.013
+    - attack.t1546
     - attack.t1059.006
 logsource:
     category: file_event
@@ -313,7 +313,7 @@ falsepositives:
 level: critical
 ```
 
-<!-- audit: sigma check failed due to MITRE ATT&CK data fetch blocked by proxy (HTTP 403), not a rule syntax issue. sigma convert --without-pipeline -t splunk produced: TargetFilename="*litellm_init.pth". sigma convert --without-pipeline -t log_scale produced: TargetFilename=/litellm_init\.pth$/i. Both conversions confirm valid syntax and field mappings. -->
+<!-- audit: sigma convert --without-pipeline -t splunk and -t log_scale both succeeded. ATT&CK tag corrected from T1547.013 (XDG Autostart Entries) to T1546 (Event Triggered Execution) to accurately reflect Python .pth startup hook abuse. -->
 
 ### Sigma: TeamPCP Sysmon Persistence Service Installation
 
@@ -427,7 +427,7 @@ level: critical
 ### Sigma: Installation of Compromised LiteLLM Package Version
 
 Detects pip install commands targeting the known-compromised LiteLLM versions.
-compile: pass (sigma convert splunk/logscale succeeded) | confidence: medium
+compile: pass (sigma convert splunk/logscale succeeded) | confidence: medium | note: only detects installs explicitly specifying version 1.82.7 or 1.82.8
 
 ```yaml
 title: Installation of Compromised LiteLLM Package Version
@@ -445,22 +445,30 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection_pip:
+    selection_pip_binary:
         Image|endswith:
             - '/pip'
             - '/pip3'
+    selection_pip_module:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+        CommandLine|contains:
+            - '-m pip'
+    selection_package:
         CommandLine|contains: 'litellm'
     selection_version:
         CommandLine|contains:
             - '1.82.7'
             - '1.82.8'
-    condition: selection_pip and selection_version
+    condition: (selection_pip_binary or selection_pip_module) and selection_package and selection_version
 falsepositives:
     - Forensic analysis or testing of the compromised versions in isolated environments
-level: critical
+    - Unpinned pip install commands (without explicit version) will not be detected by this rule
+level: high
 ```
 
-<!-- audit: sigma check failed due to MITRE ATT&CK data fetch blocked by proxy (HTTP 403), not a rule syntax issue. sigma convert --without-pipeline -t splunk produced: Image IN ("*/pip", "*/pip3") CommandLine="*litellm*" CommandLine IN ("*1.82.7*", "*1.82.8*"). Both conversions confirm valid syntax. Medium confidence because most pip installs use python -m pip rather than calling pip directly, and unpinned installs would not contain the version string. -->
+<!-- audit: sigma convert --without-pipeline -t splunk and -t log_scale both succeeded. Rule now covers both direct pip/pip3 binaries and python -m pip invocations. Medium confidence because unpinned pip install commands (without explicit version string) will not be detected. Level downgraded from critical to high to reflect this detection gap. -->
 
 ### Sigma: TeamPCP Exfiltration Staging Files Created
 
@@ -487,18 +495,16 @@ detection:
     selection:
         TargetFilename:
             - '/tmp/tpcp.tar.gz'
-            - '/tmp/session.key'
             - '/tmp/payload.enc'
             - '/tmp/session.key.enc'
             - '/tmp/.pg_state'
-            - '/tmp/pglog'
     condition: selection
 falsepositives:
-    - Legitimate PostgreSQL log files named pglog (unlikely in /tmp)
+    - Unlikely; file names tpcp.tar.gz, payload.enc, and session.key.enc are distinctive to this campaign
 level: high
 ```
 
-<!-- audit: sigma check failed due to MITRE ATT&CK data fetch blocked by proxy (HTTP 403), not a rule syntax issue. sigma convert --without-pipeline -t splunk produced: TargetFilename IN ("/tmp/tpcp.tar.gz", "/tmp/session.key", "/tmp/payload.enc", "/tmp/session.key.enc", "/tmp/.pg_state", "/tmp/pglog"). Both conversions confirm valid syntax. -->
+<!-- audit: sigma convert --without-pipeline -t splunk and -t log_scale both succeeded. Generic paths /tmp/session.key (OpenSSL) and /tmp/pglog (PostgreSQL) removed to reduce false positives; retained only the four campaign-distinctive paths. -->
 
 ### YARA: TeamPCP LiteLLM Malicious Payload and Sysmon Backdoor
 
@@ -518,22 +524,25 @@ rule TeamPCP_LiteLLM_Malicious_PTH_Payload
         hash_sysmon = "6cf223aea68b0e8031ff68251e30b6017a0513fe152e235c26f248ba1e15c92a"
 
     strings:
-        $pth_file = "litellm_init.pth" ascii
-        $exfil_domain = "models.litellm.cloud" ascii
-        $c2_domain = "checkmarx.zone" ascii
-        $tpcp_marker = "tpcp.tar.gz" ascii
-        $team_name = "TeamPCP" ascii nocase
-        $sysmon_path = ".config/sysmon/sysmon.py" ascii
-        $sysmon_svc = "sysmon.service" ascii
-        $rsa_key_prefix = "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvahaZDo8mucujrT15ry+" ascii
-        $x_filename = "X-Filename: tpcp.tar.gz" ascii
-        $pgstate = "/tmp/.pg_state" ascii
-        $pglog = "/tmp/pglog" ascii
-        $env_harvest1 = "OPENAI_API_KEY" ascii
-        $env_harvest2 = "ANTHROPIC_API_KEY" ascii
+        // Campaign-specific indicators (unique to TeamPCP)
+        $specific_pth = "litellm_init.pth" ascii
+        $specific_exfil = "models.litellm.cloud" ascii
+        $specific_c2 = "checkmarx.zone" ascii
+        $specific_tpcp = "tpcp.tar.gz" ascii
+        $specific_team = "TeamPCP" ascii nocase
+        $specific_rsa = "MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAvahaZDo8mucujrT15ry+" ascii
+        $specific_xfn = "X-Filename: tpcp.tar.gz" ascii
+        $specific_sysmon = ".config/sysmon/sysmon.py" ascii
+
+        // Generic indicators (may appear in legitimate AI/ML software)
+        $generic_svc = "sysmon.service" ascii
+        $generic_pgstate = "/tmp/.pg_state" ascii
+        $generic_pglog = "/tmp/pglog" ascii
+        $generic_openai = "OPENAI_API_KEY" ascii
+        $generic_anthropic = "ANTHROPIC_API_KEY" ascii
 
     condition:
-        3 of them
+        1 of ($specific_*) and 3 of them
 }
 
 rule TeamPCP_LiteLLM_Sysmon_Backdoor
@@ -557,7 +566,9 @@ rule TeamPCP_LiteLLM_Sysmon_Backdoor
 }
 ```
 
-<!-- audit: yarac compiled both rules to /dev/null without errors or warnings. Rule TeamPCP_LiteLLM_Malicious_PTH_Payload uses 3-of-13 threshold on highly specific TeamPCP strings including RSA key prefix, exfil domain, and tpcp marker -- low FP risk. Rule TeamPCP_LiteLLM_Sysmon_Backdoor requires logical combinations of C2 domain + kill switch or persistence indicators. The $kill_switch string "youtube" alone is benign but only matches in combination with C2 or persistence strings. -->
+<!-- audit: yarac compiled both rules to /dev/null without errors or warnings. Rule TeamPCP_LiteLLM_Malicious_PTH_Payload uses tiered string matching: requires at least 1 campaign-specific string ($specific_*) plus 3 total matches, preventing false positives from generic strings like OPENAI_API_KEY or ANTHROPIC_API_KEY that appear in legitimate AI/ML projects. Rule TeamPCP_LiteLLM_Sysmon_Backdoor requires logical combinations of C2 domain + kill switch or persistence indicators. -->
+
+**TLS Inspection Required:** All six network detection rules below (Snort and Suricata) inspect HTTP-layer content and will only match if TLS decryption/SSL inspection is deployed in the traffic path, since the attacker's C2 and exfiltration endpoints use HTTPS.
 
 ### Snort: TeamPCP Network Exfiltration Detection
 
@@ -613,6 +624,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE TeamPCP X-Filename t
 - [GitGuardian - Trivy's March Supply Chain Attack Shows Where Secret Exposure Hurts Most](https://blog.gitguardian.com/trivys-march-supply-chain-attack-shows-where-secret-exposure-hurts-most/) -- Analysis of root cause credential exposure patterns
 - [Netenrich - LiteLLM PyPI Supply Chain Attack: What Happened & How to Fix It](https://netenrich.com/blog/litellm-pypi-supply-chain-attack) -- Practitioner-focused remediation guide
 - [HeroDevs - The LiteLLM Supply Chain Attack](https://www.herodevs.com/blog-posts/the-litellm-supply-chain-attack-what-happened-why-it-matters-and-what-to-do-next) -- Impact analysis and organizational response guidance
+
+<!-- revision: v1.1 2026-08-14 — Fixed ATT&CK mapping T1547.013→T1546 (Event Triggered Execution) in Sigma PTH rule and MITRE table. Sigma pip install rule: added python -m pip coverage, downgraded critical→high, noted unpinned-install detection gap. Sigma staging files rule: removed generic paths /tmp/session.key and /tmp/pglog to reduce false positives. YARA PTH payload rule: tiered strings into specific/generic, changed condition from 3-of-13 to 1-specific+3-total. Added visible TLS inspection caveat for Snort/Suricata rules. Aligned IP defanging example with actual report convention. All changed rules re-validated with sigma convert and yarac. -->
 
 ---
 *Report generated by Actioner*
