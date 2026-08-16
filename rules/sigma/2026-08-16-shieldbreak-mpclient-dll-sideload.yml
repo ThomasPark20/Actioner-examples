@@ -1,0 +1,38 @@
+title: Suspicious MpClient.dll Load from Non-Standard Path
+id: 8f4e2c1a-3b7d-4e9a-a6c5-2d1f0e8b7a3c
+status: experimental
+description: >
+    Detects a non-standard process loading MpClient.dll (Windows Defender client API)
+    from outside expected Defender and system directories. In the ShieldBreak exploit,
+    the attacker binary loads MpClient.dll to programmatically trigger a Defender scan
+    on the rogue cloud-hydration placeholder file, initiating the SYSTEM privilege
+    escalation chain via CVE-2026-50656 bypass.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/ShieldBreak
+    - https://github.com/GossiTheDog/ThreatHunting/blob/master/AdvancedHuntingQueries/ShieldBreak.kql
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\MpClient.dll'
+    filter_defender:
+        Image|startswith:
+            - 'C:\ProgramData\Microsoft\Windows Defender\'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_defender and not filter_system
+falsepositives:
+    - Third-party EDR or security tools that load Defender client APIs
+    - Security assessment tools interacting with Defender programmatically
+level: high

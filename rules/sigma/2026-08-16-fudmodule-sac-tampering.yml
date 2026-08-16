@@ -1,0 +1,25 @@
+title: FudModule Rootkit Smart App Control Tampering via Registry
+id: ad6f4b2c-7e5a-4bd9-e8a3-24b1ca06d5a7
+status: experimental
+description: >
+    Detects modification of the VerifiedAndReputablePolicyState registry value
+    to zero, a technique used by FudModule v3.1 rootkit deployed by Lazarus
+    Group to disable Smart App Control after CVE-2026-68820 exploitation.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1562.001
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Control\CI\Policy\VerifiedAndReputablePolicyState'
+        Details: 'DWORD (0x00000000)'
+    condition: selection
+falsepositives:
+    - Administrative changes to Smart App Control policy settings
+level: critical

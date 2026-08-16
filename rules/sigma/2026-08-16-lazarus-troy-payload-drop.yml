@@ -1,0 +1,24 @@
+title: Lazarus Troy Backdoor Payload Drop to TEMP Directory
+id: 9c5e3a1f-6b4d-4ac8-d7f2-13a0b9e5c4f6
+status: experimental
+description: >
+    Detects creation of new.exe in the user TEMP directory, consistent with
+    the SecurityPDF trojanized viewer extracting the Troy backdoor loader
+    after XOR-decrypting the payload from a malicious PDF document.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1105
+    - attack.t1204.002
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Temp\new.exe'
+    condition: selection
+falsepositives:
+    - Legitimate installers or updaters that write new.exe to temp directories
+level: medium
