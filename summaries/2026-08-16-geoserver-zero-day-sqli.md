@@ -199,6 +199,7 @@ These detections target the GeoServer jsonArrayContains SQL injection attack vec
 
 ### Sigma: GeoServer jsonArrayContains SQL Injection Attempt
 
+<!-- revision: replaced bare '--' with ')--' in selection_injection_markers to avoid matching innocuous double-hyphens -->
 Detects HTTP requests to GeoServer OGC endpoints with `jsonArrayContains` in `CQL_FILTER` combined with SQL injection markers (quote breakout, stacked queries, `pg_sleep`, `COPY TO PROGRAM`).
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed (MITRE ATT&CK data fetch 403 — proxy/env issue, not rule issue); sigma convert splunk exit 0; sigma convert log_scale exit 0. Values are real (not defanged). FP risk: extremely low — legitimate jsonArrayContains values do not contain SQL breakout sequences. Evasion: double-URL-encoding or case variation of SQL keywords could bypass; add additional encoded variants if observed. -->
@@ -233,7 +234,6 @@ detection:
         cs-uri-query|contains|all:
             - 'jsonArrayContains'
             - 'CQL_FILTER'
-<!-- revision: replaced bare '--' with ')--' to avoid matching innocuous double-hyphens -->
     selection_injection_markers:
         cs-uri-query|contains:
             - "x')"
