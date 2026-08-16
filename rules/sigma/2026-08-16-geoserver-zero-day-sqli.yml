@@ -1,0 +1,42 @@
+title: GeoServer jsonArrayContains SQL Injection Attempt via OWS/WFS
+id: c4a7e1b3-9f2d-4d6a-8e5c-3b1a0f7d9c2e
+status: experimental
+description: >
+    Detects HTTP requests to GeoServer OWS/WFS endpoints containing the
+    jsonArrayContains function within CQL_FILTER parameters combined with
+    SQL injection patterns (quote breakout, stacked queries, pg_sleep,
+    COPY TO PROGRAM). This targets the GHSA-mqjf-5f49-2fjh zero-day
+    regression of CVE-2023-25158 in gt-jdbc-postgis.
+references:
+    - https://github.com/geotools/geotools/security/advisories/GHSA-mqjf-5f49-2fjh
+    - https://thehackernews.com/2026/08/unpatched-geoserver-zero-day-targeted.html
+    - https://www.securityweek.com/hackers-exploiting-unpatched-geoserver-zero-day/
+author: Actioner
+date: 2026-08-16
+tags:
+    - attack.t1190
+    - attack.t1059
+logsource:
+    category: webserver
+detection:
+    selection_endpoint:
+        cs-uri-stem|contains:
+            - '/geoserver/ows'
+            - '/geoserver/wfs'
+            - '/geoserver/wms'
+    selection_sqli:
+        cs-uri-query|contains|all:
+            - 'jsonArrayContains'
+            - 'CQL_FILTER'
+    selection_injection_markers:
+        cs-uri-query|contains:
+            - "x')"
+            - 'pg_sleep'
+            - 'COPY%20'
+            - 'TO%20PROGRAM'
+            - "')--"
+            - '%27%29'
+    condition: selection_endpoint and selection_sqli and selection_injection_markers
+falsepositives:
+    - Legitimate use of jsonArrayContains with values containing SQL-like syntax is extremely unlikely
+level: high

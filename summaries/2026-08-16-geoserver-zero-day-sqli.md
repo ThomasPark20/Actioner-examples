@@ -1,9 +1,9 @@
 # Technical Analysis Report: GeoServer jsonArrayContains SQL Injection Zero-Day (2026-08-16)
 
 Prepared by: Actioner
-Classification: DRAFT
+Classification: FINAL
 Date: 2026-08-16
-Version: 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -143,8 +143,10 @@ No file-system IOCs have been documented for this vulnerability at this time. Po
 | T1190 | Exploit Public-Facing Application | SQL injection via unauthenticated OGC filter endpoint on internet-facing GeoServer |
 | T1059 | Command and Scripting Interpreter | OS command execution via PostgreSQL `COPY TO PROGRAM` after SQL injection |
 | T1059.004 | Unix Shell | Linux command execution through PostgreSQL service user context |
-| T1046 | Network Service Scanning | Mass probing of internet-exposed GeoServer instances to identify vulnerable systems |
-| T1589 | Gather Victim Identity Information | Time-based blind SQL extraction of database contents character-by-character |
+<!-- revision: T1046→T1595.002 per critic — mass internet probing is Reconnaissance/Active Scanning, not post-access Discovery -->
+| T1595.002 | Active Scanning: Vulnerability Scanning | Mass probing of internet-exposed GeoServer instances to identify vulnerable systems |
+<!-- revision: T1589→T1005 per critic — blind SQL data extraction is Collection, not pre-targeting identity research -->
+| T1005 | Data from Local System | Time-based blind SQL extraction of database contents character-by-character |
 
 ## Impact Assessment
 
@@ -231,13 +233,14 @@ detection:
         cs-uri-query|contains|all:
             - 'jsonArrayContains'
             - 'CQL_FILTER'
+<!-- revision: replaced bare '--' with ')--' to avoid matching innocuous double-hyphens -->
     selection_injection_markers:
         cs-uri-query|contains:
             - "x')"
             - 'pg_sleep'
             - 'COPY%20'
             - 'TO%20PROGRAM'
-            - '--'
+            - "')--"
             - '%27%29'
     condition: selection_endpoint and selection_sqli and selection_injection_markers
 falsepositives:
@@ -294,11 +297,12 @@ alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - GeoServer 
 
 ### Suricata: GeoServer jsonArrayContains SQLi Attempt
 
-Detects inbound HTTP traffic to GeoServer containing `jsonArrayContains` combined with URL-encoded single-quote breakout in the URI, using Suricata's `http.uri` sticky buffer for precise HTTP-layer matching.
+Detects inbound HTTP traffic to GeoServer containing `jsonArrayContains` combined with URL-encoded single-quote breakout in the URI, using Suricata's `http.uri.raw` sticky buffer for raw (non-decoded) matching.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0 (Suricata 7.0.3). Dot-notation http.uri buffer used. Content matches: /geoserver/, jsonArrayContains (nocase, fast_pattern), CQL_FILTER (nocase), %27%29. FP: near-zero. Evasion: double-encoding, HTTP/2 multiplexing. -->
+<!-- revision: switched http.uri → http.uri.raw so percent-encoded %27%29 matches against the raw URI; http.uri decodes to ') via libhtp, causing the %27%29 content match to never fire -->
+<!-- audit: suricata -T exit 0 (Suricata 7.0.3). Dot-notation http.uri.raw buffer used. Content matches: /geoserver/, jsonArrayContains (nocase, fast_pattern), CQL_FILTER (nocase), %27%29. FP: near-zero. Evasion: double-encoding, HTTP/2 multiplexing. -->
 ```suricata
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - GeoServer jsonArrayContains SQLi Attempt (GHSA-mqjf-5f49-2fjh)"; flow:established,to_server; http.uri; content:"/geoserver/"; content:"jsonArrayContains"; nocase; fast_pattern; content:"CQL_FILTER"; nocase; content:"%27%29"; classtype:web-application-attack; reference:url,github.com/geotools/geotools/security/advisories/GHSA-mqjf-5f49-2fjh; metadata:author Actioner, created_at 2026-08-16; sid:2200010; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - GeoServer jsonArrayContains SQLi Attempt (GHSA-mqjf-5f49-2fjh)"; flow:established,to_server; http.uri.raw; content:"/geoserver/"; content:"jsonArrayContains"; nocase; fast_pattern; content:"CQL_FILTER"; nocase; content:"%27%29"; classtype:web-application-attack; reference:url,github.com/geotools/geotools/security/advisories/GHSA-mqjf-5f49-2fjh; metadata:author Actioner, created_at 2026-08-16; sid:2200010; rev:2;)
 ```
 
 ### YARA: N/A
