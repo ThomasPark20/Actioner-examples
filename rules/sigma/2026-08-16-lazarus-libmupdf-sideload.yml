@@ -1,0 +1,29 @@
+title: Lazarus Operation Dream Job DLL Sideloading via libmupdf.dll
+id: 8b4d2f0e-5a3c-49b7-c6e1-02f9a8d4b3e5
+status: experimental
+description: >
+    Detects DLL sideloading of libmupdf.dll, a technique used by Lazarus Group
+    in Operation Dream Job to load MISTPEN downloader via a trojanized MuPDF
+    PDF viewer component targeting defense and aerospace organizations.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+    - https://thehackernews.com/2026/08/lazarus-exploits-windows-zero-day-to.html
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1574.002
+    - attack.t1204.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\libmupdf.dll'
+    filter_legitimate:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\MuPDF\'
+            - 'C:\Program Files (x86)\MuPDF\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate MuPDF installations in non-standard paths
+level: high

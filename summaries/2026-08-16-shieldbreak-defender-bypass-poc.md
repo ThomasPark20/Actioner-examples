@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-16
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -33,7 +33,8 @@ CVE-2026-50656 (CVSS 7.8, CWE-59: Improper Link Resolution Before File Access) i
 
 ## Root Cause: Cloud Filter API Abuse + CLFS Log Manipulation in Defender Scanning
 
-The root cause is the same underlying weakness as CVE-2026-50656: CWE-59 (Improper Link Resolution Before File Access) in Microsoft Defender's file remediation pipeline. However, ShieldBreak attacks a different entry point that was not addressed by the July 2026 patch. Where RoguePlanet used VHD/VHDX mounting and NT Native API race conditions with oplocks and NTFS junctions, ShieldBreak uses a user-mode callback hook to change file contents during a Defender cloud-hydration scan via the Cloud Filter API (cfapi). The exploit combines CLFS log manipulation with Object Manager symbolic links to trick Defender's scanning pipeline into locking a legitimate system file while a malicious substitute is swapped underneath it. Security analyst Will Dormann noted that ShieldBreak does not use anything from the RoguePlanet technique (no cloud providers, CLFS, hydration, or phoneinfo.dll were involved in RoguePlanet), and unlike RoguePlanet, ShieldBreak requires Defender to be actively enabled. Despite this, both exploit the same fundamental weakness (CWE-59) in the same component (mpengine.dll), and the researcher classifies ShieldBreak as a bypass of the CVE-2026-50656 patch.
+The root cause is the same underlying weakness as CVE-2026-50656: CWE-59 (Improper Link Resolution Before File Access) in Microsoft Defender's file remediation pipeline. However, ShieldBreak attacks a different entry point that was not addressed by the July 2026 patch. Where RoguePlanet used VHD/VHDX mounting and NT Native API race conditions with oplocks and NTFS junctions, ShieldBreak uses a user-mode callback hook to change file contents during a Defender cloud-hydration scan via the Cloud Filter API (cfapi). The exploit combines CLFS log manipulation with Object Manager symbolic links to trick Defender's scanning pipeline into locking a legitimate system file while a malicious substitute is swapped underneath it. <!-- revision: clarified parenthetical per critic — original phrasing inverted what belonged to which exploit -->
+Security analyst Will Dormann noted that ShieldBreak's technique is entirely distinct from RoguePlanet's: RoguePlanet relied on VHD/VHDX mounting, NT Native API race conditions, oplocks, and NTFS junctions, whereas ShieldBreak uses Cloud Filter API hydration callbacks, CLFS log manipulation, and phoneinfo.dll planting — none of which appeared in RoguePlanet. Unlike RoguePlanet, ShieldBreak also requires Defender to be actively enabled. Despite this, both exploit the same fundamental weakness (CWE-59) in the same component (mpengine.dll), and the researcher classifies ShieldBreak as a bypass of the CVE-2026-50656 patch.
 
 ## Technical Analysis of the Malicious Payload
 
@@ -139,7 +140,8 @@ Note: ShieldBreak is a purely local privilege escalation exploit. There are no C
 | T1574.002 | Hijack Execution Flow: DLL Side-Loading | Warden.dll loaded as phoneinfo.dll by wer.dll / wermgr.exe to execute attacker code as SYSTEM |
 | T1134.001 | Access Token Manipulation: Token Impersonation/Theft | Warden.dll duplicates SYSTEM token via DuplicateTokenEx and CreateProcessAsUser to spawn elevated shell |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | QueueReporting scheduled task abused to trigger wermgr.exe -upload, loading the planted DLL |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | Exploit abuses Defender's own remediation engine as the privilege escalation vector |
+<!-- revision: T1562.001 replaced with T1211 — ShieldBreak weaponizes Defender's remediation rather than disabling it -->
+| T1211 | Exploitation for Defense Evasion | Exploit weaponizes Defender's own SYSTEM-privileged remediation engine as the privilege escalation vector; Defender remains enabled throughout |
 
 ## Impact Assessment
 
@@ -227,21 +229,24 @@ mp_loads | join kind=inner cld_loads on DeviceName, InitiatingProcessId
 
 ## Detection Rules
 
-These detections target the ShieldBreak exploit chain at the PoC/advisory-specific altitude. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. ShieldBreak is a purely local privilege escalation exploit with no network indicators, so Snort and Suricata rules are not applicable.
+These detections target the ShieldBreak exploit chain at the PoC/advisory-specific altitude. Five Sigma rules and two YARA rules are provided. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. ShieldBreak is a purely local privilege escalation exploit with no network indicators, so Snort and Suricata rules are not applicable.
 
-### Sigma: ShieldBreak Cloud Filter API Abuse for Defender Bypass
-Detects a non-standard process loading both MpClient.dll and cldapi.dll, the signature behavior of the ShieldBreak exploit's cloud-hydration scan manipulation.
+<!-- revision: original combined rule was structurally unfireable — image_load emits one event per DLL, so a single event cannot match both endswith conditions simultaneously. Split into two independent rules per critic. Sub-technique tag fixed from attack.t1574 to attack.t1574.002. Redundant filter_defender leg removed (C:\Program Files\Windows Defender\ subsumed by filter_system's C:\Program Files\ prefix). -->
+
+### Sigma: Suspicious MpClient.dll Load from Non-Standard Path
+Detects a non-standard process loading MpClient.dll (Windows Defender client API), the first half of the ShieldBreak exploit's DLL-loading behavior. Split from the original combined rule because `image_load` emits one event per DLL load.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk 0; log_scale 0; splunk_windows pipeline 0. Mirrors Kevin Beaumont's Detection 3 KQL query logic. image_load category on Windows. Filters Defender paths and standard Program Files/System32. FP: third-party EDR or cloud sync clients that also interact with Defender APIs (rare). Evasion: loading from a whitelisted path — mitigated by the path filter being inclusive of standard install locations only. -->
+<!-- audit: sigma convert --without-pipeline splunk 0; log_scale 0. Mirrors Kevin Beaumont's Detection 1 KQL query logic. filter_defender retains only ProgramData leg (Program Files leg subsumed by filter_system). FP: third-party security tools loading Defender APIs (rare). -->
 ```yaml
-title: ShieldBreak Cloud Filter API Abuse for Defender Bypass
+title: Suspicious MpClient.dll Load from Non-Standard Path
 id: 8f4e2c1a-3b7d-4e9a-a6c5-2d1f0e8b7a3c
 status: experimental
 description: >
-    Detects a non-standard process loading both MpClient.dll (Windows Defender API)
-    and cldapi.dll (Cloud Filter API) — the core technique in the ShieldBreak exploit
-    which registers a rogue cloud sync provider and abuses Defender's cloud-hydration
-    scan path to achieve SYSTEM privilege escalation via CVE-2026-50656 bypass.
+    Detects a non-standard process loading MpClient.dll (Windows Defender client API)
+    from outside expected Defender and system directories. In the ShieldBreak exploit,
+    the attacker binary loads MpClient.dll to programmatically trigger a Defender scan
+    on the rogue cloud-hydration placeholder file, initiating the SYSTEM privilege
+    escalation chain via CVE-2026-50656 bypass.
 references:
     - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
     - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
@@ -251,35 +256,74 @@ author: Actioner
 date: 2026/08/16
 tags:
     - attack.t1068
-    - attack.t1574
+    - attack.t1574.002
 logsource:
     category: image_load
     product: windows
 detection:
-    selection_mpclient:
+    selection:
         ImageLoaded|endswith: '\MpClient.dll'
-    selection_cldapi:
-        ImageLoaded|endswith: '\cldapi.dll'
     filter_defender:
         Image|startswith:
-            - 'C:\Program Files\Windows Defender\'
             - 'C:\ProgramData\Microsoft\Windows Defender\'
     filter_system:
         Image|startswith:
             - 'C:\Windows\System32\'
             - 'C:\Program Files\'
             - 'C:\Program Files (x86)\'
-    condition: selection_mpclient and selection_cldapi and not filter_defender and not filter_system
+    condition: selection and not filter_defender and not filter_system
 falsepositives:
-    - Third-party EDR or security tools loading both Defender and Cloud Filter APIs
-    - Cloud storage sync clients that also interact with Defender APIs
+    - Third-party EDR or security tools that load Defender client APIs
+    - Security assessment tools interacting with Defender programmatically
 level: high
+```
+
+### Sigma: Suspicious cldapi.dll Load from Non-Standard Path
+Detects a non-standard process loading cldapi.dll (Cloud Filter API), the second half of the ShieldBreak exploit's DLL-loading behavior. Split from the original combined rule because `image_load` emits one event per DLL load.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0; log_scale 0. Mirrors Kevin Beaumont's Detection 2 KQL query logic. Broader FP surface than MpClient rule — legitimate cloud sync clients load cldapi.dll — hence medium severity. -->
+```yaml
+title: Suspicious cldapi.dll Load from Non-Standard Path
+id: 9a5f3d2b-4c8e-5f1a-b7d6-3e2a1f9c8b4d
+status: experimental
+description: >
+    Detects a non-standard process loading cldapi.dll (Cloud Filter API) from outside
+    expected system directories. In the ShieldBreak exploit, the attacker binary loads
+    cldapi.dll to register a rogue cloud storage sync provider, enabling manipulation
+    of file hydration callbacks as part of the CVE-2026-50656 bypass chain.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/ShieldBreak
+    - https://github.com/GossiTheDog/ThreatHunting/blob/master/AdvancedHuntingQueries/ShieldBreak.kql
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\cldapi.dll'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate cloud storage sync clients (OneDrive, Dropbox, etc.)
+    - Third-party backup software using Cloud Filter API
+level: medium
 ```
 
 ### Sigma: Suspicious phoneinfo.dll Creation in System32
 Detects creation of phoneinfo.dll in System32, the DLL planting target that does not exist by default on Windows.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk 0; log_scale 0; splunk_windows pipeline 0. phoneinfo.dll does not exist on clean Windows installations. Any creation is anomalous and warrants immediate investigation. Near-zero FP expected. -->
+<!-- revision: added mitigation-detection conflict caveat — Tanium 0-byte placeholder workaround will trigger this rule -->
+<!-- audit: sigma convert --without-pipeline splunk 0; log_scale 0; splunk_windows pipeline 0. phoneinfo.dll does not exist on clean Windows installations. Any creation is anomalous and warrants immediate investigation. Note: Tanium's recommended 0-byte placeholder mitigation will also fire this rule — SOC teams deploying the workaround should pre-suppress or expect the alert. -->
 ```yaml
 title: Suspicious phoneinfo.dll Creation in System32
 id: 1a3c5e7f-9b2d-4f6a-8c1e-0d3f5a7b9c2e
@@ -290,6 +334,9 @@ description: >
     file remediation to write an attacker-controlled Warden.dll payload as
     phoneinfo.dll in System32, which is then loaded by wer.dll (Windows Error
     Reporting) to spawn conhost.exe with SYSTEM privileges.
+    NOTE: The recommended Tanium 0-byte phoneinfo.dll placeholder mitigation will
+    also trigger this rule. SOC teams deploying the workaround should pre-suppress
+    or expect alerts from the mitigation deployment process.
 references:
     - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
     - https://www.securityweek.com/nightmare-eclipse-drops-windows-zero-day-exploit-shieldbreak/
@@ -309,6 +356,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate Windows updates installing phoneinfo.dll (not present by default)
+    - Tanium 0-byte phoneinfo.dll placeholder mitigation deployment
 level: critical
 ```
 
@@ -394,8 +442,9 @@ ShieldBreak is a purely local privilege escalation exploit with no network commu
 
 ### YARA: ShieldBreak / Warden.dll Exploit Tool Detection
 Detects the ShieldBreak.exe exploit binary and Warden.dll payload via distinctive strings: named pipe, cloud provider artifacts, Object Manager path prefixes, and Defender API references.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos_shieldbreak.bin: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.bin: no match. Positive sample constructed from published source code strings (SHIELDBREAK pipe, ShieldBreak, phoneinfo.dll, Warden.dll, BERLIN, WD_SHADOW, WD_TARGET, WD_SCAN, MpClient.dll, cldapi.dll, NtSetInformationFile, NtDeleteFile, NtOpenDirectoryObject). Condition: PE + size<10MB + (pipe name + ShieldBreak string) OR (3+ distinctive strings + 1 API) OR (phoneinfo + Warden + ShieldBreak). Second rule targets Warden.dll payload specifically via token duplication APIs + SHIELDBREAK pipe + conhost/phoneinfo strings. -->
+<!-- revision: YARA sample label changed from "fired" to "synthetic-positive" — positive was constructed from published source-code strings, not the actual compiled binary -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic-positive ✓
+<!-- audit: yarac exit 0. yara pos_shieldbreak.bin: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.bin: no match. Positive sample constructed from published source code strings (SHIELDBREAK pipe, ShieldBreak, phoneinfo.dll, Warden.dll, BERLIN, WD_SHADOW, WD_TARGET, WD_SCAN, MpClient.dll, cldapi.dll, NtSetInformationFile, NtDeleteFile, NtOpenDirectoryObject) — not the actual compiled binary. Condition: PE + size<10MB + (pipe name + ShieldBreak string) OR (3+ distinctive strings + 1 API) OR (phoneinfo + Warden + ShieldBreak). Second rule targets Warden.dll payload specifically via token duplication APIs + SHIELDBREAK pipe + conhost/phoneinfo strings. -->
 ```yara
 rule Exploit_ShieldBreak_Defender_LPE
 {

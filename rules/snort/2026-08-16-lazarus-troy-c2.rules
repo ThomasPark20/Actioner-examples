@@ -1,0 +1,9 @@
+# Lazarus Troy C2 Domain Detection (Operation Dream Job)
+# Author: Actioner | Date: 2026-08-16
+# Reference: https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+# Caveat: These rules match cleartext HTTP only; HTTPS/TLS C2 traffic will evade.
+# Pair with DNS-based detection (Suricata rules) for TLS-wrapped sessions.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Lazarus Troy C2 Domain envell.xyz in HTTP Request"; flow:established,to_server; content:"envell.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Lazarus Troy C2 Domain enveil.online in HTTP Request"; flow:established,to_server; content:"enveil.online"; nocase; fast_pattern; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Lazarus Troy C2 Domain uxtramine.org in HTTP Request"; flow:established,to_server; content:"uxtramine.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/; sid:2100003; rev:1;)
