@@ -1,0 +1,34 @@
+title: Suspicious cldapi.dll Load from Non-Standard Path
+id: 9a5f3d2b-4c8e-5f1a-b7d6-3e2a1f9c8b4d
+status: experimental
+description: >
+    Detects a non-standard process loading cldapi.dll (Cloud Filter API) from outside
+    expected system directories. In the ShieldBreak exploit, the attacker binary loads
+    cldapi.dll to register a rogue cloud storage sync provider, enabling manipulation
+    of file hydration callbacks as part of the CVE-2026-50656 bypass chain.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/ShieldBreak
+    - https://github.com/GossiTheDog/ThreatHunting/blob/master/AdvancedHuntingQueries/ShieldBreak.kql
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\cldapi.dll'
+    filter_system:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate cloud storage sync clients (OneDrive, Dropbox, etc.)
+    - Third-party backup software using Cloud Filter API
+level: medium
