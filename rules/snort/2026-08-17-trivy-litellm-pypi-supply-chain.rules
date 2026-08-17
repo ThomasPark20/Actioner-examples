@@ -1,0 +1,12 @@
+# Actioner - TeamPCP/LiteLLM Supply Chain Attack (CVE-2026-33634) - Snort Rules
+# Date: 2026-08-17
+# Reference: https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+
+# DNS query for primary exfiltration domain
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - TeamPCP C2 DNS Query to models.litellm.cloud"; flow:to_server; content:"|06|models|07|litellm|05|cloud|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-17; sid:2100001; rev:1;)
+
+# DNS query for C2 polling domain
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - TeamPCP C2 DNS Query to checkmarx.zone"; flow:to_server; content:"|09|checkmarx|04|zone|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-17; sid:2100002; rev:1;)
+
+# HTTP exfiltration header (Snort 3 only - uses alert http and http_header buffer)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TeamPCP Exfiltration Header X-Filename tpcp.tar.gz"; flow:established, to_server; http_header; content:"X-Filename|3a 20|tpcp.tar.gz", fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-17; sid:2100003; rev:1;)

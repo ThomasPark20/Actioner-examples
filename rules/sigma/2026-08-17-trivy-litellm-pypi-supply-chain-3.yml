@@ -1,0 +1,27 @@
+title: TeamPCP C2 Domain DNS Query
+id: d4e8c2a1-5b93-4f76-8d0e-a7c3f9b16285
+status: experimental
+description: >
+    Detects DNS queries to known TeamPCP campaign C2 domains used for credential
+    exfiltration (models.litellm.cloud) and payload polling (checkmarx.zone),
+    indicators from the LiteLLM/Trivy supply chain attack (CVE-2026-33634).
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'models.litellm.cloud'
+            - 'checkmarx.zone'
+            - 'aquasecurtiy.org'
+    condition: selection
+falsepositives:
+    - None expected - these are attacker-controlled domains
+level: critical
