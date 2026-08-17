@@ -1,0 +1,28 @@
+title: TeamPCP Sysmon.py Persistence Backdoor Installation
+id: a2f9b7c4-3e81-4d65-9c0a-d8e6f1b54729
+status: experimental
+description: >
+    Detects creation of sysmon.py or sysmon.service in user config directories,
+    consistent with the TeamPCP campaign (CVE-2026-33634) persistence mechanism
+    that masquerades as System Telemetry Service and polls checkmarx.zone for
+    follow-on payloads.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1543.002
+    - attack.t1036.004
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_sysmon_script:
+        TargetFilename|endswith: '/.config/sysmon/sysmon.py'
+    selection_sysmon_service:
+        TargetFilename|endswith: '/.config/systemd/user/sysmon.service'
+    condition: selection_sysmon_script or selection_sysmon_service
+falsepositives:
+    - Custom monitoring tools named sysmon deployed to user config directories
+level: high

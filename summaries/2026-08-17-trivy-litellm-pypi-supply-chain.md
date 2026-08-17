@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -286,7 +286,7 @@ kubectl get pods -n kube-system | grep "node-setup-"
 
 ## Detection Rules
 
-These detections target the TeamPCP/LiteLLM supply chain attack (CVE-2026-33634) at PoC/advisory-specific altitude, keying on the campaign's distinctive artifacts: the malicious `.pth` file, persistence paths, C2 domains, and exfiltration patterns. All Sigma rules convert to Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline.
+These detections target the TeamPCP/LiteLLM supply chain attack (CVE-2026-33634) at PoC/advisory-specific altitude, keying on the campaign's distinctive artifacts: the malicious `.pth` file, persistence paths, C2 domains, and exfiltration patterns. The host/DNS Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; the Kubernetes audit rule requires a backend pipeline that maps `objectRef.*` fields. Compiles != fires -- verify in your pipeline.
 
 ### Sigma: TeamPCP Malicious litellm_init.pth File Creation
 
@@ -396,17 +396,19 @@ level: critical
 
 ### Sigma: TeamPCP Kubernetes Privileged node-setup Pod Creation
 
-Detects Kubernetes API calls creating privileged pods named `node-setup-*` in `kube-system`, the lateral movement pattern used to compromise cluster nodes.
+Detects creation of pods named `node-setup-*` in `kube-system` via Kubernetes audit logs, the lateral movement pattern used to install the sysmon.py backdoor on cluster nodes. Requires Kubernetes audit logging at RequestResponse level; field names follow the audit event schema.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: splunk convert exit 0; log_scale convert exit 0. Proxy log source; requires API audit logging. Medium confidence due to potential for legitimate node-setup naming in custom operators, though the combination with hostPID+privileged narrows it. -->
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Rewritten from proxy/cs-body (non-standard, unrealistic) to kubernetes/audit log source per critic FIX verdict. Fields verb, objectRef.resource, objectRef.namespace, objectRef.name are standard k8s audit event fields. requestObject body matching for hostPID/privileged is omitted — requires audit level RequestResponse and backend-specific JSON parsing not portable in Sigma; the pod name + namespace combination is the distinctive anchor. Medium confidence: node-setup-* naming could appear in legitimate node provisioning operators. -->
+<!-- revision: log source rewritten from category:proxy with cs-body/cs-uri-stem to product:kubernetes service:audit with standard audit fields. cs-body removed (non-standard Sigma). Confidence kept at medium. -->
 ```yaml
 title: TeamPCP Kubernetes Privileged node-setup Pod Creation
 id: f1b3d7e9-4a26-4c80-95d2-e8c0a6f47b13
 status: experimental
 description: >
-    Detects creation of privileged pods named node-setup-* in kube-system namespace,
-    consistent with the TeamPCP campaign (CVE-2026-33634) Kubernetes lateral movement
-    that mounts host filesystem and installs persistent backdoors on cluster nodes.
+    Detects creation of pods named node-setup-* in kube-system namespace via
+    Kubernetes audit logs, consistent with the TeamPCP campaign (CVE-2026-33634)
+    lateral movement that deploys privileged DaemonSet pods to mount host
+    filesystems and install persistent backdoors on cluster nodes.
 references:
     - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
     - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
@@ -416,20 +418,17 @@ tags:
     - attack.t1610
     - attack.t1611
 logsource:
-    category: proxy
+    product: kubernetes
+    service: audit
 detection:
-    selection_uri:
-        cs-uri-stem|contains|all:
-            - '/api/v1/namespaces/kube-system/pods'
-        cs-method: 'POST'
-    selection_body:
-        cs-body|contains|all:
-            - 'node-setup-'
-            - 'hostPID'
-            - 'privileged'
-    condition: selection_uri and selection_body
+    selection:
+        verb: 'create'
+        objectRef.resource: 'pods'
+        objectRef.namespace: 'kube-system'
+        objectRef.name|startswith: 'node-setup-'
+    condition: selection
 falsepositives:
-    - Legitimate Kubernetes operators deploying privileged pods with node-setup prefix in kube-system
+    - Legitimate Kubernetes operators deploying pods with node-setup prefix in kube-system
 level: high
 ```
 
@@ -453,9 +452,10 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - TeamPCP C2 DNS Query to check
 
 ### Snort: TeamPCP Exfiltration Header X-Filename tpcp.tar.gz
 
-Detects HTTP requests with the distinctive `X-Filename: tpcp.tar.gz` header used for encrypted credential exfiltration.
+Detects HTTP requests with the distinctive `X-Filename: tpcp.tar.gz` header used for encrypted credential exfiltration. Snort 3 only (`alert http` with `http_header` buffer); for Snort 2, use `alert tcp` with `content` on raw payload.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. Header content match uses hex colon-space (|3a 20|) separator. fast_pattern on the distinctive tpcp.tar.gz value. -->
+<!-- audit: snort -T exit 0. Header content match uses hex colon-space (|3a 20|) separator. fast_pattern on the distinctive tpcp.tar.gz value. Snort 3 only: alert http protocol and http_header sticky buffer require Snort 3.x; Snort 2 equivalent would use alert tcp with content match on raw stream. -->
+<!-- revision: added Snort 3-only note per critic finding. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TeamPCP Exfiltration Header X-Filename tpcp.tar.gz"; flow:established, to_server; http_header; content:"X-Filename|3a 20|tpcp.tar.gz", fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-17; sid:2100003; rev:1;)
 ```
@@ -499,8 +499,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TeamPCP Exfiltrat
 ### YARA: TeamPCP LiteLLM .pth Payload
 
 Detects the malicious `litellm_init.pth` file by matching distinctive string combinations from the TeamPCP payload including C2 domains, persistence paths, and the campaign's RSA public key prefix.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive sample (published strings: models.litellm.cloud, tpcp.tar.gz, .config/sysmon/sysmon.py, TeamPCP, import subprocess, base64) fired; negative sample (benign strings) quiet. SHA-256 hash 71e35aef03099cd1f2d6446734273025a163597de93912df321ef118bf135238 from Snyk analysis. RSA key prefix is the same across Trivy/KICS/LiteLLM operations (campaign linkage). -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive sample constructed from source-published strings (models.litellm.cloud, tpcp.tar.gz, .config/sysmon/sysmon.py, TeamPCP, import subprocess, base64 — all documented in Datadog/Snyk analyses) — not scans of actual binaries. Negative sample (benign strings) quiet. SHA-256 hash 71e35aef03099cd1f2d6446734273025a163597de93912df321ef118bf135238 from Snyk analysis. RSA key prefix is the same across Trivy/KICS/LiteLLM operations (campaign linkage). -->
+<!-- revision: sample provenance clarified from "fired" to "constructed" — positive samples were built from source-published strings, not from scanning actual malware binaries. -->
 ```yara
 rule Supply_Chain_TeamPCP_LiteLLM_Pth_Payload
 {
@@ -538,8 +539,9 @@ rule Supply_Chain_TeamPCP_LiteLLM_Pth_Payload
 ### YARA: TeamPCP Sysmon Persistence Backdoor
 
 Detects the `sysmon.py` persistence backdoor that polls `checkmarx.zone` for follow-on payloads and uses a YouTube-string kill switch.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive sample (published strings: checkmarx.zone, /tmp/pglog, /tmp/.pg_state, System Telemetry Service, youtube, tpcp) fired; negative sample quiet. SHA-256 hash 6cf223aea68b0e8031ff68251e30b6017a0513fe152e235c26f248ba1e15c92a from Snyk analysis. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive sample constructed from source-published strings (checkmarx.zone, /tmp/pglog, /tmp/.pg_state, System Telemetry Service, youtube, tpcp — all documented in Snyk/Datadog analyses) — not scans of actual binaries. Negative sample quiet. SHA-256 hash 6cf223aea68b0e8031ff68251e30b6017a0513fe152e235c26f248ba1e15c92a from Snyk analysis. -->
+<!-- revision: sample provenance clarified from "fired" to "constructed" — positive samples were built from source-published strings, not from scanning actual malware binaries. -->
 ```yara
 rule Supply_Chain_TeamPCP_Sysmon_Backdoor
 {
