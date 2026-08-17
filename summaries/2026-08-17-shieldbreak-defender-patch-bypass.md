@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -11,7 +11,7 @@ On August 11, 2026, security researcher Nightmare Eclipse (also tracked as Chaot
 
 Unlike RoguePlanet, which used a filesystem race condition with virtual disks and NT native file manipulation, ShieldBreak employs a fundamentally different attack vector: it plants an EICAR file to trigger Defender scanning, uses Object Manager symlinks to redirect Defender's scan path, leverages the Common Log File System (CLFS) and Cloud Filter API (cfapi) hydration to plant a malicious `phoneinfo.dll` in `C:\Windows\system32\`, then triggers the `QueueReporting` scheduled task which runs `wermgr.exe -upload` as SYSTEM. Since `phoneinfo.dll` does not exist by default, the DLL sideload through `wer.dll` executes attacker-controlled code as SYSTEM, spawning `conhost.exe` with full SYSTEM privileges.
 
-This is the tenth public exploit from Nightmare Eclipse in a sustained campaign against Microsoft components since April 2026. Prior coverage exists for RoguePlanet ([2026-06-10-defender-rogueplanet-zero-day.md](2026-06-10-defender-rogueplanet-zero-day.md)), LegacyHive ([2026-07-17-legacyhive-windows-privesc.md](2026-07-17-legacyhive-windows-privesc.md)), and related CVEs. Microsoft requires Defender to be enabled for the exploit to succeed.
+This is the tenth public exploit from Nightmare Eclipse in a sustained campaign against Microsoft components since April 2026. Prior coverage exists for RoguePlanet (`summaries/2026-06-10-defender-rogueplanet-zero-day.md`), LegacyHive (`summaries/2026-07-17-legacyhive-windows-privesc.md`), and related CVEs. Microsoft requires Defender to be enabled for the exploit to succeed.
 
 ## Background: Microsoft Defender Patch for RoguePlanet (CVE-2026-50656)
 
@@ -112,7 +112,7 @@ The exploit triggers the `QueueReporting` scheduled task, which is a legitimate 
 | T1068 | Exploitation for Privilege Escalation | Exploits incomplete patch for CVE-2026-50656 in Microsoft Defender to escalate from standard user to SYSTEM |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Plants phoneinfo.dll in system32 where wermgr.exe/wer.dll will load it; DLL does not exist by default |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Triggers QueueReporting scheduled task which runs wermgr.exe -upload as SYSTEM |
-| T1036 | Masquerading | Uses legitimate Windows components (EICAR → Defender → WER → scheduled task) to execute malicious code |
+<!-- revision: T1036 (Masquerading) removed per review — ShieldBreak does not masquerade; it abuses legitimate components in-place. Behavior already covered by T1574.001 + T1053.005. -->
 
 ## Impact Assessment
 
@@ -161,7 +161,7 @@ Get-ChildItem -Path C:\Users -Recurse -Include "*.blf","*.clfs" -ErrorAction Sil
 - Monitor for anomalous Cloud Filter API provider registrations
 - Monitor scheduled task execution patterns for tasks running with highest privileges
 - Review Windows Error Reporting configuration and consider restricting `wermgr.exe` execution to only necessary scenarios
-- Apply all prior Nightmare Eclipse campaign detections (see [RoguePlanet report](2026-06-10-defender-rogueplanet-zero-day.md))
+- Apply all prior Nightmare Eclipse campaign detections (see RoguePlanet report: `summaries/2026-06-10-defender-rogueplanet-zero-day.md`)
 
 ## Detection Rules
 
@@ -329,15 +329,16 @@ level: high
 ```
 
 ### Snort: N/A
-No network indicators specific to the ShieldBreak exploit chain. The exploit is a local privilege escalation with no C2 or network communication component. For Nightmare Eclipse campaign-level network detections (BeigeBurrow C2), see the [RoguePlanet report](2026-06-10-defender-rogueplanet-zero-day.md).
+No network indicators specific to the ShieldBreak exploit chain. The exploit is a local privilege escalation with no C2 or network communication component. For Nightmare Eclipse campaign-level network detections (BeigeBurrow C2), see the RoguePlanet report (`summaries/2026-06-10-defender-rogueplanet-zero-day.md`).
 
 ### Suricata: N/A
 No network indicators specific to ShieldBreak. Same rationale as Snort above.
 
 ### YARA: ShieldBreak / Nightmare Eclipse Exploit Tool
 Detects PE files containing strings distinctive to the ShieldBreak exploit: `phoneinfo.dll`, ShieldBreak naming, CLFS APIs (`CfRegisterSyncRoot`, `CfConnectSyncRoot`), `QueueReporting`, `wermgr.exe`, and NT native APIs consistent with the Nightmare Eclipse exploit family.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara pos_shieldbreak.bin: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.bin: no match. Positive sample constructed from published attack chain strings (ShieldBreak, phoneinfo.dll, system32\phoneinfo.dll, NtSetInformationFile, NtDeleteFile, CfRegisterSyncRoot, QueueReporting, wermgr.exe, clfsw32.dll). Condition: PE + size<10MB + ($name1 "ShieldBreak" + 2 related strings) OR ($dll1 "phoneinfo.dll" + $path1 + 1 API) OR ($dll1 + $task1 + 1 CLFS) OR (2 names + 1 DLL + 1 API) OR (EICAR + $dll1 + 1 API). -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. yara pos_shieldbreak.bin: MATCH (Exploit_ShieldBreak_Defender_LPE). yara neg_shieldbreak.bin: no match. Positive sample constructed (not a real upstream binary) from published attack chain strings (ShieldBreak, phoneinfo.dll, system32\phoneinfo.dll, NtSetInformationFile, NtDeleteFile, CfRegisterSyncRoot, QueueReporting, wermgr.exe, clfsw32.dll). Condition: PE + size<10MB + ($name1 "ShieldBreak" + 2 related strings) OR ($dll1 "phoneinfo.dll" + $path1 + 1 API) OR ($dll1 + $task1 + 1 CLFS) OR (2 names + 1 DLL + 1 API) OR (EICAR + $dll1 + 1 API). -->
+<!-- revision: sample label corrected from "fired ✓" to "constructed" — positive test file was built from published strings, not a real source-published binary. -->
 ```yara
 rule Exploit_ShieldBreak_Defender_LPE
 {
@@ -402,8 +403,9 @@ rule Exploit_ShieldBreak_Defender_LPE
 - [BleepingComputer - Microsoft Working on Defender Patch for ShieldBreak Zero-Day](https://www.bleepingcomputer.com/news/security/microsoft-working-on-defender-patch-for-shieldbreak-zero-day/) -- news coverage with CVE-2026-69414 assignment, Microsoft response timeline, and PoC repository link
 - [Nightmare Eclipse Blog - ShieldBreak August 2026 Disclosure](https://blog.projectnightcrawler.dev/posts/2026-08-11-shieldbreak-august-2026-disclosure/) -- researcher's original technical disclosure (returned 403 at time of fetch; attack chain details sourced from THN and BleepingComputer coverage of the blog post)
 - [Nightmare Eclipse PoC Repository](https://git.projectnightcrawler.dev/NightmareEclipse/ShieldBreak) -- PoC source code on Gitea (returned 403 at time of fetch)
-- [Actioner Prior Report - RoguePlanet Zero-Day](2026-06-10-defender-rogueplanet-zero-day.md) -- prior Actioner coverage of CVE-2026-50656 (the vulnerability ShieldBreak bypasses the patch for)
-- [Actioner Prior Report - LegacyHive Windows Privilege Escalation](2026-07-17-legacyhive-windows-privesc.md) -- prior Actioner coverage of the Nightmare Eclipse LegacyHive exploit
+**Internal cross-references (Actioner prior reports, not external URLs):**
+- `summaries/2026-06-10-defender-rogueplanet-zero-day.md` -- prior Actioner coverage of CVE-2026-50656 (the vulnerability ShieldBreak bypasses the patch for)
+- `summaries/2026-07-17-legacyhive-windows-privesc.md` -- prior Actioner coverage of the Nightmare Eclipse LegacyHive exploit
 
 ---
 *Report generated by Actioner*

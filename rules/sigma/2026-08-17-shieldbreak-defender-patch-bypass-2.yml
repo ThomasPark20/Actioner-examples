@@ -1,0 +1,30 @@
+title: WerMgr Loading phoneinfo.dll via DLL Sideload
+id: 1a9c3e5d-7b2f-4d8a-c6e4-0f3b1a8d9c7e
+status: experimental
+description: >
+    Detects wermgr.exe loading phoneinfo.dll, the core privilege escalation step in
+    the ShieldBreak exploit (CVE-2026-69414). The exploit plants a malicious
+    phoneinfo.dll in System32 via CLFS file swapping, then triggers the QueueReporting
+    scheduled task which runs wermgr.exe -upload as SYSTEM. wermgr.exe loads wer.dll,
+    which in turn loads phoneinfo.dll — a file that does not exist by default.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/microsoft-working-on-defender-patch-for-shieldbreak-zero-day/
+    - https://blog.projectnightcrawler.dev/posts/2026-08-11-shieldbreak-august-2026-disclosure/
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1574.001
+    - attack.t1068
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\wermgr.exe'
+    selection_dll:
+        ImageLoaded|endswith: '\phoneinfo.dll'
+    condition: selection_process and selection_dll
+falsepositives:
+    - Legitimate phoneinfo.dll if installed by a Windows feature or update (not present on default installations)
+level: critical

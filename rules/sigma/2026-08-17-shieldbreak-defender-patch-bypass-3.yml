@@ -1,0 +1,36 @@
+title: ShieldBreak Exploit Binary Execution
+id: 5f7a2c4e-9d1b-4e3a-a8c6-7b0d3f2e1a9c
+status: experimental
+description: >
+    Detects execution of the ShieldBreak PoC exploit binary or related Nightmare
+    Eclipse exploit tools. ShieldBreak (CVE-2026-69414) bypasses the patch for
+    CVE-2026-50656 (RoguePlanet) in Microsoft Defender, achieving SYSTEM privileges.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/microsoft-working-on-defender-patch-for-shieldbreak-zero-day/
+    - https://git.projectnightcrawler.dev/NightmareEclipse/ShieldBreak
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_shieldbreak:
+        Image|endswith:
+            - '\ShieldBreak.exe'
+    selection_family:
+        Image|endswith:
+            - '\RoguePlanet.exe'
+            - '\BlueHammer.exe'
+            - '\RedSun.exe'
+            - '\undef.exe'
+            - '\GreenPlasma.exe'
+            - '\MiniPlasma.exe'
+            - '\YellowKey.exe'
+            - '\LegacyHive.exe'
+    condition: selection_shieldbreak or selection_family
+falsepositives:
+    - Unlikely - these are known exploit tool names from the Nightmare Eclipse campaign
+level: critical
