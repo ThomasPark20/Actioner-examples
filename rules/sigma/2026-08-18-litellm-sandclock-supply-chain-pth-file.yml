@@ -1,0 +1,26 @@
+title: SANDCLOCK Malicious .pth File Creation in Python Site-Packages
+id: 8b4e2a91-7f3c-4d1e-a6b8-9c0d2e5f1a3b
+status: experimental
+description: >
+    Detects creation of litellm_init.pth in Python site-packages directories,
+    a malicious file dropped by compromised LiteLLM versions 1.82.7/1.82.8 that
+    executes on every Python interpreter startup to harvest credentials.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://www.resecurity.com/blog/article/the-litellm-supply-chain-attack-teampcp-sandclock-cicd-credential-harvesting-campaign-via-a-backdoored-trivy-github-action
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/litellm_init.pth'
+    condition: selection
+falsepositives:
+    - Legitimate LiteLLM development builds using .pth files (unlikely in production)
+level: high

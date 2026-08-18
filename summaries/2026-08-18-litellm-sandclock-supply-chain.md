@@ -436,19 +436,20 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SANDCLOCK TLS Conn
 
 Detects DNS queries (label-length-encoded) to the three SANDCLOCK campaign domains over UDP port 53.
 **Status:** compile ⚠️ uncompiled (snort not installed; structural check only) · confidence: high
-<!-- audit: snort binary not available in environment. Rules structurally validated: label-length encoding correct (models=06, litellm=07, cloud=05; checkmarx=09, zone=04; scan=04, aquasecurtiy=0b, org=03), all terminated with |00|, sid range 2100000+, flow/classtype/reference present. -->
+<!-- audit: snort binary not available in environment. Rules structurally validated: label-length encoding correct (models=06, litellm=07, cloud=05; checkmarx=09, zone=04; scan=04, aquasecurtiy=0c, org=03), all terminated with |00|, sid range 2100000+, flow/classtype/reference present. -->
+<!-- revision: SID 2100003 aquasecurtiy label-length fixed |0b|→|0c| (12 chars = 0x0c); YARA PTH branch 4 threshold raised 3-of-6→4-of-6; detection summary clarified --without-pipeline limitation; YARA status label corrected to "constructed positive"; ATT&CK T1003→T1003.007 (Proc Filesystem). -->
 ```snort
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to Exfil Domain models.litellm.cloud"; flow:to_server; content:"|06|models|07|litellm|05|cloud|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100001; rev:1;)
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to C2 Domain checkmarx.zone"; flow:to_server; content:"|09|checkmarx|04|zone|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100002; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to Typosquat Domain scan.aquasecurtiy.org"; flow:to_server; content:"|04|scan|0b|aquasecurtiy|03|org|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100003; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to Typosquat Domain scan.aquasecurtiy.org"; flow:to_server; content:"|04|scan|0c|aquasecurtiy|03|org|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100003; rev:1;)
 ```
 
 ### YARA: SANDCLOCK LiteLLM .pth Payload and Sysmon Backdoor
 
 Detects the SANDCLOCK credential-stealer `.pth` payload and the `sysmon.py` persistence backdoor by matching campaign-specific strings (exfil domain, persistence paths, encryption artifacts, C2 indicators).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: fired on constructed positive
 <!-- audit: yarac exit 0. yara fired on constructed positive (exfil domain + persistence paths + encryption markers from published Snyk analysis); quiet on benign litellm import script. Two rules: Supply_Chain_SANDCLOCK_LiteLLM_PTH keyed on exfil domain/persistence paths/encryption artifacts; Supply_Chain_SANDCLOCK_Sysmon_Backdoor keyed on C2 poll endpoint + kill switch + staging files. Positive constructed from published source indicators, not invented. -->
 ```yara
 rule Supply_Chain_SANDCLOCK_LiteLLM_PTH
@@ -486,7 +487,7 @@ rule Supply_Chain_SANDCLOCK_LiteLLM_PTH
             ($exfil_domain or $c2_domain or $alt_exfil) or
             ($campaign_marker1 and $tar_bundle) or
             ($persistence_path and $service_name) or
-            (3 of ($pg_state, $pglog, $rsa_marker, $aes_key_gen, $proc_mem, $mem_path))
+            (4 of ($pg_state, $pglog, $rsa_marker, $aes_key_gen, $proc_mem, $mem_path))
         )
 }
 
