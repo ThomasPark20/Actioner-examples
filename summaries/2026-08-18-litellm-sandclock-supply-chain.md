@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-18
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -201,7 +201,7 @@ On systems with Kubernetes access, the payload attempted to deploy privileged po
 | T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | IMDS v1/v2 credential harvesting |
 | T1005 | Data from Local System | Sweeping 50+ credential categories from filesystem |
 | T1057 | Process Discovery | Running processes enumeration for memory scraping targets |
-| T1003 | OS Credential Dumping | /proc/<pid>/mem scraping to extract GitHub Actions masked secrets |
+| T1003.007 | OS Credential Dumping: Proc Filesystem | /proc/<pid>/mem scraping to extract GitHub Actions masked secrets |
 | T1041 | Exfiltration Over C2 Channel | Encrypted exfiltration to models[.]litellm[.]cloud |
 | T1567 | Exfiltration Over Web Service | Fallback exfil via public GitHub repos with release assets |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS-based C2 and exfiltration |
@@ -272,7 +272,7 @@ gh repo list --json name -q '.[].name' | grep -iE "tpcp-docs|docs-tpcp"
 
 ## Detection Rules
 
-These detections target specific SANDCLOCK campaign artifacts at the PoC/advisory-specific altitude (default, strict). Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline before production deployment.
+These detections target specific SANDCLOCK campaign artifacts at the PoC/advisory-specific altitude (default, strict). Sigma rules are syntactically valid and convert without errors via `--without-pipeline`; field mapping requires the appropriate product pipeline in production. Compiles != fires -- verify in your pipeline before production deployment.
 
 ### Sigma: SANDCLOCK Malicious .pth File in Site-Packages
 
