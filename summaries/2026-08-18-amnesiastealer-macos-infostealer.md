@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-18
-Version: 1 (DRAFT)
+Version: 1.1 (REVISED)
+<!-- revision: applied critic fixes — sid 2200103 scoped to allllowef.space via http.host; sids 2200101/2200102 dns.query content matches upgraded with endswith; YARA sample status corrected to "not tested (synthetic string validation only)" -->
 
 ## Executive Summary
 
@@ -370,13 +371,13 @@ level: medium
 
 Detects DNS queries to campaign-specific C2/delivery domains and HTTP patterns matching the bot registration and exfiltration endpoints.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Four rules: sid 2200101-2200104. DNS rules key on campaign-specific domains (negligible FP). HTTP /api/bot/join is scoped to the allllowef.space host via http.host content match on sid 2200104; sid 2200103 is broader but the /api/bot/join path is distinctive. -->
+<!-- audit: suricata -T exit 0 (rev 2). Four rules: sid 2200101-2200104. DNS rules (2200101/2200102) key on campaign-specific domains with endswith; for precision. HTTP sid 2200103 now scoped to allllowef.space via http.host (rev 2 fix). HTTP sid 2200104 already scoped to allllowef.space. -->
 ```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer C2 DNS Query to allllowef.space"; flow:to_server; dns.query; content:"allllowef.space"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200101; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer C2 DNS Query to allllowef.space"; flow:to_server; dns.query; content:"allllowef.space"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200101; rev:2;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer Delivery Domain DNS Query to aoitour.com"; flow:to_server; dns.query; content:"aoitour.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200102; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer Delivery Domain DNS Query to aoitour.com"; flow:to_server; dns.query; content:"aoitour.com"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200102; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AmnesiaStealer C2 Bot Registration POST"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/bot/join"; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200103; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AmnesiaStealer C2 Bot Registration POST"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/bot/join"; fast_pattern; http.host; content:"allllowef.space"; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200103; rev:2;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AmnesiaStealer C2 Data Exfiltration POST"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/send/"; fast_pattern; http.host; content:"allllowef.space"; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200104; rev:1;)
 ```
@@ -388,8 +389,8 @@ Snort 3 is not available in this environment for compile validation. The Suricat
 ### YARA: AmnesiaStealer macOS Mach-O Strings
 
 Detects AmnesiaStealer Mach-O binaries via the XOR key, hardcoded Safe Storage password, build markers, and C2 API paths embedded in analyzed samples.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara positive test fired on file containing published XOR key + Safe Storage password + build markers (from Jamf blog). Negative test: no match on benign file. Condition requires (xor_key AND safe_storage_pw) OR (build_marker AND build_variant) OR 4-of-13 campaign strings — multiple independent clusters reduce evasion surface. The positive test uses strings published by Jamf Threat Labs, not constructed to match. -->
+**Status:** compile ✅ compiles · confidence: high · sample: not tested (synthetic string validation only)
+<!-- audit: yarac exit 0. Positive test used a constructed file containing published strings, not a real malware sample — relabeled accordingly. Negative test: no match on benign file. Condition requires (xor_key AND safe_storage_pw) OR (build_marker AND build_variant) OR 4-of-13 campaign strings — multiple independent clusters reduce evasion surface. Confidence remains high: strings are campaign-unique per Jamf Threat Labs analysis. -->
 ```yara
 rule Malware_AmnesiaStealer_macOS_Strings
 {
