@@ -6,7 +6,10 @@ description: >
     enumeration function (fl/Flst1) of the Clop custom Windchill web shell.
     This file contains vault stream IDs, filenames, storage paths, and file sizes
     queried from Windchill database tables (ApplicationData, FVITEM, FVMOUNT,
-    MasteredOnReplicaItem) used to plan data exfiltration.
+    MasteredOnReplicaItem) used to plan data exfiltration. Note: "flst.txt" is a
+    generic name that could be created by other Java-based tools; correlate with
+    additional Clop Windchill indicators before escalating. This rule covers
+    Windows process paths only; Windchill commonly runs on Linux.
 references:
     - https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
     - https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
@@ -27,5 +30,5 @@ detection:
             - '\javaw.exe'
     condition: selection
 falsepositives:
-    - Other applications creating files named flst.txt from a Java process (low likelihood in Windchill environments)
-level: high
+    - Other Java-based applications or tools creating files named flst.txt (possible in development or testing environments)
+level: medium

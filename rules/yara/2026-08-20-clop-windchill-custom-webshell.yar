@@ -1,7 +1,7 @@
 rule Clop_Windchill_Custom_WebShell_Aug2026
 {
     meta:
-        description = "Detects the Clop custom JSP web shell deployed against PTC Windchill servers in the August 2026 mass-extortion campaign. The rule targets application-specific strings (WTKeyStoreUtil, WTConnection, MethodContext, ieStructProperties, Flst1) and the X-windchill-req command header that distinguish this implant from generic JSP web shells. Hash-based matching anchors high confidence; string-based matches are medium confidence and require triage."
+        description = "Detects the Clop custom JSP web shell deployed against PTC Windchill servers in the August 2026 mass-extortion campaign. The rule targets application-specific strings (WTKeyStoreUtil, WTConnection, MethodContext, ieStructProperties, Flst1) and the X-windchill-req command header that distinguish this implant from generic JSP web shells. Hashes in meta are reference-only (not used in condition); detection relies on string matching. High confidence requires 4+ Windchill API strings or 3+ with the command header."
         author = "Actioner"
         date = "2026-08-20"
         reference = "https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign"
@@ -37,8 +37,10 @@ rule Clop_Windchill_Custom_WebShell_Aug2026
         filesize < 100KB and
         ($jsp_tag or $jsp_page) and
         (
-            // High confidence: 3+ Windchill-specific strings
-            (3 of ($wt_keystore, $wt_connection, $wt_method, $wt_decrypt, $cred_file)) or
+            // High confidence: 4+ Windchill-specific strings
+            (4 of ($wt_keystore, $wt_connection, $wt_method, $wt_decrypt, $cred_file)) or
+            // High confidence: 3+ Windchill-specific strings with command header
+            ($cmd_header and 3 of ($wt_keystore, $wt_connection, $wt_method, $wt_decrypt, $cred_file)) or
             // Medium confidence: command header + vault enumeration
             ($cmd_header and ($vault_class or $vault_output)) or
             // Medium confidence: command header + credential decryption

@@ -1,12 +1,13 @@
 # Snort rules for Clop Windchill Custom Web Shell Campaign (August 2026)
 # Reference: https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
 # Reference: https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
+# Note: Rules are uncompiled; confidence labels downgraded accordingly.
 
-# Detect POST to dpr_-prefixed JSP web shell in Windchill login directory
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell POST dpr_ Pattern"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/login/dpr_"; http_uri; fast_pattern; pcre:"/\/Windchill\/login\/dpr_[0-9a-fA-F]{8}\.jsp/Ui"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20; sid:2100201; rev:1;)
+# Detect POST to dpr_-prefixed JSP web shell in Windchill login directory (confidence: medium)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell POST dpr_ Pattern"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/login/dpr_"; http_uri; fast_pattern; pcre:"/\/Windchill\/login\/dpr_[0-9a-fA-F]{8}\.jsp/Ui"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence medium; sid:2100201; rev:2;)
 
-# Detect POST to 6-hex-character JSP web shell in Windchill login directory
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell POST Short Hex Pattern"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/login/"; http_uri; fast_pattern; pcre:"/\/Windchill\/login\/[0-9a-fA-F]{6}\.jsp$/Ui"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20; sid:2100202; rev:1;)
+# Detect POST to 6-hex-character JSP web shell in Windchill login directory (confidence: low)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell POST Short Hex Pattern"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/login/"; http_uri; fast_pattern; pcre:"/\/Windchill\/login\/[0-9a-fA-F]{6}\.jsp$/Ui"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence low; sid:2100202; rev:2;)
 
-# Detect X-windchill-req header with GZIP response (web shell C2 communication)
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell X-windchill-req Command Header"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/"; http_uri; content:"X-windchill-req"; http_header; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20; sid:2100203; rev:1;)
+# Detect X-windchill-req header with GZIP response (web shell C2 communication) (confidence: medium)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Clop Windchill Web Shell X-windchill-req Command Header"; flow:established,to_server; content:"POST"; http_method; content:"/Windchill/"; http_uri; content:"X-windchill-req"; http_header; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence medium; sid:2100203; rev:2;)
