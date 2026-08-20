@@ -1,0 +1,47 @@
+title: StubMaker Browser Credential Store Access by Ruby or Go Process
+id: c6ea04b3-f5d9-4c1a-ae8f-7b3d4e5f6a02
+status: experimental
+description: >
+    Detects file access to Chromium-based browser credential stores
+    (Login Data, Cookies, Web Data) by processes associated with
+    StubMaker's attack chain (ruby.exe or wincfg). The stealer targets
+    Chrome, Edge, Brave, Opera, Opera GX, Vivaldi, Yandex, Avast, AVG,
+    and CCleaner Browser.
+references:
+    - https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
+    - https://blog.elhacker.net/2026/08/16-paquetes-de-rubygems-mediante.html
+author: Actioner
+date: 2026/08/20
+tags:
+    - attack.t1555.003
+    - attack.t1083
+logsource:
+    category: file_access
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\wincfg.exe'
+            - '\ruby.exe'
+    selection_browser_paths:
+        TargetFilename|contains:
+            - '\Google\Chrome\User Data\'
+            - '\Microsoft\Edge\User Data\'
+            - '\BraveSoftware\Brave-Browser\User Data\'
+            - '\Opera Software\Opera Stable\'
+            - '\Opera Software\Opera GX Stable\'
+            - '\Vivaldi\User Data\'
+            - '\Yandex\YandexBrowser\User Data\'
+            - '\AVAST Software\Browser\User Data\'
+            - '\AVG\Browser\User Data\'
+            - '\CCleaner Browser\User Data\'
+    selection_cred_files:
+        TargetFilename|endswith:
+            - '\Login Data'
+            - '\Cookies'
+            - '\Web Data'
+            - '\Local State'
+    condition: selection_process and selection_browser_paths and selection_cred_files
+falsepositives:
+    - Browser management or backup tools accessing credential stores
+level: medium

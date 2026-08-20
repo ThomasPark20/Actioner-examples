@@ -1,0 +1,31 @@
+title: Clop Windchill Web Shell Vault Enumeration Output
+id: d0f5b2a7-6e4c-7b1d-ca8f-9c3b5d4e6f70
+status: experimental
+description: >
+    Detects creation of flst.txt, the output file produced by the vault
+    enumeration function (fl/Flst1) of the Clop custom Windchill web shell.
+    This file contains vault stream IDs, filenames, storage paths, and file sizes
+    queried from Windchill database tables (ApplicationData, FVITEM, FVMOUNT,
+    MasteredOnReplicaItem) used to plan data exfiltration.
+references:
+    - https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
+    - https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
+    - https://www.bleepingcomputer.com/news/security/clop-created-custom-web-shell-for-windchill-data-theft-attacks/
+author: Actioner
+date: 2026/08/20
+tags:
+    - attack.t1083
+    - attack.t1005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\flst.txt'
+        Image|endswith:
+            - '\java.exe'
+            - '\javaw.exe'
+    condition: selection
+falsepositives:
+    - Other applications creating files named flst.txt from a Java process (low likelihood in Windchill environments)
+level: high

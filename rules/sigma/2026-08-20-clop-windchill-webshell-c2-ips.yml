@@ -1,0 +1,30 @@
+title: Clop Windchill Campaign C2 Infrastructure Communication
+id: e1a6c3b8-7f5d-8c2e-db9a-ad4c6e5f7081
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses associated with the Clop
+    Windchill web shell campaign infrastructure identified by ReliaQuest in August
+    2026. These IPs were observed communicating with compromised Windchill servers
+    during the mass-extortion campaign.
+references:
+    - https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
+    - https://cybersecuritynews.com/cl0p-hackers-exploit-ptc/
+author: Actioner
+date: 2026/08/20
+tags:
+    - attack.t1071.001
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip:
+            - '78.128.113.10'
+            - '104.194.9.14'
+            - '104.243.35.63'
+            - '185.227.83.236'
+            - '209.222.98.44'
+            - '216.152.151.204'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to these IPs from unrelated services (verify against Windchill server source)
+level: high

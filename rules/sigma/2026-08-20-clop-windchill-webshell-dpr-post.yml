@@ -1,0 +1,29 @@
+title: Clop Windchill Custom Web Shell POST - DPR Naming Pattern
+id: a7c2e9d4-3b1f-4e8a-9d5c-6f0e2a1b3c4d
+status: experimental
+description: >
+    Detects HTTP POST requests to JSP files with the dpr_ naming convention
+    (dpr_[0-9a-fA-F]{8}.jsp) under the Windchill login path, matching a web shell
+    naming pattern identified by ReliaQuest in the August 2026 Clop mass-extortion
+    campaign exploiting CVE-2026-12569. This pattern is distinct from the earlier
+    16-hex-character pattern reported in June 2026.
+references:
+    - https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
+    - https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
+    - https://www.bleepingcomputer.com/news/security/clop-created-custom-web-shell-for-windchill-data-theft-attacks/
+author: Actioner
+date: 2026/08/20
+tags:
+    - attack.t1505.003
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|re: '/Windchill/login/dpr_[0-9a-fA-F]{8}\.jsp'
+    condition: selection_method and selection_uri
+falsepositives:
+    - None known; the dpr_ prefix with hex suffix in the Windchill login directory is not a legitimate pattern
+level: high

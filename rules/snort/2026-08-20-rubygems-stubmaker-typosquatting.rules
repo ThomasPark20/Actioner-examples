@@ -1,0 +1,5 @@
+# StubMaker RubyGems typosquatting campaign - Snort rules
+# Source: https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker C2 exfil link to dresslee.com"; flow:established,to_server; content:"dresslee.com"; fast_pattern; content:"Host|3A|"; sid:2100201; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker Gofile exfil upload"; flow:established,to_server; content:"gofile.io"; fast_pattern; content:"POST"; content:"Host|3A|"; sid:2100202; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker Rust loader fetch from bebraz1 GitHub"; flow:established,to_server; content:"bebraz1"; fast_pattern; content:"github.com"; content:"releases"; sid:2100203; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
