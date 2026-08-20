@@ -167,7 +167,7 @@ No SHA256 hashes for the malicious gems or payloads have been publicly disclosed
 | T1083 | File and Directory Discovery | Scanning for browser profiles and wallet files across known paths |
 | T1560.001 | Archive Collected Data: Archive via Utility | Password-protected ZIP creation for exfiltration |
 | T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Upload of stolen data to Gofile file-sharing service |
-| T1071.001 | Application Layer Protocol: Web Protocols | C2 communication to dresslee.com via unencrypted HTTP |
+| T1071.001 | Application Layer Protocol: Web Protocols | C2 communication to dresslee[.]com via unencrypted HTTP |
 <!-- revision: added caveat -- no evidence of search-order hijacking; abe_payload.dll may be direct load (T1055) rather than side-loading -->
 | T1574.002 | Hijack Execution Flow: DLL Side-Loading | abe_payload.dll used for Chromium ABE bypass (sub-technique unconfirmed; may be direct DLL load/T1055 rather than search-order hijack) |
 
@@ -219,19 +219,20 @@ These detections target the StubMaker RubyGems supply chain attack at PoC/adviso
 
 ### Sigma: StubMaker extconf.rb Install Hook Execution
 
-Detects ruby extconf.rb execution with network fetch indicators spawned by a gem parent process, the primary StubMaker delivery mechanism.
-**Status:** compile x1 compiles (sigma check 0 errors, splunk+logscale convert OK) · confidence: medium
-<!-- audit: sigma check -x attacktag exit 0 (0 errors, 0 issues); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. ATT&CK tag validator excluded due to proxy blocking MITRE data fetch (HTTP 403). Medium confidence: extconf.rb with network fetch is suspicious but legitimate native gems also use extconf.rb with network calls. -->
+<!-- revision: REWRITE -- replaced broken selection_network_fetch (Ruby source-level strings never appear on process command line) with selection_gem_names matching the 16 malicious gem names in ParentCommandLine. Downgraded confidence to low. -->
+Detects ruby extconf.rb execution spawned by a gem install command for one of the 16 known-malicious StubMaker packages, the primary delivery mechanism.
+**Status:** compile x1 compiles (sigma check 0 errors, splunk+logscale convert OK) · confidence: low
+<!-- audit: sigma check -x attacktag exit 0 (0 errors, 0 issues); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Low confidence: anchored to specific gem names in ParentCommandLine which is narrowly scoped but partial name matches are possible. -->
 ```yaml
 title: StubMaker RubyGems extconf.rb Install Hook Execution
 id: a4c8e2f1-d3b7-4a9e-8c6d-5f1b2e3a4d80
 status: experimental
 description: >
-    Detects execution of ruby extconf.rb triggered by gem install, the primary
-    delivery mechanism for the StubMaker campaign. The malicious extconf.rb
-    fetches a 22 MB Rust-based loader from a GitHub release. Fires on any
-    ruby process whose command line contains extconf.rb spawned by a gem
-    parent process.
+    Detects execution of ruby extconf.rb triggered by installation of one of the 16
+    malicious StubMaker typosquatted gems. The malicious extconf.rb fetches a 22 MB
+    Rust-based loader from a GitHub release. Fires when a ruby process running
+    extconf.rb is spawned by a gem install command whose command line contains one
+    of the known-malicious package names.
 references:
     - https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
     - https://www.it-boltwise.de/stubmaker-typosquatting-auf-rubygems-klaut-browser-und-krypto-daten-ueber-install-hooks.html
@@ -255,23 +256,36 @@ detection:
             - '\ruby.exe'
         CommandLine|contains:
             - 'extconf.rb'
-    selection_network_fetch:
-        CommandLine|contains:
-            - 'Net::HTTP'
-            - 'open-uri'
-            - 'github.com'
-    condition: selection_parent and selection_child and selection_network_fetch
+    selection_gem_names:
+        ParentCommandLine|contains:
+            - 'brumdler'
+            - 'brundlef'
+            - 'ubnuler'
+            - 'ubnlder'
+            - 'activesupmport'
+            - 'ri18nr'
+            - 'ise18n'
+            - 'ioe18n'
+            - 'ie18u'
+            - 'iai8n'
+            - 'i1l8n'
+            - 'i18om'
+            - 'reaker'
+            - 'rakier'
+            - 'orakw'
+            - 'joxn'
+    condition: selection_parent and selection_child and selection_gem_names
 falsepositives:
-    - Legitimate gems with native C extensions that compile during install
-    - RubyGems extensions using mkmf which invoke extconf.rb normally
-level: medium
+    - Legitimate gems whose names partially match the typosquatted names
+level: low
 ```
 
 ### Sigma: StubMaker wincfg Go Stealer Process Execution
 
+<!-- revision: removed false abe_payload.dll sideload claim from description (no condition for it); downgraded level from high to medium (no hash anchoring). -->
 Detects execution of the wincfg Go stealer binary, the StubMaker final payload responsible for credential and crypto wallet theft.
 **Status:** compile x1 compiles (sigma check 0 errors, splunk+logscale convert OK) · confidence: medium
-<!-- audit: sigma check -x attacktag exit 0 (0 errors, 0 issues); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Medium confidence despite distinctive name: no hash anchoring; wincfg could conceivably be a legitimate admin tool name, though unlikely. -->
+<!-- audit: sigma check -x attacktag exit 0 (0 errors, 0 issues); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Medium confidence: no hash anchoring; wincfg could conceivably be a legitimate admin tool name, though unlikely. -->
 ```yaml
 title: StubMaker wincfg Go Stealer Process Execution
 id: b5d9f3a2-e4c8-4b0f-9d7e-6a2c3d4e5f91
@@ -280,7 +294,6 @@ description: >
     Detects execution of the StubMaker Go-based stealer payload named wincfg.
     After the Rust loader executes, it drops and runs the 11 MB wincfg binary
     which harvests browser credentials, crypto wallets, and Telegram data.
-    Also detects the abe_payload.dll sideload used for Chromium ABE bypass.
 references:
     - https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
     - https://www.it-boltwise.de/stubmaker-typosquatting-in-rubygems-zielt-auf-browser-credentials-und-krypto-wallets.html
@@ -302,7 +315,7 @@ detection:
     condition: selection_wincfg
 falsepositives:
     - Unlikely; wincfg is not a standard Windows utility name
-level: high
+level: medium
 ```
 
 ### Sigma: StubMaker Browser Credential Store Access
@@ -449,23 +462,23 @@ rule Malware_StubMaker_Wincfg_Stealer
 
 ### Snort: StubMaker C2 and Exfiltration Traffic
 
-Detects HTTP traffic to the StubMaker C2 domain dresslee.com, data exfiltration uploads to Gofile, and loader fetches from the bebraz1 GitHub account.
-**Status:** ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: structural check only; Snort not installed. dresslee.com is a specific C2 domain (high signal); Gofile POST is moderate signal (legitimate use exists); bebraz1 GitHub is high signal but account is deactivated. -->
+<!-- revision: dropped sid:2100202 (Gofile exfil upload) -- Gofile is legitimate; rule fires on all Gofile uploads, not StubMaker-specific. -->
+Detects HTTP traffic to the StubMaker C2 domain dresslee[.]com and loader fetches from the bebraz1 GitHub account.
+**Status:** uncompiled (structural check only) · confidence: medium
+<!-- audit: structural check only; Snort not installed. dresslee.com is a specific C2 domain (high signal); bebraz1 GitHub is high signal but account is deactivated. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker C2 exfil link to dresslee.com"; flow:established,to_server; content:"dresslee.com"; fast_pattern; content:"Host|3A|"; sid:2100201; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker Gofile exfil upload"; flow:established,to_server; content:"gofile.io"; fast_pattern; content:"POST"; content:"Host|3A|"; sid:2100202; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StubMaker Rust loader fetch from bebraz1 GitHub"; flow:established,to_server; content:"bebraz1"; fast_pattern; content:"github.com"; content:"releases"; sid:2100203; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html;)
 ```
 
 ### Suricata: StubMaker C2 and Exfiltration Traffic
 
-Detects HTTP traffic to StubMaker infrastructure using Suricata's HTTP-aware dot-notation sticky buffers for higher fidelity matching against the C2 domain, Gofile uploads, and GitHub loader fetch.
-**Status:** ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: structural check only; Suricata not installed. Uses proper http.host/http.method/http.uri sticky buffers. dresslee.com host match is distinctive; Gofile POST is moderate (legitimate use); bebraz1 in URI is distinctive but account defunct. -->
+<!-- revision: dropped sid:2200202 (Gofile exfil upload POST) -- Gofile is legitimate; rule fires on all Gofile uploads, not StubMaker-specific. -->
+Detects HTTP traffic to StubMaker infrastructure using Suricata's HTTP-aware dot-notation sticky buffers for higher fidelity matching against the C2 domain and GitHub loader fetch.
+**Status:** uncompiled (structural check only) · confidence: medium
+<!-- audit: structural check only; Suricata not installed. Uses proper http.host/http.method/http.uri sticky buffers. dresslee.com host match is distinctive; bebraz1 in URI is distinctive but account defunct. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - StubMaker C2 exfil download link to dresslee.com"; flow:established,to_server; http.host; content:"dresslee.com"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html; metadata:author Actioner, created_at 2026-08-20; sid:2200201; rev:1;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - StubMaker Gofile exfil upload POST"; flow:established,to_server; http.method; content:"POST"; http.host; content:"gofile.io"; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html; metadata:author Actioner, created_at 2026-08-20; sid:2200202; rev:1;)
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - StubMaker Rust loader fetch from bebraz1 GitHub releases"; flow:established,to_server; http.host; content:"github.com"; http.uri; content:"bebraz1"; fast_pattern; http.uri; content:"releases"; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html; metadata:author Actioner, created_at 2026-08-20; sid:2200203; rev:1;)
 ```
 
