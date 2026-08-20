@@ -1,0 +1,28 @@
+title: Clop Windchill Custom Web Shell POST - Short Hex Naming Pattern
+id: b8d3f0e5-4c2a-5f9b-ae6d-7a1f3b2c4d5e
+status: experimental
+description: >
+    Detects HTTP POST requests to JSP files with 6-character hexadecimal filenames
+    under the Windchill login path, matching a web shell naming pattern identified
+    in the August 2026 Clop extortion campaign. This shorter hex pattern supplements
+    the 16-character and dpr_ patterns observed in the same campaign.
+references:
+    - https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
+    - https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
+    - https://www.helpnetsecurity.com/2026/06/29/ptc-windchill-cve-2026-12569-exploited/
+author: Actioner
+date: 2026/08/20
+tags:
+    - attack.t1505.003
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|re: '/Windchill/login/[0-9a-fA-F]{6}\.jsp'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate Windchill JSP files with coincidentally short hexadecimal names (unlikely but possible)
+level: medium

@@ -1,0 +1,24 @@
+title: SPECTRE Self-Hollowing into RuntimeBroker.exe
+id: 6f1b3d8a-4e2c-7a5d-9b0e-3c8f1a6d2e7b
+status: experimental
+description: Detects suspicious RuntimeBroker.exe process creation patterns consistent with SPECTRE implant self-hollowing behavior, where the implant replaces its own memory image with RuntimeBroker.exe.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1055.012
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\RuntimeBroker.exe'
+    filter_legitimate:
+        ParentImage|endswith:
+            - '\svchost.exe'
+            - '\services.exe'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Third-party application management software spawning RuntimeBroker.exe
+level: medium

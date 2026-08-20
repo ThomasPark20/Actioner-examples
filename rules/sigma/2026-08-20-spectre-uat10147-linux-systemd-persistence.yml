@@ -1,0 +1,20 @@
+title: SPECTRE Linux Rootkit Persistence via Fake Hardware Monitor Systemd Service
+id: 8d4f2a1e-6b3c-4e7d-9a5f-2c8e1b7d3f6a
+status: experimental
+description: Detects creation of the hardware-monitor.service systemd unit used by the SPECTRE Linux rootkit for persistence, configured to start before sysinit.target.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/hardware-monitor.service'
+    condition: selection
+falsepositives:
+    - Legitimate hardware monitoring services with exactly this filename
+level: high

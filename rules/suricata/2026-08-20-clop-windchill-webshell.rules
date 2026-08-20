@@ -1,0 +1,13 @@
+# Suricata rules for Clop Windchill Custom Web Shell Campaign (August 2026)
+# Reference: https://reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign
+# Reference: https://thehackernews.com/2026/08/clop-linked-windchill-web-shell.html
+# Note: Rules are uncompiled; confidence labels downgraded accordingly.
+
+# Detect POST to dpr_-prefixed JSP web shell in Windchill login directory (confidence: medium)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Clop Windchill Web Shell POST dpr_ Pattern"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/Windchill/login/dpr_"; fast_pattern; pcre:"/\/Windchill\/login\/dpr_[0-9a-fA-F]{8}\.jsp/"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence medium; sid:2200201; rev:2;)
+
+# Detect POST to 6-hex-character JSP web shell in Windchill login directory (confidence: low)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Clop Windchill Web Shell POST Short Hex Pattern"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/Windchill/login/"; fast_pattern; pcre:"/\/Windchill\/login\/[0-9a-fA-F]{6}\.jsp$/"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence low; sid:2200202; rev:2;)
+
+# Detect X-windchill-req header in POST to Windchill (web shell C2 command dispatch) (confidence: medium)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Clop Windchill Web Shell X-windchill-req Command Header"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/Windchill/"; http.header_names; content:"X-windchill-req"; classtype:web-application-attack; reference:url,reliaquest.com/blog/clop-returns-with-custom-implant-in-mass-extortion-campaign; reference:cve,2026-12569; metadata:author Actioner, created_at 2026-08-20, confidence medium; sid:2200203; rev:2;)
