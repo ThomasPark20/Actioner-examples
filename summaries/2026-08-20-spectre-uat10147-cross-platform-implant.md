@@ -1,10 +1,10 @@
-<!-- revision: v1.0 2026-08-20 — DRAFT. 8 Sigma rules (all compile via sigma convert splunk + log_scale), 3 YARA rules (compiled via yarac), 4 Snort rules (structural check only), 7 Suricata rules (structural check only). -->
+<!-- revision: v2.0 2026-08-20 — FINAL. Applied critic verdict: Sigma 1 narrowed with X-ID:x9 header filter; Sigma 6 (generic reg.exe hive dump) dropped as community-duplicate; YARA 2 ftrace_flag made optional (macro resolves to constant at compile time); YARA 3 condition tightened to require $ashx2 (X-seo); Snort 1-2 and Suricata 1-2 X-ID value check added; Snort IOC domains expanded to cover all 7 IOC domains; Suricata DNS added healthsave.net; MITRE T1036 corrected to T1036.005; remediation corrected Sysmon/WDAC driver blocking guidance. 7 Sigma, 3 YARA, 8 Snort, 8 Suricata rules. -->
 # Technical Analysis Report: SPECTRE Cross-Platform Implant Deployed by UAT-10147 (2026-08-20)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-20
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -269,7 +269,7 @@ The SEO fraud engine redirects search engine traffic through compromised servers
 | T1057 | Process Discovery | ps command |
 | T1071.001 | Web Protocols | HTTP POST C2 communication |
 | T1041 | Exfiltration Over C2 Channel | download command, credential exfiltration |
-| T1036 | Masquerading | acpi_pad.ko mimicking legitimate module |
+| T1036.005 | Match Legitimate Name or Location | acpi_pad.ko mimicking legitimate ACPI kernel module |
 
 ## Impact Assessment
 
@@ -303,7 +303,7 @@ SPECTRE represents a high-capability post-exploitation framework with the follow
 - Rotate all credentials accessible from compromised hosts (local accounts, domain accounts, browser-stored passwords, Windows Vault entries)
 - Block all listed IOC domains and IPs at network perimeter
 - Patch or remove RTCore64.sys (CVE-2019-16098) and DBUtil_2_3.sys (CVE-2021-21551) from all endpoints
-- Deploy driver blocklist policies (WDAC/Sysmon) to prevent loading of known vulnerable drivers
+- Deploy WDAC (Windows Defender Application Control) driver blocklist policies to prevent loading of known vulnerable drivers; use Sysmon Event ID 6 for driver load logging and detection, but note that Sysmon cannot block driver loads, only log them
 - Audit IIS servers for unauthorized ASHX handlers and SEO-related modifications
 
 ## Detection Rules
@@ -311,16 +311,16 @@ SPECTRE represents a high-capability post-exploitation framework with the follow
 ### Sigma Rules
 
 **Rule 1: SPECTRE C2 HTTP POST Endpoints**
-Detects HTTP POST requests to the /api/v1/register and /api/v1/output C2 endpoints used by the SPECTRE implant.
-- **Status:** compile: ✅ compiles (sigma convert splunk + log_scale) | confidence: medium
-- Caveat: The URI patterns are generic REST-style paths; requires proxy log source with cs-method and c-uri fields.
+Detects HTTP POST requests to the /api/v1/register and /api/v1/output C2 endpoints with the X-ID: x9 authentication header used by the SPECTRE implant.
+- **Status:** compile: ✅ compiles (sigma convert splunk + log_scale) | confidence: high
+<!-- revision: v2 — added X-ID:x9 header filter to reduce false positives from generic REST paths -->
 <!-- audit: sigma convert --without-pipeline -t splunk spectre_c2_endpoints.yml -> exit 0; sigma convert --without-pipeline -t log_scale spectre_c2_endpoints.yml -> exit 0 -->
 
 ```yaml
 title: SPECTRE Implant C2 HTTP POST to Registration and Output Endpoints
 id: 7a3e1f4b-9c2d-4e5a-b8f7-1d6c3a2e5f09
 status: experimental
-description: Detects HTTP POST requests to SPECTRE implant C2 API endpoints used for beacon registration and data exfiltration.
+description: Detects HTTP POST requests to SPECTRE implant C2 API endpoints with X-ID authentication header used for beacon registration and data exfiltration.
 references:
     - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
     - https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt
@@ -337,10 +337,12 @@ detection:
             - '/api/v1/register'
             - '/api/v1/output'
         cs-method: 'POST'
-    condition: selection
+    selection_header:
+        cs-header|contains: 'X-ID: x9'
+    condition: selection and selection_header
 falsepositives:
-    - Legitimate applications using similarly named API endpoints
-level: medium
+    - Legitimate applications using the same API paths with an X-ID: x9 header value (unlikely)
+level: high
 ```
 
 **Rule 2: SPECTRE NTFS ADS C2 Configuration Storage**
@@ -472,48 +474,10 @@ falsepositives:
 level: medium
 ```
 
-**Rule 6: SPECTRE Credential Dumping via Registry Hive Export to TEMP**
-Detects reg.exe exporting SAM/SYSTEM/SECURITY hives to the TEMP directory, matching SPECTRE's hashdump behavior.
-- **Status:** compile: ✅ compiles (sigma convert splunk + log_scale) | confidence: medium
-- Caveat: Behavioral rule detecting a known offensive pattern; not exclusive to SPECTRE.
-<!-- audit: sigma convert --without-pipeline -t splunk spectre_registry_hive_dump.yml -> exit 0; sigma convert --without-pipeline -t log_scale spectre_registry_hive_dump.yml -> exit 0 -->
+<!-- revision: v2 — Sigma Rule 6 (Credential Dumping via Registry Hive Export) dropped. Generic reg.exe + SAM/SYSTEM/SECURITY pattern is already covered by multiple community Sigma rules (e.g., sigma/rules/windows/process_creation/proc_creation_win_reg_dump_sam.yml) and is not SPECTRE-specific at strict altitude. -->
 
-```yaml
-title: SPECTRE Credential Dumping via Registry Hive Export
-id: 4a2e8f6b-9d3c-5e1a-7b0f-6c4d2a8e3f5b
-status: experimental
-description: Detects export of SAM, SYSTEM, and SECURITY registry hives to the TEMP directory, matching the hashdump command behavior of the SPECTRE implant.
-references:
-    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
-author: Actioner
-date: 2026-08-20
-tags:
-    - attack.t1003.002
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_cmd:
-        Image|endswith:
-            - '\reg.exe'
-        CommandLine|contains:
-            - 'save'
-    selection_hive:
-        CommandLine|contains:
-            - 'HKLM\SAM'
-            - 'HKLM\SYSTEM'
-            - 'HKLM\SECURITY'
-    selection_temp:
-        CommandLine|contains:
-            - '\Temp\'
-            - '%TEMP%'
-    condition: selection_cmd and selection_hive and selection_temp
-falsepositives:
-    - System administrators performing legitimate registry backups
-level: medium
-```
-
-**Rule 7: SPECTRE Self-Hollowing into RuntimeBroker.exe**
+**Rule 6: SPECTRE Self-Hollowing into RuntimeBroker.exe**
+<!-- revision: v2 — renumbered from Rule 7 after dropping Rule 6 (registry hive dump) -->
 Detects RuntimeBroker.exe spawned from non-standard parent processes, consistent with SPECTRE's self-hollowing.
 - **Status:** compile: ✅ compiles (sigma convert splunk + log_scale) | confidence: medium
 - Caveat: Behavioral rule; may trigger on legitimate third-party software that launches RuntimeBroker.exe.
@@ -546,7 +510,8 @@ falsepositives:
 level: medium
 ```
 
-**Rule 8: SPECTRE UAT-10147 Known C2 Infrastructure DNS Queries**
+**Rule 7: SPECTRE UAT-10147 Known C2 Infrastructure DNS Queries**
+<!-- revision: v2 — renumbered from Rule 8 after dropping Rule 6 (registry hive dump) -->
 Detects DNS lookups to known UAT-10147 command and control domains.
 - **Status:** compile: ✅ compiles (sigma convert splunk + log_scale) | confidence: high
 <!-- audit: sigma convert --without-pipeline -t splunk spectre_ioc_domains.yml -> exit 0; sigma convert --without-pipeline -t log_scale spectre_ioc_domains.yml -> exit 0 -->
@@ -599,11 +564,12 @@ Detects SPECTRE implant Windows PE binaries via PDB path strings and C2 endpoint
 **Rule 2: SPECTRE_Linux_Rootkit_Specter**
 Detects the Specter Linux kernel rootkit module via hooked function names and ftrace indicators.
 - **Status:** compile: ✅ compiles (yarac exit 0) | confidence: high
+<!-- revision: v2 — $ftrace_flag made optional; FTRACE_OPS_FL_IPMODIFY is a C preprocessor macro that resolves to a numeric constant at compile time and will not appear as a literal string in a compiled .ko binary -->
 
 **Rule 3: SPECTRE_BadIIS_WebShell**
 Detects BadIIS ASHX web shell components via CodeDomProvider and cryptographic loader patterns.
-- **Status:** compile: ✅ compiles (yarac exit 0) | confidence: medium
-- Caveat: CodeDomProvider is used by legitimate ASP.NET applications; rule requires 3-of-6 string matches to reduce false positives.
+- **Status:** compile: ✅ compiles (yarac exit 0) | confidence: high
+<!-- revision: v2 — condition tightened: $ashx2 (X-seo) now mandatory to anchor the match to the campaign; prevents 3-of-6 generic .NET strings from firing alone -->
 
 <!-- audit: yarac spectre_implant.yar /dev/null -> exit 0 (all 3 rules) -->
 
@@ -660,9 +626,10 @@ rule SPECTRE_Linux_Rootkit_Specter
     condition:
         uint32(0) == 0x464C457F and
         $mod_name and
-        $ftrace_flag and
-        2 of ($hook*) and
-        $svc_name
+        (
+            ($ftrace_flag and 1 of ($hook*)) or
+            (2 of ($hook*) and $svc_name)
+        )
 }
 
 rule SPECTRE_BadIIS_WebShell
@@ -684,7 +651,7 @@ rule SPECTRE_BadIIS_WebShell
 
     condition:
         (uint16(0) == 0x5A4D or uint16(0) == 0xBBEF or uint16(0) == 0x253C) and
-        3 of them
+        $ashx2 and 2 of them
 }
 ```
 
@@ -692,24 +659,34 @@ rule SPECTRE_BadIIS_WebShell
 
 - **Status:** ⚠️ uncompiled (structural check only -- Snort is not installed in this environment)
 
+<!-- revision: v2 — Snort 1-2: added content:"x9"; http_header; to check X-ID value, not just header presence. Added rules for 5 missing IOC domains. -->
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Beacon Registration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/register"; http_uri; content:"X-ID"; http_header; sid:2100001; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Beacon Registration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/register"; http_uri; content:"X-ID"; http_header; content:"x9"; http_header; sid:2100001; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Data Exfiltration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/output"; http_uri; content:"X-ID"; http_header; sid:2100002; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Data Exfiltration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/output"; http_uri; content:"X-ID"; http_header; content:"x9"; http_header; sid:2100002; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain jyzyps.com"; flow:established,to_server; content:"jyzyps.com"; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain niupilao.vip"; flow:established,to_server; content:"niupilao.vip"; nocase; sid:2100004; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain udvyiwvfs.cyou"; flow:established,to_server; content:"udvyiwvfs.cyou"; nocase; sid:2100005; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain vip8888vn.xyz"; flow:established,to_server; content:"vip8888vn.xyz"; nocase; sid:2100006; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain mma888.cc"; flow:established,to_server; content:"mma888.cc"; nocase; sid:2100007; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain healthsave.net"; flow:established,to_server; content:"healthsave.net"; nocase; sid:2100008; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 ```
 
 ### Suricata Rules
 
 - **Status:** ⚠️ uncompiled (structural check only -- Suricata is not installed in this environment)
 
+<!-- revision: v2 — Suricata 1-2: added http.header_names + content:"x9" to check X-ID value. Added healthsave.net DNS rule (sid:2200008). -->
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Beacon Registration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header; content:"X-ID"; sid:2200001; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Beacon Registration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header_names; content:"X-ID"; http.header; content:"x9"; sid:2200001; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Data Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header; content:"X-ID"; sid:2200002; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Data Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header_names; content:"X-ID"; http.header; content:"x9"; sid:2200002; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - jyzyps.com"; dns.query; content:"jyzyps.com"; nocase; sid:2200003; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
 
@@ -720,6 +697,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - udvy
 alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - vip8888vn.xyz"; dns.query; content:"vip8888vn.xyz"; nocase; sid:2200006; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - mma888.cc"; dns.query; content:"mma888.cc"; nocase; sid:2200007; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - healthsave.net"; dns.query; content:"healthsave.net"; nocase; sid:2200008; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
 ```
 
 ### ClamAV Signatures (Vendor-Provided)
