@@ -1,0 +1,28 @@
+# SPECTRE Implant / UAT-10147 - Snort Rules
+# Reference: https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+# Date: 2026-08-20
+# Author: Actioner
+
+# C2 Beacon Registration (X-ID: x9 value check)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Beacon Registration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/register"; http_uri; content:"X-ID"; http_header; content:"x9"; http_header; sid:2100001; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# C2 Data Exfiltration (X-ID: x9 value check)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"SPECTRE Implant C2 Data Exfiltration Endpoint"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/output"; http_uri; content:"X-ID"; http_header; content:"x9"; http_header; sid:2100002; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - jyzyps.com
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain jyzyps.com"; flow:established,to_server; content:"jyzyps.com"; nocase; sid:2100003; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - niupilao.vip
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain niupilao.vip"; flow:established,to_server; content:"niupilao.vip"; nocase; sid:2100004; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - udvyiwvfs.cyou
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain udvyiwvfs.cyou"; flow:established,to_server; content:"udvyiwvfs.cyou"; nocase; sid:2100005; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - vip8888vn.xyz
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain vip8888vn.xyz"; flow:established,to_server; content:"vip8888vn.xyz"; nocase; sid:2100006; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - mma888.cc
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain mma888.cc"; flow:established,to_server; content:"mma888.cc"; nocase; sid:2100007; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# IOC Domain - healthsave.net
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"SPECTRE C2 Infrastructure - Known Malicious Domain healthsave.net"; flow:established,to_server; content:"healthsave.net"; nocase; sid:2100008; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)

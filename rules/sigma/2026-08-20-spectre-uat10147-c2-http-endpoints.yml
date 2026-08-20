@@ -1,0 +1,26 @@
+title: SPECTRE Implant C2 HTTP POST to Registration and Output Endpoints
+id: 7a3e1f4b-9c2d-4e5a-b8f7-1d6c3a2e5f09
+status: experimental
+description: Detects HTTP POST requests to SPECTRE implant C2 API endpoints with X-ID authentication header used for beacon registration and data exfiltration.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|endswith:
+            - '/api/v1/register'
+            - '/api/v1/output'
+        cs-method: 'POST'
+    selection_header:
+        cs-header|contains: 'X-ID: x9'
+    condition: selection and selection_header
+falsepositives:
+    - Legitimate applications using the same API paths with an X-ID: x9 header value (unlikely)
+level: high

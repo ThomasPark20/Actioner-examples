@@ -1,0 +1,28 @@
+# SPECTRE Implant / UAT-10147 - Suricata Rules
+# Reference: https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+# Date: 2026-08-20
+# Author: Actioner
+
+# C2 Beacon Registration (X-ID header name + x9 value check)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Beacon Registration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header_names; content:"X-ID"; http.header; content:"x9"; sid:2200001; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# C2 Data Exfiltration (X-ID header name + x9 value check)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Data Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header_names; content:"X-ID"; http.header; content:"x9"; sid:2200002; rev:2; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - jyzyps.com
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - jyzyps.com"; dns.query; content:"jyzyps.com"; nocase; sid:2200003; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - niupilao.vip
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - niupilao.vip"; dns.query; content:"niupilao.vip"; nocase; sid:2200004; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - udvyiwvfs.cyou
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - udvyiwvfs.cyou"; dns.query; content:"udvyiwvfs.cyou"; nocase; sid:2200005; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - vip8888vn.xyz
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - vip8888vn.xyz"; dns.query; content:"vip8888vn.xyz"; nocase; sid:2200006; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - mma888.cc
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - mma888.cc"; dns.query; content:"mma888.cc"; nocase; sid:2200007; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
+
+# DNS IOC - healthsave.net
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Lookup - healthsave.net"; dns.query; content:"healthsave.net"; nocase; sid:2200008; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata: created_at 2026_08_20, updated_at 2026_08_20;)
