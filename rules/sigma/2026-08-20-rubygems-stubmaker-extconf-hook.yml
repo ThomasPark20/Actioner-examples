@@ -1,12 +1,16 @@
+# revision: REWRITE -- replaced broken selection_network_fetch (checked CommandLine for
+# Ruby source-level strings like Net::HTTP that never appear on the process command line)
+# with selection_gem_names matching the 16 malicious gem names in ParentCommandLine.
+# Downgraded confidence to low.
 title: StubMaker RubyGems extconf.rb Install Hook Execution
 id: a4c8e2f1-d3b7-4a9e-8c6d-5f1b2e3a4d80
 status: experimental
 description: >
-    Detects execution of ruby extconf.rb triggered by gem install, the primary
-    delivery mechanism for the StubMaker campaign. The malicious extconf.rb
-    fetches a 22 MB Rust-based loader from a GitHub release. Fires on any
-    ruby process whose command line contains extconf.rb spawned by a gem
-    parent process.
+    Detects execution of ruby extconf.rb triggered by installation of one of the 16
+    malicious StubMaker typosquatted gems. The malicious extconf.rb fetches a 22 MB
+    Rust-based loader from a GitHub release. Fires when a ruby process running
+    extconf.rb is spawned by a gem install command whose command line contains one
+    of the known-malicious package names.
 references:
     - https://thehackernews.com/2026/08/16-typosquatted-rubygems-packages-steal.html
     - https://www.it-boltwise.de/stubmaker-typosquatting-auf-rubygems-klaut-browser-und-krypto-daten-ueber-install-hooks.html
@@ -30,13 +34,25 @@ detection:
             - '\ruby.exe'
         CommandLine|contains:
             - 'extconf.rb'
-    selection_network_fetch:
-        CommandLine|contains:
-            - 'Net::HTTP'
-            - 'open-uri'
-            - 'github.com'
-    condition: selection_parent and selection_child and selection_network_fetch
+    selection_gem_names:
+        ParentCommandLine|contains:
+            - 'brumdler'
+            - 'brundlef'
+            - 'ubnuler'
+            - 'ubnlder'
+            - 'activesupmport'
+            - 'ri18nr'
+            - 'ise18n'
+            - 'ioe18n'
+            - 'ie18u'
+            - 'iai8n'
+            - 'i1l8n'
+            - 'i18om'
+            - 'reaker'
+            - 'rakier'
+            - 'orakw'
+            - 'joxn'
+    condition: selection_parent and selection_child and selection_gem_names
 falsepositives:
-    - Legitimate gems with native C extensions that compile during install
-    - RubyGems extensions using mkmf which invoke extconf.rb normally
-level: medium
+    - Legitimate gems whose names partially match the typosquatted names
+level: low

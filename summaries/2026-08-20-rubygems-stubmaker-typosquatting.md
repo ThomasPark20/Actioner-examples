@@ -3,11 +3,11 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-20
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
-A typosquatting campaign tracked as "StubMaker" deployed 16 malicious RubyGems packages that impersonate popular Ruby dependencies (bundler, i18n, rake, json, activesupport). Discovered by OpenSourceMalware on August 15, 2026, the attack targets Windows developers through a multi-stage infection chain: a malicious `extconf.rb` install hook fetches a 22 MB Rust-based loader from a GitHub release (account `bebraz1`), which launches an embedded 11 MB Go-based infostealer (`wincfg`). The stealer harvests credentials from 10 Chromium-based browsers (circumventing App-Bound Encryption via `abe_payload.dll`), cryptocurrency wallets, seed phrases, Telegram Desktop data, and system information. Stolen data is archived into password-protected ZIPs, uploaded to Gofile, and download links are exfiltrated to the C2 domain `dresslee.com` over unencrypted HTTP. A related campaign of 37 typosquatted npm packages using the same payload and C2 infrastructure was published on August 16, 2026. All malicious packages have been removed from RubyGems and the GitHub payload repository is no longer accessible.
+A typosquatting campaign tracked as "StubMaker" deployed 16 malicious RubyGems packages that impersonate popular Ruby dependencies (bundler, i18n, rake, json, activesupport). Discovered by OpenSourceMalware on August 15, 2026, the attack targets Windows developers through a multi-stage infection chain: a malicious `extconf.rb` install hook fetches a 22 MB Rust-based loader from a GitHub release (account `bebraz1`), which launches an embedded 11 MB Go-based infostealer (`wincfg`). The stealer harvests credentials from 10 Chromium-based browsers (circumventing App-Bound Encryption via `abe_payload.dll`), cryptocurrency wallets, seed phrases, Telegram Desktop data, and system information. Stolen data is archived into password-protected ZIPs, uploaded to Gofile, and download links are exfiltrated to the C2 domain `dresslee[.]com` over unencrypted HTTP. A related campaign of 37 typosquatted npm packages using the same payload and C2 infrastructure was published on August 16, 2026. All malicious packages have been removed from RubyGems and the GitHub payload repository is no longer accessible.
 
 ## Background
 
@@ -43,7 +43,7 @@ The 16 typosquatted gems target five popular Ruby ecosystem packages:
 ### Malicious Code Behavior (Execution Chain)
 
 **Stage 1 -- extconf.rb Hook (Ruby):**
-The `extconf.rb` file is executed automatically during `gem install`. It performs platform detection and, on Windows, generates a Makefile with empty targets (`all:`, `install:`, `clean:`) and no-op stub scripts. Simultaneously, it initiates an HTTP fetch of the Rust-based loader from `github.com/bebraz1` releases.
+The `extconf.rb` file is executed automatically during `gem install`. It performs platform detection and, on Windows, generates a Makefile with empty targets (`all:`, `install:`, `clean:`) and no-op stub scripts. Simultaneously, it initiates an HTTP fetch of the Rust-based loader from `github[.]com/bebraz1` releases.
 
 **Stage 2 -- Rust Loader (22 MB):**
 The downloaded executable is a Rust-compiled Windows PE binary. It acts as a dropper, extracting and executing the embedded Go-based stealer payload.
@@ -84,11 +84,11 @@ The stealer searches for cryptocurrency wallet files and seed phrases. While spe
 
 ### Data Exfiltration
 
-1. The stealer queries `api.ipify.org` to determine the victim's public IP address
+1. The stealer queries `api[.]ipify[.]org` to determine the victim's public IP address
 2. System information is collected
 3. All harvested data is compressed into a **password-protected ZIP archive**
-4. The archive is uploaded to **Gofile** (a public file-sharing service)
-5. The resulting Gofile download link is sent to the C2 domain **dresslee.com** over **unencrypted HTTP**
+4. The archive is uploaded to **Gofile** (`gofile[.]io`, a public file-sharing service)
+5. The resulting Gofile download link is sent to the C2 domain **dresslee[.]com** over **unencrypted HTTP**
 
 ### Related npm Campaign
 
@@ -128,10 +128,10 @@ No SHA256 hashes for the malicious gems or payloads have been publicly disclosed
 
 | Type | Value | Context |
 |------|-------|---------|
-| Domain | dresslee.com | C2 domain receiving Gofile download links via unencrypted HTTP |
-| Service | gofile.io | File-sharing service used for data exfiltration uploads |
-| Service | api.ipify.org | Public IP address lookup service queried by the stealer |
-| GitHub Account | github.com/bebraz1 | Hosted the Rust-based loader binary (no longer accessible) |
+| Domain | dresslee[.]com | C2 domain receiving Gofile download links via unencrypted HTTP |
+| Service | gofile[.]io | File-sharing service used for data exfiltration uploads |
+| Service | api[.]ipify[.]org | Public IP address lookup service queried by the stealer |
+| GitHub Account | github[.]com/bebraz1 | Hosted the Rust-based loader binary (no longer accessible) |
 
 ### File System Indicators
 
@@ -147,9 +147,9 @@ No SHA256 hashes for the malicious gems or payloads have been publicly disclosed
 - Process named `wincfg` or `wincfg.exe` executing on Windows
 - Rapid sequential access to multiple browser `User Data` directories
 - Access to `Login Data`, `Cookies`, `Web Data`, and `Local State` files by non-browser processes
-- HTTP POST to gofile.io containing ZIP archive data
-- HTTP communication with dresslee.com containing Gofile URLs
-- DNS queries to api.ipify.org from Ruby or Go processes
+- HTTP POST to gofile[.]io containing ZIP archive data
+- HTTP communication with dresslee[.]com containing Gofile URLs
+- DNS queries to api[.]ipify[.]org from Ruby or Go processes
 
 ## MITRE ATT&CK Mapping
 
@@ -158,7 +158,8 @@ No SHA256 hashes for the malicious gems or payloads have been publicly disclosed
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | 16 typosquatted RubyGems packages + 37 npm packages impersonating popular dependencies |
 | T1059 | Command and Scripting Interpreter | extconf.rb Ruby hook automatically executed during gem installation |
 | T1204.002 | User Execution: Malicious File | Developer must run `gem install` with the typosquatted package name |
-| T1027 | Obfuscated Files or Information | Empty Makefile stubs masking the true payload delivery |
+<!-- revision: remapped T1027 to T1036 -- empty Makefile stubs provide a benign facade (masquerading), not obfuscation -->
+| T1036 | Masquerading | Empty Makefile stubs presenting a benign build facade to mask payload delivery |
 | T1105 | Ingress Tool Transfer | 22 MB Rust loader fetched from GitHub release during install |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Extraction of stored passwords, cookies, payment cards from 10 Chromium browsers |
 | T1539 | Steal Web Session Cookie | Cookie extraction from all targeted browsers |
@@ -167,7 +168,8 @@ No SHA256 hashes for the malicious gems or payloads have been publicly disclosed
 | T1560.001 | Archive Collected Data: Archive via Utility | Password-protected ZIP creation for exfiltration |
 | T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Upload of stolen data to Gofile file-sharing service |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication to dresslee.com via unencrypted HTTP |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | abe_payload.dll loaded to bypass Chromium App-Bound Encryption |
+<!-- revision: added caveat -- no evidence of search-order hijacking; abe_payload.dll may be direct load (T1055) rather than side-loading -->
+| T1574.002 | Hijack Execution Flow: DLL Side-Loading | abe_payload.dll used for Chromium ABE bypass (sub-technique unconfirmed; may be direct DLL load/T1055 rather than search-order hijack) |
 
 ## Impact Assessment
 
@@ -208,7 +210,7 @@ done
    - Rotate any payment card data stored in browser autofill
    - Transfer cryptocurrency funds to new wallets with fresh seed phrases
    - Re-secure Telegram accounts (revoke all sessions)
-3. **Network:** Block `dresslee.com` at the DNS/proxy level. Consider alerting on Gofile uploads from developer workstations.
+3. **Network:** Block `dresslee[.]com` at the DNS/proxy level. Consider alerting on Gofile uploads from developer workstations (config-dependent: requires a TLS-inspecting proxy to see HTTPS content to gofile[.]io).
 4. **Long-Term:** Use gem lockfiles with integrity checksums. Review gem names carefully before installation. Consider using `bundle audit` and dependency scanning tools that flag typosquatting.
 
 ## Detection Rules

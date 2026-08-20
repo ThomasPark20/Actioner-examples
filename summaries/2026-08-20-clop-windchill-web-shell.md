@@ -3,9 +3,10 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-20
-Version: 0.1 DRAFT
+Version: 1.0 FINAL
 
 <!-- audit: primary sources fetched 3/3 (CyberScoop 200, THN 200, SecurityWeek 200); deeper sources fetched 4/7 (ReliaQuest 200, BleepingComputer 200, SecurityBrief 200, CybersecurityNews 200; PTC advisory 403, Ransom-ISAC 403, TechNadu 403); total qualifying sources: 7; sigma check blocked by proxy (MITRE ATT&CK data fetch 403), sigma convert --without-pipeline -t splunk: 5/5 pass, sigma convert --without-pipeline -t log_scale: 5/5 pass; yarac: pass on attempt 2 (fixed unreferenced $gzip_enc string); snort/suricata: uncompiled (not installed) -->
+<!-- revision: v0.1->v1.0 per critic verdict NEEDS-REVISION. Changes: (1) Sigma #3 credential-decryption downgraded to low, relabeled as hunt/correlation-only, noted Windows-only scope gap, removed T1003 tag; (2) Sigma #4 vault-enum downgraded from high to medium, noted Windows-only scope gap and generic filename risk; (3) Sigma #5 C2-IPs added missing IP 5.180.41.35 (now 7 IPs), prose corrected six->seven; (4) YARA meta rewritten to state hashes are reference-only (not in condition), high-confidence tier raised to 4-of-5 or 3-of-5+cmd_header; (5) Snort SIDs 2100201-2100203 confidence downgraded one tier each (medium/low/medium); (6) Suricata SIDs 2200201-2200203 confidence downgraded one tier each (medium/low/medium); (7) T1003 removed from MITRE ATT&CK mapping. Re-validation: sigma convert splunk/logscale 3/3 pass, yarac pass. -->
 
 ## Executive Summary
 
@@ -185,7 +186,6 @@ Per-victim theft volumes range from 1 GB to multiple terabytes.
 | T1190 | Exploit Public-Facing Application | Initial access via CVE-2026-12569 RCE |
 | T1505.003 | Server Software Component: Web Shell | Custom JSP web shell deployment |
 | T1555 | Credentials from Password Stores | Keystore credential decryption via WTKeyStoreUtil |
-| T1003 | OS Credential Dumping | LDAP manager password extraction |
 | T1140 | Deobfuscate/Decode Files or Information | Credential decryption from encrypted keystore |
 | T1083 | File and Directory Discovery | Vault enumeration (L command), directory listing (D command) |
 | T1005 | Data from Local System | Engineering data staging and theft |
@@ -245,7 +245,7 @@ Compromise of engineering vaults in these sectors exposes trade secrets, product
 
 ### Sigma Rules
 
-<!-- audit: sigma check blocked by proxy (MITRE ATT&CK data URL 403); sigma convert --without-pipeline -t splunk: 5/5 pass; sigma convert --without-pipeline -t log_scale: 5/5 pass -->
+<!-- audit: sigma check blocked by proxy (MITRE ATT&CK data URL 403); sigma convert --without-pipeline -t splunk: 5/5 pass (re-validated 3 changed rules); sigma convert --without-pipeline -t log_scale: 5/5 pass (re-validated 3 changed rules) -->
 
 #### 1. Clop Windchill Web Shell POST - DPR Naming Pattern
 Detects POST requests to JSP files with the dpr_[hex]{8}.jsp naming convention in the Windchill login directory, a pattern specific to the August 2026 Clop campaign.
@@ -259,33 +259,33 @@ Detects POST requests to JSP files with 6-character hexadecimal filenames under 
 - **Status:** compile:splunk-pass, compile:logscale-pass | confidence:medium
 - **Caveat:** Shorter hex pattern has marginally higher false-positive potential than 16-hex or dpr_ patterns.
 
-#### 3. Clop Windchill Web Shell Credential Decryption Activity
-Detects file access to ieStructProperties.txt by a Java process, indicating the credential decryption capability of the Clop web shell.
+#### 3. Clop Windchill Web Shell Credential Decryption Activity (Hunt Query)
+Correlation-only / hunt rule. Detects file access to ieStructProperties.txt by a Java process. Windchill's own Java process reads this file during normal startup and configuration reload, so this rule fires on routine application behavior. Use only in correlation with other Clop Windchill indicators.
 - **File:** `rules/sigma/2026-08-20-clop-windchill-webshell-credential-decryption.yml`
-- **Status:** compile:splunk-pass, compile:logscale-pass | confidence:medium
-- **Caveat:** Legitimate Windchill application startup may access this file; correlate with other indicators.
+- **Status:** compile:splunk-pass, compile:logscale-pass | confidence:low
+- **Caveat:** High false-positive rate from legitimate Windchill operations. Windows-only scope (Windchill commonly runs on Linux).
 
 #### 4. Clop Windchill Web Shell Vault Enumeration Output
-Detects creation of flst.txt by a Java process, indicating the vault enumeration function of the Clop web shell.
+Detects creation of flst.txt by a Java process, indicating the vault enumeration function of the Clop web shell. The filename "flst.txt" is generic enough to be created by other Java-based tools; correlate with additional indicators before escalating.
 - **File:** `rules/sigma/2026-08-20-clop-windchill-webshell-vault-enum.yml`
-- **Status:** compile:splunk-pass, compile:logscale-pass | confidence:high
-- **Caveat:** Requires Sysmon or equivalent file event logging on Windchill servers.
+- **Status:** compile:splunk-pass, compile:logscale-pass | confidence:medium
+- **Caveat:** Requires Sysmon or equivalent file event logging on Windchill servers. Windows-only scope (Windchill commonly runs on Linux).
 
 #### 5. Clop Windchill Campaign C2 Infrastructure Communication
-Detects outbound connections to six IP addresses associated with the August 2026 Clop Windchill campaign infrastructure.
+Detects outbound connections to seven IP addresses associated with the August 2026 Clop Windchill campaign infrastructure.
 - **File:** `rules/sigma/2026-08-20-clop-windchill-webshell-c2-ips.yml`
 - **Status:** compile:splunk-pass, compile:logscale-pass | confidence:high
 - **Caveat:** IP-based detections have a limited shelf life; IPs may be rotated or reused for legitimate services.
 
 ### YARA Rule
 
-<!-- audit: yarac attempt 1 failed (unreferenced $gzip_enc string); yarac attempt 2 pass after removing $gzip_enc and adding to condition clause referencing $gzip_val -->
+<!-- audit: yarac attempt 1 failed (unreferenced $gzip_enc string); yarac attempt 2 pass; revision yarac re-validated pass (meta corrected, high-confidence tier raised to 4-of-5 or 3-of-5+cmd_header) -->
 
 #### 6. Clop Windchill Custom Web Shell (August 2026)
-Targets the Windchill-specific internal API strings (WTKeyStoreUtil, WTConnection, MethodContext, ieStructProperties, Flst1) and X-windchill-req command header that distinguish this implant from generic JSP web shells.
+Targets the Windchill-specific internal API strings (WTKeyStoreUtil, WTConnection, MethodContext, ieStructProperties, Flst1) and X-windchill-req command header that distinguish this implant from generic JSP web shells. Hashes in meta are reference-only and are not used in the condition; detection relies entirely on string matching.
 - **File:** `rules/yara/2026-08-20-clop-windchill-custom-webshell.yar`
-- **Status:** compile:yarac-pass (attempt 2/3) | confidence:high (3+ Windchill API strings), medium (header + vault/cred combination)
-- **Caveat:** String-based matches without the known hashes should be triaged with additional context; the Windchill-specific strings may appear in legitimate Windchill source files.
+- **Status:** compile:yarac-pass | confidence:high (4+ Windchill API strings, or 3+ with cmd_header), medium (cmd_header + vault/cred/gzip combination)
+- **Caveat:** String-based detection only (no hash matching in condition). Windchill-specific strings may appear in legitimate Windchill source files; triage matches with file location and context.
 
 ### Snort Rules
 
@@ -294,9 +294,9 @@ Targets the Windchill-specific internal API strings (WTKeyStoreUtil, WTConnectio
 #### 7-9. Clop Windchill Web Shell Network Detection (Snort)
 Three rules detecting: (a) POST to dpr_-prefixed JSP, (b) POST to 6-hex-character JSP, (c) X-windchill-req header in POST to Windchill.
 - **File:** `rules/snort/2026-08-20-clop-windchill-webshell.rules`
-- **Status:** uncompiled | confidence:high (dpr_ pattern), medium (short hex), high (X-windchill-req header)
+- **Status:** uncompiled | confidence:medium (SID 2100201 dpr_ pattern), low (SID 2100202 short hex), medium (SID 2100203 X-windchill-req header)
 - **SIDs:** 2100201, 2100202, 2100203
-- **Caveat:** Requires TLS decryption to inspect HTTPS traffic to Windchill servers.
+- **Caveat:** Uncompiled rules -- confidence downgraded one tier from compiled equivalents. Requires TLS decryption to inspect HTTPS traffic to Windchill servers.
 
 ### Suricata Rules
 
@@ -305,9 +305,9 @@ Three rules detecting: (a) POST to dpr_-prefixed JSP, (b) POST to 6-hex-characte
 #### 10-12. Clop Windchill Web Shell Network Detection (Suricata)
 Three rules with identical logic using Suricata dot-notation sticky buffers (http.method, http.uri, http.header_names).
 - **File:** `rules/suricata/2026-08-20-clop-windchill-webshell.rules`
-- **Status:** uncompiled | confidence:high (dpr_ pattern), medium (short hex), high (X-windchill-req header)
+- **Status:** uncompiled | confidence:medium (SID 2200201 dpr_ pattern), low (SID 2200202 short hex), medium (SID 2200203 X-windchill-req header)
 - **SIDs:** 2200201, 2200202, 2200203
-- **Caveat:** Requires TLS decryption to inspect HTTPS traffic to Windchill servers.
+- **Caveat:** Uncompiled rules -- confidence downgraded one tier from compiled equivalents. Requires TLS decryption to inspect HTTPS traffic to Windchill servers.
 
 ## Sources
 
