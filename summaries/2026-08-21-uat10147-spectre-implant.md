@@ -2,7 +2,7 @@
 
 **Date**: 2026-08-21
 **Author**: Actioner
-**Status**: DRAFT
+**Status**: FINAL
 **TLP**: CLEAR
 **Source**: Cisco Talos Intelligence
 
@@ -321,8 +321,8 @@ kl21177[.]com/1/dll.zip
 | Tactic | Technique | ID | Details |
 |--------|-----------|----|---------|
 | Initial Access | Exploit Public-Facing Application | T1190 | Zimbra, AjaxPro, Nacos, Telerik UI CVEs |
+<!-- revision: removed T1559 (COM/DDE) mapping for named pipe IPC — T1559 covers COM and DDE, not named pipes -->
 | Execution | Command and Scripting Interpreter | T1059 | Batch scripts, PowerShell, web shells |
-| Execution | Inter-Process Communication | T1559 | Named pipe `\\.\pipe\spectre_<tid>` |
 | Persistence | Scheduled Task/Job | T1053.005 | "Google Chrome Start" scheduled task |
 | Persistence | Create or Modify System Process: Windows Service | T1543.003 | Transient kernel driver service |
 | Persistence | Create or Modify System Process: Systemd Service | T1543.002 | `hardware-monitor.service` |
@@ -431,16 +431,18 @@ level: high
 ImageLoaded IN ("*\\RTCore64.sys", "*\\DBUtil_2_3.sys") NOT (ImageLoaded IN ("C:\\Program Files\\MSI\\*", "C:\\Program Files (x86)\\MSI\\*", "C:\\Program Files\\Dell\\*"))
 ```
 
-#### 2. SPECTRE Transient Kernel Driver Service from Temp Directory
+<!-- revision: Sigma #2 — downgraded level to medium; removed "SPECTRE" from title; reframed description as behavioral TTP -->
+#### 2. Transient Kernel Driver Service from Temp Directory
 
 ```yaml
-title: SPECTRE Transient Kernel Driver Service Creation from Temp Directory
+title: Transient Kernel Driver Service Creation from Temp Directory
 id: 2b4c6e8a-1d3f-5a97-c0e2-4f6b8d9a1c3e
 status: experimental
 description: >
     Detects creation of kernel-mode driver services with ImagePath pointing to temporary
-    directories, consistent with SPECTRE's BYOVD loading mechanism that deploys vulnerable
-    drivers to %TEMP% and creates transient kernel services via SCM.
+    or user-writable directories. Loading kernel drivers from non-standard paths such as
+    %TEMP% or C:\Users\Public is a common BYOVD pattern used to side-load vulnerable
+    drivers for kernel callback tampering.
 references:
     - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
 author: Actioner
@@ -467,7 +469,7 @@ detection:
     condition: selection and selection_kernel and selection_temp_paths
 falsepositives:
     - Some legitimate security products may temporarily load drivers from user-writable directories during installation
-level: high
+level: medium
 ```
 
 **Splunk SPL**:
@@ -475,61 +477,19 @@ level: high
 Provider_Name="Service Control Manager" EventID=7045 ServiceType="*kernel*" ImagePath IN ("*\\AppData\\Local\\Temp\\*", "*\\Windows\\Temp\\*", "*\\Users\\Public\\*")
 ```
 
-#### 3. SPECTRE Process Hollowing into RuntimeBroker or Svchost
+<!-- revision: Sigma #3 (Process Hollowing into RuntimeBroker/Svchost) DROPPED — generic T1055.012 TTP with zero SPECTRE-specific artifacts; wrong altitude for this report. -->
+
+<!-- revision: Sigma #4 — renamed title (removed "to Temp Directory" since no temp-path filter); noted generic T1003.002; fixed CommandLine|contains|all with single element to plain CommandLine|contains -->
+#### 3. Registry Hive Credential Dumping via reg.exe
 
 ```yaml
-title: SPECTRE Process Hollowing into RuntimeBroker or Svchost
-id: 5d7f9b1e-3a2c-4e86-d4f0-6a8c0e2b4d6f
-status: experimental
-description: >
-    Detects suspicious process creation patterns associated with SPECTRE's process hollowing
-    technique, where svchost.exe or RuntimeBroker.exe is spawned in a suspended state from
-    unexpected parent processes, indicative of APC EarlyBird injection or self-hollowing.
-references:
-    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
-author: Actioner
-date: 2026-08-21
-tags:
-    - attack.defense_evasion
-    - attack.t1055.012
-logsource:
-    product: windows
-    category: process_creation
-detection:
-    selection_target:
-        Image|endswith:
-            - '\svchost.exe'
-            - '\RuntimeBroker.exe'
-    filter_legitimate_parents:
-        ParentImage|endswith:
-            - '\services.exe'
-            - '\svchost.exe'
-            - '\MsMpEng.exe'
-            - '\runtimebroker.exe'
-            - '\sihost.exe'
-            - '\taskhostw.exe'
-    condition: selection_target and not filter_legitimate_parents
-falsepositives:
-    - Some application installers and updaters may spawn svchost.exe
-    - WMI-based management tools
-level: medium
-```
-
-**Splunk SPL**:
-```
-Image IN ("*\\svchost.exe", "*\\RuntimeBroker.exe") NOT (ParentImage IN ("*\\services.exe", "*\\svchost.exe", "*\\MsMpEng.exe", "*\\runtimebroker.exe", "*\\sihost.exe", "*\\taskhostw.exe"))
-```
-
-#### 4. SPECTRE Registry Hive Credential Dumping to Temp Directory
-
-```yaml
-title: SPECTRE Registry Hive Credential Dumping to Temp Directory
+title: Registry Hive Credential Dumping via reg.exe
 id: 9c1e3a5b-7d2f-4f98-e6a0-8b4d2c6e0a1f
 status: experimental
 description: >
-    Detects reg.exe saving SAM, SYSTEM, or SECURITY hives to temporary directories,
-    consistent with SPECTRE's credential harvesting capability that dumps registry
-    hives to %TEMP% for offline credential extraction.
+    Detects reg.exe saving SAM, SYSTEM, or SECURITY hives, a generic T1003.002
+    technique used by numerous threat actors including UAT-10147's SPECTRE implant
+    for offline credential extraction.
 references:
     - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
 author: Actioner
@@ -543,14 +503,14 @@ logsource:
 detection:
     selection_tool:
         Image|endswith: '\reg.exe'
-    selection_command:
-        CommandLine|contains|all:
-            - 'save'
+    selection_save:
+        CommandLine|contains: 'save'
+    selection_hive:
         CommandLine|contains:
             - 'hklm\sam'
             - 'hklm\system'
             - 'hklm\security'
-    condition: selection_tool and selection_command
+    condition: selection_tool and selection_save and selection_hive
 falsepositives:
     - Legitimate backup or disaster recovery software
     - System administrators performing authorized registry backups
@@ -562,7 +522,7 @@ level: high
 Image="*\\reg.exe" CommandLine="*save*" CommandLine IN ("*hklm\\sam*", "*hklm\\system*", "*hklm\\security*")
 ```
 
-#### 5. SPECTRE C2 Configuration via NTFS ADS on Hosts File
+#### 4. SPECTRE C2 Configuration via NTFS ADS on Hosts File
 
 ```yaml
 title: SPECTRE C2 Configuration via NTFS Alternate Data Stream on Hosts File
@@ -596,7 +556,7 @@ level: critical
 TargetFilename="*\\drivers\\etc\\hosts:cache*"
 ```
 
-#### 6. SPECTRE Defender Exclusion Path Addition for IIS Directories
+#### 5. SPECTRE Defender Exclusion Path Addition for IIS Directories
 
 ```yaml
 title: SPECTRE Defender Exclusion Path Addition for IIS Directories
@@ -640,7 +600,7 @@ level: high
 Image IN ("*\\powershell.exe", "*\\pwsh.exe") CommandLine="*Add-MpPreference*" CommandLine="*-ExclusionPath*" CommandLine IN ("*inetsrv*", "*inetpub*")
 ```
 
-#### 7. SPECTRE Named Pipe Creation
+#### 6. SPECTRE Named Pipe Creation
 
 ```yaml
 title: SPECTRE Named Pipe Creation
@@ -656,7 +616,6 @@ author: Actioner
 date: 2026-08-21
 tags:
     - attack.execution
-    - attack.t1559
 logsource:
     product: windows
     category: pipe_created
@@ -674,7 +633,7 @@ level: critical
 PipeName="\\spectre_*"
 ```
 
-#### 8. SPECTRE Persistence via Masquerading Scheduled Task
+#### 7. SPECTRE Persistence via Masquerading Scheduled Task
 
 ```yaml
 title: SPECTRE Persistence via Google Chrome Masquerading Scheduled Task
@@ -727,7 +686,7 @@ rule SPECTRE_Windows_Implant {
         $c2_output = "/api/v1/output" ascii
         $header_xid = "X-ID" ascii
         $ads_path = "\\drivers\\etc\\hosts:cache" ascii wide
-        $debug1 = "spectre" ascii nocase
+        $debug1 = "spectre" ascii
         $driver1 = "RTCore64.sys" ascii wide
         $driver2 = "DBUtil_2_3.sys" ascii wide
         $hollowing_target1 = "svchost.exe" ascii wide
@@ -738,11 +697,12 @@ rule SPECTRE_Windows_Implant {
         filesize < 10MB and
         (
             ($pipe) or
-            ($c2_register and $c2_output) or
+            ($c2_register and $c2_output and ($header_xid or $pipe)) or
             ($ads_path and $header_xid) or
             (any of ($driver*) and any of ($hollowing_target*) and $debug1)
         )
 }
+// revision: YARA #1 — tightened $c2_register+$c2_output branch to require $header_xid or $pipe anchor; removed nocase from $debug1
 
 rule SPECTRE_Linux_Implant {
     meta:
@@ -765,13 +725,14 @@ rule SPECTRE_Linux_Implant {
         uint32(0) == 0x464C457F and
         filesize < 10MB and
         (
-            ($c2_register and $c2_output) or
+            ($c2_register and $c2_output and ($header_xid or $debug)) or
             ($debug and $service) or
             ($debug and $rootkit_name) or
             ($header_xid and $c2_register and $debug) or
-            ($magic_pid and $c2_register)
+            ($magic_pid and $c2_register and ($header_xid or $debug))
         )
 }
+// revision: YARA #2 — tightened $c2_register+$c2_output branch to require $header_xid or $debug; anchored $magic_pid branch similarly
 
 rule Specter_Linux_Rootkit {
     meta:
@@ -901,35 +862,35 @@ rule SPECTRE_NoodleRAT_Linux {
 # Author: Actioner
 # Reference: https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
 
+# revision: All SIDs reassigned from ET reserved range (2000000-2999999) to custom 9000001+ range
+# revision: SID 2200003 (X-ID+/api/v1/ combo) DROPPED — redundant with SIDs 9000001+9000002
+
 # SPECTRE C2 beacon registration
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Registration Beacon POST to /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header; content:"X-ID"; content:"x9"; sid:2200001; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Registration Beacon POST to /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header; content:"X-ID"; content:"x9"; sid:9000001; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # SPECTRE C2 command output exfiltration
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Output Exfiltration POST to /api/v1/output"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header; content:"X-ID"; content:"x9"; sid:2200002; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
-
-# SPECTRE C2 X-ID authentication header with API path
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Authentication Header X-ID x9"; flow:established,to_server; http.method; content:"POST"; http.header; content:"X-ID"; content:"x9"; http.uri; content:"/api/v1/"; sid:2200003; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Output Exfiltration POST to /api/v1/output"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header; content:"X-ID"; content:"x9"; sid:9000002; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # UAT-10147 staging server download
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 Staging Domain adminapi.tippusoni.in"; flow:established,to_server; http.host; content:"adminapi.tippusoni.in"; sid:2200004; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 Staging Domain adminapi.tippusoni.in"; flow:established,to_server; http.host; content:"adminapi.tippusoni.in"; sid:9000003; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
 
 # UAT-10147 C2 domain kl21177.com
-alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain kl21177.com DNS Lookup"; dns.query; content:"kl21177.com"; sid:2200005; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain kl21177.com DNS Lookup"; dns.query; content:"kl21177.com"; sid:9000004; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
 
 # UAT-10147 SEO fraud domain
-alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 SEO Fraud Domain vip8888vn.xyz DNS Lookup"; dns.query; content:"vip8888vn.xyz"; sid:2200006; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 SEO Fraud Domain vip8888vn.xyz DNS Lookup"; dns.query; content:"vip8888vn.xyz"; sid:9000005; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # UAT-10147 C2 IP
-alert ip $HOME_NET any -> 139.180.197.150 any (msg:"Actioner - UAT-10147 C2 Server 139.180.197.150"; sid:2200007; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert ip $HOME_NET any -> 139.180.197.150 any (msg:"Actioner - UAT-10147 C2 Server 139.180.197.150"; sid:9000006; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # UAT-10147 SEO fraud JS delivery
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 SEO Fraud JS Delivery Domain jyzyps.com"; flow:established,to_server; http.host; content:"jyzyps.com"; sid:2200008; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 SEO Fraud JS Delivery Domain jyzyps.com"; flow:established,to_server; http.host; content:"jyzyps.com"; sid:9000007; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # UAT-10147 C2 domain niupilao.vip
-alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain niupilao.vip DNS Lookup"; dns.query; content:"niupilao.vip"; sid:2200009; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain niupilao.vip DNS Lookup"; dns.query; content:"niupilao.vip"; sid:9000008; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 
 # UAT-10147 C2 domain udvyiwvfs.cyou
-alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain udvyiwvfs.cyou DNS Lookup"; dns.query; content:"udvyiwvfs.cyou"; sid:2200010; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain udvyiwvfs.cyou DNS Lookup"; dns.query; content:"udvyiwvfs.cyou"; sid:9000009; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
 ```
 
 ### Existing Vendor Coverage
@@ -949,16 +910,17 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain udvyiwvf
 
 ---
 
+<!-- revision: sources reformatted as markdown links -->
 ## Sources
 
-1. Cisco Talos, "UAT-10147 deploys SPECTRE: A cross-platform implant with Linux rootkit and BYOVD capabilities," August 20, 2026. https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+1. [Cisco Talos, "UAT-10147 deploys SPECTRE: A cross-platform implant with Linux rootkit and BYOVD capabilities," August 20, 2026.](https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/)
 
-2. Cisco Talos, "UAT-10147: Chinese-speaking adversary integrates agentic AI into post-compromise operations," 2026. https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/
+2. [Cisco Talos, "UAT-10147: Chinese-speaking adversary integrates agentic AI into post-compromise operations," 2026.](https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/)
 
-3. Cisco Talos IOC Repository - SPECTRE deployment indicators. https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt
+3. [Cisco Talos IOC Repository - SPECTRE deployment indicators.](https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt)
 
-4. Cisco Talos IOC Repository - Agentic AI campaign indicators. https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20integrates%20agentic%20AI.txt
+4. [Cisco Talos IOC Repository - Agentic AI campaign indicators.](https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20integrates%20agentic%20AI.txt)
 
-5. CyberInsider, "Chinese hackers use AI to automate attacks on 170,000 servers," 2026. https://cyberinsider.com/chinese-hackers-use-ai-to-automate-attacks-on-170000-servers/
+5. [CyberInsider, "Chinese hackers use AI to automate attacks on 170,000 servers," 2026.](https://cyberinsider.com/chinese-hackers-use-ai-to-automate-attacks-on-170000-servers/)
 
-6. it-learn.io, "AI-Assisted Rootkits Arrive -- UAT-10147 SPECTRE Campaign," August 20, 2026. https://blog.it-learn.io/posts/2026-08-20-ai-assisted-rootkits-arrive-uat-10147-spectre-campaign/
+6. [it-learn.io, "AI-Assisted Rootkits Arrive -- UAT-10147 SPECTRE Campaign," August 20, 2026.](https://blog.it-learn.io/posts/2026-08-20-ai-assisted-rootkits-arrive-uat-10147-spectre-campaign/)

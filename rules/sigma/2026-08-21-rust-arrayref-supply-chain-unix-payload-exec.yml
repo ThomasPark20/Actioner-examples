@@ -1,0 +1,28 @@
+title: Suspicious rust-setup payload execution from temp directory
+id: 7a2e1d4f-9c3b-4e8a-b5f1-6d2c8a3e7b90
+status: experimental
+description: >-
+  Detects execution of the rust-setup payload dropped by the malicious proc-macro1
+  build.rs script during Rust crate compilation. The arrayref/append-only-vec supply
+  chain attack (August 2026) writes a binary to /tmp/rust-setup on Unix or launches
+  rust-setup.ps1 via wscript.exe on Windows.
+references:
+  - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+  - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/21
+tags:
+  - attack.t1195.001
+  - attack.t1059.001
+  - attack.t1204.002
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_unix:
+    Image|endswith: '/rust-setup'
+    Image|startswith: '/tmp/'
+  condition: selection_unix
+falsepositives:
+  - Legitimate Rust toolchain installer scripts (unlikely to use /tmp/rust-setup path)
+level: high

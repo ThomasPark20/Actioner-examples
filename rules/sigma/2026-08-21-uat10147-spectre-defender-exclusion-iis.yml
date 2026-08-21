@@ -1,0 +1,34 @@
+title: SPECTRE Defender Exclusion Path Addition for IIS Directories
+id: 7f2b4d6e-8a1c-3e59-b0d4-5c9a7e3f1b2d
+status: experimental
+description: >
+    Detects addition of Microsoft Defender exclusion paths for IIS directories
+    (inetsrv), a technique used by UAT-10147 to prevent detection of web shells
+    and SPECTRE implant components deployed to IIS server paths.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+    - https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.defense_evasion
+    - attack.t1562.001
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_exclusion:
+        CommandLine|contains|all:
+            - 'Add-MpPreference'
+            - '-ExclusionPath'
+        CommandLine|contains:
+            - 'inetsrv'
+            - 'inetpub'
+    condition: selection_powershell and selection_exclusion
+falsepositives:
+    - Administrators configuring Defender exclusions for IIS during initial server setup
+level: high

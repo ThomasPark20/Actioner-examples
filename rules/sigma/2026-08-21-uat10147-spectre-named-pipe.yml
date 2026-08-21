@@ -1,0 +1,23 @@
+title: SPECTRE Named Pipe Creation
+id: 1a3c5e7f-9b2d-4f16-c8e0-3d5a7b9c1e4f
+status: experimental
+description: >
+    Detects creation of named pipes matching the SPECTRE implant pattern
+    (\\.\pipe\spectre_<tid>), used for inter-process communication during
+    process hollowing and command execution.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.execution
+logsource:
+    product: windows
+    category: pipe_created
+detection:
+    selection:
+        PipeName|startswith: '\spectre_'
+    condition: selection
+falsepositives:
+    - Extremely unlikely in legitimate use
+level: critical

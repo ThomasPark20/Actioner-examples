@@ -3,11 +3,12 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-08-21
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
-On August 20, 2026, beginning at 07:15 UTC, an attacker who had compromised the crates.io credentials of prominent Rust developer Andrew Gallant (BurntSushi) published malicious versions of three popular crates: `arrayref` 0.3.10 (~245 million total downloads, ~54 million in the prior 90 days), `internment` 0.8.7, and `append-only-vec` 0.1.9. The actual library code was not modified; the only change was a single dependency line added to each crate's `Cargo.toml` pointing to `proc-macro1`, a typosquat of the legitimate `proc-macro2` crate. The attacker simultaneously yanked legitimate versions (0.3.5 through 0.3.9) of arrayref, forcing any new resolution to land on the compromised 0.3.10 release.
+<!-- revision: attribution corrected — droundy is David Roundy, not Andrew Gallant/BurntSushi; fixed throughout per critic -->
+On August 20, 2026, beginning at 07:15 UTC, an attacker who had compromised the crates.io credentials of Rust developer David Roundy (`droundy`) published malicious versions of three popular crates: `arrayref` 0.3.10 (~245 million total downloads, ~54 million in the prior 90 days), `internment` 0.8.7, and `append-only-vec` 0.1.9. The actual library code was not modified; the only change was a single dependency line added to each crate's `Cargo.toml` pointing to `proc-macro1`, a typosquat of the legitimate `proc-macro2` crate. The attacker simultaneously yanked legitimate versions (0.3.5 through 0.3.9) of arrayref, forcing any new resolution to land on the compromised 0.3.10 release.
 
 The malicious `proc-macro1` crate's `build.rs` script -- which Cargo automatically compiles and executes during dependency resolution -- decoded base64-obfuscated URLs, disabled TLS certificate validation, downloaded a platform-specific payload (Linux, Windows, macOS x86_64, macOS ARM64) from `23.254.165[.]112:9089`, and executed it detached. The stage-2 implant is a featureful backdoor supporting HTTPS POST beaconing to `/49890878`, browser credential theft (Chrome, Brave, Edge), host enumeration, persistence (Registry Run key / LaunchAgent / systemd), DGA fallback with 10 algorithmic `.com` domains every 5 days, and remote script execution. AES-128-GCM encryption uses the hardcoded passphrase "i am botking."
 
@@ -30,7 +31,7 @@ The `arrayref` crate is a foundational Rust utility that provides macros for cre
 | 2026-08-20 (prior) | Attacker creates GitHub account `dtolney` impersonating David Tolnay (legitimate prominent Rust developer) and a corresponding crates.io account |
 | 2026-08-20 (prior) | Attacker publishes `proc-macro1` v1.0.106 (clean copy of proc-macro2 source, staging version) followed by v1.0.107 (containing malicious build.rs) |
 | 2026-08-20 (prior) | Attacker publishes related typosquats: `proc-macro-en`, `aovine`, `arone`, `aronenao`, `tinymember` |
-| 2026-08-20 07:15 | `arrayref` 0.3.10 published via compromised `droundy` (David Roundy / BurntSushi) account; legitimate versions 0.3.5-0.3.9 yanked simultaneously |
+| 2026-08-20 07:15 | `arrayref` 0.3.10 published via compromised `droundy` (David Roundy) account; legitimate versions 0.3.5-0.3.9 yanked simultaneously |
 | 2026-08-20 07:34 | `internment` 0.8.7 published via same account |
 | 2026-08-20 07:37 | `append-only-vec` 0.1.9 published via same account |
 | 2026-08-20 ~07:15 | Malicious builds begin executing on developer workstations and CI runners worldwide |
@@ -42,7 +43,7 @@ The `arrayref` crate is a foundational Rust utility that provides macros for cre
 
 ## Root Cause: Initial Access Vector
 
-The attack exploited compromised credentials of the `droundy` crates.io account belonging to Andrew Gallant (BurntSushi), creator of ripgrep and maintainer of arrayref, internment, and append-only-vec. The Rust Security Response Team stated that the author was not acting maliciously but that their credentials or computer were likely compromised. The attacker combined this credential access with a prepared typosquatting infrastructure: the malicious dependency `proc-macro1` was already published under an impersonation account (`dtolney`, mimicking `dtolnay` -- David Tolnay) before the hijacked crate releases were pushed.
+The attack exploited compromised credentials of the `droundy` crates.io account belonging to David Roundy, maintainer of arrayref, internment, and append-only-vec. The Rust Security Response Team stated that the author was not acting maliciously but that their credentials or computer were likely compromised. The attacker combined this credential access with a prepared typosquatting infrastructure: the malicious dependency `proc-macro1` was already published under an impersonation account (`dtolney`, mimicking `dtolnay` -- David Tolnay) before the hijacked crate releases were pushed.
 
 ## Technical Analysis of the Malicious Payload
 
@@ -212,7 +213,7 @@ The `onering` crate v1.4.1 (detected June 10, 2026) used a separate but thematic
 
 | Platform | Account | Notes |
 |----------|---------|-------|
-| crates.io | `droundy` | Compromised legitimate maintainer (David Roundy / Andrew Gallant / BurntSushi) |
+| crates.io | `droundy` | Compromised legitimate maintainer (David Roundy) |
 | crates.io/GitHub | `dtolney` | Impersonation of David Tolnay (`dtolnay`); published proc-macro1 |
 | crates.io | `daveroundy` | Impersonation of droundy; published proc-macro-en |
 | Email | `rchaitm[at]gmail[.]com` | Forged author metadata |
@@ -255,7 +256,8 @@ The `onering` crate v1.4.1 (detected June 10, 2026) used a separate but thematic
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Compromised maintainer account used to inject malicious dependency into arrayref, internment, append-only-vec |
-| T1036.004 | Masquerading: Masquerade Task or Service | proc-macro1 typosquats legitimate proc-macro2; dtolney impersonates dtolnay |
+<!-- revision: T1036.004 changed to T1036.005 — Match Legitimate Name or Location is more accurate for package name typosquatting -->
+| T1036.005 | Masquerading: Match Legitimate Name or Location | proc-macro1 typosquats legitimate proc-macro2; dtolney impersonates dtolnay |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | Windows payload delivered as PowerShell script, launched via VBS |
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | VBS launcher (`rust-setup-launch.vbs`) used to escape Cargo's job object |
 | T1105 | Ingress Tool Transfer | build.rs downloads platform-specific stage-2 payload from remote host |
@@ -401,14 +403,15 @@ level: critical
 Detects creation of the `/tmp/rust-setup` file on Linux/macOS, indicating the build.rs dropper has staged the payload.
 **Status:** compile ✅ parses (sigma check blocked by offline D3FEND fetch only; splunk/log_scale convert exit 0) · confidence: high
 <!-- audit: altitude=advisory-specific (unique filename). `sigma convert --without-pipeline -t splunk` exit 0 => TargetFilename="/tmp/rust-setup". `-t log_scale` exit 0 => TargetFilename=/^\/tmp\/rust-setup$/i. file_event category; the exact path is distinctive. -->
+<!-- revision: description narrowed to Unix/Linux only — rule logsource is product:linux, Windows paths not applicable here -->
 ```yaml
 title: Rust-setup payload file creation in temp directory
 id: 9e4c7b1a-5d8f-4a2e-b3c6-1f7d9a0e4b52
 status: experimental
 description: >-
-  Detects creation of files associated with the arrayref/append-only-vec supply chain
-  attack payload staging. The malicious proc-macro1 build.rs drops rust-setup (Unix)
-  or rust-setup.ps1 / rust-setup-launch.vbs (Windows) into temporary directories.
+  Detects creation of the /tmp/rust-setup file on Unix/Linux, indicating the malicious
+  proc-macro1 build.rs dropper has staged the arrayref/append-only-vec supply chain
+  attack payload.
 references:
   - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
   - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
@@ -434,6 +437,7 @@ level: high
 Detects outbound network connections to the three C2 IP addresses used in the arrayref supply chain attack.
 **Status:** compile ✅ parses (sigma check blocked by offline D3FEND fetch only; splunk/log_scale convert exit 0) · confidence: high
 <!-- audit: altitude=advisory-specific (published IOC IPs). `sigma convert --without-pipeline -t splunk` exit 0 => DestinationIp IN ("23.254.165.112", "23.254.167.107", "23.254.167.216"). `-t log_scale` exit 0 => DestinationIp=/^23\.254\.165\.112$/i or ... . IPs are real published IOCs from Wiz/Semgrep/Aikido; Hostwinds LLC hosting may rotate but these specific IPs are confirmed campaign infrastructure. -->
+<!-- revision: removed attack.t1102 (Web Service — incorrect for attacker-controlled infra); removed product:linux to make platform-agnostic network IOC rule -->
 ```yaml
 title: Network connection to arrayref supply chain C2 infrastructure
 id: 4f1a9c7e-2b3d-4e6f-8a5c-9d0e1b7f2c4a
@@ -449,10 +453,8 @@ author: Actioner
 date: 2026/08/21
 tags:
   - attack.t1071.001
-  - attack.t1102
 logsource:
   category: network_connection
-  product: linux
 detection:
   selection:
     DestinationIp:
