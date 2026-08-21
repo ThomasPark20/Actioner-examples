@@ -1,0 +1,35 @@
+title: Transient Kernel Driver Service Creation from Temp Directory
+id: 2b4c6e8a-1d3f-5a97-c0e2-4f6b8d9a1c3e
+status: experimental
+description: >
+    Detects creation of kernel-mode driver services with ImagePath pointing to temporary
+    or user-writable directories. Loading kernel drivers from non-standard paths such as
+    %TEMP% or C:\Users\Public is a common BYOVD pattern used to side-load vulnerable
+    drivers for kernel callback tampering.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.persistence
+    - attack.privilege_escalation
+    - attack.t1543.003
+    - attack.t1068
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        Provider_Name: 'Service Control Manager'
+        EventID: 7045
+    selection_kernel:
+        ServiceType|contains: 'kernel'
+    selection_temp_paths:
+        ImagePath|contains:
+            - '\AppData\Local\Temp\'
+            - '\Windows\Temp\'
+            - '\Users\Public\'
+    condition: selection and selection_kernel and selection_temp_paths
+falsepositives:
+    - Some legitimate security products may temporarily load drivers from user-writable directories during installation
+level: medium

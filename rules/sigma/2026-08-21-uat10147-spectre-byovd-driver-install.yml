@@ -1,0 +1,32 @@
+title: SPECTRE BYOVD Vulnerable Driver Installation via Service Control Manager
+id: 8a3e1f4b-7c29-4d85-b1e6-9f2a3c5d8e07
+status: experimental
+description: >
+    Detects the installation of known vulnerable drivers (RTCore64.sys, DBUtil_2_3.sys)
+    used by UAT-10147's SPECTRE implant to perform BYOVD attacks for kernel-level EDR bypass.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.privilege_escalation
+    - attack.defense_evasion
+    - attack.t1068
+    - attack.t1543.003
+logsource:
+    product: windows
+    category: driver_load
+detection:
+    selection_drivers:
+        ImageLoaded|endswith:
+            - '\RTCore64.sys'
+            - '\DBUtil_2_3.sys'
+    filter_legitimate_paths:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\MSI\'
+            - 'C:\Program Files (x86)\MSI\'
+            - 'C:\Program Files\Dell\'
+    condition: selection_drivers and not filter_legitimate_paths
+falsepositives:
+    - Legitimate MSI Afterburner or Dell BIOS utility installations loading these drivers from expected paths
+level: high
