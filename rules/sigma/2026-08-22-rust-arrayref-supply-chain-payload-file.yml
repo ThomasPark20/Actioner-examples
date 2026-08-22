@@ -1,0 +1,31 @@
+title: Rust Crate Supply Chain Attack - Payload File Creation
+id: 2d8f6a1c-9e4b-4d3a-b7c5-1f0e8a2d6c9b
+status: experimental
+description: >
+    Detects creation of the rust-setup payload files dropped by
+    the compromised Rust crates (arrayref, internment, append-only-vec)
+    build script during compilation. The malicious build.rs writes payloads
+    to /tmp/rust-setup (Unix) or %TEMP%\rust-setup.ps1 (Windows).
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
+author: Actioner
+date: 2026-08-22
+tags:
+    - attack.t1195.001
+    - attack.t1059.001
+logsource:
+    category: file_event
+detection:
+    selection_unix:
+        TargetFilename: '/tmp/rust-setup'
+    selection_windows_ps1:
+        TargetFilename|endswith: '\rust-setup.ps1'
+    selection_windows_vbs:
+        TargetFilename|endswith: '\rust-setup-launch.vbs'
+    selection_windows_cfg:
+        TargetFilename|endswith: '\rust-setup.ps1.cfg'
+    condition: selection_unix or selection_windows_ps1 or selection_windows_vbs or selection_windows_cfg
+falsepositives:
+    - Custom Rust build scripts legitimately named rust-setup (very unlikely)
+level: high

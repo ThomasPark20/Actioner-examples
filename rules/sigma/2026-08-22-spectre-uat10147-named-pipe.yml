@@ -1,0 +1,22 @@
+title: SPECTRE Backdoor Named Pipe Creation
+id: a2f9d4b6-3e1c-4a8d-b7c5-6d0e9f2a1b38
+status: experimental
+description: >
+    Detects creation of named pipes with the spectre_ prefix, used by the SPECTRE
+    backdoor getsystem command for privilege escalation via ImpersonateNamedPipeClient.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/22
+tags:
+    - attack.t1134.001
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName|startswith: '\spectre_'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments
+level: critical

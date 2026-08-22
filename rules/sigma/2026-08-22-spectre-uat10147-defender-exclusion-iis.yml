@@ -1,0 +1,35 @@
+title: Windows Defender Exclusion Path for IIS Directory
+id: e5a1c3d7-9b2f-4e6a-8d0c-3f7b5a1e9c42
+status: experimental
+description: >
+    Detects addition of IIS inetsrv directories to Windows Defender exclusion paths
+    via PowerShell Add-MpPreference or registry modification, a defense evasion
+    technique used by UAT-10147 before deploying SPECTRE and BadIIS implants.
+references:
+    - https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations
+author: Actioner
+date: 2026/08/22
+tags:
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Add-MpPreference'
+            - '-ExclusionPath'
+            - 'inetsrv'
+    selection_reg:
+        Image|endswith: '\reg.exe'
+        CommandLine|contains|all:
+            - 'Defender\Exclusions\Paths'
+            - 'inetsrv'
+    condition: selection_powershell or selection_reg
+falsepositives:
+    - Legitimate IIS administrators managing Defender exclusions for performance tuning
+    - Scripted IIS deployment automation
+level: medium

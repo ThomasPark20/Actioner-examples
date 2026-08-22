@@ -1,0 +1,23 @@
+title: SPECTRE Backdoor NTFS ADS C2 Configuration Storage
+id: 7c3a92e1-4f8b-4d6e-a1c3-9b5e7d2f0a84
+status: experimental
+description: >
+    Detects file write to an NTFS Alternate Data Stream at the Windows hosts file
+    path (hosts:cache) used by the SPECTRE backdoor to store C2 configuration,
+    enabling dynamic updates without recompilation.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/22
+tags:
+    - attack.t1564.004
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\drivers\etc\hosts:cache'
+    condition: selection
+falsepositives:
+    - Unknown
+level: high

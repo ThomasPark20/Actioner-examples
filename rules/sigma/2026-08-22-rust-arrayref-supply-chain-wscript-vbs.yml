@@ -1,0 +1,25 @@
+title: Rust Crate Supply Chain Attack - WScript VBS Launcher for PowerShell Payload
+id: 8b4c1d6e-3f7a-4e2d-a9c8-5d0b7f1a2e3c
+status: experimental
+description: >
+    Detects wscript.exe executing a VBS launcher script named rust-setup-launch.vbs,
+    the technique used by the compromised Rust crate implant to escape Cargo's
+    job object on Windows and launch the PowerShell payload hidden.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
+author: Actioner
+date: 2026-08-22
+tags:
+    - attack.t1059.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\wscript.exe'
+        CommandLine|contains: 'rust-setup-launch.vbs'
+    condition: selection
+falsepositives:
+    - None expected
+level: high

@@ -1,0 +1,31 @@
+title: Rust Crate Supply Chain Attack - Windows Registry Persistence via PowerShell
+id: 5c9d2e7f-1a3b-4f8e-9d6c-0b4a8e3f7d1c
+status: experimental
+description: >
+    Detects the Windows persistence mechanism used by the Rust crate supply
+    chain attack implant, which sets a Registry Run key to execute a hidden
+    PowerShell script with execution policy bypass.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
+author: Actioner
+date: 2026-08-22
+tags:
+    - attack.t1547.001
+    - attack.t1059.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Microsoft\Windows\CurrentVersion\Run'
+        Details|contains|all:
+            - 'powershell'
+            - '-ep bypass'
+            - '-w h'
+            - '-File'
+    condition: selection
+falsepositives:
+    - Legitimate software using hidden PowerShell with execution policy bypass in a Run key (uncommon but possible)
+    - Red-team tools and penetration testing frameworks that use similar PowerShell persistence patterns
+level: medium
