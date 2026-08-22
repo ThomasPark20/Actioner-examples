@@ -218,7 +218,7 @@ The implant beacons via HTTPS POST with Base64-encoded JSON exfiltration data. I
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS POST beaconing to C2 |
 | T1568.002 | Dynamic Resolution: Domain Generation Algorithms | DGA fallback producing ten-character .com domains every 5 days |
 | T1041 | Exfiltration Over C2 Channel | Base64-encoded JSON credential exfiltration over HTTPS |
-| T1553.004 | Subvert Trust Controls: Install Root Certificate | Custom AcceptAll TLS verifier disables certificate validation |
+| T1553 | Subvert Trust Controls | Custom AcceptAll TLS verifier bypasses certificate validation (not root cert install) |
 
 ## Impact Assessment
 
@@ -473,38 +473,6 @@ falsepositives:
 level: high
 ```
 
-### Sigma: DNS Query to Hostwinds C2 Domain
-
-Detects DNS queries to the Hostwinds reverse DNS hostname associated with the primary C2 server.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Exact domain substring match; distinctive Hostwinds hostname. -->
-
-```yaml
-title: Rust Crate Supply Chain Attack - DNS Query to Hostwinds C2 Domain
-id: 3f2a7c8d-6e1b-4d9a-c5f4-0a8b3e7d1c2f
-status: experimental
-description: >
-    Detects DNS queries to hwsrv-798836.hostwindsdns.com, the Hostwinds
-    reverse DNS hostname associated with the primary C2 server used in
-    the compromised Rust crates supply chain attack.
-references:
-    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
-    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
-author: Actioner
-date: 2026-08-22
-tags:
-    - attack.t1071.001
-logsource:
-    category: dns_query
-detection:
-    selection:
-        QueryName|contains: 'hwsrv-798836.hostwindsdns.com'
-    condition: selection
-falsepositives:
-    - Legitimate use of Hostwinds VPS with this specific hostname (unlikely)
-level: high
-```
-
 ### Snort: C2 Communication Rules
 
 Detects TCP connections to the primary and secondary C2 IPs, and HTTP POST beaconing to the `/49890878` endpoint.
@@ -521,9 +489,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Crate Supply
 
 ### Suricata: C2 Communication and DNS Rules
 
-Detects TCP connections to C2 IPs, HTTP POST beaconing to `/49890878`, and DNS queries to the Hostwinds C2 domain. Uses Suricata dot-notation sticky buffers.
+Detects TCP connections to C2 IPs and HTTP POST beaconing to `/49890878`. Uses Suricata dot-notation sticky buffers.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: suricata not installed; structural validation only. Rules use dot-notation buffers (http.method, http.uri, dns.query), correct protocol keywords (http, dns, tcp), and all required fields (msg, sid, rev, metadata). -->
+<!-- audit: suricata not installed; structural validation only. Rules use dot-notation buffers (http.method, http.uri), correct protocol keywords (http, tcp), and all required fields (msg, sid, rev, metadata). DNS rule (sid 2200104) dropped — hwsrv-798836.hostwindsdns.com is a PTR record, not a forward lookup the implant generates. -->
 
 ```suricata
 alert tcp $HOME_NET any -> 23.254.165.112 [9089,443] (msg:"Actioner - Rust Crate Supply Chain Attack C2 to 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200101; rev:1;)
@@ -531,8 +499,6 @@ alert tcp $HOME_NET any -> 23.254.165.112 [9089,443] (msg:"Actioner - Rust Crate
 alert tcp $HOME_NET any -> 23.254.167.107 443 (msg:"Actioner - Rust Crate Supply Chain Attack Secondary C2 to 23.254.167.107"; flow:established,to_server; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200102; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Crate Supply Chain Attack C2 Beacon POST /49890878"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200103; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - Rust Crate Supply Chain Attack DNS Query to Hostwinds C2 Domain"; flow:to_server; dns.query; content:"hwsrv-798836.hostwindsdns.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200104; rev:1;)
 ```
 
 ### YARA: Malicious Build Script and Windows Implant

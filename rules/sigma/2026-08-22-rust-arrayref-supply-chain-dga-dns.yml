@@ -1,0 +1,34 @@
+title: Rust Crate Supply Chain Attack - DNS Query to Known DGA Fallback Domains
+id: 1e5f8a9b-2c3d-4b7e-a6d1-9f0c8e4a3b2d
+status: experimental
+description: >
+    Detects DNS queries to the known DGA-generated fallback domains used by
+    the Rust crate supply chain attack implant for C2 resilience. These are
+    ten-character mixed-case .com domains generated for the attack period.
+references:
+    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026-08-22
+tags:
+    - attack.t1568.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - 'rasGThauFD.com'
+            - 'feVVKIiEiU.com'
+            - 'phrpjTNckF.com'
+            - 'PrOkXLgfjW.com'
+            - 'ackeoTaWtl.com'
+            - 'GAFWVCMAja.com'
+            - 'RNSsddnEgK.com'
+            - 'pfHlVOqEeg.com'
+            - 'aBEcOrkups.com'
+            - 'epOdIaTMaM.com'
+    condition: selection
+falsepositives:
+    - None expected; these are randomly generated domain names
+level: high
