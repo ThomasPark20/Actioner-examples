@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-22
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
+<!-- revision: v1.1 2026-08-22 — Applied critic verdict: DROPPED Sigma "DNS Query to Hostwinds C2 Domain" (PTR record, not forward lookup by implant); DROPPED Suricata sid 2200104 (same defect); FIXED Sigma "Payload File Creation" title (removed "and Execution" — logsource is file_event only); FIXED Sigma "WScript VBS Launcher" removed incorrect tag attack.t1218.011 (Rundll32, not wscript); DOWNGRADED Sigma "Windows Registry Persistence via PowerShell" confidence high→medium (generic pattern, not campaign-specific) and added red-team false-positive; FIXED ATT&CK table: removed T1218.011 row, remapped T1553.004→T1553 (custom TLS verifier, not root cert install). -->
 
 ## Executive Summary
 
@@ -210,7 +211,6 @@ The implant beacons via HTTPS POST with Base64-encoded JSON exfiltration data. I
 | T1059.001 | Command and Scripting Interpreter: PowerShell | Hidden PowerShell with -ep bypass for payload execution on Windows |
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | VBScript launcher (rust-setup-launch.vbs) to escape job object |
 | T1105 | Ingress Tool Transfer | Build script downloads platform-specific stage-2 binaries over HTTPS |
-| T1218.011 | Signed Binary Proxy Execution: Rundll32 / wscript | wscript.exe used to launch VBS payload launcher |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | Windows persistence via HKCU Run key |
 | T1547.011 | Boot or Logon Autostart Execution: Plist Modification | macOS persistence via LaunchAgent |
 | T1543.002 | Create or Modify System Process: Systemd Service | Linux persistence via systemd user service |
@@ -323,7 +323,7 @@ Detects creation of the `rust-setup` payload files dropped by the malicious buil
 <!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. File path-based IOC; highly distinctive filenames with no known legitimate use. -->
 
 ```yaml
-title: Rust Crate Supply Chain Attack - Payload File Creation and Execution
+title: Rust Crate Supply Chain Attack - Payload File Creation
 id: 2d8f6a1c-9e4b-4d3a-b7c5-1f0e8a2d6c9b
 status: experimental
 description: >
@@ -359,8 +359,8 @@ level: high
 ### Sigma: Windows Registry Persistence via PowerShell
 
 Detects the implant's Windows persistence mechanism: a Registry Run key executing PowerShell with `-ep bypass -w h -File` arguments.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Matches the specific persistence command line pattern. The combination of all four fragments (-ep bypass, -w h, -File, powershell) in a Run key is distinctive enough for high confidence. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Matches a generic malicious PowerShell persistence pattern (powershell, -ep bypass, -w h, -File in Run key); not campaign-specific. Downgraded from high to medium per review. -->
 
 ```yaml
 title: Rust Crate Supply Chain Attack - Windows Registry Persistence via PowerShell
@@ -392,7 +392,8 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate software using hidden PowerShell with execution policy bypass in a Run key (uncommon but possible)
-level: high
+    - Red-team tools and penetration testing frameworks that use similar PowerShell persistence patterns
+level: medium
 ```
 
 ### Sigma: WScript VBS Launcher for PowerShell Payload
@@ -415,7 +416,6 @@ references:
 author: Actioner
 date: 2026-08-22
 tags:
-    - attack.t1218.011
     - attack.t1059.005
 logsource:
     category: process_creation
