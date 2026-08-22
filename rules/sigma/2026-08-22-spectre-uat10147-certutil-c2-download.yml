@@ -1,0 +1,26 @@
+title: Certutil Download from UAT-10147 C2 Infrastructure
+id: b8d4e6f2-1a3c-4e7b-9d5f-2c8a0b6e4d17
+status: experimental
+description: >
+    Detects certutil.exe downloading files from the adminapi.tippusoni.in domain,
+    a known UAT-10147 staging and C2 server used to deliver SPECTRE implants and
+    tooling archives.
+references:
+    - https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations
+author: Actioner
+date: 2026/08/22
+tags:
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains|all:
+            - 'urlcache'
+            - 'tippusoni.in'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical

@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-22
-Version: DRAFT
+Version: FINAL
+<!-- revision: 2026-08-22 post-critic review. DROPPED Snort and Suricata C2 registration beacon rules (/api/v1/register is a ubiquitous REST endpoint, extreme FP at strict leniency). DOWNGRADED Sigma Defender-exclusion rule from high to medium (behavioral TTP, not SPECTRE-specific). FIXED ATT&CK T1027.001 (Binary Padding) to T1027 (Obfuscated Files) and added T1027.007 (Dynamic API Resolution) for DJB2-variant PEB hash walking. ADDED coverage-gap caveat to Scheduled Task Persistence rule (PowerShell/COM/GPO blind spot). ADDED educational-rootkit FP note to YARA Linux rootkit rule. FIXED hash descriptions: noted undifferentiated sourcing, updated labels. -->
 
 ## Executive Summary
 
@@ -174,18 +175,20 @@ Evidence of AI-generated code in the Specter rootkit source includes product-spe
 
 The full IOC set (44 SHA256 hashes) is available at the [Cisco Talos IOC Repository](https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt). Representative samples:
 
+> **Note:** The source IOC list does not attribute individual hashes to specific toolkit components. Descriptions below are generic because the Talos publication provides hashes as an undifferentiated campaign set. Where your IR triage identifies a specific binary (SPECTRE implant, web shell, rootkit module, EfsPotato, QuasarRAT), update the description accordingly.
+
 | SHA256 | Description |
 |--------|-------------|
-| `008f28989917a9712657de5675fc024b65cb27536734e9b54ea6c3af00ea70f2` | Campaign artifact |
-| `11ccfdfb0dfe782ba0eeabaa8e65619a792f9258476a072b774ef19a5240b944` | Campaign artifact |
-| `43124b72616ef38b0c8a07b167e971b0e4479626fb5ef2303b2ed993e21f6c4c` | Campaign artifact |
-| `684e7ed556dcc9e2fe24fcfd73e6b9c29d7126584f87c5331c2607d39e29329f` | Campaign artifact |
-| `830c6ca21a7da0eed436f8371c8a86baa62ab857a5478a222dd3189645d4d084` | Campaign artifact |
-| `91d00ca46d1013c031aa8ff2e54b7b3496bac78f6147842766bffd4d32a2e042` | Campaign artifact |
-| `b74beab9dac9ee7853b5e846eec6f778db01867b49f64d6be259ea9e19006121` | Campaign artifact |
-| `cf0a6353f1fccf63fca02ed41eafd3da8d55f77b8b4c45666a37fa3cdc33da55` | Campaign artifact |
-| `dd4c16c65513c3eb66691f87d5bb5595d38554395ec89be2b9e325e013ef53d5` | Campaign artifact |
-| `dee976f262498184d746cc8305cc9e6905ad762c661df8d7daec120f14060b41` | Campaign artifact |
+| `008f28989917a9712657de5675fc024b65cb27536734e9b54ea6c3af00ea70f2` | UAT-10147 campaign artifact (undifferentiated) |
+| `11ccfdfb0dfe782ba0eeabaa8e65619a792f9258476a072b774ef19a5240b944` | UAT-10147 campaign artifact (undifferentiated) |
+| `43124b72616ef38b0c8a07b167e971b0e4479626fb5ef2303b2ed993e21f6c4c` | UAT-10147 campaign artifact (undifferentiated) |
+| `684e7ed556dcc9e2fe24fcfd73e6b9c29d7126584f87c5331c2607d39e29329f` | UAT-10147 campaign artifact (undifferentiated) |
+| `830c6ca21a7da0eed436f8371c8a86baa62ab857a5478a222dd3189645d4d084` | UAT-10147 campaign artifact (undifferentiated) |
+| `91d00ca46d1013c031aa8ff2e54b7b3496bac78f6147842766bffd4d32a2e042` | UAT-10147 campaign artifact (undifferentiated) |
+| `b74beab9dac9ee7853b5e846eec6f778db01867b49f64d6be259ea9e19006121` | UAT-10147 campaign artifact (undifferentiated) |
+| `cf0a6353f1fccf63fca02ed41eafd3da8d55f77b8b4c45666a37fa3cdc33da55` | UAT-10147 campaign artifact (undifferentiated) |
+| `dd4c16c65513c3eb66691f87d5bb5595d38554395ec89be2b9e325e013ef53d5` | UAT-10147 campaign artifact (undifferentiated) |
+| `dee976f262498184d746cc8305cc9e6905ad762c661df8d7daec120f14060b41` | UAT-10147 campaign artifact (undifferentiated) |
 
 ### Behavioral
 
@@ -218,7 +221,8 @@ The full IOC set (44 SHA256 hashes) is available at the [Cisco Talos IOC Reposit
 | T1056.001 | Keylogging | keylog_start/stop/dump commands |
 | T1078.003 | Local Accounts | Rogue admin account creation added to Administrators and RDP groups |
 | T1021.001 | Remote Desktop Protocol | RDP access enabled via rogue local accounts |
-| T1027.001 | Binary Padding | Obfuscated files with compile-time string encryption |
+| T1027 | Obfuscated Files or Information | Compile-time xorshift32 PRNG string encryption preventing plaintext exposure in binary sections |
+| T1027.007 | Dynamic API Resolution | PEB hash walking via DJB2-variant algorithm to resolve Windows API calls at runtime, eliminating IAT exposure |
 | T1140 | Deobfuscate/Decode Files | Base64-encoded PowerShell commands; web shell dynamic compilation |
 | T1518.001 | Security Software Discovery | EDR process enumeration before BYOVD deployment |
 | T1071.001 | Web Protocols | HTTP POST to /api/v1/register and /api/v1/output |
@@ -288,7 +292,7 @@ cat /sys/kernel/debug/tracing/enabled_functions 2>/dev/null | grep hooked_
 
 ## Detection Rules
 
-These detections target specific artifacts from the UAT-10147/SPECTRE campaign at advisory-specific altitude with strict matching. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify each rule against your telemetry pipeline before production deployment.
+These detections target specific artifacts from the UAT-10147/SPECTRE campaign at advisory-specific altitude with strict matching. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify each rule against your telemetry pipeline before production deployment. Rule inventory: 5 Sigma, 2 YARA, 1 Suricata (DNS), 0 Snort. The C2 registration beacon rules (Snort and Suricata) were dropped during review -- `/api/v1/register` is a ubiquitous REST endpoint that would produce extreme false-positive volume at strict leniency.
 
 ### Sigma: SPECTRE NTFS ADS C2 Configuration Storage
 
@@ -359,7 +363,7 @@ level: critical
 
 ### Sigma: Windows Defender Exclusion for IIS Directory
 
-Detects addition of IIS inetsrv directories to Defender exclusion paths, a defense evasion step observed before SPECTRE and BadIIS deployment. Scope to servers where IIS exclusion changes are not routine.
+Supporting behavioral rule. Detects addition of IIS inetsrv directories to Defender exclusion paths, a defense evasion step observed before SPECTRE and BadIIS deployment but not SPECTRE-specific -- legitimate IIS administrators may add Defender exclusions for performance tuning. Scope to servers where IIS exclusion changes are not routine.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma check blocked (proxy); splunk convert exit 0; log_scale convert exit 0; splunk_windows pipeline convert exit 0. Medium confidence because legitimate IIS administrators may add Defender exclusions for performance tuning — but the combination with inetsrv path is more specific. FP risk in environments with scripted IIS deployments. -->
 
@@ -396,8 +400,9 @@ detection:
             - 'inetsrv'
     condition: selection_powershell or selection_reg
 falsepositives:
-    - Legitimate IIS administrators managing Defender exclusions
-level: high
+    - Legitimate IIS administrators managing Defender exclusions for performance tuning
+    - Scripted IIS deployment automation
+level: medium
 ```
 
 ### Sigma: SPECTRE Backdoor Named Pipe Creation
@@ -433,9 +438,9 @@ level: critical
 
 ### Sigma: UAT-10147 Scheduled Task Persistence via Google Chrome Start
 
-Detects creation of a scheduled task named "Google Chrome Start" used by UAT-10147 for persistence with highest privileges.
+Detects creation of a scheduled task named "Google Chrome Start" used by UAT-10147 for persistence with highest privileges. Does not cover task creation via PowerShell, COM, or Group Policy -- supplement with Windows Security EID 4698 monitoring on TaskName.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (proxy); splunk convert exit 0; log_scale convert exit 0. Task name is specific to the campaign. Theoretical FP from legitimate Chrome enterprise deployment using this exact name, but unlikely as Chrome does not use this task name by default. -->
+<!-- audit: sigma check blocked (proxy); splunk convert exit 0; log_scale convert exit 0. Task name is specific to the campaign. Theoretical FP from legitimate Chrome enterprise deployment using this exact name, but unlikely as Chrome does not use this task name by default. Coverage gap: only catches schtasks.exe process creation — not PowerShell New-ScheduledTask, COM ITaskService, or GPO-based task creation. Supplement with EID 4698 monitoring. -->
 
 ```yaml
 title: UAT-10147 Scheduled Task Persistence via Google Chrome Start
@@ -462,26 +467,6 @@ detection:
 falsepositives:
     - Legitimate Chrome enterprise deployment using this exact task name
 level: high
-```
-
-### Snort: SPECTRE C2 Registration Beacon
-
-Detects HTTP POST to the `/api/v1/register` endpoint used by SPECTRE for initial C2 registration. Hunt-only due to generic endpoint pattern; pair with IOC-based domain/IP blocklists.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: Snort not installed in this environment. Structural check: valid Snort 3 syntax with http service, http_method + http_uri sticky buffers, flow established to_server, fast_pattern on URI, all required fields present (msg, sid, rev, classtype). Medium confidence because /api/v1/register is a common REST API pattern that will match legitimate SaaS traffic — deploy with IP/domain scoping or as hunt rule only. -->
-
-```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Backdoor C2 Registration Beacon POST /api/v1/register"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/api/v1/register"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created 2026-08-22; sid:2100001; rev:1;)
-```
-
-### Suricata: SPECTRE C2 Registration Beacon
-
-Detects HTTP POST to the `/api/v1/register` endpoint used by SPECTRE for initial C2 check-in. Hunt-only due to generic endpoint pattern; pair with IOC-based domain/IP blocklists.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: Suricata not installed in this environment. Structural check: valid Suricata syntax with http protocol, dot-notation sticky buffers (http.method, http.uri), flow established to_server, fast_pattern, all required fields (msg, sid, rev, classtype, metadata). Medium confidence — same generic endpoint concern as Snort variant. -->
-
-```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Backdoor C2 Registration Beacon POST /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-22; sid:2200001; rev:1;)
 ```
 
 ### Suricata: DNS Query to UAT-10147 C2 Domain
@@ -542,9 +527,9 @@ rule UAT10147_SPECTRE_Windows_Campaign_Artifacts
 
 ### YARA: Specter Linux Kernel Rootkit
 
-Detects the Specter Linux rootkit kernel module via its distinctive `hooked_*` syscall function names used for process hiding, network connection concealment, and signal-based IPC interception.
+Detects the Specter Linux rootkit kernel module via its distinctive `hooked_*` syscall function names used for process hiding, network connection concealment, and signal-based IPC interception. May match educational rootkit projects that reuse identical hooked function naming.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0 (both rules compiled in single file). ELF header check (0x464C457F) + 5MB filesize guard. hooked_tcp6_seq_show / hooked_tcp4_seq_show / hooked_tkill / hooked_tgkill / hooked_kill / hooked_getdents64 are distinctive function names unique to this rootkit — the hooked_ prefix combined with specific syscall names has no benign counterpart. Requires 3-of-6 match. Sample test not performed — ELF header requirement prevents plaintext test. -->
+<!-- audit: yarac exit 0 (both rules compiled in single file). ELF header check (0x464C457F) + 5MB filesize guard. hooked_tcp6_seq_show / hooked_tcp4_seq_show / hooked_tkill / hooked_tgkill / hooked_kill / hooked_getdents64 are distinctive function names unique to this rootkit — the hooked_ prefix combined with specific syscall names has no benign counterpart. Requires 3-of-6 match. Caveat: educational/tutorial rootkit projects may reuse identical hooked function naming conventions and trigger this rule on compiled .ko files. Sample test not performed — ELF header requirement prevents plaintext test. -->
 
 ```yara
 rule UAT10147_Specter_Linux_Rootkit

@@ -1,0 +1,9 @@
+# UAT-10147 / SPECTRE Campaign - Snort Rules
+# Date: 2026-08-22
+# Author: Actioner
+#
+# No Snort rules remain for this campaign after review.
+# The C2 registration beacon rule (POST /api/v1/register) was dropped because
+# /api/v1/register is a ubiquitous REST endpoint that would produce extreme
+# false-positive volume at strict leniency. Use Suricata DNS rules and Sigma
+# behavioral detections instead.
