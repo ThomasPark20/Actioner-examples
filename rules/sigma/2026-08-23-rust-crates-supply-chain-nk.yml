@@ -1,0 +1,106 @@
+title: Execution of Rust Supply Chain Payload - rust-setup
+id: 8c3f2a1e-5b7d-4e9a-af12-3c6d8e0b1f4a
+status: experimental
+description: >
+    Detects execution of the rust-setup payload dropped by the malicious proc-macro1
+    Rust crate build script, which downloads and runs an OS-specific infostealer.
+references:
+    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref
+    - https://rustsec.org/advisories/RUSTSEC-2026-0260.html
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1195.002
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith: '/rust-setup'
+        Image|startswith: '/tmp/'
+    condition: selection
+falsepositives:
+    - Legitimate Rust toolchain installers using similar naming (unlikely in /tmp/)
+level: high
+---
+title: Rust Supply Chain VBScript Payload Launcher
+id: 1a4e7c9b-3d2f-48a6-b5e1-7f0c6d8a2e3b
+status: experimental
+description: >
+    Detects wscript.exe launching the rust-setup-launch.vbs script dropped
+    by the malicious proc-macro1 build script to escape Cargo's job object
+    and execute the PowerShell infostealer payload on Windows.
+references:
+    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1195.002
+    - attack.t1059.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\wscript.exe'
+        CommandLine|contains: 'rust-setup-launch.vbs'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
+---
+title: Rust Supply Chain Payload File Creation
+id: 5d9e3b7a-1c4f-42e8-a6d0-8b2f7e1c3a5d
+status: experimental
+description: >
+    Detects creation of rust-setup payload files (PowerShell script, VBScript launcher,
+    or Unix binary) in temporary directories, as dropped by the malicious proc-macro1
+    Rust crate build script.
+references:
+    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1195.002
+    - attack.t1105
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'rust-setup.ps1'
+            - 'rust-setup-launch.vbs'
+            - '/tmp/rust-setup'
+    condition: selection
+falsepositives:
+    - Legitimate Rust toolchain setup scripts with similar naming
+level: high
+---
+title: Network Connection to Rust Crate Supply Chain C2 Infrastructure
+id: 2e6f4a8c-9d1b-43e7-b5c0-7a3e2f1d6b8c
+status: experimental
+description: >
+    Detects outbound network connections to the known C2 and payload delivery IP
+    address (23.254.165.112) used by the malicious proc-macro1 Rust crate supply
+    chain attack infrastructure hosted on Hostwinds.
+references:
+    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
+    - https://www.securityweek.com/rust-supply-chain-attack-linked-to-north-korean-hackers/
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '23.254.165.112'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on the same Hostwinds IP (unlikely given malicious indicators)
+level: critical

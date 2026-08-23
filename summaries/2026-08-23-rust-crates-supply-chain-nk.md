@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-23
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -153,12 +153,11 @@ The downloaded stage-2 implant (named `rust-crate_0.1.0` through `rust-crate_0.4
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | VBScript launcher (rust-setup-launch.vbs) to escape Cargo job object |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Unix payload spawned as detached process from /tmp/rust-setup |
 | T1105 | Ingress Tool Transfer | Build script downloads OS-specific stage-2 payload from 23.254.165[.]112:9089 |
-| T1553.004 | Subvert Trust Controls: Install Root Certificate | Custom TLS certificate verifier disabling validation |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Stage-2 extracts Chrome/Brave/Edge login database credentials |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder | Windows persistence via Registry Run key |
 | T1543.001 | Create or Modify System Process: Launch Agent | macOS persistence via LaunchAgent |
 | T1543.002 | Create or Modify System Process: Systemd Service | Linux persistence via systemd user service |
-| T1036.001 | Masquerading: Invalid Code Signature | Typosquatted package name (proc-macro1 vs proc-macro2) |
+| T1036.005 | Masquerading: Match Legitimate Name or Location | Typosquatted package name (proc-macro1 mimicking proc-macro2) |
 | T1082 | System Information Discovery | OS and CPU architecture detection for payload selection |
 
 ## Impact Assessment
@@ -356,12 +355,12 @@ level: critical
 
 ### Snort: Rust Crate Supply Chain C2 Connection
 
-Detects outbound TCP connections to the known C2 IP 23.254.165.112 and to the payload delivery port 9089.
+Detects outbound TCP connections to the known C2 IP 23.254.165.112 (covers both C2 port 443 and payload delivery port 9089).
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c (minimal config with classification) -T exit 0. Two rules: C2 IP any port + payload delivery port 9089. IP-based; will rotate. -->
+<!-- audit: snort -c (minimal config with classification) -T exit 0. Single rule: C2 IP any port. IP-based; will rotate. -->
+<!-- revision: dropped sid:2100102 ($EXTERNAL_NET:9089) — too broad, fires on any host on port 9089; sid:2100101 already covers all ports to C2 IP. -->
 ```snort
 alert tcp $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Crate Supply Chain C2 Connection to 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html; metadata:author Actioner, created 2026-08-23; sid:2100101; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET 9089 (msg:"Actioner - Rust Crate Supply Chain Payload Download on Port 9089"; flow:established,to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html; metadata:author Actioner, created 2026-08-23; sid:2100102; rev:1;)
 ```
 
 ### Suricata: DNS Query and C2 Connection for Rust Crate Supply Chain
@@ -377,8 +376,9 @@ alert tcp $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Connection to Rus
 ### YARA: Malicious proc-macro1 Build Script and Infostealer Payload
 
 Detects the malicious proc-macro1 crate content (build script strings, payload paths, C2 indicators) and the stage-2 infostealer payload binaries.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on positive (proc-macro1 + payload paths + C2 IP), quiet on negative (proc-macro2 + benign paths). Two rules: BuildScript (crate/source level) and InfoStealer (binary level). Strings are published source indicators. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Two rules: BuildScript (crate/source level) and InfoStealer (binary level). Strings are published source indicators. No real malware sample available for testing — structural validation only. -->
+<!-- revision: removed dishonest "sample: fired" label (constructed sample, not real); raised BuildScript threshold from 3 to 4 of them to reduce FP on blog posts containing IOC strings. -->
 ```yara
 rule Malware_RustCrate_ProcMacro1_BuildScript
 {
@@ -402,8 +402,8 @@ rule Malware_RustCrate_ProcMacro1_BuildScript
         filesize < 5MB and
         (
             ($dep_name and 2 of ($payload_*)) or
-            ($c2_ip or $c2_domain) and 1 of ($payload_*) or
-            3 of them
+            (($c2_ip or $c2_domain) and 1 of ($payload_*)) or
+            4 of them
         )
 }
 
