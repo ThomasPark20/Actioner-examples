@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-23
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -107,6 +107,8 @@ RedC2 4.0 includes an LLM-driven component called "Red Agent," characterized by 
 
 ### File System
 
+> **Note:** No file hashes were disclosed in available reporting. If you recover samples, submit to [VirusTotal](https://www.virustotal.com/) and update hashes below.
+
 | Platform | Path | Hash (SHA256) | Description |
 |----------|------|---------------|-------------|
 | Linux | `node_modules/<package>/dist/math-core.bin` | Not disclosed | RedShell ELF implant variant |
@@ -140,7 +142,7 @@ RedC2 4.0 includes an LLM-driven component called "Red Agent," characterized by 
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | RedShell spawns interactive `/bin/sh` sessions |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Binaries named as math accelerators (math-core.bin, calc-math.dat) |
 | T1222.002 | File and Directory Permissions Modification: Linux and Mac File and Directory Permissions Modification | Loader uses `chmod +x` to mark implant executable |
-| T1106 | Native API | Loader uses Node.js `child_process.spawn` with detached option |
+| T1059.007 | Command and Scripting Interpreter: JavaScript | Loader executes via Node.js `child_process.spawn` with detached option at module import time |
 | T1005 | Data from Local System | SSH key harvesting, browser credential theft |
 | T1552.004 | Unsecured Credentials: Private Keys | Harvests SSH private keys from `~/.ssh/` |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Targets Chrome, Chromium, Firefox credential stores |
@@ -204,9 +206,10 @@ These detections target the RedC2 4.0 npm supply chain campaign at PoC/advisory-
 
 ### Sigma: RedC2 RedShell Backdoor Binary Execution from npm Package
 
-Detects execution of the specific backdoor binary names (math-core.bin, math-calc.bin, calc-math.dat, etc.) dropped by the trojanized packages.
+Detects execution of known RedC2 4.0 RedShell backdoor binaries from within `node_modules` directories.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. Keys on six distinct binary names unlikely to appear in legitimate software. No pipeline mapping available for generic linux process_creation. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Dropped generic calc.bin; added node_modules path constraint to reduce FP on coincidental binary names. -->
+<!-- revision: dropped calc.bin (too generic); added node_modules path-narrowing condition per critic verdict. -->
 
 ```yaml
 title: RedC2 RedShell Backdoor Binary Execution from npm Package
@@ -215,7 +218,7 @@ status: experimental
 description: >
     Detects execution of known RedC2 4.0 RedShell backdoor binaries dropped by
     trojanized npm packages masquerading as calendar/streak utilities. The binaries
-    are bundled in dist/ directories with names like math-core.bin, calc-math.dat.
+    are bundled in dist/ directories within node_modules.
 references:
     - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
 author: Actioner
@@ -233,19 +236,21 @@ detection:
             - '/math-calc.bin'
             - '/calc-math.dat'
             - '/calc-cache.bin'
-            - '/calc.bin'
             - '/calc-mapping.bin'
-    condition: selection_binary
+    selection_path:
+        Image|contains: 'node_modules'
+    condition: selection_binary and selection_path
 falsepositives:
-    - Legitimate math acceleration libraries with identical binary names (unlikely)
+    - Legitimate npm packages with identical binary names in node_modules (unlikely)
 level: high
 ```
 
 ### Sigma: Node.js Process Spawning chmod on Binary in node_modules dist Directory
 
-Detects a Node.js parent process running chmod +x on a binary file within a node_modules dist directory, consistent with the RedC2 loader mechanism.
+Supplementary behavioral rule: detects Node.js spawning chmod +x on a file within a `node_modules/*/dist/` path with a binary extension.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. Matches the loader pattern (node -> chmod +x -> dist/*.bin) but chmod in node_modules can occur with legitimate native addons, hence medium confidence. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Behavioral supplementary rule; pair with the package-name anchor rule above. -->
+<!-- revision: fixed .bin collision with node_modules/.bin/ (standard npm bin-link dir) by requiring both /dist/ AND binary extension via |all in selection_target. Relabeled as supplementary behavioral rule. -->
 
 ```yaml
 title: Node.js Process Spawning chmod on Binary in node_modules dist Directory
@@ -254,15 +259,15 @@ status: experimental
 description: >
     Detects a Node.js process making a binary executable via chmod within a
     node_modules package dist directory, consistent with the RedC2 4.0 npm
-    supply chain attack where the loader marks the bundled implant executable
-    before launching it as a detached background process.
+    supply chain attack loader. Supplementary behavioral rule -- pair with
+    the package-name anchor rule for higher fidelity.
 references:
     - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
 author: Actioner
 date: 2026-08-23
 tags:
     - attack.t1195.002
-    - attack.t1204.002
+    - attack.t1222.002
 logsource:
     category: process_creation
     product: linux
@@ -277,13 +282,14 @@ detection:
             - '+x'
             - 'node_modules'
     selection_target:
-        CommandLine|contains:
+        CommandLine|contains|all:
             - '/dist/'
             - '.bin'
-            - '.dat'
-    condition: selection_parent and selection_chmod and selection_target
+    filter_npm_binlink:
+        CommandLine|contains: 'node_modules/.bin/'
+    condition: selection_parent and selection_chmod and selection_target and not filter_npm_binlink
 falsepositives:
-    - npm packages with legitimate native binary addons using chmod in postinstall
+    - npm packages with legitimate native binary addons using chmod in postinstall on dist/ binaries
 level: medium
 ```
 
@@ -339,9 +345,10 @@ level: critical
 
 ### YARA: RedC2 RedShell npm Trojan Loader
 
-Detects the trojanized npm package loader pattern: presence of known implant binary names alongside Node.js child_process execution primitives and package name strings.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Fired on constructed positive (package.json + loader with streak-metrics-math, math-core.bin, spawn, chmod, child_process); quiet on benign date utility. Condition requires convergence of binary names with execution primitives or package names, reducing FP risk. -->
+Detects the trojanized npm package loader pattern: convergence of distinctive implant binary names with Node.js execution primitives or campaign package names.
+**Status:** compile ✅ compiles · confidence: medium · sample: constructed only
+<!-- audit: yarac exit 0. Tested on constructed positive only (not a real upstream sample). Tightened first condition arm to require 3 of $exec* (was 2) to reduce FP surface. Removed $bin_calc ("calc.bin") -- too generic. -->
+<!-- revision: relabeled sample: fired to sample: constructed only (honest). Downgraded confidence high->medium. Tightened condition: removed calc.bin from $bin*, raised $exec* threshold to 3 in bin+exec arm. -->
 
 ```yara
 rule Malware_RedC2_RedShell_NPM_Loader
@@ -351,7 +358,7 @@ rule Malware_RedC2_RedShell_NPM_Loader
         author = "Actioner"
         date = "2026-08-23"
         reference = "https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $bin1 = "math-core.bin" ascii
@@ -376,7 +383,7 @@ rule Malware_RedC2_RedShell_NPM_Loader
     condition:
         filesize < 5MB and
         (
-            (1 of ($bin*) and 2 of ($exec*)) or
+            (1 of ($bin*) and 3 of ($exec*)) or
             (1 of ($bin*) and 1 of ($streak*)) or
             (2 of ($streak*) and 1 of ($exec*))
         )
@@ -385,19 +392,20 @@ rule Malware_RedC2_RedShell_NPM_Loader
 
 ### YARA: RedC2 RedShell ELF Implant
 
-Detects the RedShell Linux ELF implant based on ELF header, capability strings (shell, SSH key paths, browser credentials), and RedC2/RedShell identifiers.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. No real sample available for fire test -- rule relies on published capability descriptions (shell, SSH key harvesting, browser credential theft, SOCKS5). Condition requires ELF header + convergence of RedC2/RedShell identifier with capability strings OR capability strings with credential theft strings. Medium confidence because string set is derived from reported behavior, not reversed binary. -->
+Detects the RedShell Linux ELF implant; requires at least one distinctive RedC2/RedShell identifier string in every condition arm. No real sample available -- strings derived from reported behavior only.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: yarac exit 0. No real sample. Previous condition was dangerously broad (/bin/sh + beacon + chrome matches pentesting tools, browser automation). Fixed: every arm now requires $s5 or $s6 (distinctive identifiers). Raised thresholds to 4+ of $s* with 2+ of $cred*. Downgraded confidence to low. -->
+<!-- revision: required distinctive string ($s5 RedShell or $s6 RedC2) in every condition arm. Raised threshold from 2->4 of $s* and 1->2 of $cred*. Downgraded confidence medium->low per critic. -->
 
 ```yara
 rule Malware_RedC2_RedShell_ELF_Implant
 {
     meta:
-        description = "Detects RedC2 4.0 RedShell Linux ELF implant based on characteristic capability strings for interactive shell, credential theft, and C2 communication"
+        description = "Detects RedC2 4.0 RedShell Linux ELF implant based on characteristic capability strings for interactive shell, credential theft, and C2 communication. Requires distinctive RedC2/RedShell identifier."
         author = "Actioner"
         date = "2026-08-23"
         reference = "https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $elf = { 7F 45 4C 46 }
@@ -420,9 +428,8 @@ rule Malware_RedC2_RedShell_ELF_Implant
         $elf at 0 and
         filesize < 50MB and
         (
-            (2 of ($s*) and 1 of ($cred*)) or
-            ($s5 and 2 of ($s*)) or
-            ($s6 and 2 of ($s*))
+            (($s5 or $s6) and 4 of ($s*) and 2 of ($cred*)) or
+            ($s5 and $s6 and 3 of ($s*))
         )
 }
 ```
