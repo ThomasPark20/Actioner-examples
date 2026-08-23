@@ -1,0 +1,23 @@
+title: SPECTRE Implant Named Pipe Creation
+id: 1b4c8d5f-a7e3-4f92-8d6b-2e9c1a3f5d70
+status: experimental
+description: >
+    Detects creation of named pipes matching the SPECTRE implant pattern
+    (\\.\pipe\spectre_<tid>), used for privilege escalation via token
+    impersonation on Windows.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1134.001
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName|startswith: '\spectre_'
+    condition: selection
+falsepositives:
+    - Unlikely - pipe name is unique to SPECTRE implant
+level: high

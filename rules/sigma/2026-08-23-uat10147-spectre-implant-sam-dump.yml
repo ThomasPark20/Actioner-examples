@@ -1,0 +1,29 @@
+title: SAM/SYSTEM/SECURITY Hive Dumping (Supplementary TTP)
+id: 3c9e2f1a-b5d7-4e83-a6c0-8d4f7b2e1a93
+status: experimental
+description: >
+    Detects credential theft via reg.exe save operations targeting SAM, SYSTEM,
+    and SECURITY registry hives. Generic credential-dumping TTP also observed
+    in SPECTRE's hashdump module. Supplementary detection.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1003.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_tool:
+        Image|endswith: '\reg.exe'
+        CommandLine|contains: 'save'
+    selection_hives:
+        CommandLine|contains:
+            - 'HKLM\SAM'
+            - 'HKLM\SYSTEM'
+            - 'HKLM\SECURITY'
+    condition: selection_tool and selection_hives
+falsepositives:
+    - Legitimate backup or forensic operations by system administrators
+level: high
