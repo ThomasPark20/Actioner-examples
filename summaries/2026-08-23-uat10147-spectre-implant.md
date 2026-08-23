@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-23
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -268,7 +268,7 @@ cat /etc/systemd/system/hardware-monitor.service
 
 ## Detection Rules
 
-These detections target SPECTRE implant artifacts at the specific/advisory altitude: BYOVD driver loading, named pipe creation, credential dumping, rootkit persistence, NTFS ADS abuse, C2 endpoint communication, and known C2 domains. All rules key on distinctive, campaign-specific indicators. Compiles != fires -- verify in your pipeline with representative telemetry.
+These detections target SPECTRE implant artifacts at the specific/advisory altitude: BYOVD driver loading, named pipe creation, credential dumping (supplementary TTP), rootkit persistence, NTFS ADS abuse, known C2 IP communication, and C2 domain DNS queries. Generic-URI C2 endpoint rules were dropped (FP-prone); replaced with IP-narrowed network detections. Compiles != fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: SPECTRE BYOVD Vulnerable Driver Loading
 
@@ -310,6 +310,7 @@ level: high
 Detects creation of the `\spectre_<tid>` named pipe used by SPECTRE for privilege escalation via token impersonation.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. Pipe name prefix "spectre_" is unique to this implant family; no known legitimate software uses this pattern. -->
+<!-- revision: level critical→high per critic (named-pipe match needs triage, not automated response). -->
 ```yaml
 title: SPECTRE Implant Named Pipe Creation
 id: 1b4c8d5f-a7e3-4f92-8d6b-2e9c1a3f5d70
@@ -333,22 +334,23 @@ detection:
     condition: selection
 falsepositives:
     - Unlikely - pipe name is unique to SPECTRE implant
-level: critical
+level: high
 ```
 
-### Sigma: SPECTRE SAM/SYSTEM/SECURITY Hive Dumping
+### Sigma: SAM/SYSTEM/SECURITY Hive Dumping (Supplementary TTP)
 
-Detects reg.exe save operations targeting SAM, SYSTEM, or SECURITY hives consistent with SPECTRE's hashdump credential theft module.
-**Status:** compile ✅ compiles · confidence: high
+Detects reg.exe save operations targeting SAM, SYSTEM, or SECURITY hives -- a generic credential-dumping TTP also observed in SPECTRE's hashdump module. Supplementary; SigmaHQ ships equivalent coverage.
+**Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma convert splunk 0, log_scale 0. Detection keys on reg.exe + "save" + hive path combination. This is a known credential dumping technique (T1003.002); the combination of all three hives in one session is highly suspicious. FP: legitimate backup/forensic operations by sysadmins (filter by user context). -->
+<!-- revision: confidence high→medium, re-labeled as supplementary TTP per critic — generic credential-dumping pattern not SPECTRE-specific; SigmaHQ community already ships this. -->
 ```yaml
-title: SPECTRE SAM/SYSTEM/SECURITY Hive Dumping
+title: SAM/SYSTEM/SECURITY Hive Dumping (Supplementary TTP)
 id: 3c9e2f1a-b5d7-4e83-a6c0-8d4f7b2e1a93
 status: experimental
 description: >
-    Detects SPECTRE's credential theft module dumping SAM, SYSTEM, and SECURITY
-    registry hives via reg.exe save operations, consistent with the hashdump
-    command observed in UAT-10147 intrusions.
+    Detects credential theft via reg.exe save operations targeting SAM, SYSTEM,
+    and SECURITY registry hives. Generic credential-dumping TTP also observed
+    in SPECTRE's hashdump module. Supplementary detection.
 references:
     - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
 author: Actioner
@@ -407,8 +409,9 @@ level: high
 ### Sigma: SPECTRE C2 Configuration via NTFS Alternate Data Stream
 
 Detects file operations on the `hosts:cache` NTFS ADS used by SPECTRE to store updatable C2 configuration.
-**Status:** compile ✅ compiles · confidence: critical
+**Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. ADS on the hosts file is not standard behavior; "cache" stream name on \drivers\etc\hosts is unique to SPECTRE. Requires Sysmon EID 15 (FileCreateStreamHash) or equivalent ADS-aware telemetry. -->
+<!-- revision: confidence "critical"→"high" (invalid label fixed); level critical→high per critic. -->
 ```yaml
 title: SPECTRE C2 Configuration via NTFS Alternate Data Stream
 id: 9a8f6d3b-c1e5-4a72-b7d9-2f0e8c4a6b31
@@ -432,40 +435,59 @@ detection:
     condition: selection
 falsepositives:
     - Unlikely - ADS on the hosts file is not standard behavior
-level: critical
+level: high
 ```
 
-### Snort: SPECTRE C2 Beacon POST Endpoints
+### Snort: SPECTRE C2 Beacon POST Endpoints -- DROPPED
 
-Detects HTTP POST requests to SPECTRE's C2 registration and output exfiltration endpoints.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c snort-test.conf -T exit 0 (Snort 2.9.20). URI patterns /api/v1/register and /api/v1/output are generic REST patterns that may appear in legitimate APIs; confidence medium due to FP potential. Pair with source/destination IP context for higher confidence. -->
+<!-- revision: DROPPED per critic — /api/v1/register and /api/v1/output are ubiquitous REST API paths producing thousands of FPs/day with no destination IP narrowing. Not production-ready. Replaced by IP-narrowed Snort rule below. -->
+> **Dropped.** Generic REST URI patterns (`/api/v1/register`, `/api/v1/output`) without destination narrowing -- not production-ready. Replaced by IP-narrowed rule below.
+
+### Snort: SPECTRE Known C2 IP Communication
+
+Detects outbound HTTP to known UAT-10147 C2/staging IP addresses from the published IOC list.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort -T -c /etc/snort/snort.conf exit 0 (Snort 2.9.20). IPs are from published Talos IOC repository, 4 known C2/staging addresses. Rotate as infrastructure changes; current as of 2026-08-23. -->
+<!-- revision: replacement for dropped generic-URI Snort rule; narrowed to specific C2 IPs from IOC list. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SPECTRE C2 Beacon POST to /api/v1/register"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/register"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100101; rev:1;)
-
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SPECTRE C2 Beacon POST to /api/v1/output"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/output"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100102; rev:1;)
+alert tcp $HOME_NET any -> [27.124.2.46,27.124.2.48,27.124.2.52,139.180.197.150] $HTTP_PORTS (msg:"Actioner - SPECTRE Outbound HTTP to Known UAT-10147 C2 IP"; flow:established,to_server; content:"POST"; http_method; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100103; rev:1;)
 ```
 
-### Suricata: SPECTRE C2 Beacon POST Endpoints
+### Suricata: SPECTRE C2 Beacon POST Endpoints -- DROPPED
 
-Detects HTTP POST requests to SPECTRE's C2 registration and output exfiltration endpoints using Suricata dot-notation buffers.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T -S exit 0 (Suricata 7.0.3). Same FP caveat as Snort -- /api/v1/register and /api/v1/output are generic REST paths. Best paired with destination IP/domain context. -->
+<!-- revision: DROPPED per critic — same defect as Snort: generic REST paths /api/v1/register and /api/v1/output without destination narrowing. Not production-ready. Replaced by IP-narrowed Suricata rule below. -->
+> **Dropped.** Same defect as Snort -- generic REST paths without destination narrowing. Replaced by IP-narrowed rule below.
+
+### Suricata: SPECTRE Known C2 IP Communication
+
+Detects outbound HTTP to known UAT-10147 C2/staging IP addresses from the published IOC list.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T -S exit 0. IPs are from published Talos IOC repository, 4 known C2/staging addresses. Rotate as infrastructure changes; current as of 2026-08-23. -->
+<!-- revision: replacement for dropped generic-URI Suricata rule; narrowed to specific C2 IPs from IOC list. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Registration Beacon POST /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-23; sid:2200101; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Output Exfiltration POST /api/v1/output"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-23; sid:2200102; rev:1;)
+alert http $HOME_NET any -> [27.124.2.46,27.124.2.48,27.124.2.52,139.180.197.150] any (msg:"Actioner - SPECTRE Outbound HTTP to Known UAT-10147 C2 IP"; flow:established,to_server; http.method; content:"POST"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-23; sid:2200105; rev:1;)
 ```
 
 ### Suricata: SPECTRE Known C2 Domain DNS Queries
 
-Detects DNS queries to known UAT-10147 C2 domains from the published IOC list.
+Detects DNS queries to known UAT-10147 C2 domains from the published IOC list (7 of 13 reported domains; remaining 6 not in public IOC repository).
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0 (Suricata 7.0.3). Domains are from published Talos IOC repository. Rotate as infrastructure changes; current as of 2026-08-23. -->
+<!-- audit: suricata -T -S exit 0. Domains are from published Talos IOC repository. 7 base domains from report IOC table; source claims 13 total but only these 7 are documented in the published IOC list. Rotate as infrastructure changes; current as of 2026-08-23. -->
+<!-- revision: expanded from 2→7 domains per critic; added jyzyps.com, mma888.cc, healthsave.net, vip8888vn.xyz, tippusoni.in. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain niupilao.vip"; flow:to_server; dns.query; content:"niupilao.vip"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200103; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain udvyiwvfs.cyou"; flow:to_server; dns.query; content:"udvyiwvfs.cyou"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain jyzyps.com"; flow:to_server; dns.query; content:"jyzyps.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain mma888.cc"; flow:to_server; dns.query; content:"mma888.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200107; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain healthsave.net"; flow:to_server; dns.query; content:"healthsave.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200108; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain vip8888vn.xyz"; flow:to_server; dns.query; content:"vip8888vn.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200109; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SPECTRE C2 DNS Query to Known UAT-10147 Domain tippusoni.in"; flow:to_server; dns.query; content:"tippusoni.in"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt; metadata:author Actioner, created_at 2026-08-23; sid:2200110; rev:1;)
 ```
 
 ### YARA: SPECTRE Windows Implant
