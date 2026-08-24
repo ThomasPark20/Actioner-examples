@@ -1,0 +1,20 @@
+title: SPECTRE Rootkit Systemd Persistence via hardware-monitor Service
+id: af6d4e2b-7a5c-4b1d-c8f9-4d5e6f7a8b9c
+status: experimental
+description: Detects creation of the hardware-monitor.service systemd unit file used by the Specter Linux rootkit for persistence across reboots.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/hardware-monitor.service'
+    condition: selection
+falsepositives:
+    - Legitimate hardware monitoring tools or custom lm-sensors wrappers using the same service name
+level: high

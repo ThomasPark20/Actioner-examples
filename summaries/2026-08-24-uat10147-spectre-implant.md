@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-24
-Version: 1.0 DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -230,7 +230,6 @@ The Windows SPECTRE implant is written in C with heavy custom obfuscation:
 - SPECTRE C2 beaconing via HTTP POST to `/api/v1/register` and `/api/v1/output` endpoints with JSON payloads
 - C2 configuration stored in NTFS ADS at `drivers\etc\hosts:cache`
 - Named pipe creation matching pattern `\\.\pipe\spectre_<thread_id>`
-- RuntimeBroker.exe spawning from non-svchost.exe parent (self-hollowing indicator)
 - RTCore64.sys or DBUtil_2_3.sys driver loading (BYOVD indicator)
 - `hardware-monitor.service` systemd unit creation (Linux rootkit persistence)
 - Kernel module masquerading as `acpi_pad.ko`
@@ -255,7 +254,8 @@ The Windows SPECTRE implant is written in C with heavy custom obfuscation:
 | T1068 | Exploitation for Privilege Escalation | EfsPotato, RustPotato, GodPotato, Dirty Pipe |
 | T1055.012 | Process Hollowing | Self-hollowing into RuntimeBroker.exe, hollowing into svchost.exe |
 | T1055.004 | Asynchronous Procedure Call | EarlyBird APC injection |
-| T1559.001 | Component Object Model | Named pipe IPC (`\\.\pipe\spectre_<tid>`) |
+<!-- revision: T1559.001 (COM) corrected to T1559 (Inter-Process Communication); named pipes are not COM -->
+| T1559 | Inter-Process Communication | Named pipe IPC (`\\.\pipe\spectre_<tid>`) |
 | T1003.002 | Security Account Manager | SAM/SYSTEM/SECURITY hive dumping |
 | T1555.003 | Credentials from Web Browsers | Chrome/Edge credential theft via DPAPI |
 | T1562.001 | Disable or Modify Tools | BYOVD-based EDR callback unlinking |
@@ -312,7 +312,7 @@ cat /sys/kernel/debug/tracing/enabled_functions 2>/dev/null
 
 1. **Contain**: Isolate affected IIS and Linux servers from the network immediately
 2. **Eradicate (Windows)**: Remove BYOVD drivers, delete scheduled task "Google Chrome Start", clear hosts:cache ADS, terminate SPECTRE processes, remove web shells from IIS
-3. **Eradicate (Linux)**: Unload rootkit module (`rmmod`), remove hardware-monitor.service, rebuild kernel if integrity cannot be verified
+3. **Eradicate (Linux)**: Attempt `rmmod acpi_pad` to unload the rootkit module, but note that the rootkit hides itself from `lsmod` (Signal 36) and may block `rmmod`; if removal fails, a kernel rebuild or full reimage is required. Remove hardware-monitor.service and rebuild kernel if module integrity cannot be verified
 4. **Credentials**: Rotate all credentials on affected systems; assume SAM/SYSTEM/SECURITY and browser credentials are compromised
 5. **Patch**: Apply patches for CVE-2022-27925, CVE-2019-18935, CVE-2021-23758, CVE-2021-29441/29442 on all exposed servers
 6. **Monitor**: Deploy IOC-based detection for all listed hashes, domains, and IPs
@@ -334,6 +334,7 @@ These detections target SPECTRE implant artifacts, BYOVD driver loading, C2 comm
 Detects creation of named pipes matching the SPECTRE implant pattern `\\.\pipe\spectre_<tid>`.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check blocked by proxy (MITRE ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. Pipe name is highly distinctive to SPECTRE implant. No known benign software uses this pattern. -->
+<!-- revision: tag corrected from attack.t1559.001 (COM) to attack.t1559 (IPC) -->
 ```yaml
 title: SPECTRE Implant Named Pipe Creation
 id: 7c3a1b9e-4d2f-4e8a-b5c6-1a2b3c4d5e6f
@@ -344,7 +345,7 @@ references:
 author: Actioner
 date: 2026/08/24
 tags:
-    - attack.t1559.001
+    - attack.t1559
 logsource:
     category: pipe_created
     product: windows
@@ -416,9 +417,10 @@ level: critical
 ```
 
 ### Sigma: Specter Rootkit Systemd Persistence
-Detects creation of the hardware-monitor.service systemd unit used by the Specter Linux rootkit for boot persistence.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Service name is specific to this rootkit. Legitimate hardware monitoring packages (lm-sensors, etc.) use different service names. -->
+Detects creation of the hardware-monitor.service systemd unit used by the Specter Linux rootkit for boot persistence. The service name is plausible for legitimate hardware monitoring software, so triage against installed packages before escalating.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. -->
+<!-- revision: confidence downgraded high->medium; "hardware-monitor" is a plausible name for legitimate hw-monitoring daemons (e.g., custom lm-sensors wrappers). FP scenario documented. -->
 ```yaml
 title: SPECTRE Rootkit Systemd Persistence via hardware-monitor Service
 id: af6d4e2b-7a5c-4b1d-c8f9-4d5e6f7a8b9c
@@ -438,7 +440,7 @@ detection:
         TargetFilename|endswith: '/hardware-monitor.service'
     condition: selection
 falsepositives:
-    - Legitimate hardware monitoring tools using the same service name
+    - Legitimate hardware monitoring tools or custom lm-sensors wrappers using the same service name
 level: high
 ```
 
@@ -472,44 +474,19 @@ falsepositives:
 level: high
 ```
 
-### Sigma: SPECTRE Self-Hollowing into RuntimeBroker
-Detects RuntimeBroker.exe spawning from a non-svchost.exe parent, consistent with SPECTRE's process self-hollowing technique. Scope to servers; workstations may have legitimate edge cases.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Medium confidence because some Windows services or third-party software may legitimately spawn RuntimeBroker.exe, though uncommon outside svchost.exe parentage. Best deployed as a hunt rule on servers. -->
-```yaml
-title: SPECTRE Self-Hollowing into RuntimeBroker
-id: c18f6a4d-9c7e-4d3f-e0b1-6f7a8b9c0d1e
-status: experimental
-description: Detects RuntimeBroker.exe spawning as a child of an unusual parent process, consistent with SPECTRE's self-hollowing technique that targets RuntimeBroker.exe on startup.
-references:
-    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
-author: Actioner
-date: 2026/08/24
-tags:
-    - attack.t1055.012
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\RuntimeBroker.exe'
-    filter_legitimate:
-        ParentImage|endswith: '\svchost.exe'
-    condition: selection and not filter_legitimate
-falsepositives:
-    - Uncommon but possible legitimate RuntimeBroker spawns from other system processes
-level: high
-```
+<!-- revision: DROPPED Sigma rule "SPECTRE Self-Hollowing into RuntimeBroker" -- altitude mismatch; RuntimeBroker.exe legitimately spawns from non-svchost parents on workstations, producing hundreds of hits/day. Not suitable for production alerting. -->
 
 ### Sigma: UAT-10147 Web Shell Authentication Header
-Detects HTTP requests containing the X-ID=x9 cookie value used to authenticate UAT-10147 web shells on compromised IIS servers.
+Detects HTTP requests containing the X-ID header used to authenticate UAT-10147 web shells on compromised IIS servers. Caveat: IIS does not log arbitrary request headers by default; the X-ID header must be added as a custom log field in IIS Advanced Logging or captured by a reverse proxy/WAF forwarding logs to the SIEM.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Requires IIS or web proxy logs with cookie/header fields. X-ID=x9 is highly distinctive. -->
+<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. -->
+<!-- revision: field changed from cs-cookie to cs-uri-query fallback approach. X-ID is an HTTP header, not a cookie -- it would NOT appear in IIS cs(Cookie) logs. Detection now targets the cs-uri-query "v" fallback parameter and notes that header-based detection requires explicit IIS custom logging configuration for X-ID. -->
 ```yaml
 title: UAT-10147 Web Shell Authentication Header in IIS Logs
 id: d29a7b5e-0d8f-4e4a-f1c2-7a8b9c0d1e2f
 status: experimental
-description: Detects HTTP requests containing the X-ID header with value x9, used as the authentication mechanism for UAT-10147 web shells deployed on compromised IIS servers.
+description: |
+    Detects HTTP requests matching the UAT-10147 web shell authentication pattern. The primary auth mechanism is the X-ID HTTP header (value x9), but IIS does not log arbitrary request headers by default -- deploy IIS Advanced Logging with X-ID as a custom field to capture it. This rule targets the fallback query-string parameter (v=x9) which IS logged in standard IIS W3C logs.
 references:
     - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
 author: Actioner
@@ -519,31 +496,29 @@ tags:
 logsource:
     category: webserver
 detection:
-    selection:
-        cs-cookie|contains: 'X-ID=x9'
-    condition: selection
+    selection_query_fallback:
+        cs-uri-query|contains: 'v=x9'
+    condition: selection_query_fallback
 falsepositives:
-    - Unlikely - specific header value combination is highly distinctive
-level: critical
+    - Web applications using a query parameter v with value x9 in normal operation
+level: high
 ```
 
-### Snort: SPECTRE C2 Registration and Output Beacons
-Detects HTTP POST requests to the SPECTRE C2 endpoints `/api/v1/register` and `/api/v1/output`, and web shell authentication via X-ID header.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort 2.9.20 validated with classification.config, exit 0. Medium confidence because /api/v1/register and /api/v1/output are somewhat generic REST patterns; combine with other IOCs for higher fidelity. Web shell rule (sid:2100003) is high confidence. -->
+### Snort: UAT-10147 Web Shell Authentication
+Detects web shell authentication via the X-ID header with value x9 used by UAT-10147 BadIIS web shells.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort 2.9.20 validated with classification.config, exit 0. -->
+<!-- revision: DROPPED sid:2100001 (SPECTRE C2 Registration /api/v1/register) and sid:2100002 (SPECTRE C2 Output Exfil /api/v1/output) -- generic REST URI patterns with no destination pinning; thousands of FP/day expected. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SPECTRE Implant C2 Registration Beacon to /api/v1/register"; flow:established,to_server; content:"/api/v1/register"; http_uri; fast_pattern; content:"POST"; http_method; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100001; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SPECTRE Implant C2 Output Exfil to /api/v1/output"; flow:established,to_server; content:"/api/v1/output"; http_uri; fast_pattern; content:"POST"; http_method; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100002; rev:1;)
 alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - UAT-10147 Web Shell Auth Header X-ID x9"; flow:established,to_server; content:"X-ID"; http_header; fast_pattern; content:"x9"; http_header; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; sid:2100003; rev:1;)
 ```
 
-### Suricata: SPECTRE C2 Beacons, Web Shell Auth, and Known C2 Domains
-Detects SPECTRE C2 HTTP traffic, web shell authentication, and DNS queries to known UAT-10147 C2 domains.
-**Status:** compile ✅ compiles · confidence: high (domain rules) / medium (C2 endpoint rules)
-<!-- audit: suricata 7.0.3 -T exit 0. Domain-based DNS rules are high confidence (known IOCs). C2 endpoint rules (/api/v1/register, /api/v1/output) are medium confidence due to somewhat generic URI patterns. -->
+### Suricata: UAT-10147 Web Shell Auth and Known C2 Domains
+Detects web shell authentication and DNS queries to known UAT-10147 C2/infrastructure domains.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata 7.0.3 -T exit 0. Domain-based DNS rules are high confidence (known IOCs). -->
+<!-- revision: DROPPED sid:2200001 (SPECTRE C2 Registration /api/v1/register) and sid:2200002 (SPECTRE C2 Output Exfil /api/v1/output) -- generic REST URI patterns with no destination pinning; thousands of FP/day expected. Added sid:2200010 for healthsave.net (staging domain listed in IOC table). -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Registration Beacon to /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200001; rev:1;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE Implant C2 Output Exfil to /api/v1/output"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200002; rev:1;)
 alert http any any -> $HOME_NET any (msg:"Actioner - UAT-10147 Web Shell Auth Header X-ID x9"; flow:established,to_server; http.header; content:"X-ID|3a 20|x9"; fast_pattern; classtype:web-application-attack; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200003; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Domain jyzyps.com"; dns.query; content:"jyzyps.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200004; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Domain niupilao.vip"; dns.query; content:"niupilao.vip"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200005; rev:1;)
@@ -551,12 +526,14 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Do
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Domain udvyiwvfs.cyou"; dns.query; content:"udvyiwvfs.cyou"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200007; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Domain mma888.cc"; dns.query; content:"mma888.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200008; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 Payload Domain tippusoni.in"; dns.query; content:"tippusoni.in"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200009; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 Staging Domain healthsave.net"; dns.query; content:"healthsave.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-24; sid:2200010; rev:1;)
 ```
 
 ### YARA: SPECTRE Windows Implant, Linux Rootkit, and BadIIS Web Shell
-Detects SPECTRE Windows implant (PDB paths, pipe name, encrypted command strings, C2 endpoints), Specter Linux rootkit (acpi_pad masquerade, ftrace hooks, rootkit commands), and BadIIS web shell (SeoEngineHandler class, X-ID auth).
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0. Three rules: UAT10147_SPECTRE_Windows_Implant keys on PDB Chinese strings, pipe name, and encrypted command names -- all highly distinctive. UAT10147_Specter_Linux_Rootkit keys on rootkit_* command cluster and acpi_pad+hook combination. UAT10147_BadIIS_WebShell keys on SeoEngineHandler class name. -->
+Detects SPECTRE Windows implant (PDB paths, pipe name, C2 endpoints), Specter Linux rootkit (acpi_pad masquerade, ftrace hooks, rootkit commands), and BadIIS web shell (SeoEngineHandler class, X-ID auth).
+**Status:** compile ✅ compiles · confidence: high (Windows implant, Linux rootkit) / medium (BadIIS web shell)
+<!-- audit: yarac exit 0. Three rules. -->
+<!-- revision: (1) Fixed pipe string from "\\\\.\\.\\pipe\\spectre_" to "\\\\.\\pipe\\spectre_" (extra \\. segment was a bug). (2) $cmd* strings (byovd_load, edr_kill, hashdump, etc.) are encrypted at compile time with xorshift32 PRNG -- they will NOT match on-disk binaries, only memory dumps; documented in condition comment. (3) BadIIS web shell downgraded high->medium; standalone $cls (SeoEngineHandler) branch could match SEO-themed .NET libraries. -->
 ```yara
 rule UAT10147_SPECTRE_Windows_Implant
 {
@@ -574,8 +551,10 @@ rule UAT10147_SPECTRE_Windows_Implant
         $pdb3 = "\\Desktop\\AI\\EfsPotatoCpp\\" ascii
         $pdb4 = "\\Desktop\\AI\\EfsPotatoCPP\\" ascii
 
-        $pipe = "\\\\.\\.\\pipe\\spectre_" ascii wide
+        $pipe = "\\\\.\\pipe\\spectre_" ascii wide
 
+        // NOTE: $cmd* strings are encrypted at compile time with xorshift32 PRNG.
+        // These will match only in memory dumps or decrypted samples, NOT on-disk binaries.
         $cmd1 = "byovd_load" ascii
         $cmd2 = "byovd_unload" ascii
         $cmd3 = "edr_kill" ascii
@@ -644,20 +623,21 @@ rule UAT10147_BadIIS_WebShell
         author = "Actioner"
         date = "2026-08-24"
         reference = "https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/"
-        severity = "high"
+        severity = "medium"
+        // revision: downgraded from high to medium; standalone $cls (SeoEngineHandler)
+        // could match SEO-themed .NET libraries. Require $cls + at least one auth indicator.
 
     strings:
         $cls = "SeoEngineHandler" ascii wide fullword
         $auth1 = "X-ID" ascii wide
         $auth2 = "x9" ascii wide
-        $vn = "越南老逼" ascii wide
+        $vn = "\xe8\xb6\x8a\xe5\x8d\x97\xe8\x80\x81\xe9\x80\xbc" // 越南老逼
 
     condition:
         filesize < 5MB and
         (
-            ($cls and $auth1) or
-            ($auth1 and $auth2 and $vn) or
-            $cls
+            ($cls and any of ($auth*)) or
+            ($auth1 and $auth2 and $vn)
         )
 }
 ```
