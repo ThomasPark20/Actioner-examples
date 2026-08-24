@@ -1,0 +1,31 @@
+title: Rust Arrayref Supply Chain Attack - Stage-2 Persistence Directories
+id: 7c9b1d3e-5f4a-2b6d-8e0c-4a2f6d8b1e3c
+status: experimental
+description: >
+    Detects creation of persistence directories used by the stage-2 implant
+    from the Rust crate supply-chain attack. The malware creates AzureKits
+    and ServiceKit directories under the user config directory on Linux and
+    drops MonoService or MonoXpc executables.
+references:
+    - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_dirs:
+        TargetFilename|contains:
+            - '/.config/AzureKits/'
+            - '/.config/ServiceKit/'
+    selection_binaries:
+        TargetFilename|endswith:
+            - '/MonoService'
+            - '/MonoXpc'
+    condition: selection_dirs or selection_binaries
+falsepositives:
+    - Legitimate Azure or Mono framework installations creating similarly named directories
+level: high

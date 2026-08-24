@@ -1,0 +1,20 @@
+title: SPECTRE C2 Configuration via NTFS Alternate Data Stream
+id: 9e5c3d1a-6f4b-4a0c-b7e8-3c4d5e6f7a8b
+status: experimental
+description: Detects access to the NTFS Alternate Data Stream used by SPECTRE to store C2 configuration at C:\Windows\System32\drivers\etc\hosts:cache.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1564.004
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: 'drivers\etc\hosts:cache'
+    condition: selection
+falsepositives:
+    - Unlikely - specific ADS name on the hosts file is highly distinctive
+level: critical

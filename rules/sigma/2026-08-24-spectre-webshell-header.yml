@@ -1,0 +1,20 @@
+title: UAT-10147 Web Shell Authentication Header in IIS Logs
+id: d29a7b5e-0d8f-4e4a-f1c2-7a8b9c0d1e2f
+status: experimental
+description: |
+    Detects HTTP requests matching the UAT-10147 web shell authentication pattern. The primary auth mechanism is the X-ID HTTP header (value x9), but IIS does not log arbitrary request headers by default -- deploy IIS Advanced Logging with X-ID as a custom field to capture it. This rule targets the fallback query-string parameter (v=x9) which IS logged in standard IIS W3C logs.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection_query_fallback:
+        cs-uri-query|contains: 'v=x9'
+    condition: selection_query_fallback
+falsepositives:
+    - Web applications using a query parameter v with value x9 in normal operation
+level: high
