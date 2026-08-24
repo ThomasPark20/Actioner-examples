@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-24
-Version: DRAFT 1.0
+Version: 1.0
 
 ## Executive Summary
 
@@ -188,7 +188,7 @@ A domain generation algorithm (DGA) produces 10 `.com` domains every 5 days as f
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Compromised maintainer account used to inject malicious dependency into popular Rust crates |
-| T1199 | Trusted Relationship | Leveraged trust in crates.io ecosystem and legitimate maintainer account |
+<!-- revision: removed T1199 (Trusted Relationship describes third-party org access, not package registry trust; T1195.002 already covers the supply-chain vector) -->
 | T1059.001 | Command and Scripting Interpreter: PowerShell | Windows payload delivered as PowerShell script (`rust-setup.ps1`) |
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | VBScript launcher (`rust-setup-launch.vbs`) used to execute PowerShell hidden |
 | T1105 | Ingress Tool Transfer | Build script downloads stage-2 payload from C2 over TLS |
@@ -198,7 +198,7 @@ A domain generation algorithm (DGA) produces 10 `.com` domains every 5 days as f
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | SQLite queries against Chrome/Brave/Edge Login Data databases |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS POST beaconing to `/49890878` endpoint |
 | T1568.002 | Dynamic Resolution: Domain Generation Algorithms | 10 `.com` domains generated every 5 days as fallback C2 |
-| T1553.004 | Subvert Trust Controls: Install Root Certificate | Custom TLS verifier bypasses certificate validation |
+<!-- revision: removed T1553.004 (attack uses in-code AcceptAll TLS verifier bypass, does NOT install a root certificate on the host) -->
 | T1036.005 | Masquerading: Match Legitimate Name or Location | `proc-macro1` typosquats `proc-macro2`; persistence dirs named `AzureKits`, `ServiceKit` |
 
 ## Impact Assessment
@@ -342,6 +342,7 @@ level: critical
 
 Detects creation of the stage-1 dropper files (`rust-setup.ps1`, `rust-setup-launch.vbs`, `rust-setup.ps1.cfg`) in the Windows temp directory.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: replaced attack.t1204.002 (User Execution: Malicious File) with attack.t1105 (Ingress Tool Transfer) — build script creates files automatically, no user interaction required -->
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. File names are unique to this campaign. -->
 ```yaml
 title: Rust Arrayref Supply Chain Attack - Payload File Creation
@@ -359,7 +360,7 @@ references:
 author: Actioner
 date: 2026/08/24
 tags:
-    - attack.t1204.002
+    - attack.t1105
     - attack.t1059.001
 logsource:
     category: file_event
@@ -380,6 +381,7 @@ level: critical
 
 Detects creation of `AzureKits` or `ServiceKit` directories under `$HOME/.config/` and `MonoService`/`MonoXpc` executables used for Linux persistence.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: removed attack.t1547.001 (Registry Run Keys is Windows-only, this is a Linux rule); kept attack.t1543.002 (systemd service) -->
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Directories and binary names are distinctive to this campaign. Possible FP from legitimate Azure/Mono tooling is low given the specific path combination. -->
 ```yaml
 title: Rust Arrayref Supply Chain Attack - Stage-2 Persistence Directories
@@ -397,7 +399,6 @@ author: Actioner
 date: 2026/08/24
 tags:
     - attack.t1543.002
-    - attack.t1547.001
 logsource:
     category: file_event
     product: linux
@@ -440,7 +441,8 @@ alert tcp $HOME_NET any -> [23.254.165.112,23.254.167.107,23.254.167.216] any (m
 ### YARA: Malicious Build Script (proc-macro1 build.rs)
 
 Detects the malicious `build.rs` via base64-encoded C2 URL fragments and the `AcceptAll` TLS verifier pattern characteristic of the proc-macro1 dropper.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- revision: changed sample status from "fired ✓" to "constructed" — positive was fabricated from published strings, not the actual malicious build.rs -->
 <!-- audit: yarac exit 0. yara pos.txt matched SupplyChain_Rust_Arrayref_Malicious_BuildScript; yara neg.txt no match. Positive sample constructed from published base64 fragments (aHR0cHM6Ly8=, MjMuMjU0Lg==, MTY1Lg==, MTEyOg==, OTA4OS8=) and AcceptAll/verify_server_cert/rust-setup/std::mem::forget strings documented in multiple sources. -->
 ```yara
 rule SupplyChain_Rust_Arrayref_Malicious_BuildScript
