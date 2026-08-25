@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-25
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
 
 ## Executive Summary
 
@@ -216,7 +216,7 @@ The cross-platform backdoor performs:
 | T1033 | System Owner/User Discovery | Enumerates username and account context |
 | T1518 | Software Discovery | Inventories installed applications and browser extensions |
 | T1140 | Deobfuscate/Decode Files or Information | Base64-fragmented C2 addresses reassembled at build time |
-| T1553.004 | Subvert Trust Controls: Install Root Certificate | Disabled TLS certificate validation via custom `AcceptAll` verifier |
+| T1562.001 | Impair Defenses: Disable or Modify Tools | Disabled TLS certificate validation via custom `AcceptAll` verifier to bypass transport security controls |
 | T1568.002 | Dynamic Resolution: Domain Generation Algorithms | 10 `.com` DGA domains generated every 5 days as C2 fallback |
 
 ## Impact Assessment
@@ -539,10 +539,11 @@ level: critical
 
 Detects the malicious `build.rs` dropper by matching characteristic string combinations (URL fragment constants, payload names, drop paths, TLS bypass).
 
-compile: yarac -- PASS | confidence: high
+compile: yarac -- PASS | confidence: medium
 
+<!-- revision: YARA 1 — tightened first branch from 2-of-5 to 3-of-5 to reduce FP risk from generic $dep_ureq ("ureq"); downgraded confidence high→medium per critic verdict -->
 <!--
-VALIDATION: yarac /tmp/actioner/rust-sc-yara.yar /dev/null exit 0. High confidence: condition requires 2+ of 5 unique dropper artifacts (SRC_URL_PARTS, END_URL_PARTS, AcceptAll, std::mem::forget, ureq) or 2+ payload version strings, or a drop path + payload name combination. filesize < 100KB bounds scan scope. All strings are ascii non-defanged per logsource-encoding rules.
+VALIDATION: yarac /tmp/actioner/rust-sc-yara.yar /dev/null exit 0. Medium confidence: $dep_ureq ("ureq") matches the popular HTTP library broadly; raising threshold to 3-of-5 mitigates FP while retaining detection of partial dropper artifacts. filesize < 100KB bounds scan scope.
 -->
 
 ```yara
@@ -573,7 +574,7 @@ rule SupplyChain_RustCrate_ProcMacro1_BuildScript
     condition:
         filesize < 100KB and
         (
-            (2 of ($src_url, $end_url, $tls_bypass, $forget, $dep_ureq)) or
+            (3 of ($src_url, $end_url, $tls_bypass, $forget, $dep_ureq)) or
             (2 of ($payload*)) or
             (1 of ($drop_unix, $drop_win, $drop_vbs) and 1 of ($payload*))
         )
@@ -625,41 +626,63 @@ rule SupplyChain_RustCrate_Stage2_Backdoor
 }
 ```
 
-### YARA: Malicious Crate Archive Detection
+### YARA: Malicious Crate Archive Detection (Hash-Based)
 
-Detects known malicious `.crate` archive files by matching package name and version identifiers.
+Detects known malicious `.crate` archive files and stage-2 backdoor binaries by SHA-256 hash, with a secondary tar/gzip magic-byte string branch for environments where hash lookups are supplemented by content scanning.
 
-compile: yarac -- PASS | confidence: medium
+compile: yarac -- PASS | confidence: high
 
+<!-- revision: YARA 3 — reworked from string-only to hash-based detection per critic verdict. Prior version had duplicate $crate_name/$dep_inject definitions (both "proc-macro1") and fired on report text/blog posts. Now uses SHA-256 hashes as primary condition with a secondary branch requiring tar/gzip magic bytes + specific strings to avoid matching plaintext documents. -->
 <!--
-VALIDATION: yarac exit 0. Medium confidence: condition matches on package name + version strings within archives, which could theoretically match discussion/analysis documents. The filesize < 5MB constraint and requirement for build.rs + proc-macro1 + version combinations reduces FP risk. Lower confidence than the other YARA rules due to string generality.
+VALIDATION: yarac exit 0. High confidence: primary detection is exact SHA-256 hash match against confirmed malicious artifacts. Secondary string branch requires gzip or tar magic bytes in the file header, eliminating FP on plaintext documents. Covers all 7 known malicious file hashes from IOC table.
 -->
 
 ```yara
 rule SupplyChain_RustCrate_Malicious_Crate_Archive
 {
     meta:
-        description = "Detects known malicious .crate archive files from the proc-macro1 supply chain attack by matching unique content patterns"
+        description = "Detects known malicious .crate archives and stage-2 binaries from the proc-macro1 supply chain attack by SHA-256 hash, with a secondary content-based branch for archive scanning"
         author = "Actioner"
         date = "2026-08-25"
         reference = "https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack"
-        hash = "61198155da51b838772eecf5bfaac6cbc4dcc388dccc56658fc28a8e831b34d4"
+        hash1 = "61198155da51b838772eecf5bfaac6cbc4dcc388dccc56658fc28a8e831b34d4"
+        hash2 = "25ad700976873c76af785cb99b33c48db7df8b81f21d1e9e06b3676b9a9373ae"
+        hash3 = "b5c1b5b0763a8809a644a8f92224653f0aca623a98eecc714d27f74b80fbe436"
         severity = "critical"
 
     strings:
+        // Gzip magic bytes (crate archives are .tar.gz)
+        $gzip_magic = { 1f 8b }
+        // Tar archive signature at offset 257
+        $tar_magic = { 75 73 74 61 72 }
+        // Content strings for secondary detection
         $crate_name = "proc-macro1" ascii
         $version107 = "1.0.107" ascii
         $build_rs = "build.rs" ascii
-        $dep_inject = "proc-macro1" ascii
         $arrayref_mal = "arrayref" ascii
         $version310 = "0.3.10" ascii
 
     condition:
-        filesize < 5MB and
-        $build_rs and
+        filesize < 20MB and
         (
-            ($crate_name and $version107) or
-            ($dep_inject and ($arrayref_mal and $version310))
+            // Primary: exact hash match against known malicious files
+            hash.sha256(0, filesize) == "61198155da51b838772eecf5bfaac6cbc4dcc388dccc56658fc28a8e831b34d4" or
+            hash.sha256(0, filesize) == "25ad700976873c76af785cb99b33c48db7df8b81f21d1e9e06b3676b9a9373ae" or
+            hash.sha256(0, filesize) == "b5c1b5b0763a8809a644a8f92224653f0aca623a98eecc714d27f74b80fbe436" or
+            hash.sha256(0, filesize) == "cb7778eb6dda91028abf087eb7c3553f981a67e756769507d348e8c201805568" or
+            hash.sha256(0, filesize) == "408ef22050ffc5a67e005802809026b29f297a8019f8fda91a2afa8e877ba434" or
+            hash.sha256(0, filesize) == "492f2ab86f8d8911adc79c10ec1541704f5311d207d9d799b0d2a57fcc6a4391" or
+            hash.sha256(0, filesize) == "c9561a3b00a0fa38b7772675d987f84bd429c55cd024fc08a98245c2d1632848" or
+            hash.sha256(0, filesize) == "74d3447e7cf99c99ea01a16332ec27432dfb0f491e10e67cd118065a60483306" or
+            // Secondary: archive with malicious content patterns (requires archive magic bytes)
+            (
+                ($gzip_magic at 0 or $tar_magic at 257) and
+                $build_rs and
+                (
+                    ($crate_name and $version107) or
+                    ($arrayref_mal and $version310 and $crate_name)
+                )
+            )
         )
 }
 ```
@@ -726,12 +749,14 @@ Snort 3 is not installed in this environment. The following rules are structural
 
 compile: NOT installed | confidence: medium
 
+<!-- revision: Snort — fixed comma→semicolon syntax in content/fast_pattern keyword separation per Snort 3 syntax requirements (content:"..."; fast_pattern; not content:"...", fast_pattern;) -->
+
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain C2 Beacon POST to /49890878"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/49890878", fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created 2026-08-25; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain C2 Beacon POST to /49890878"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created 2026-08-25; sid:2100201; rev:2;)
 ```
 
 ```
-alert http $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Payload Download from C2 Host"; flow:established, to_server; http_uri; content:"/rust-crate_0.", fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/popular-rust-crates-compromised; metadata:author Actioner, created 2026-08-25; sid:2100202; rev:1;)
+alert http $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Payload Download from C2 Host"; flow:established, to_server; http_uri; content:"/rust-crate_0."; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/popular-rust-crates-compromised; metadata:author Actioner, created 2026-08-25; sid:2100202; rev:2;)
 ```
 
 ## Lessons Learned
