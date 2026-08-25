@@ -1,0 +1,7 @@
+# Snort 3 rules for Rust Crate Supply Chain Attack via proc-macro1 (2026-08-25)
+# Report: summaries/2026-08-25-rust-supply-chain-attack.md
+# NOTE: Snort 3 not installed in build environment — rules are structurally validated but not compile-tested
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain C2 Beacon POST to /49890878"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created 2026-08-25; sid:2100201; rev:2;)
+
+alert http $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Payload Download from C2 Host"; flow:established, to_server; http_uri; content:"/rust-crate_0."; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/popular-rust-crates-compromised; metadata:author Actioner, created 2026-08-25; sid:2100202; rev:2;)

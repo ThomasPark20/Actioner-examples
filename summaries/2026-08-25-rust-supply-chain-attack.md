@@ -267,22 +267,24 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" |
 
 ### Remediation
 
-1. **Containment**: Isolate any host confirmed to have built the malicious dependency versions. Disconnect from network to prevent further C2 communication.
+1. **CI/CD pipeline audit (highest priority)**: CI/CD systems with uncached dependencies are the highest-risk targets -- they resolve fresh dependencies on every build and typically run with elevated privileges and access to deployment secrets. Immediately audit all CI/CD build logs from the 07:11--09:25 UTC window on August 20, 2026 for dependency resolution events that pulled `proc-macro1`. Check pipeline secret stores, deployment keys, and signing credentials for exposure. Any CI runner that built during the window should be treated as fully compromised, reimaged, and have all accessible secrets rotated.
 
-2. **Eradication**:
+2. **Containment**: Isolate any host confirmed to have built the malicious dependency versions. Disconnect from network to prevent further C2 communication.
+
+4. **Eradication**:
    - Remove payload artifacts: `/tmp/rust-setup`, `%TEMP%\rust-setup*`
    - Remove persistence directories: `$HOME/.config/AzureKits/`, `$HOME/.config/ServiceKit/`
    - Remove persistence binaries: `MonoService`, `MonoXpc`
    - Remove persistence mechanisms: systemd user services, LaunchAgent plists, Run registry keys
    - Purge malicious crate versions from local Cargo cache
 
-3. **Credential rotation**: Treat the affected host as fully compromised:
+5. **Credential rotation**: Treat the affected host as fully compromised:
    - Rotate all credentials stored on or accessible from the host
    - Reset all browser-stored passwords (Chrome, Brave, Edge)
    - Revoke and regenerate CI/CD secrets, API tokens, SSH keys, signing keys
    - Review and revoke any crates.io, npm, PyPI, or other package registry tokens
 
-4. **Forensic analysis**: Examine build logs for the 07:11--09:25 UTC window on August 20, 2026, focusing on dependency resolution events that pulled `proc-macro1`.
+6. **Forensic analysis**: Examine build logs for the 07:11--09:25 UTC window on August 20, 2026, focusing on dependency resolution events that pulled `proc-macro1`.
 
 ### Long-Term Hardening
 
@@ -295,7 +297,13 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" |
 
 ## Detection Rules
 
-Five Sigma rules, three YARA rules, and four Suricata rules target the concrete IOCs and behavioral patterns from this attack: C2 infrastructure, payload file paths, build-time process anomalies, registry persistence, and network beaconing. Sigma check could not run (MITRE ATT&CK data download blocked by environment proxy), so Sigma validation relied on successful `sigma convert` to Splunk and LogScale backends.
+Five Sigma rules, three YARA rules, four Suricata rules, and two Snort rules target the concrete IOCs and behavioral patterns from this attack: C2 infrastructure, payload file paths, build-time process anomalies, registry persistence, and network beaconing. Sigma check could not run (MITRE ATT&CK data download blocked by environment proxy), so Sigma validation relied on successful `sigma convert` to Splunk and LogScale backends.
+
+<!-- revision: added TLS inspection narrative, IP expiry guidance, CI/CD remediation emphasis, fixed ATT&CK T1553.004→T1562.001, fixed YARA 1 threshold, reworked YARA 3 to hash-based, fixed Snort comma→semicolon syntax -->
+
+**Detection deployment notes:**
+- **TLS inspection requirement**: Suricata rules sid:2100101 (C2 beacon POST) and sid:2100102 (payload download) inspect HTTP-layer content. Since the C2 channel uses HTTPS, these rules require TLS inspection/decryption (SSL proxy or bump-in-the-wire) to function. In environments without TLS decryption, rely on sid:2100103 (TLS connection to C2 IPs) and sid:2100104 (DNS query) for network-level detection.
+- **IP-based rule expiry**: Rules targeting C2 IP addresses (Sigma rule c8f1d4e6, Suricata sid:2100103) use Hostwinds VPS IPs that are subject to reassignment. **Review and revalidate every 90 days** (next review: 2026-11-23). After confirmed IP reassignment to legitimate tenants, remove the IPs to avoid false positives.
 
 ### Sigma: Cargo Build Process Spawning Suspicious Payload Execution
 
@@ -720,10 +728,11 @@ alert http $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chai
 
 ### Suricata: TLS Connection to C2 Infrastructure IPs
 
-Detects TLS connections to the four confirmed C2 IP addresses on port 443.
+Detects TLS connections to the four confirmed C2 IP addresses on port 443. **IP review cadence: Hostwinds VPS IPs are reassigned frequently. Review and revalidate every 90 days. Next review date: 2026-11-23. This rule does NOT require TLS inspection -- it matches on connection metadata (IP/port).**
 
 compile: suricata -T -- PASS | confidence: high
 
+<!-- revision: Suricata 3 — added 90-day IP review/expiry guidance; clarified no TLS inspection needed -->
 <!--
 VALIDATION: suricata -T exit 0. High confidence: IP addresses are confirmed C2 from Wiz/Socket research. No TLS inspection needed - matches on connection metadata. FP risk only after IP reassignment by Hostwinds.
 -->
