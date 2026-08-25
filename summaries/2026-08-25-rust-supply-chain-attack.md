@@ -449,10 +449,11 @@ level: critical
 
 ### Sigma: Network Connection to Rust Supply Chain Attack C2 Infrastructure
 
-Detects outbound connections to the known C2 IP addresses and Hostwinds hostname used in this campaign.
+Detects outbound connections to the known C2 IP addresses and Hostwinds hostname used in this campaign. **IP review cadence: These Hostwinds VPS IPs churn frequently. Review and revalidate every 90 days. After reassignment to legitimate tenants, these IPs should be removed to avoid false positives. Next review date: 2026-11-23.**
 
 compile: sigma convert to splunk/log_scale -- PASS | confidence: high
 
+<!-- revision: Sigma 4 — added 90-day IP review/expiry guidance per critic verdict; Hostwinds VPS IPs churn -->
 <!--
 VALIDATION: sigma convert --without-pipeline -t splunk PASS. sigma convert -t log_scale PASS. High confidence: IP addresses are confirmed C2 infrastructure from Wiz and Socket research. Risk of FP only after IP reassignment by Hostwinds. DestinationIp and DestinationHostname are standard network_connection fields.
 -->
@@ -689,10 +690,11 @@ rule SupplyChain_RustCrate_Malicious_Crate_Archive
 
 ### Suricata: C2 Beacon POST to /49890878
 
-Detects HTTPS POST requests to the `/49890878` C2 beacon endpoint used by both this campaign and the DPRK-attributed Mastra attack.
+Detects HTTPS POST requests to the `/49890878` C2 beacon endpoint used by both this campaign and the DPRK-attributed Mastra attack. **Note: This rule requires TLS inspection/decryption (SSL/TLS proxy or bump-in-the-wire) to inspect HTTPS traffic. The C2 channel uses HTTPS with a self-signed certificate; without TLS decryption this rule will not fire. Pair with the TLS-metadata rule (sid:2100103) for non-decrypted environments.**
 
 compile: suricata -T -- PASS | confidence: high
 
+<!-- revision: Suricata 1 — added TLS inspection caveat to description per critic verdict; C2 uses HTTPS so HTTP-layer rules require decryption -->
 <!--
 VALIDATION: suricata -T -S /tmp/actioner/rust-sc-suricata.rules -l /tmp/actioner exit 0 ("Configuration provided was successfully loaded"). High confidence: /49890878 is a unique C2 endpoint path confirmed by Wiz and Socket research, also observed in DPRK Mastra campaign. HTTP POST + specific URI is precise. Requires TLS inspection/decryption to see HTTPS content.
 -->
@@ -703,10 +705,11 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain
 
 ### Suricata: Payload Download from C2 Host
 
-Detects HTTP requests to the primary C2 IP for platform-specific payload files matching the `rust-crate_0.` naming pattern.
+Detects HTTP requests to the primary C2 IP for platform-specific payload files matching the `rust-crate_0.` naming pattern. **Note: Payload delivery uses HTTPS (port 9089 with TLS, certificate validation disabled by the malware). This rule requires TLS inspection/decryption to match the URI. In non-decrypted environments, rely on the TLS-metadata rule (sid:2100103) for connection-level detection.**
 
 compile: suricata -T -- PASS | confidence: high
 
+<!-- revision: Suricata 2 — added TLS inspection caveat; payload download uses HTTPS on port 9089 -->
 <!--
 VALIDATION: suricata -T exit 0. High confidence: combines specific destination IP (23.254.165.112) with URI pattern matching the four payload download paths. Requires TLS inspection to see URI in HTTPS traffic.
 -->
