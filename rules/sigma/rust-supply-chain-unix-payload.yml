@@ -1,0 +1,25 @@
+title: Rust Supply Chain Attack - Unix Payload Execution from /tmp/rust-setup
+id: 3a8f5d12-c6e4-4b97-a1d3-e9f7b2c80a65
+status: experimental
+description: >
+    Detects execution of the /tmp/rust-setup binary dropped by the proc-macro1
+    build.rs dropper during the Rust crates supply chain attack. The payload
+    is downloaded to /tmp/rust-setup and executed with the C2 address as argv[1].
+references:
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://socket.dev/blog/popular-rust-crates-compromised
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1195.001
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image: '/tmp/rust-setup'
+    condition: selection
+falsepositives:
+    - Legitimate software using the exact path /tmp/rust-setup (very unlikely)
+level: critical

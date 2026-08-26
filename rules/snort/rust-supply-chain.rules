@@ -1,0 +1,36 @@
+alert tcp $HOME_NET any -> 23.254.165.112 9089 (
+    msg:"Actioner - Rust Supply Chain Payload Download from proc-macro1 C2 (port 9089)";
+    flow:established, to_server;
+    content:"rust-crate_0.";
+    fast_pattern;
+    classtype:trojan-activity;
+    reference:url,socket.dev/blog/popular-rust-crates-compromised;
+    reference:url,blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/;
+    metadata:author Actioner, created 2026-08-26;
+    sid:2100010;
+    rev:1;
+)
+
+alert tcp $HOME_NET any -> 23.254.165.112 443 (
+    msg:"Actioner - Rust Supply Chain C2 Beacon POST /49890878";
+    flow:established, to_server;
+    content:"POST";
+    content:"/49890878";
+    fast_pattern;
+    classtype:trojan-activity;
+    reference:url,socket.dev/blog/popular-rust-crates-compromised;
+    reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns;
+    metadata:author Actioner, created 2026-08-26;
+    sid:2100011;
+    rev:1;
+)
+
+alert tcp $HOME_NET any -> [23.254.165.112,23.254.167.107,23.254.167.216] 443 (
+    msg:"Actioner - Rust Supply Chain C2 Connection to Suspected Infrastructure (Hostwinds)";
+    flow:established, to_server;
+    classtype:trojan-activity;
+    reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns;
+    metadata:author Actioner, created 2026-08-26, confidence medium;
+    sid:2100012;
+    rev:2;
+)

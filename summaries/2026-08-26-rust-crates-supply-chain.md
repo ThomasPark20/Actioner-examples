@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-26
-Version: DRAFT
+Version: FINAL
+<!-- revision: applied critic verdicts — (1) removed overbroad selection_service from Sigma systemd rule; (2) fixed T1547.014→T1543.002 in rule + ATT&CK table; (3) Snort sid:2100012 downgraded high→medium, renamed msg (IP-only, shared hosting); (4) Suricata sid:2200002 narrowed tls.sni to exact C2 hostname; (5) YARA sample status split per-rule, Payload relabeled "constructed"; (6) added non-defanged IP note in remediation. -->
 
 ## Executive Summary
 
@@ -193,7 +194,7 @@ The stage-2 backdoor performs:
 | T1105 | Ingress Tool Transfer | `build.rs` downloads platform-specific binaries from `23.254.165[.]112:9089` |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | Windows persistence via `HKCU\...\CurrentVersion\Run` |
 | T1547.004 | Boot or Logon Autostart Execution: Launch Agent | macOS persistence via LaunchAgent plist |
-| T1547.014 | Boot or Logon Autostart Execution: Active Setup | Linux persistence via systemd user service |
+| T1543.002 | Create or Modify System Process: Systemd Service | Linux persistence via systemd user service |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Steals saved logins from Chrome, Brave, Edge via SQLite |
 | T1571 | Non-Standard Port | Payload download over TLS on port 9089 |
 | T1041 | Exfiltration Over C2 Channel | Stolen credentials exfiltrated via same HTTPS POST beacon |
@@ -239,6 +240,8 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" | Select-
 ```
 
 Check for network connections to C2:
+
+> **Note:** IPs below are intentionally non-defanged for direct copy-paste into incident response tooling.
 
 ```bash
 # Active connections
@@ -378,28 +381,26 @@ level: critical
 Detects file creation in the `~/.config/AzureKits/` or `~/.config/ServiceKit/` directories, or the `MonoService`/`MonoXpc` binaries used by the proc-macro1 Linux persistence mechanism.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed on MITRE ATT&CK data fetch (proxy 403), not rule syntax. splunk convert exit 0; log_scale convert exit 0. Keys on distinctive directory names and binary names from published analysis. -->
+<!-- revision: removed selection_service (any systemd user .service file) from OR — too broad (TTP-level); now fires only on campaign-specific directory names and binary names. Fixed MITRE tag T1547.014 (Active Setup, Windows-only) → T1543.002 (Systemd Service). -->
 ```yaml
 title: Rust Supply Chain Attack - Linux Systemd User Service Persistence
 id: 9f1a7b3c-d4e5-4829-b6f0-a2c8e3d71f54
 status: experimental
 description: >
-    Detects creation of systemd user service files associated with the proc-macro1
-    supply chain attack payloads (MonoService/MonoXpc binaries installed to
-    ~/.config/AzureKits or ~/.config/ServiceKit).
+    Detects creation of files in the AzureKits or ServiceKit directories, or the
+    MonoService/MonoXpc binaries, associated with the proc-macro1 supply chain
+    attack Linux persistence mechanism.
 references:
     - https://socket.dev/blog/popular-rust-crates-compromised
     - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
 author: Actioner
 date: 2026/08/26
 tags:
-    - attack.t1547.014
+    - attack.t1543.002
 logsource:
     category: file_event
     product: linux
 detection:
-    selection_service:
-        TargetFilename|contains: '/.config/systemd/user/'
-        TargetFilename|endswith: '.service'
     selection_payload_dirs:
         TargetFilename|contains:
             - '/.config/AzureKits/'
@@ -408,7 +409,7 @@ detection:
         TargetFilename|endswith:
             - '/MonoService'
             - '/MonoXpc'
-    condition: selection_service or selection_payload_dirs or selection_binaries
+    condition: selection_payload_dirs or selection_binaries
 falsepositives:
     - Legitimate .NET Mono installations in user config directories (uncommon on developer machines)
 level: high
@@ -454,9 +455,10 @@ level: critical
 
 ### Snort: Payload Download and C2 Beacon
 
-Detects the stage-2 payload download (`rust-crate_0.` pattern on port 9089) and the C2 beacon POST to `/49890878`.
-**Status:** compile ⚠️ uncompiled · confidence: high
+Detects the stage-2 payload download (`rust-crate_0.` pattern on port 9089) and the C2 beacon POST to `/49890878`. The third rule (sid:2100012) is IP-only with no content match -- confidence medium due to shared-hosting IP reuse risk.
+**Status:** compile ⚠️ uncompiled · confidence: high (sid:2100010, 2100011), medium (sid:2100012)
 <!-- audit: snort not installed; structural check only. Three rules: payload download content match, beacon POST path, and broad IP-based C2 alert. All use standard Snort 3 syntax with flow, content, sid in 2100000+ range. /actioner:setup installs snort for compile validation. -->
+<!-- revision: sid:2100012 downgraded high→medium — no content match means it fires on any TCP to shared-hosting IPs on 443. Renamed msg to drop "Known DPRK Infrastructure" (IP alone doesn't prove DPRK attribution). Added FP note about shared hosting. -->
 ```snort
 alert tcp $HOME_NET any -> 23.254.165.112 9089 (
     msg:"Actioner - Rust Supply Chain Payload Download from proc-macro1 C2 (port 9089)";
@@ -486,21 +488,22 @@ alert tcp $HOME_NET any -> 23.254.165.112 443 (
 )
 
 alert tcp $HOME_NET any -> [23.254.165.112,23.254.167.107,23.254.167.216] 443 (
-    msg:"Actioner - Rust Supply Chain C2 Connection to Known DPRK Infrastructure";
+    msg:"Actioner - Rust Supply Chain C2 Connection to Suspected Infrastructure (Hostwinds)";
     flow:established, to_server;
     classtype:trojan-activity;
     reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns;
-    metadata:author Actioner, created 2026-08-26;
+    metadata:author Actioner, created 2026-08-26, confidence medium;
     sid:2100012;
-    rev:1;
+    rev:2;
 )
 ```
 
-### Suricata: C2 Beacon, TLS to C2 Domain, and DNS Resolution
+### Suricata: C2 Beacon, TLS to C2 Hostname, and DNS Resolution
 
-Detects the HTTP POST beacon to `/49890878`, TLS connections to the `hostwindsdns.com` C2 domain, and DNS queries for the C2 hostname.
+Detects the HTTP POST beacon to `/49890878`, TLS connections to the specific C2 hostname `hwsrv-798836.hostwindsdns.com` (a Hostwinds hosting provider hostname, not an attacker-registered domain), and DNS queries for that hostname.
 **Status:** compile ⚠️ uncompiled · confidence: high
 <!-- audit: suricata not installed; structural check only. Uses dot-notation sticky buffers (http.method, http.uri, tls.sni, dns.query), correct protocols (http, tls, dns), all required fields present (msg prefixed "Actioner - ", sid in 2200000+, metadata with author/created_at). /actioner:setup installs suricata for compile validation. -->
+<!-- revision: sid:2200002 narrowed tls.sni from "hostwindsdns.com; endswith" (matched ALL Hostwinds hostnames) to exact "hwsrv-798836.hostwindsdns.com". Fixed prose: hostwindsdns.com is the hosting provider's domain, not a C2 domain. -->
 ```suricata
 alert http $HOME_NET any -> 23.254.165.112 any (
     msg:"Actioner - Rust Supply Chain C2 Beacon POST /49890878";
@@ -516,14 +519,14 @@ alert http $HOME_NET any -> 23.254.165.112 any (
 )
 
 alert tls $HOME_NET any -> [23.254.165.112,23.254.167.107,23.254.167.216] any (
-    msg:"Actioner - Rust Supply Chain TLS to Known DPRK C2 Infrastructure";
+    msg:"Actioner - Rust Supply Chain TLS to C2 Hostname hwsrv-798836.hostwindsdns.com";
     flow:established,to_server;
-    tls.sni; content:"hostwindsdns.com"; endswith;
+    tls.sni; content:"hwsrv-798836.hostwindsdns.com"; nocase; fast_pattern;
     classtype:trojan-activity;
     reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns;
     metadata:author Actioner, created_at 2026-08-26;
     sid:2200002;
-    rev:1;
+    rev:2;
 )
 
 alert dns $HOME_NET any -> any any (
@@ -541,8 +544,9 @@ alert dns $HOME_NET any -> any any (
 ### YARA: Stage-2 Backdoor Payload and Build Script
 
 Detects the stage-2 backdoor via the hardcoded AES key (`i am botking`), beacon path (`/49890878`), C2 command strings, and operational directory names; and the malicious `build.rs` via the TLS bypass and payload naming patterns.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive fired (Malware_RustCrate_ProcMacro1_Payload matched pos.txt containing published strings "i am botking", "/49890878", command names, dir/binary names, "rust-setup"); negative quiet (benign cargo build output). Positive built from published IOC strings across Socket, Wiz, StepSecurity analyses. BuildScript rule is compile-only (no sample with AcceptAll+ServerCertVerifier+rust-crate_0. available for testing). -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Malware_RustCrate_ProcMacro1_Payload — sample: constructed (positive test file assembled from published IOC strings across Socket, Wiz, StepSecurity analyses; not a captured malware sample); negative quiet (benign cargo build output). Malware_RustCrate_ProcMacro1_BuildScript — compile-only (no sample with AcceptAll+ServerCertVerifier+rust-crate_0. available for testing). -->
+<!-- revision: relabeled "sample: fired" → "sample: constructed" — positive was fabricated strings, not a real captured sample. Split per-rule sample status (Payload=constructed, BuildScript=compile-only). -->
 ```yara
 rule Malware_RustCrate_ProcMacro1_Payload
 {
