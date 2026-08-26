@@ -192,7 +192,7 @@ Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Par
 
 ## Detection Rules
 
-These detections target SLEEPWALKER's distinctive artifacts at PoC/advisory-specific altitude: DLL side-loading into ERAAgent.exe, the companion dpapisvc.dll, registry modifications for anonymous SMB access, and file-level indicators including the embedded AES key and forged version resource. Compiles does not equal fires -- verify in your SIEM/EDR pipeline before production deployment.
+These detections target SLEEPWALKER's distinctive artifacts at PoC/advisory-specific altitude: DLL side-loading into ERAAgent.exe, the companion dpapisvc.dll, registry modifications for anonymous SMB access, and file-level indicators including the embedded AES key and forged version resource. Four Sigma rules cover host-level behavior; one YARA rule covers file-level indicators. Network rules (Snort/Suricata) were evaluated and dropped -- see revision comments below. Compiles does not equal fires -- verify in your SIEM/EDR pipeline before production deployment.
 
 ### Sigma: SLEEPWALKER DLL Side-Loading via ESET Management Agent
 Detects dpapi.dll loaded by ERAAgent.exe from a non-System32 path, the primary SLEEPWALKER persistence mechanism.
@@ -324,43 +324,12 @@ falsepositives:
 level: high
 ```
 
-### Snort: SLEEPWALKER SMB Anonymous Named Pipe Access
-Detects SMB traffic to IPC$ shares, which may indicate SLEEPWALKER's anonymous named pipe communication channel. Broad by nature -- pair with host-level indicators for triage.
-**Status:** compile ⚠️ uncompiled · confidence: low
-<!-- audit: snort compiler not available in environment; structural check only. Low confidence: IPC$ access is common in Windows environments; this is a hunt-level rule best combined with the Sigma registry and DLL sideloading rules for corroboration. /actioner:setup installs snort for compile checking. -->
-```snort
-alert tcp any any -> $HOME_NET 445 (
-    msg:"SLEEPWALKER - SMB Named Pipe Access with Anonymous Authentication";
-    flow:established,to_server;
-    content:"|FF|SMB";
-    content:"|00 00 00 00|"; within:4; distance:5;
-    content:"IPC$"; fast_pattern;
-    sid:2100101; rev:1;
-    classtype:trojan-activity;
-    reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/;
-)
-```
-
-### Suricata: SLEEPWALKER SMB Anonymous Named Pipe Access
-Detects SMB traffic to IPC$ shares associated with SLEEPWALKER's anonymous named pipe communication. Hunt-level rule -- pair with host indicators.
-**Status:** compile ⚠️ uncompiled · confidence: low
-<!-- audit: suricata compiler not available in environment; structural check only. Low confidence: IPC$ is normal SMB traffic; this is a hunt-level correlator, not a standalone detection. /actioner:setup installs suricata for compile checking. -->
-```suricata
-alert smb $EXTERNAL_NET any -> $HOME_NET any (
-    msg:"Actioner - SLEEPWALKER SMB Anonymous Named Pipe Access Attempt";
-    flow:established,to_server;
-    content:"IPC$"; fast_pattern;
-    classtype:trojan-activity;
-    reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/;
-    metadata:author Actioner, created_at 2026-08-26;
-    sid:2200101; rev:1;
-)
-```
+<!-- revision: Snort rule "SLEEPWALKER SMB Anonymous Named Pipe Access" (sid:2100101) DROPPED — only matches SMB1 (deprecated), IPC$ fires on every domain operation, position-based content match unreliable. Suricata rule "SLEEPWALKER SMB Anonymous Named Pipe Access" (sid:2200101) DROPPED — IPC$ ubiquitous, $EXTERNAL→$HOME direction misses lateral movement (the actual use case), no SLEEPWALKER-specific pipe name available. -->
 
 ### YARA: SLEEPWALKER Backdoor
 Detects the SLEEPWALKER DLL via its embedded AES-256 key, config nonce, forged version resource, and distinctive export/companion DLL name combination.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: constructed sample with published strings (dpapisvc.dll, ESET Management Agent Module, dpapi.dll, ERAAgent.exe, 5 exports) — matched. Negative test: benign text — no match. Three OR conditions: (1) AES key+nonce = definitive match; (2) dpapisvc+eset_version+original_name = strong indicator set; (3) dpapisvc+eraagent+4 exports = high-confidence combination. filesize <100KB scopes to avoid scanning large binaries. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive test: synthetic file constructed with published strings (dpapisvc.dll, ESET Management Agent Module, dpapi.dll, ERAAgent.exe, 5 exports) — matched; this is NOT a real binary, so "fired" is overstated. Negative test: benign text — no match. Confidence remains high: AES key bytes are definitive. Three OR conditions: (1) AES key+nonce = definitive match; (2) dpapisvc+eset_version+original_name = strong indicator set; (3) dpapisvc+eraagent+4 exports = high-confidence combination. filesize <100KB scopes to avoid scanning large binaries. -->
 ```yara
 rule sleepwalker_backdoor
 {

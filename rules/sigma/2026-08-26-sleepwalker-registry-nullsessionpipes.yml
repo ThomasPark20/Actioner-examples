@@ -1,0 +1,24 @@
+title: SLEEPWALKER Registry Modification - NullSessionPipes Configuration
+id: 2c8f5a1e-3d7b-4e6c-9a2d-5f8b1c4e7a3d
+status: experimental
+description: >
+    Detects modifications to the NullSessionPipes registry value under
+    LanmanServer\Parameters, used by SLEEPWALKER to permit unauthenticated
+    named pipe access for lateral movement.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+author: Actioner
+date: 2026-08-26
+tags:
+    - attack.t1021.002
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Services\LanmanServer\Parameters\NullSessionPipes'
+    condition: selection
+falsepositives:
+    - Legitimate administrative changes to named pipe access policies
+    - Domain controller configuration for legacy interoperability
+level: medium
