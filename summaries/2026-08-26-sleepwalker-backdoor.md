@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-26
-Version: 1.0-DRAFT
+Version: 1.0
+<!-- revision: v1.0-DRAFT→v1.0. Critic verdicts applied: Sigma rule 2 confidence high→medium, tag T1562.001→T1112, added CrowdStrike DWORD caveat; Snort and Suricata rules dropped (SMB1-only, IPC$ ubiquitous, direction wrong); YARA sample status corrected to "constructed"; ATT&CK table: T1562.001→T1112, T1055→T1620, T1059 dropped. Standalone rule files written. -->
 
 ## Executive Summary
 
@@ -139,14 +140,13 @@ Three function names are resolved via numeric reconstruction (not static import)
 | T1574.002 | Hijack Execution Flow: DLL Side-Loading | Malicious dpapi.dll side-loaded into ERAAgent.exe |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | DLL placed in application directory to preempt System32 |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | DLL named dpapi.dll with forged ESET version resource |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | Registry modifications to enable anonymous SMB access |
+| T1112 | Modify Registry | Registry modifications to enable anonymous SMB access (EveryoneIncludesAnonymous, NullSessionPipes) |
 | T1095 | Non-Application Layer Protocol | ICMP data smuggling, raw promiscuous packet capture |
 | T1071.004 | Application Layer Protocol: DNS | DNS-based trigger mechanism (implemented, not active) |
 | T1021.002 | Remote Services: SMB/Windows Admin Shares | Named pipe lateral movement with credential support |
-| T1059 | Command and Scripting Interpreter | Custom 23-instruction bytecode interpreter |
 | T1027 | Obfuscated Files or Information | AES-256-CCM encrypted commands, XOR-encrypted nested programs |
 | T1140 | Deobfuscate/Decode Files or Information | LZMA decompression of payloads, AES decryption |
-| T1055 | Process Injection | In-memory shellcode execution via heap allocation + VirtualProtect |
+| T1620 | Reflective Code Loading | In-memory shellcode execution in own process (ERAAgent.exe) via heap allocation + VirtualProtect |
 | T1106 | Native API | Dynamic resolution of VirtualProtect, SetSecurityDescriptorDacl, CryptGenRandom |
 | T1040 | Network Sniffing | Promiscuous mode on up to 8 interfaces for trigger detection |
 | T1205 | Traffic Signaling | Magic packet trigger activates dormant backdoor |
@@ -232,9 +232,9 @@ level: high
 ```
 
 ### Sigma: SLEEPWALKER Registry Modification - Anonymous SMB Access
-Detects EveryoneIncludesAnonymous set to 1 under the LSA key, enabling anonymous SMB access for SLEEPWALKER's named pipe communication.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (proxy/infra); splunk convert exit 0; log_scale convert exit 0. High confidence: setting EveryoneIncludesAnonymous=1 is a well-known security weakening rarely done legitimately. FP: legacy apps or misconfigured GPOs — should be investigated regardless. -->
+Detects EveryoneIncludesAnonymous set to 1 under the LSA key, enabling anonymous SMB access for SLEEPWALKER's named pipe communication. Benign overlap exists with legacy applications and GPO misconfigurations.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (proxy/infra); splunk convert exit 0; log_scale convert exit 0. Medium confidence: EveryoneIncludesAnonymous=1 has documented benign overlap (legacy apps, GPO misconfigs). CrowdStrike logs may report the DWORD value without the "DWORD (0x00000001)" wrapper — verify field format in your CrowdStrike pipeline. FP: legacy apps, misconfigured GPOs — investigate regardless. Tag changed T1562.001→T1112 (registry modification, not defense impairment). -->
 ```yaml
 title: SLEEPWALKER Registry Modification - Anonymous SMB Access Enablement
 id: 9b4d2e7c-6f1a-4a8e-b3c5-8d9e1f2a4b6c
@@ -248,7 +248,7 @@ references:
 author: Actioner
 date: 2026-08-26
 tags:
-    - attack.t1562.001
+    - attack.t1112
 logsource:
     category: registry_set
     product: windows
@@ -260,7 +260,7 @@ detection:
 falsepositives:
     - Legacy application configurations requiring anonymous access
     - Misconfigured domain policies
-level: high
+level: medium
 ```
 
 ### Sigma: SLEEPWALKER Registry Modification - NullSessionPipes
