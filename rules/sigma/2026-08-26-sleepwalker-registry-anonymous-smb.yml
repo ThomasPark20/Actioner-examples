@@ -1,0 +1,25 @@
+title: SLEEPWALKER Registry Modification - Anonymous SMB Access Enablement
+id: 9b4d2e7c-6f1a-4a8e-b3c5-8d9e1f2a4b6c
+status: experimental
+description: >
+    Detects registry modifications to enable anonymous SMB access, as performed by the
+    SLEEPWALKER backdoor to allow unauthenticated named pipe communication. Sets
+    EveryoneIncludesAnonymous to 1 under the LSA key.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+author: Actioner
+date: 2026-08-26
+tags:
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Control\Lsa\EveryoneIncludesAnonymous'
+        Details: 'DWORD (0x00000001)'
+    condition: selection
+falsepositives:
+    - Legacy application configurations requiring anonymous access
+    - Misconfigured domain policies
+level: medium

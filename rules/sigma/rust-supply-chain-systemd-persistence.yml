@@ -1,0 +1,30 @@
+title: Rust Supply Chain Attack - Linux Systemd User Service Persistence
+id: 9f1a7b3c-d4e5-4829-b6f0-a2c8e3d71f54
+status: experimental
+description: >
+    Detects creation of files in the AzureKits or ServiceKit directories, or the
+    MonoService/MonoXpc binaries, associated with the proc-macro1 supply chain
+    attack Linux persistence mechanism.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_payload_dirs:
+        TargetFilename|contains:
+            - '/.config/AzureKits/'
+            - '/.config/ServiceKit/'
+    selection_binaries:
+        TargetFilename|endswith:
+            - '/MonoService'
+            - '/MonoXpc'
+    condition: selection_payload_dirs or selection_binaries
+falsepositives:
+    - Legitimate .NET Mono installations in user config directories (uncommon on developer machines)
+level: high

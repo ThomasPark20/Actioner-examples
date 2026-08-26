@@ -1,0 +1,30 @@
+title: Rust Supply Chain Attack - C2 Network Connection to Known Infrastructure
+id: b7e3f1d9-2a4c-4586-8e0f-d5a9c6b21738
+status: experimental
+description: >
+    Detects outbound network connections to the C2 infrastructure used in the
+    proc-macro1 Rust supply chain attack, including the payload host (port 9089)
+    and the beacon endpoint (port 443) at known attacker IPs.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1571
+    - attack.t1105
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '23.254.165.112'
+            - '23.254.167.107'
+            - '23.254.167.216'
+        DestinationPort:
+            - 443
+            - 9089
+    condition: selection
+falsepositives:
+    - Legitimate traffic to these specific Hostwinds IPs (verify against current threat intel)
+level: critical
