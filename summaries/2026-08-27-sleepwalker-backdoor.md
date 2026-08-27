@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-27
-Version: 0.1-draft
+Version: 1.1
 
 ## Executive Summary
 
@@ -100,7 +100,7 @@ SLEEPWALKER interprets a custom command language with 23 opcodes organized into 
 
 Bytecode format uses big-endian fixed integers, 7-bit variable-length encoding for length-prefixed fields, and XOR-obfuscated nested programs.
 
-### 3. C2 Infrastructure
+### 4. C2 Infrastructure
 
 SLEEPWALKER contains no hardcoded C2 domains, IP addresses, or URLs. It is entirely passive: the operator delivers commands via magic packets that traverse a monitored network interface. Data exfiltration and command reception use six transport channels:
 
@@ -113,7 +113,7 @@ SLEEPWALKER contains no hardcoded C2 domains, IP addresses, or URLs. It is entir
 
 The DNS trigger channel uses a distinctive format: base32-encoded encrypted payload embedded between marker characters (range g-v), where each marker encodes a 4-bit CRC-8 value (polynomial 0x31, start 0x00, 256-entry lookup table). DNS queries must have a standard header (one question, zero answers/authority/additional).
 
-### 4. Platform-Specific Behavior
+### 5. Platform-Specific Behavior
 
 #### Windows
 
@@ -124,7 +124,7 @@ SLEEPWALKER is Windows-only. It modifies two registry keys to facilitate lateral
 
 These modifications grant Everyone and Anonymous Logon access to named pipes, enabling unauthenticated lateral movement. The cleanup process is noted as risky: removal may delete legitimate pre-existing entries.
 
-### 5. Anti-Forensics / Evasion Techniques
+### 6. Anti-Forensics / Evasion Techniques
 
 - **Passive trigger model**: No outbound C2 connections, eliminating traditional beacon-based detection
 - **No write-to-disk**: External components must pre-stage any data; the malware itself does not drop files
@@ -182,8 +182,7 @@ These modifications grant Everyone and Anonymous Logon access to named pipes, en
 | T1620 | Reflective Code Loading | `RUN_SHELLCODE` opcode executes machine code directly in memory |
 | T1027 | Obfuscated Files or Information | AES-256-CCM encrypted configuration and XOR-obfuscated nested bytecode programs |
 | T1071.004 | Application Layer Protocol: DNS | DNS-based trigger channel for activation |
-| T1205 | Traffic Signaling | Magic packet trigger activates dormant backdoor; passive monitoring of network interfaces |
-| T1543.003 | Create or Modify System Process: Windows Service | Persistence via ESET Management Agent service loading the side-loaded DLL |
+| T1205 | Traffic Signaling | Magic packet trigger activates dormant backdoor; passive monitoring of network interfaces. Note: persistence is implicit via the pre-existing ESET service (DLL search order hijacking), not service creation |
 
 ## Impact Assessment
 
@@ -300,103 +299,66 @@ level: critical
 ```
 
 ### Sigma: SLEEPWALKER Registry Modification - Anonymous Pipe Access
-Detects registry changes enabling unauthenticated named pipe access (`EveryoneIncludesAnonymous=1` or `NullSessionPipes` modification), consistent with SLEEPWALKER lateral movement preparation.
+Detects registry changes to `EveryoneIncludesAnonymous` or `NullSessionPipes` by `ERAAgent.exe`, consistent with SLEEPWALKER lateral movement preparation.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. EveryoneIncludesAnonymous=1 is a known hardening concern independent of SLEEPWALKER; NullSessionPipes modification is less common. Medium confidence because these registry changes can occur in legacy environments. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. v1.1 revision: ATT&CK tag corrected from T1574.002 to T1112 (Modify Registry); process scoping added (Image|endswith ERAAgent.exe) to both selections per critic — eliminates FPs from legacy GPO tools and other processes modifying same keys. Medium confidence: ERAAgent.exe scoping makes it SLEEPWALKER-specific but the registry values could be set by a compromised ERAAgent for non-SLEEPWALKER reasons. -->
 ```yaml
 title: SLEEPWALKER Registry Modification - Anonymous Pipe Access Enabled
 id: b4e7f3a2-6c1d-4e8b-9a5f-3d2c1b0e7f48
 status: experimental
 description: >
     Detects registry modifications to EveryoneIncludesAnonymous and NullSessionPipes
-    consistent with SLEEPWALKER backdoor enabling unauthenticated named pipe access
-    for lateral movement.
+    by ERAAgent.exe, consistent with SLEEPWALKER backdoor enabling unauthenticated
+    named pipe access for lateral movement.
 references:
     - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
     - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
 author: Actioner
 date: 2026/08/27
 tags:
-    - attack.t1574.002
+    - attack.t1112
     - attack.t1021.002
 logsource:
     category: registry_set
     product: windows
 detection:
     selection_anon:
+        Image|endswith: '\ERAAgent.exe'
         TargetObject|endswith: '\Control\Lsa\EveryoneIncludesAnonymous'
         Details: 'DWORD (0x00000001)'
     selection_pipes:
+        Image|endswith: '\ERAAgent.exe'
         TargetObject|endswith: '\Services\LanmanServer\Parameters\NullSessionPipes'
     condition: selection_anon or selection_pipes
 falsepositives:
-    - Legacy applications requiring anonymous pipe access
-    - Domain controllers in mixed-mode environments
+    - Legitimate ESET Management Agent operations modifying these registry keys (unlikely)
 level: high
 ```
 
 ### Sigma: SLEEPWALKER Named Pipe Activity from ESET Agent
-Detects named pipe creation by `ERAAgent.exe`, which SLEEPWALKER uses for lateral movement via `PIPE_SEND`/`PIPE_SERVER_RECV` opcodes. Scope to environments where ESET pipe activity is baselined.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Medium confidence because legitimate ESET Management Agent may create named pipes for management operations. Requires environment-specific baselining to reduce FPs. Specific pipe names were not disclosed in the source analysis. -->
-```yaml
-title: SLEEPWALKER Named Pipe Activity from ESET Agent Process
-id: d1c8e5b3-7a4f-4d2e-b9c6-5f3a2e1d0c89
-status: experimental
-description: >
-    Detects named pipe creation by ERAAgent.exe that is not loading dpapi.dll from system
-    directories, indicating potential SLEEPWALKER backdoor lateral movement via named pipes.
-references:
-    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
-    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
-author: Actioner
-date: 2026/08/27
-tags:
-    - attack.t1021.002
-    - attack.t1570
-logsource:
-    category: pipe_created
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\ERAAgent.exe'
-    condition: selection
-falsepositives:
-    - Legitimate ESET Management Agent named pipe operations
-level: medium
-```
+Dropped: generic ESET pipe activity with no SLEEPWALKER-specific artifacts; guaranteed false-positive generator in ESET-managed environments.
 
 ### Snort: SLEEPWALKER DNS Trigger Channel
-Detects DNS queries with the SLEEPWALKER trigger format: standard query header followed by base32-encoded payload flanked by g-v marker characters (CRC-8 delimiters).
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c /etc/snort/snort.conf (include method) -T exit 0. Snort 2.9.20. DNS standard query header matched at depth 12. PCRE matches g-v markers flanking base32 chars. Medium confidence: the g-v + base32 pattern is distinctive but may match benign DNS with labels in that character range. -->
+Detects DNS queries with base32-encoded payload (16+ chars) flanked by g-v CRC-8 marker characters, matching SLEEPWALKER's DNS trigger format. Hunt-only; the g-v/base32 pattern may overlap with long legitimate subdomains.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: snort -c /etc/snort/snort.conf -R rules -T exit 0. Snort 2.9.20. v1.1 revision: PCRE minimum raised from {4,} to {16,} to eliminate short-word FPs (e.g. "microsoft", "streaming"); confidence downgraded from medium to low per critic — even with tightened PCRE, base32 character range overlaps normal DNS labels. Hunt-only label added. rev bumped to 2. -->
 ```snort
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - SLEEPWALKER DNS Trigger Channel - Base32 Payload with g-v Marker Characters"; flow:to_server; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:12; pcre:"/[g-v][a-z2-7]{4,}[g-v]/"; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; sid:2100101; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SLEEPWALKER DNS Trigger Channel - Base32 Payload with g-v Marker Characters (Hunt)"; flow:to_server; content:"|01 00 00 01 00 00 00 00 00 00|"; depth:12; pcre:"/[g-v][a-z2-7]{16,}[g-v]/"; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; sid:2100101; rev:2;)
 ```
 
 ### Snort: SLEEPWALKER ICMP Data Exfiltration
-Detects ICMP echo requests with oversized payloads (>100 bytes), consistent with SLEEPWALKER's `ICMP_SEND` data transmission opcode. Hunt-only; pair with host-level DLL side-loading detections.
-**Status:** compile ✅ compiles · confidence: low
-<!-- audit: snort -c /etc/snort/snort.conf (include method) -T exit 0. Snort 2.9.20. Low confidence: oversized ICMP is a broad indicator; many legitimate tools produce large ICMP payloads (ping -l, network diagnostics). Best used as a hunt rule correlated with SLEEPWALKER host indicators. -->
-```snort
-alert icmp $HOME_NET any -> any any (msg:"Actioner - SLEEPWALKER ICMP Data Exfiltration - Oversized Echo Request"; itype:8; dsize:>100; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; sid:2100102; rev:1;)
-```
+Dropped: generic ICMP size threshold with no SLEEPWALKER-specific marker; fires on standard diagnostics.
 
 ### Suricata: SLEEPWALKER DNS Trigger Channel
-Detects DNS queries containing base32-encoded labels flanked by g-v CRC-8 marker characters, matching SLEEPWALKER's DNS trigger activation format.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. Suricata 7.0.3. Uses dns protocol with dns.query buffer and pcre for marker detection. Medium confidence for same reason as Snort variant. -->
+Detects DNS queries containing base32-encoded labels (16+ chars) flanked by g-v CRC-8 marker characters, matching SLEEPWALKER's DNS trigger activation format. Hunt-only; may overlap with long legitimate subdomains.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. Suricata 7.0.3. v1.1 revision: PCRE minimum raised from {4,} to {16,} to eliminate short-word FPs; confidence downgraded from medium to low per critic — base32 character range overlaps normal DNS labels even at longer lengths. Hunt-only label added. rev bumped to 2. -->
 ```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - SLEEPWALKER DNS Trigger Channel - Base32 Encoded Labels with CRC-8 Markers"; flow:to_server; dns.query; pcre:"/[g-v][a-z2-7]{4,}[g-v]/"; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; metadata:author Actioner, created_at 2026-08-27; sid:2200101; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - SLEEPWALKER DNS Trigger Channel - Base32 Encoded Labels with CRC-8 Markers (Hunt)"; flow:to_server; dns.query; pcre:"/[g-v][a-z2-7]{16,}[g-v]/"; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; metadata:author Actioner, created_at 2026-08-27; sid:2200101; rev:2;)
 ```
 
 ### Suricata: SLEEPWALKER ICMP Data Exfiltration
-Detects ICMP echo requests with oversized payloads (>100 bytes), consistent with SLEEPWALKER's `ICMP_SEND` opcode. Hunt-only; pair with host-level DLL side-loading detections.
-**Status:** compile ✅ compiles · confidence: low
-<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. Suricata 7.0.3. Low confidence: broad indicator, requires correlation with host-side SLEEPWALKER detections. -->
-```suricata
-alert icmp $HOME_NET any -> any any (msg:"Actioner - SLEEPWALKER ICMP Data Exfiltration - Oversized Echo Request"; itype:8; dsize:>100; classtype:trojan-activity; reference:url,r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/; metadata:author Actioner, created_at 2026-08-27; sid:2200102; rev:1;)
-```
+Dropped: generic ICMP size threshold with no SLEEPWALKER-specific marker; fires on standard diagnostics.
 
 ### YARA: SLEEPWALKER Backdoor Binary Detection
 Detects the SLEEPWALKER DLL via its static AES-256-CCM key, configuration nonce, `dpapisvc.dll` forwarding string, and `dpapi.dll` export function names.

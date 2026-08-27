@@ -1,0 +1,27 @@
+title: Rust Supply Chain Attack - Malicious rust-setup Payload File Creation
+id: 8c4e2a1b-3f7d-4e9a-b5c6-d8e0f1a2b3c4
+status: experimental
+description: >
+    Detects creation of the rust-setup payload files dropped by the malicious
+    proc-macro1 build script during compilation of compromised Rust crates
+    (arrayref 0.3.10, internment 0.8.7, append-only-vec 0.1.9).
+references:
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1195.001
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\rust-setup.ps1'
+            - '\rust-setup-launch.vbs'
+    condition: selection
+falsepositives:
+    - Unlikely - these filenames are specific to this attack
+level: high

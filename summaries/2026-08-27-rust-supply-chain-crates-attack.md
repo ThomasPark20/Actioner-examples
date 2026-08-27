@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-27
-Version: 0.1 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -109,7 +109,7 @@ Additional capabilities include:
 - Enumeration of cryptocurrency wallet browser extensions
 - Chromium-based browser credential extraction via SQLite database queries
 
-### 5. Anti-Forensics / Evasion Techniques
+### 6. Anti-Forensics / Evasion Techniques
 
 - Base64 fragment reassembly prevents static detection of C2 URLs in the build script
 - Custom TLS certificate verifier bypasses certificate pinning and validation
@@ -231,7 +231,7 @@ systemctl --user list-unit-files | grep -i rust 2>/dev/null
 
 ### Remediation
 
-1. **Containment:** Block C2 IPs at the firewall: `23.254.165.112`, `23.254.167.107`, `23.254.167.216`. Block DNS resolution of `hwsrv-798836.hostwindsdns.com`.
+1. **Containment:** Block C2 IPs at the firewall: `23.254.165[.]112`, `23.254.167[.]107`, `23.254.167[.]216`. Block DNS resolution of `hwsrv-798836[.]hostwindsdns[.]com`.
 2. **Eradication:** Delete cached malicious crate versions from `~/.cargo/registry/cache/` and `~/.cargo/registry/src/`. Remove `/tmp/rust-setup` and `%TEMP%\rust-setup*` files. Remove persistence mechanisms (LaunchAgent, systemd service, Registry Run key).
 3. **Credential Rotation:** If a build was performed during the exposure window, rotate all credentials stored in Chromium-based browsers (Chrome, Brave, Edge). Revoke and regenerate any API keys, tokens, or passwords that may have been cached in those browsers.
 4. **Dependency Audit:** Run `cargo audit` and review `Cargo.lock` for any reference to `proc-macro1`, `proc-macro-en`, `aovine`, `arone`, `aronenao`, or `tinymember`.
@@ -351,18 +351,18 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Linux/macOS rust-setup Payload File Creation
-Detects creation of `/tmp/rust-setup` on Linux, the payload drop path for Unix-based systems.
+### Sigma: Linux rust-setup Payload File Creation
+Detects creation of `/tmp/rust-setup` on Linux, the payload drop path used by the malicious build script.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. TargetFilename for file_event/linux. Exact path match minimizes FP. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. TargetFilename for file_event/linux. Exact path match minimizes FP. macOS uses a different product and field names — not covered by this rule. -->
 ```yaml
-title: Rust Supply Chain Attack - Linux/macOS rust-setup Payload Creation
+title: Rust Supply Chain Attack - Linux rust-setup Payload Creation
 id: 6a2e4c1d-8b3f-4d7e-a9c5-e1b0d6f3a2c8
 status: experimental
 description: >
-    Detects creation of /tmp/rust-setup on Linux or macOS, which is the
-    payload drop path used by the malicious proc-macro1 build script in the
-    compromised Rust crates supply chain attack (August 2026).
+    Detects creation of /tmp/rust-setup on Linux, the payload drop path
+    used by the malicious proc-macro1 build script in the compromised
+    Rust crates supply chain attack (August 2026).
 references:
     - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
     - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
@@ -383,25 +383,43 @@ falsepositives:
 level: high
 ```
 
-### Snort: Rust Supply Chain C2 Beacon and Payload Host
-Detects outbound connections to the C2 beacon path `/49890878` and direct connections to the payload host IP.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf (with include) -T exit 0. Snort 2.9.20. content:/49890878 matches the specific C2 beacon URI in any protocol over port 443. Second rule matches any established connection to payload host IP. -->
+### Snort: Rust Supply Chain C2 HTTP Beacon
+Detects outbound traffic containing the C2 beacon path `/49890878`. Requires TLS decryption (SSL inspection proxy or MITM appliance) since the C2 communicates over HTTPS.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: snort -c /etc/snort/snort.lua -R rules -T exit 0. content:/49890878 matches the specific C2 beacon URI over port 443. Confidence medium: efficacy depends on TLS decryption being in place — without it, the encrypted payload is opaque to the sensor. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Rust Supply Chain C2 Beacon to /49890878 Endpoint"; flow:established,to_server; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; sid:2100101; rev:1;)
+```
 
+### Snort: Rust Supply Chain C2 Payload Host Connection
+Detects any established outbound connection to the payload delivery IP `23.254.165[.]112`.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort -c /etc/snort/snort.lua -R rules -T exit 0. IP-level match — no TLS dependency. -->
+```snort
 alert tcp $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Payload Host Connection 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/; sid:2100102; rev:1;)
 ```
 
-### Suricata: Rust Supply Chain C2 DNS, HTTP Beacon, and TLS Connection
-Detects DNS queries to the C2 domain, HTTP POST to the beacon endpoint, and TLS connections to the primary C2 IP.
+### Suricata: Rust Supply Chain C2 DNS Query
+Detects DNS queries to the C2 domain `hwsrv-798836[.]hostwindsdns[.]com`. DNS is unencrypted by default, so no TLS decryption is needed.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. Suricata 7.0.3. dns.query buffer for domain match, http.method + http.uri for beacon POST, tls protocol for IP-based TLS detection. All values real (not defanged). -->
+<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. dns.query buffer for domain match. DNS is cleartext — high confidence. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - Rust Supply Chain C2 DNS Query to hostwindsdns.com"; flow:to_server; dns.query; content:"hwsrv-798836.hostwindsdns.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created_at 2026-08-27; sid:2200101; rev:1;)
+```
 
+### Suricata: Rust Supply Chain C2 HTTP Beacon
+Detects HTTP POST to the C2 beacon endpoint `/49890878`. Requires TLS decryption (SSL inspection proxy or MITM appliance) since the C2 communicates over HTTPS.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. http.method + http.uri for beacon POST. Confidence medium: efficacy depends on TLS decryption being in place — without it, Suricata cannot parse the HTTP layer inside TLS. -->
+```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain C2 Beacon POST to /49890878"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created_at 2026-08-27; sid:2200102; rev:1;)
+```
 
+### Suricata: Rust Supply Chain C2 TLS Connection
+Detects TLS connections to the primary C2 IP `23.254.165[.]112`. SNI is visible pre-decryption.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T -S rules -l /tmp/actioner exit 0. tls protocol for IP-based TLS detection. No TLS decryption needed — IP match is at the network layer. -->
+```suricata
 alert tls $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain TLS Connection to C2 IP 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/; metadata:author Actioner, created_at 2026-08-27; sid:2200103; rev:1;)
 ```
 

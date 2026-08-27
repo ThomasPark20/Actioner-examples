@@ -1,0 +1,29 @@
+title: Rust Supply Chain Attack - Network Connection to Known C2 Infrastructure
+id: 9d5f3b2a-1e8c-4a7d-b6e0-f2c4d9a8b7e3
+status: experimental
+description: >
+    Detects outbound network connections to the C2 and payload delivery
+    infrastructure used in the compromised Rust crates supply chain attack
+    (arrayref, internment, append-only-vec). IPs belong to Hostwinds LLC
+    range linked to DPRK-attributed operations.
+references:
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1071.001
+    - attack.t1195.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '23.254.165.112'
+            - '23.254.167.107'
+            - '23.254.167.216'
+        Initiated: 'true'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to Hostwinds LLC IP addresses (unlikely for these specific IPs)
+level: critical
