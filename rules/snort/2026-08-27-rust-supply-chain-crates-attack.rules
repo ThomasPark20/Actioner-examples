@@ -1,0 +1,3 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Rust Supply Chain C2 Beacon to /49890878 Endpoint"; flow:established,to_server; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; sid:2100101; rev:1;)
+
+alert tcp $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Payload Host Connection 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/; sid:2100102; rev:1;)

@@ -1,0 +1,30 @@
+title: SLEEPWALKER Registry Modification - Anonymous Pipe Access Enabled
+id: b4e7f3a2-6c1d-4e8b-9a5f-3d2c1b0e7f48
+status: experimental
+description: >
+    Detects registry modifications to EveryoneIncludesAnonymous and NullSessionPipes
+    by ERAAgent.exe, consistent with SLEEPWALKER backdoor enabling unauthenticated
+    named pipe access for lateral movement.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1112
+    - attack.t1021.002
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_anon:
+        Image|endswith: '\ERAAgent.exe'
+        TargetObject|endswith: '\Control\Lsa\EveryoneIncludesAnonymous'
+        Details: 'DWORD (0x00000001)'
+    selection_pipes:
+        Image|endswith: '\ERAAgent.exe'
+        TargetObject|endswith: '\Services\LanmanServer\Parameters\NullSessionPipes'
+    condition: selection_anon or selection_pipes
+falsepositives:
+    - Legitimate ESET Management Agent operations modifying these registry keys (unlikely)
+level: high
