@@ -234,11 +234,13 @@ Arctic Wolf identified 249 related GoCaracal samples spanning January to July 20
 ## Detection Rules
 
 These detections target GoCaracal/Dark Caracal campaign-specific indicators: staging domains, C2 IPs, persistence paths, the BulletproofC2 Ethereum fallback mechanism, and GoCaracal binary strings. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; YARA rules compile; Snort/Suricata rules are structurally validated (compilers not installed). Compiles does not equal fires -- verify in your pipeline with the IOCs above.
+<!-- revision: v1.1 -- Snort DNS rules now cover all 7 domains (was 3). Sigma eth_getStorageAt rule now keys on BulletproofC2 contract address. -->
 
 ### Sigma: DNS Query to GoCaracal Staging Domains
 
 Detects DNS resolution of the seven known Dark Caracal staging domains used for GoCaracal payload delivery.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: v1.1 -- tag t1071.001 replaced with t1105 (Ingress Tool Transfer) per reviewer. -->
 <!-- audit: sigma check 0 (tag validators excluded - proxy blocks MITRE ATT&CK data fetch); splunk 0; log_scale 0. IOC-anchored on 7 attacker-registered domains. FP: effectively zero unless domains are re-registered post-takedown. -->
 
 ```yaml
@@ -509,6 +511,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Ethereum JSON-RPC
 
 Detects the GoCaracal lightweight variant via Go function names and internal strings (`main.InjectShellcode`, `RPCFallback`, `insensate`, etc.) identified by Arctic Wolf Labs.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: v1.1 -- fixed hash/hash2 meta naming inconsistency; both now use 'hash' (YARA allows duplicate meta keys). -->
 <!-- audit: yarac exit 0. 18 strings from Arctic Wolf's published YARA rule and blog post analysis. Condition: 5-of-18 threshold balances detection breadth (stripped/partial builds) with precision. filesize < 30MB scopes to plausible Go binary size. Arctic Wolf's original rule uses identical strings with same 5-of threshold. -->
 
 ```yara
