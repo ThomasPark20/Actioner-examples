@@ -1,0 +1,24 @@
+title: RedShell Installation ID File Creation
+id: 4d4143c8-aaef-43c1-8595-1721120acbe9
+status: experimental
+description: >
+    Detects creation of the RedShell installation identifier file at
+    ~/.config/.rsvc, written during initial implant installation to
+    track compromised hosts.
+references:
+    - https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/.config/.rsvc'
+    condition: selection
+falsepositives:
+    - Legitimate software creating a .rsvc file in user config directory (highly unlikely)
+level: high

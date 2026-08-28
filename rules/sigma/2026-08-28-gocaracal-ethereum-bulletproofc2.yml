@@ -1,0 +1,33 @@
+title: Ethereum JSON-RPC eth_getStorageAt to GoCaracal BulletproofC2 Contract via Proxy
+id: e6f91a48-2c5d-4b73-a8d4-7e0f3c1b9a25
+status: experimental
+description: >
+    Detects HTTP POST requests containing the eth_getStorageAt Ethereum JSON-RPC
+    method targeting the GoCaracal BulletproofC2 smart contract address in proxy
+    logs. GoCaracal uses this C2 fallback mechanism to retrieve replacement C2
+    addresses from an Ethereum smart contract. Requires a proxy that logs HTTP
+    request body content. The cs-body field is W3C Extended Log Format (e.g.,
+    Blue Coat / Symantec); map to your proxy's request-body field as needed.
+references:
+    - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1102.002
+logsource:
+    category: proxy
+    # NOTE: cs-body requires a proxy that logs HTTP request body content
+    # (W3C Extended Log Format). Common sources: Blue Coat / Symantec ProxySG,
+    # Zscaler (with body inspection enabled). Map cs-body to your proxy's
+    # request-body field in the Sigma pipeline configuration.
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_body:
+        cs-body|contains: 'eth_getStorageAt'
+    selection_contract:
+        cs-body|contains: '0x03D605f13A74Bfb6149078122FcF62BD6d8799d8'
+    condition: selection_method and selection_body and selection_contract
+falsepositives:
+    - Legitimate queries to this specific smart contract address (unlikely outside Web3 development)
+level: high

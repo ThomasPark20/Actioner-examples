@@ -1,0 +1,29 @@
+title: RedC2 RedShell C2 Communication to Known Infrastructure
+id: 00e61bcd-c9b2-40d1-8ffe-67f2225a6144
+status: experimental
+description: >
+    Detects outbound network connections to the hardcoded RedC2 4.0 C2
+    infrastructure IP on ports used by the RedShell Linux implant (8792 C2,
+    8888 upload, 8060 exfiltration).
+references:
+    - https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection_ip:
+        DestinationIp: '217.60.77.63'
+    selection_ports:
+        DestinationPort:
+            - 8792
+            - 8888
+            - 8060
+    condition: selection_ip and selection_ports
+falsepositives:
+    - Legitimate services hosted on this IP (unlikely given the specific port combination)
+level: high

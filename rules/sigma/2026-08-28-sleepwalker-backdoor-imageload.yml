@@ -1,0 +1,31 @@
+title: SLEEPWALKER Backdoor Loaded by ESET Management Agent
+id: 4b1e8c5d-a9f3-42d7-b6e0-f7c2d1a34e89
+status: experimental
+description: >
+    Detects ERAAgent.exe loading a dpapi.dll from its own directory rather than
+    the legitimate System32 location, indicating DLL search-order hijacking
+    consistent with the SLEEPWALKER backdoor.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\ERAAgent.exe'
+    selection_dll:
+        ImageLoaded|endswith: '\dpapi.dll'
+    filter_system32:
+        # NOTE: Hardcodes C:\ drive letter; adjust for non-standard Windows installs.
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection_process and selection_dll and not filter_system32
+falsepositives:
+    - Custom ESET deployment with a legitimately placed dpapi.dll (highly unlikely)
+level: critical

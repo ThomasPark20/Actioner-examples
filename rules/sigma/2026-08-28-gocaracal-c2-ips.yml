@@ -1,0 +1,46 @@
+title: Network Connection to GoCaracal C2 Infrastructure
+id: a4f28e51-3b7c-4d19-8e6a-1f5c9d0b2a7e
+status: experimental
+description: >
+    Detects outbound network connections to known GoCaracal C2 IP addresses hosted
+    on AEZA Group networks, linked to Dark Caracal operations targeting LATAM.
+references:
+    - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+    - https://thehackernews.com/2026/08/gocaracal-malware-uses-ethereum-smart.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '109.120.187.217'
+            - '109.172.95.121'
+            - '138.124.112.213'
+            - '138.124.14.130'
+            - '176.124.220.153'
+            - '185.125.101.181'
+            - '185.96.80.110'
+            - '185.96.80.54'
+            - '193.233.245.52'
+            - '62.60.237.22'
+            - '77.110.104.98'
+            - '77.110.105.244'
+            - '77.110.105.56'
+            - '77.110.105.59'
+            - '77.110.98.66'
+            - '80.71.224.30'
+            - '82.117.87.138'
+            - '82.117.87.192'
+            - '85.192.30.211'
+            - '79.137.192.38'
+            - '193.233.245.0'
+            - '193.233.245.45'
+            - '46.226.162.68'
+            - '45.152.198.108'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on the same IPs after infrastructure rotation
+level: high

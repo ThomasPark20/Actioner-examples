@@ -1,0 +1,10 @@
+# RedC2 4.0 / RedShell Linux Implant - Suricata Rules
+# Reference: https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+# Author: Actioner | Date: 2026-08-28
+# Note: litterbox.catbox.moe TLS rule (sid:2200013) dropped during review -- generic rule on legitimate service with no RedShell-specific content match.
+
+alert tcp $HOME_NET any -> 217.60.77.63 8792 (msg:"Actioner - RedC2 RedShell C2 Beacon to Known Infrastructure"; flow:established,to_server; content:"|16 03|"; depth:2; classtype:trojan-activity; reference:url,www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant; metadata:author Actioner, created_at 2026-08-28; sid:2200010; rev:1;)
+
+alert tcp $HOME_NET any -> 217.60.77.63 8060 (msg:"Actioner - RedC2 RedShell Data Exfiltration to Known C2"; flow:established,to_server; classtype:trojan-activity; reference:url,www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant; metadata:author Actioner, created_at 2026-08-28; sid:2200011; rev:1;)
+
+alert tcp $HOME_NET any -> 217.60.77.63 8888 (msg:"Actioner - RedC2 RedShell File Upload to Known C2"; flow:established,to_server; classtype:trojan-activity; reference:url,www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant; metadata:author Actioner, created_at 2026-08-28; sid:2200012; rev:1;)

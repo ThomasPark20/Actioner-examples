@@ -1,0 +1,22 @@
+# GoCaracal / Dark Caracal - Snort Rules
+# Author: Actioner
+# Date: 2026-08-28
+# Reference: https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+
+# DNS queries to GoCaracal staging domains (all 7)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain getpdfdigital.cloud"; flow:to_server; content:"|0d|getpdfdigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100010; rev:2;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain getpdf.digital"; flow:to_server; content:"|06|getpdf|07|digital|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100011; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain visualizarpdf.online"; flow:to_server; content:"|0d|visualizarpdf|06|online|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100012; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain contabilidad.icu"; flow:to_server; content:"|0c|contabilidad|03|icu|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100014; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain soportedigital.cloud"; flow:to_server; content:"|0e|soportedigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100015; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain documentodigital.cloud"; flow:to_server; content:"|10|documentodigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100016; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain gestionadocs.me"; flow:to_server; content:"|0c|gestionadocs|02|me|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100017; rev:1;)
+
+# Ethereum JSON-RPC GoCaracal BulletproofC2 Fallback
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Ethereum JSON-RPC eth_getStorageAt GoCaracal C2 Fallback"; flow:established,to_server; http_method; content:"POST"; http_client_body; content:"eth_getStorageAt"; fast_pattern; content:"0x03D605f13A74Bfb6149078122FcF62BD6d8799d8"; nocase; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100013; rev:1;)
