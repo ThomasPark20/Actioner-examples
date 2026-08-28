@@ -1,0 +1,26 @@
+title: Suspicious Java Class File Created in PaperCut Server Directory
+id: 48127981-3c47-4365-9c25-2151ceb3d3f6
+status: experimental
+description: >
+    Detects creation of Java .class files in the PaperCut Application Server
+    lib directory, matching the Udydn.class and Moo97.class malicious payloads
+    observed in the August 2026 zero-day exploitation campaign.
+references:
+    - https://www.huntress.com/blog/papercut-actively-exploited
+    - https://www.papercut.com/kb/Main/security-bulletin-27-aug-2026-urgent-security-advisory/
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1190
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\PaperCut'
+        TargetFilename|endswith: '.class'
+    condition: selection
+falsepositives:
+    - Legitimate PaperCut software updates deploying new .class files
+level: high

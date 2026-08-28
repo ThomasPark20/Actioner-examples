@@ -1,0 +1,42 @@
+title: PaperCut Application Server Spawns Suspicious Child Process
+id: f3a11b1c-937c-46d0-a78c-dbaa3fe59159
+status: experimental
+description: >
+    Detects the PaperCut Application Server process (pc-app.exe) spawning
+    shell interpreters or reconnaissance utilities, consistent with the
+    August 2026 pre-auth RCE exploitation chain observed by Huntress.
+references:
+    - https://www.huntress.com/blog/papercut-actively-exploited
+    - https://www.papercut.com/kb/Main/security-bulletin-27-aug-2026-urgent-security-advisory/
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1190
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\pc-app.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\charmap.exe'
+            - '\whoami.exe'
+            - '\tasklist.exe'
+            - '\net.exe'
+            - '\net1.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\mshta.exe'
+            - '\rundll32.exe'
+            - '\certutil.exe'
+            - '\bitsadmin.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - PaperCut scripting integrations that legitimately invoke shell commands
+    - Custom PaperCut print scripts using cmd.exe
+level: high
