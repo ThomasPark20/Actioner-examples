@@ -4,6 +4,7 @@ Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-28
 Version: 1.1
+<!-- revision: v1.1 -- (1) Sigma eth_getStorageAt: added selection_contract clause for BulletproofC2 address, added cs-body portability note, confidence medium->high. (2) Snort DNS: added 4 missing staging domains (contabilidad.icu, soportedigital.cloud, documentodigital.cloud, gestionadocs.me), fixed getpdfdigital label-length 0x0e->0x0d. (3) Minor: Sigma DNS tag t1071.001->t1105; YARA hash2->hash naming consistency. -->
 
 ## Executive Summary
 
@@ -396,20 +397,24 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Ethereum JSON-RPC eth_getStorageAt in Proxy Logs
+### Sigma: Ethereum JSON-RPC eth_getStorageAt to GoCaracal BulletproofC2 Contract in Proxy Logs
 
-Detects HTTP POST requests containing the `eth_getStorageAt` method in proxy logs, used by GoCaracal's BulletproofC2 fallback mechanism. Scope to non-Web3 endpoints to reduce false positives.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. cs-body field requires proxy that logs request body content. The eth_getStorageAt method alone is not malicious (legitimate Ethereum queries use it), so this is medium confidence and should be scoped to endpoints without legitimate Web3/DeFi activity. -->
+Detects HTTP POST requests containing the `eth_getStorageAt` method targeting the GoCaracal BulletproofC2 smart contract address in proxy logs. Requires a proxy that logs HTTP request body content (W3C Extended Log Format `cs-body` field).
+**Status:** compile ✅ compiles · confidence: high
+<!-- revision: v1.1 -- added selection_contract clause for BulletproofC2 address 0x03D605f13A74Bfb6149078122FcF62BD6d8799d8 to fix altitude (was firing on any eth_getStorageAt). Added fields/portability note for cs-body. Confidence raised medium->high. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. cs-body is W3C Extended Log Format (Blue Coat/Symantec); adapt field name to your proxy. Now keys on both the RPC method AND the specific BulletproofC2 contract address, making it campaign-specific. -->
 
 ```yaml
-title: Ethereum JSON-RPC eth_getStorageAt Request via Proxy
+title: Ethereum JSON-RPC eth_getStorageAt to GoCaracal BulletproofC2 Contract via Proxy
 id: e6f91a48-2c5d-4b73-a8d4-7e0f3c1b9a25
 status: experimental
 description: >
     Detects HTTP POST requests containing the eth_getStorageAt Ethereum JSON-RPC
-    method in proxy logs, which GoCaracal uses as a C2 fallback mechanism to
-    retrieve replacement C2 addresses from a smart contract.
+    method targeting the GoCaracal BulletproofC2 smart contract address in proxy
+    logs. GoCaracal uses this C2 fallback mechanism to retrieve replacement C2
+    addresses from an Ethereum smart contract. Requires a proxy that logs HTTP
+    request body content. The cs-body field is W3C Extended Log Format (e.g.,
+    Blue Coat / Symantec); map to your proxy's request-body field as needed.
 references:
     - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
 author: Actioner
@@ -418,30 +423,44 @@ tags:
     - attack.t1102.002
 logsource:
     category: proxy
+    # NOTE: cs-body requires a proxy that logs HTTP request body content
+    # (W3C Extended Log Format). Common sources: Blue Coat / Symantec ProxySG,
+    # Zscaler (with body inspection enabled). Map cs-body to your proxy's
+    # request-body field in the Sigma pipeline configuration.
 detection:
     selection_method:
         cs-method: 'POST'
     selection_body:
         cs-body|contains: 'eth_getStorageAt'
-    condition: selection_method and selection_body
+    selection_contract:
+        cs-body|contains: '0x03D605f13A74Bfb6149078122FcF62BD6d8799d8'
+    condition: selection_method and selection_body and selection_contract
 falsepositives:
-    - Legitimate Ethereum node queries or Web3 applications
-    - Cryptocurrency trading platforms and DeFi applications
-level: medium
+    - Legitimate queries to this specific smart contract address (unlikely outside Web3 development)
+level: high
 ```
 
 ### Snort: DNS Query to GoCaracal Staging Domains
 
-Detects DNS queries for three primary GoCaracal staging domains using label-length-encoded matching.
+Detects DNS queries for all seven known GoCaracal staging domains using label-length-encoded matching.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
+<!-- revision: v1.1 -- added 4 missing domains (contabilidad.icu, soportedigital.cloud, documentodigital.cloud, gestionadocs.me); fixed getpdfdigital label length 0x0e->0x0d. Now covers all 7 staging domains. -->
 <!-- audit: snort not installed. Structural check: semicolons, flow, content with label-length encoding, classtype, sid, rev all present. One rule per domain due to DNS wire-format encoding. -->
 
 ```snort
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain getpdfdigital.cloud"; flow:to_server; content:"|0e|getpdfdigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100010; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain getpdfdigital.cloud"; flow:to_server; content:"|0d|getpdfdigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100010; rev:2;)
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain getpdf.digital"; flow:to_server; content:"|06|getpdf|07|digital|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100011; rev:1;)
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain visualizarpdf.online"; flow:to_server; content:"|0d|visualizarpdf|06|online|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100012; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain contabilidad.icu"; flow:to_server; content:"|0c|contabilidad|03|icu|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100014; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain soportedigital.cloud"; flow:to_server; content:"|0e|soportedigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100015; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain documentodigital.cloud"; flow:to_server; content:"|10|documentodigital|05|cloud|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100016; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to GoCaracal Staging Domain gestionadocs.me"; flow:to_server; content:"|0c|gestionadocs|02|me|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/; metadata:author Actioner, created 2026-08-28; sid:2100017; rev:1;)
 ```
 
 ### Snort: Ethereum JSON-RPC GoCaracal BulletproofC2 Fallback
@@ -501,7 +520,7 @@ rule APT_DarkCaracal_GoCaracal_Lightweight_RAT
         date = "2026-08-28"
         reference = "https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/"
         hash = "1e499c815146124c4a6d2b48c99068b980ad74e1a2cfd16013f8d75a9425a0ca"
-        hash2 = "77f7ad29f4a8037ee5f38d3d87fb91cfd97cb8f7fa7883edf3fce506df5200c0"
+        hash = "77f7ad29f4a8037ee5f38d3d87fb91cfd97cb8f7fa7883edf3fce506df5200c0"
         tlp = "WHITE"
         severity = "critical"
 

@@ -1,0 +1,30 @@
+title: DNS Query to GoCaracal Dark Caracal Staging Domain
+id: 7c3a1b4e-9f82-4d6a-b5e1-2c8d7f0a3e9b
+status: experimental
+description: >
+    Detects DNS queries to known Dark Caracal staging domains used for GoCaracal
+    malware delivery via phishing campaigns targeting Latin American organizations.
+references:
+    - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+    - https://thehackernews.com/2026/08/gocaracal-malware-uses-ethereum-smart.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1566.001
+    - attack.t1105
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'getpdfdigital.cloud'
+            - 'getpdf.digital'
+            - 'visualizarpdf.online'
+            - 'contabilidad.icu'
+            - 'soportedigital.cloud'
+            - 'documentodigital.cloud'
+            - 'gestionadocs.me'
+    condition: selection
+falsepositives:
+    - Unlikely - these are attacker-registered domains
+level: high

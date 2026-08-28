@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-28
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
+<!-- revision: v1.1 — cut 3 low-fidelity rules, fixed ATT&CK mappings, credited original researcher in YARA -->
 
 ## Executive Summary
 
@@ -141,9 +142,9 @@ Additional hashes:
 | T1574.001 | DLL Search Order Hijacking | Malicious dpapi.dll placed alongside ERAAgent.exe exploiting Windows DLL search order |
 | T1036.005 | Match Legitimate Name or Location | DLL named dpapi.dll with forged ESET version information and legitimate DPAPI exports |
 | T1040 | Network Sniffing | Raw promiscuous sockets (SIO_RCVALL) on up to 8 interfaces to capture trigger packets |
-| T1059 | Command and Scripting Interpreter | Custom 23-instruction bytecode interpreter for command execution |
-| T1055 | Process Injection | In-memory shellcode execution via RUN_SHELLCODE instruction with VirtualProtect |
-| T1562.001 | Disable or Modify Tools | Registry modifications to enable anonymous access (EveryoneIncludesAnonymous, NullSessionPipes) |
+<!-- revision: removed T1059 (custom bytecode is not a system scripting interpreter); replaced T1055 with T1620 (in-process reflective loading, not remote injection); replaced T1562.001 with T1112 (registry changes weaken access controls, don't disable tools) -->
+| T1620 | Reflective Code Loading | In-memory shellcode execution within own process via RUN_SHELLCODE instruction with VirtualProtect |
+| T1112 | Modify Registry | Registry modifications to enable anonymous access (EveryoneIncludesAnonymous, NullSessionPipes) for C2 channel |
 | T1095 | Non-Application Layer Protocol | C2 over raw TCP, UDP, ICMP echo-request payloads, and VMware VMCI |
 | T1021.002 | SMB/Windows Admin Shares | Named pipe communication with credential-based authentication for lateral movement |
 | T1140 | Deobfuscate/Decode Files or Information | AES-256-CCM decryption of configuration and task payloads; LZMA decompression of programs |
@@ -194,7 +195,8 @@ The original researcher also published a comprehensive PowerShell scanner with J
 
 ## Detection Rules
 
-These detections target the specific artifacts of the SLEEPWALKER backdoor at PoC/advisory-specific altitude. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale; the YARA rule compiles against the published sample. Snort and Suricata rules are not applicable because SLEEPWALKER uses encrypted, cryptographically validated trigger packets with no fixed cleartext signatures and embeds no network IOCs (domains, IPs, URLs).
+<!-- revision: rule count updated from 5 Sigma + 1 YARA to 2 Sigma + 1 YARA after review -->
+These detections (2 Sigma, 1 YARA) target the specific artifacts of the SLEEPWALKER backdoor at PoC/advisory-specific altitude. The Sigma rules convert cleanly to both Splunk and CrowdStrike LogScale; the YARA rule compiles against the published sample. Snort and Suricata rules are not applicable because SLEEPWALKER uses encrypted, cryptographically validated trigger packets with no fixed cleartext signatures and embeds no network IOCs (domains, IPs, URLs).
 
 ### Sigma: SLEEPWALKER DLL Side-Loading via ESET Management Agent
 
@@ -262,6 +264,7 @@ detection:
     selection_dll:
         ImageLoaded|endswith: '\dpapi.dll'
     filter_system32:
+        # NOTE: Hardcodes C:\ drive letter; adjust for non-standard Windows installs.
         ImageLoaded|startswith:
             - 'C:\Windows\System32\'
             - 'C:\Windows\SysWOW64\'
@@ -271,108 +274,8 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: SLEEPWALKER Registry Modification - Anonymous Access Enablement
-
-Detects EveryoneIncludesAnonymous being set to 1, a registry change made by SLEEPWALKER to enable anonymous named pipe access.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. This registry value can be set by other malware families or legacy configurations, hence medium confidence rather than high. -->
-```yaml
-title: SLEEPWALKER Registry Modification - Anonymous Access Enablement
-id: 2f7d9a3b-e4c6-41a8-b5f0-d8e1c3a97b2f
-status: experimental
-description: >
-    Detects modification of the EveryoneIncludesAnonymous registry value to 1
-    under the LSA key, a technique used by the SLEEPWALKER backdoor to enable
-    anonymous access to named pipes for unauthenticated lateral movement.
-references:
-    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
-    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
-author: Actioner
-date: 2026-08-28
-tags:
-    - attack.t1562.001
-logsource:
-    category: registry_set
-    product: windows
-detection:
-    selection:
-        TargetObject|endswith: '\Control\Lsa\EveryoneIncludesAnonymous'
-        Details: 'DWORD (0x00000001)'
-    condition: selection
-falsepositives:
-    - Legacy applications requiring anonymous access to network shares
-    - Misconfigured Group Policy applying this setting intentionally
-level: high
-```
-
-### Sigma: SLEEPWALKER Registry Modification - NullSessionPipes
-
-Detects modification of NullSessionPipes, used by SLEEPWALKER to allow unauthenticated named pipe access for C2 communication.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. NullSessionPipes is a broader indicator; some legacy environments legitimately configure this. Medium confidence due to benign overlap. -->
-```yaml
-title: SLEEPWALKER Registry Modification - NullSessionPipes Enablement
-id: 9e6f3b2a-d1c8-47e5-a0f4-b3c7e5d29a81
-status: experimental
-description: >
-    Detects addition of entries to the NullSessionPipes registry value under
-    LanmanServer parameters, used by the SLEEPWALKER backdoor to allow
-    unauthenticated access to named pipes for C2 communication.
-references:
-    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
-    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
-author: Actioner
-date: 2026-08-28
-tags:
-    - attack.t1562.001
-logsource:
-    category: registry_set
-    product: windows
-detection:
-    selection:
-        TargetObject|endswith: '\Services\LanmanServer\Parameters\NullSessionPipes'
-    condition: selection
-falsepositives:
-    - Legitimate administrative configuration of NullSessionPipes for legacy applications
-    - Group Policy applying NullSessionPipes settings
-level: medium
-```
-
-### Sigma: SLEEPWALKER Inbound Connection to ESET Agent
-
-Detects non-initiated (inbound) network connections to ERAAgent.exe, which may indicate SLEEPWALKER's raw promiscuous socket activity. Hunt-only; pair with the file-event and image-load rules above.
-**Status:** compile ✅ compiles · confidence: low
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Sysmon Event ID 3 with Initiated=false. Legitimate ESET agent may receive management connections, hence low confidence. Best used as a hunting rule in conjunction with other SLEEPWALKER indicators. -->
-```yaml
-title: SLEEPWALKER Promiscuous Socket Activity by ESET Management Agent
-id: c3a5d8e7-f1b4-4926-9d0e-a2b6c4f81e57
-status: experimental
-description: >
-    Detects ERAAgent.exe initiating a network connection with promiscuous-mode
-    characteristics. SLEEPWALKER uses SIO_RCVALL raw sockets to sniff all
-    traffic on up to eight interfaces while waiting for a magic trigger packet.
-    This rule fires on any network connection from ERAAgent.exe, which
-    legitimately communicates with the ESET management server but should not
-    exhibit raw-socket or broad-listener behavior.
-references:
-    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
-    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
-author: Actioner
-date: 2026-08-28
-tags:
-    - attack.t1040
-logsource:
-    category: network_connection
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\ERAAgent.exe'
-        Initiated: 'false'
-    condition: selection
-falsepositives:
-    - Legitimate ESET Management Agent receiving inbound management connections
-level: medium
-```
+<!-- revision: cut 3 rules — registry-anon (EveryoneIncludesAnonymous=1, not SLEEPWALKER-specific), registry-nullpipes (fires on every AD GP refresh), netconn (fires on legitimate ESET connections; Sysmon EID 3 cannot observe promiscuous sockets). Standalone files deleted. -->
+> **Removed (3 rules):** Three draft Sigma rules (registry-anon, registry-nullpipes, netconn) were cut during review. The two registry rules fire on generic Windows settings not specific to SLEEPWALKER; the network-connection rule cannot distinguish promiscuous socket behavior via Sysmon Event ID 3 and fires on every legitimate ESET management connection.
 
 ### Snort: N/A
 
@@ -394,7 +297,7 @@ rule Malware_SLEEPWALKER_Backdoor
 {
     meta:
         description = "Detects the SLEEPWALKER passive backdoor DLL via embedded AES key, config nonce, magic packet validation logic, and DPAPI masquerade exports."
-        author = "Actioner"
+        author = "Actioner (adapted from Dominik Reichel)"
         date = "2026-08-28"
         reference = "https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/"
         hash = "d347170752a28e2b8c4b8b9f3cab2e3a6541ba11682c94498d26eb9002779d60"

@@ -4,7 +4,7 @@ rule Malware_SLEEPWALKER_Backdoor
 {
     meta:
         description = "Detects the SLEEPWALKER passive backdoor DLL via embedded AES key, config nonce, magic packet validation logic, and DPAPI masquerade exports."
-        author = "Actioner"
+        author = "Actioner (adapted from Dominik Reichel)"
         date = "2026-08-28"
         reference = "https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/"
         hash = "d347170752a28e2b8c4b8b9f3cab2e3a6541ba11682c94498d26eb9002779d60"
