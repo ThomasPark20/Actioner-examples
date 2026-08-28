@@ -1,0 +1,28 @@
+title: SLEEPWALKER Promiscuous Socket Activity by ESET Management Agent
+id: c3a5d8e7-f1b4-4926-9d0e-a2b6c4f81e57
+status: experimental
+description: >
+    Detects ERAAgent.exe initiating a network connection with promiscuous-mode
+    characteristics. SLEEPWALKER uses SIO_RCVALL raw sockets to sniff all
+    traffic on up to eight interfaces while waiting for a magic trigger packet.
+    This rule fires on any network connection from ERAAgent.exe, which
+    legitimately communicates with the ESET management server but should not
+    exhibit raw-socket or broad-listener behavior.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1040
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\ERAAgent.exe'
+        Initiated: 'false'
+    condition: selection
+falsepositives:
+    - Legitimate ESET Management Agent receiving inbound management connections
+level: medium

@@ -1,0 +1,26 @@
+title: SLEEPWALKER Registry Modification - Anonymous Access Enablement
+id: 2f7d9a3b-e4c6-41a8-b5f0-d8e1c3a97b2f
+status: experimental
+description: >
+    Detects modification of the EveryoneIncludesAnonymous registry value to 1
+    under the LSA key, a technique used by the SLEEPWALKER backdoor to enable
+    anonymous access to named pipes for unauthenticated lateral movement.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Control\Lsa\EveryoneIncludesAnonymous'
+        Details: 'DWORD (0x00000001)'
+    condition: selection
+falsepositives:
+    - Legacy applications requiring anonymous access to network shares
+    - Misconfigured Group Policy applying this setting intentionally
+level: high
