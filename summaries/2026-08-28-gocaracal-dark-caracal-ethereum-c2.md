@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-28
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -254,7 +254,7 @@ author: Actioner
 date: 2026-08-28
 tags:
     - attack.t1566.001
-    - attack.t1071.001
+    - attack.t1105
 logsource:
     category: dns_query
 detection:
