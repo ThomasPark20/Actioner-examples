@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-28
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -108,9 +108,7 @@ The RedShell Linux beacon provides:
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through:
-> - Domains: `[.]` replacing dots (e.g., `evil[.]com`)
-> - IP addresses: `[.]` replacing dots (e.g., `1.2.3[.]4`)
+> **Defanging Convention:** IOCs in prose and tables use defanged notation (`[.]` replacing dots) to prevent accidental resolution. Detection rules and remediation scripts use live (refanged) values so they can be copied directly into tooling.
 
 ### Package / Software Level
 
@@ -204,6 +202,8 @@ The RedShell Linux beacon provides:
 | T1572 | Protocol Tunneling | TCP port forwarding through compromised host |
 | T1620 | Reflective Code Loading | In-memory ELF execution via `memfd_create` |
 | T1036 | Masquerading | Binary disguised as "native math accelerator" |
+| T1074.001 | Data Staged: Local Data Staging | Temporary file staging in /tmp (.sc_, .elf_, .dl_, .ft_, .st_, .sk_, .cr_ prefixes) |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | Installation ID written to hidden file ~/.config/.rsvc |
 | T1105 | Ingress Tool Transfer | Download and staging of additional payloads |
 
 ## Impact Assessment
@@ -267,7 +267,7 @@ ss -tlnp | grep -v '127.0.0.1\|::1' | grep LISTEN
 
 ## Detection Rules
 
-These detections target the RedC2 4.0 / RedShell Linux implant delivered via trojanized npm packages. PoC/advisory-specific altitude; all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Snort and Suricata rules are structurally validated only (compilers not installed).
+These detections target the RedC2 4.0 / RedShell Linux implant delivered via trojanized npm packages. PoC/advisory-specific altitude; all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Snort and Suricata rules are structurally validated only (compilers not installed). Standalone rule files are provided alongside this report in `rules/`.
 
 ### Sigma: RedC2 RedShell C2 Communication to Known Infrastructure
 
@@ -347,6 +347,7 @@ level: high
 
 Detects execution of the known RedShell binary filenames (math-core.bin, calc-cache.bin, etc.) characteristic of the trojanized npm package campaign.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: fixed tautological condition (selection_binaries OR (npm AND binaries) -> binaries AND npm_path) to enforce npm-path scope. -->
 <!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Keys on 6 specific binary filenames published by TrendAI. calc.bin alone is somewhat generic but is OR'd with highly specific names, maintaining overall precision. Requires Linux process creation logging. -->
 
 ```yaml
@@ -379,7 +380,7 @@ detection:
             - '/calc-mapping.bin'
     selection_npm_path:
         Image|contains: 'node_modules'
-    condition: selection_binaries or (selection_npm_path and selection_binaries)
+    condition: selection_binaries and selection_npm_path
 falsepositives:
     - Legitimate npm packages with identical binary names (extremely unlikely)
 level: critical
@@ -389,6 +390,7 @@ level: critical
 
 Detects creation of temporary files matching the RedShell naming convention (`.sc_`, `.elf_`, `.dl_`, `.ft_`, `.st_`, `.sk_`, `.cr_` prefixes) in `/tmp`.
 **Status:** compile ✅ compiles · confidence: medium
+<!-- revision: replaced attack.t1059.004 + attack.t1005 with attack.t1074.001 (Local Data Staging). -->
 <!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Regex-based; medium confidence because short prefixes could theoretically collide with other software, though the dot-prefix plus underscore pattern is distinctive. -->
 
 ```yaml
@@ -405,8 +407,7 @@ references:
 author: Actioner
 date: 2026-08-28
 tags:
-    - attack.t1059.004
-    - attack.t1005
+    - attack.t1074.001
 logsource:
     category: file_event
     product: linux
@@ -423,6 +424,7 @@ level: medium
 
 Detects creation of the RedShell installation identifier file at `~/.config/.rsvc`, written during initial implant installation.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: replaced attack.t1036 with attack.t1564.001 (Hidden Files and Directories). -->
 <!-- audit: sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Highly specific path; .rsvc is not a known legitimate config file. Requires file event logging on Linux. -->
 
 ```yaml
@@ -439,7 +441,7 @@ references:
 author: Actioner
 date: 2026-08-28
 tags:
-    - attack.t1036
+    - attack.t1564.001
 logsource:
     category: file_event
     product: linux
@@ -512,15 +514,7 @@ Detects TCP connections to the RedC2 file upload port (8888).
 alert tcp $HOME_NET any -> 217.60.77.63 8888 (msg:"Actioner - RedC2 RedShell File Upload to Known C2"; flow:established,to_server; classtype:trojan-activity; reference:url,www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant; metadata:author Actioner, created_at 2026-08-28; sid:2200012; rev:1;)
 ```
 
-### Suricata: RedC2 TLS Connection to litterbox.catbox.moe Exfil Service
-
-Detects TLS connections to the legitimate file-sharing service `litterbox.catbox.moe` abused by RedShell for data exfiltration. Scope to source hosts within developer or CI/CD networks to reduce false positives.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: suricata not installed; structural validation only. Dot-notation tls.sni buffer used correctly. Medium confidence because litterbox.catbox.moe is a legitimate service; requires scoping to reduce FP. -->
-
-```suricata
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - RedC2 RedShell C2 TLS to litterbox.catbox.moe Exfil Service"; flow:established,to_server; tls.sni; content:"litterbox.catbox.moe"; classtype:trojan-activity; reference:url,www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant; metadata:author Actioner, created_at 2026-08-28; sid:2200013; rev:1;)
-```
+<!-- revision: dropped Suricata litterbox.catbox.moe rule (sid:2200013). Generic rule on legitimate service with no RedShell-specific content match; unacceptable FP rate. -->
 
 ### YARA: RedShell Linux Implant Detection
 

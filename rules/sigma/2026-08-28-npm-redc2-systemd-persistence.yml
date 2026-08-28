@@ -1,0 +1,27 @@
+title: RedShell Linux Persistence via Systemd User Service
+id: 0e7d0d9e-8fdd-4838-85da-c95f43ceed1b
+status: experimental
+description: >
+    Detects creation of systemd user service files and XDG autostart entries
+    consistent with RedShell Linux implant persistence mechanisms. The implant
+    creates svc-update.service and system-updater.desktop in user config paths.
+references:
+    - https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1543.002
+    - attack.t1547.013
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_systemd:
+        TargetFilename|endswith: '/.config/systemd/user/svc-update.service'
+    selection_autostart:
+        TargetFilename|endswith: '/.config/autostart/system-updater.desktop'
+    condition: selection_systemd or selection_autostart
+falsepositives:
+    - Legitimate software using identical service/desktop entry names (unlikely)
+level: high
