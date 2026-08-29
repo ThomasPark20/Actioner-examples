@@ -1,0 +1,24 @@
+title: ZBT SPEAKINGSTONE C2 Communication to Known IP
+id: 2f7d0e93-a4b1-4c58-9e6d-3b8f1a2c5d74
+status: experimental
+description: >
+    Detects network connections to the known SPEAKINGSTONE C2 IP address
+    47.107.224.89 (Alibaba Cloud, Shenzhen) on UDP port 10000, used by the
+    yunmgrd factory implant in ZBT routers.
+references:
+    - https://vulncheck.com/blog/zbt-darklantern-speakingstone
+    - https://thehackernews.com/2026/08/china-made-zbt-routers-ship-with-two.html
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1071
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip: '47.107.224.89'
+        dst_port: 10000
+    condition: selection
+falsepositives:
+    - Other Alibaba Cloud services hosted on this IP (low likelihood given port specificity)
+level: high

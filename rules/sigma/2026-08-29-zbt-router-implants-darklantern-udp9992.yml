@@ -1,0 +1,25 @@
+title: ZBT DARKLANTERN Inbound UDP Probe on Port 9992
+id: 4c6e8a12-d3f5-4b97-8e1c-9a7d2f0b3e56
+status: experimental
+description: >
+    Detects inbound UDP connections to port 9992, which is the listening port
+    opened by the DARKLANTERN (infosrvd) factory implant on ZBT routers. The
+    implant responds to unauthenticated probes on this port and allows remote
+    command execution.
+references:
+    - https://vulncheck.com/blog/zbt-darklantern-speakingstone
+    - https://thehackernews.com/2026/08/china-made-zbt-routers-ship-with-two.html
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1190
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_port: 9992
+        protocol: 'udp'
+    condition: selection
+falsepositives:
+    - Legitimate services on UDP port 9992 (uncommon)
+level: medium

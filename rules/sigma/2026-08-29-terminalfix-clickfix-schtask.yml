@@ -1,0 +1,25 @@
+title: TerminalFix Scheduled Task Persistence
+id: 1c2d3e4f-5a6b-7c8d-9e0f-a1b2c3d4e5f6
+status: experimental
+description: >
+    Detects creation of a scheduled task matching the TerminalFix campaign persistence
+    pattern using LockScreenContentServer with randomized suffixes.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'LockScreenContentServer'
+    condition: selection_schtasks
+falsepositives:
+    - Legitimate scheduled tasks created for LockScreenContentServer, which is uncommon
+level: high

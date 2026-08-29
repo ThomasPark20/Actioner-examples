@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-29
-Version: 1.0
+Version: 1.1 (critic-revised)
 
 ## Executive Summary
 
@@ -182,7 +182,7 @@ The TerminalFix campaign represents a significant threat due to its full network
 
 Defenders should check for the following indicators immediately:
 
-- DNS queries or network connections to `gitnow.dev`, `bestsocialmedianewspapper.com`, `offlineupdater.com`
+- DNS queries or network connections to `gitnow[.]dev`, `bestsocialmedianewspapper[.]com`, `offlineupdater[.]com`
 - Presence of `LockScreenContentServer.exe` in `C:\ProgramData\` or any non-System32 location
 - Scheduled tasks containing `LockScreenContentServer` in the name
 - Registry Run key entries referencing `LockScreenContentServer`
@@ -191,7 +191,7 @@ Defenders should check for the following indicators immediately:
 
 ### Remediation
 
-1. **Containment:** Isolate affected hosts; block `gitnow.dev`, `bestsocialmedianewspapper.com`, `offlineupdater.com` at DNS/proxy
+1. **Containment:** Isolate affected hosts; block `gitnow[.]dev`, `bestsocialmedianewspapper[.]com`, `offlineupdater[.]com` at DNS/proxy
 2. **Eradication:** Remove scheduled task `LockScreenContentServer_MuODG5yBM`; delete Registry Run key entries referencing LockScreenContentServer; remove `C:\ProgramData\f47f2a8c21c9df4e` and any hidden ProgramData directories containing campaign artifacts
 3. **Recovery:** Rotate all credentials for affected users and service accounts; review domain admin group membership for unauthorized additions
 4. **Secret rotation:** Assume all credentials accessible from compromised hosts are compromised; force password reset for domain accounts enumerated during reconnaissance
@@ -429,10 +429,10 @@ level: high
 
 Detects DNS queries for the three known TerminalFix campaign domains via label-length-encoded content matching.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. DNS label encoding: |06|gitnow|03|dev|00| (6-char label + 3-char label + root), |18|bestsocialmedianewspapper = 24 chars = 0x18, |0e|offlineupdater = 14 chars = 0x0e. Port 53 used (Snort 2 lacks $DNS_PORTS). -->
+<!-- audit: snort -T exit 0. DNS label encoding: |06|gitnow|03|dev|00| (6-char label + 3-char label + root), |19|bestsocialmedianewspapper = 25 chars = 0x19, |0e|offlineupdater = 14 chars = 0x0e. Port 53 used (Snort 2 lacks $DNS_PORTS). -->
 ```snort
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - TerminalFix DNS Query to gitnow.dev C2 Domain"; content:"|06|gitnow|03|dev|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; sid:2100101; rev:1;)
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - TerminalFix DNS Query to bestsocialmedianewspapper.com"; content:"|18|bestsocialmedianewspapper|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; sid:2100102; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - TerminalFix DNS Query to bestsocialmedianewspapper.com"; content:"|19|bestsocialmedianewspapper|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; sid:2100102; rev:1;)
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - TerminalFix DNS Query to offlineupdater.com"; content:"|0e|offlineupdater|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; sid:2100103; rev:1;)
 ```
 

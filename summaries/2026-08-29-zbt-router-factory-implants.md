@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-08-29
-Version: 1.0 (DRAFT)
+Version: 1.1 (critic-revised)
 
 ## Executive Summary
 
@@ -164,16 +164,16 @@ The backup C2 domain is obfuscated in the binary via string concatenation: `"ww"
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Implants factory-installed in router firmware by OEM manufacturer |
-| T1059 | Command and Scripting Interpreter | Both implants execute arbitrary commands as root via `/etc/exec/cmd` |
+| T1059.004 | Command and Scripting Interpreter: Unix Shell | Both implants execute arbitrary commands as root via `/etc/exec/cmd` |
 | T1071 | Application Layer Protocol | SPEAKINGSTONE uses custom UDP protocol ("zbtProtocol") for C2 |
-| T1132 | Data Encoding | Single-byte XOR (0x1f) obfuscation on SPEAKINGSTONE protocol payloads |
-| T1078 | Valid Accounts | DARKLANTERN authentication bypass via all-zeros wildcard MAC |
+| T1132.001 | Data Encoding: Standard Encoding | Single-byte XOR (0x1f) obfuscation on SPEAKINGSTONE protocol payloads |
+| T1205 | Traffic Signaling | DARKLANTERN responds to a specific 19-byte UDP probe packet as an activation signal |
 | T1005 | Data from Local System | SPEAKINGSTONE exfiltrates WAN PPPoE credentials (0x2502) |
 | T1557 | Adversary-in-the-Middle | DNS hijacking capability (0x230b) via `/usr/sbin/dns.sh` |
 | T1572 | Protocol Tunneling | Reverse SSH tunneling capability (0x2405) |
 | T1082 | System Information Discovery | Device fingerprinting beacon includes model, firmware, MAC, IP, GPS, uptime |
 | T1190 | Exploit Public-Facing Application | DARKLANTERN listens on firewall-opened UDP/9992 for unauthenticated commands |
-| T1543 | Create or Modify System Process | Implants started at boot by inetdetect watchdog service |
+| T1543.002 | Create or Modify System Process: Systemd Service | Implants started at boot by inetdetect watchdog service |
 
 ## Impact Assessment
 
@@ -189,7 +189,7 @@ The backup C2 domain is obfuscated in the binary via string concatenation: `"ww"
 **Network-level (any organization):**
 ```bash
 # Check firewall/netflow logs for outbound UDP port 10000 traffic (SPEAKINGSTONE beacon)
-# Check for DNS queries to ac-link.com or findmyipaddr.com
+# Check for DNS queries to ac-link[.]com or findmyipaddr[.]com
 # Check for inbound UDP port 9992 traffic (DARKLANTERN)
 
 # Scan for DARKLANTERN listener with a probe packet (Python):
@@ -340,27 +340,26 @@ Detects the 19-byte DARKLANTERN info probe packet and the wildcard-MAC command e
 ```snort
 alert udp $EXTERNAL_NET any -> $HOME_NET 9992 (msg:"Actioner - ZBT DARKLANTERN Info Probe Packet"; dsize:19; content:"|0c 16 1f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01|"; depth:19; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; sid:2100010; rev:1;)
 alert udp $EXTERNAL_NET any -> $HOME_NET 9992 (msg:"Actioner - ZBT DARKLANTERN Wildcard MAC Command Execution"; content:"|0c 17 1f|"; depth:3; content:"|00 00 00 00 00 00|"; distance:3; within:6; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; sid:2100011; rev:1;)
-alert udp $HOME_NET any -> $EXTERNAL_NET 10000 (msg:"Actioner - ZBT SPEAKINGSTONE C2 Beacon to ac-link.com"; content:"ac-link.com"; nocase; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; sid:2100012; rev:1;)
 ```
 
 ### Suricata: DARKLANTERN Probes, SPEAKINGSTONE DNS and Beacon
 
 Detects DARKLANTERN probe/command packets on UDP/9992, SPEAKINGSTONE C2 DNS queries, and outbound beacon traffic.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0. DNS rules use dns.query sticky buffer (dot-notation). Hex content matches published VulnCheck packet structures. -->
+**Status:** compile ✅ compiles · confidence: high (sids 2200010-2200013), medium (sid 2200014)
+<!-- audit: suricata -T -S exit 0. DNS rules use dns.query sticky buffer (dot-notation). Hex content matches published VulnCheck packet structures. sid:2200014 downgraded to medium — the 0x1001 message type byte pattern is short and may match non-SPEAKINGSTONE UDP traffic on port 10000; depth:2 added to anchor the first content match. -->
 ```suricata
 alert udp $EXTERNAL_NET any -> $HOME_NET 9992 (msg:"Actioner - ZBT DARKLANTERN Info Probe Packet"; dsize:19; content:"|0c 16 1f 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 01|"; depth:19; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200010; rev:1;)
 alert udp $EXTERNAL_NET any -> $HOME_NET 9992 (msg:"Actioner - ZBT DARKLANTERN Wildcard MAC Command Execution"; content:"|0c 17 1f|"; depth:3; content:"|00 00 00 00 00 00|"; distance:3; within:6; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200011; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - ZBT SPEAKINGSTONE DNS Query to C2 Domain ac-link.com"; dns.query; content:"ac-link.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200012; rev:1;)
 alert dns $HOME_NET any -> any any (msg:"Actioner - ZBT SPEAKINGSTONE DNS Query to Backup C2 findmyipaddr.com"; dns.query; content:"findmyipaddr.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200013; rev:1;)
-alert udp $HOME_NET any -> $EXTERNAL_NET 10000 (msg:"Actioner - ZBT SPEAKINGSTONE Outbound UDP Beacon to C2"; content:"|10 01|"; content:"|00 00 00 00|"; offset:9; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200014; rev:1;)
+alert udp $HOME_NET any -> $EXTERNAL_NET 10000 (msg:"Actioner - ZBT SPEAKINGSTONE Outbound UDP Beacon to C2"; content:"|10 01|"; depth:2; content:"|00 00 00 00|"; offset:9; classtype:trojan-activity; reference:url,vulncheck.com/blog/zbt-darklantern-speakingstone; metadata:author Actioner, created_at 2026-08-29; sid:2200014; rev:1;)
 ```
 
 ### YARA: SPEAKINGSTONE yunmgrd Binary
 
 Detects the SPEAKINGSTONE implant binary via published characteristic strings (zbtProtocol.c, yunclient.conf, cmcc_server, dnshack, setBackServer).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: constructed ELF with 8 published strings from VulnCheck blog -> matched ZBT_SPEAKINGSTONE_yunmgrd. Negative test: benign ELF -> no match. Strings sourced from VulnCheck's published binary analysis. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Strings sourced from VulnCheck's published binary analysis. No real sample available for validation. -->
 ```yara
 rule ZBT_SPEAKINGSTONE_yunmgrd
 {
@@ -392,8 +391,8 @@ rule ZBT_SPEAKINGSTONE_yunmgrd
 ### YARA: DARKLANTERN infosrvd Binary
 
 Detects the DARKLANTERN implant binary via published characteristic strings (Salt_171006_808290505, Allmac_171007_808290505, startlocalserve, revProto).
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: constructed ELF with 9 published strings -> matched ZBT_DARKLANTERN_infosrvd. Negative test: benign ELF -> no match. Strings sourced from VulnCheck's published binary analysis. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Strings sourced from VulnCheck's published binary analysis. No real sample available for validation. -->
 ```yara
 rule ZBT_DARKLANTERN_infosrvd
 {
