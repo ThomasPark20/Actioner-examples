@@ -1,0 +1,24 @@
+title: PaperCut Exploitation Artifact File Creation - Udydn.out
+id: 9a8b7c6d-5e4f-3a2b-1c0d-ef9a8b7c6d5e
+status: experimental
+description: >
+    Detects creation of the file Udydn.out, a known artifact dropped during
+    exploitation of PaperCut NG/MF via CVE-2026-82078 unsafe dynamic class
+    loading. The file is created in the PaperCut data/content directory.
+references:
+    - https://thehackernews.com/2026/08/attackers-chain-two-papercut-flaws-to.html
+    - https://www.papercut.com/kb/Main/PO-1216-and-PO-1219
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1190
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Udydn.out'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical
