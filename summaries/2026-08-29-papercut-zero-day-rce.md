@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-08-29
-Version: 1.0 DRAFT
+Version: 1.1 (critic-revised)
 
 ## Executive Summary
 
@@ -110,7 +110,7 @@ No concrete network IOCs (IP addresses, domains, URLs, C2 infrastructure) have b
 | T1082 | System Information Discovery | OS enumeration via `ver` command |
 | T1033 | System Owner/User Discovery | User identification via `whoami` command |
 | T1057 | Process Discovery | Running process enumeration via `tasklist` command |
-| T1070 | Indicator Removal | Deletion and truncation of server.log and derby.log to cover exploitation traces |
+| T1070.004 | File Deletion | Deletion and truncation of server.log and derby.log to cover exploitation traces |
 
 ## Impact Assessment
 
@@ -263,7 +263,7 @@ references:
 author: Actioner
 date: 2026/08/29
 tags:
-    - attack.t1070
+    - attack.t1070.004
 logsource:
     category: file_delete
     product: windows
@@ -322,9 +322,9 @@ No concrete network indicators (IPs, domains, URLs, C2 infrastructure, or HTTP r
 No concrete network indicators (IPs, domains, URLs, JA3 hashes, TLS fingerprints) have been published for this campaign.
 
 ### YARA: PaperCut CVE-2026-82078 Exploitation Artifacts
-Detects files containing the distinctive JDBC error strings and reconnaissance command patterns associated with CVE-2026-82078 exploitation.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive sample: file with published error strings "Database error looking up cardID: VALUES CAST" and "No suitable driver found for jdbc:no:x" — fired. Negative sample: benign PaperCut log messages — quiet. Strings are from published advisory IOCs (The Hacker News / Huntress). -->
+Detects files containing the distinctive JDBC error strings associated with CVE-2026-82078 exploitation, optionally corroborated by reconnaissance command patterns.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0. Condition requires at least one JDBC error string (highly distinctive) or the combination of both recon command patterns (to avoid single-string FP on blog posts). Sample validation was synthetic (constructed from published strings), not a real exploitation artifact — no source-published sample available. -->
 ```yara
 rule PaperCut_CVE_2026_82078_Exploitation_Artifacts
 {
@@ -341,23 +341,7 @@ rule PaperCut_CVE_2026_82078_Exploitation_Artifacts
         $recon_cmd2 = "whoami & ver & tasklist" ascii
 
     condition:
-        any of them
-}
-
-rule PaperCut_Udydn_Payload_File
-{
-    meta:
-        description = "Detects the Udydn.out file dropped by PaperCut CVE-2026-82078 exploitation in the data/content directory"
-        author = "Actioner"
-        date = "2026-08-29"
-        reference = "https://thehackernews.com/2026/08/attackers-chain-two-papercut-flaws-to.html"
-
-    strings:
-        $path_marker1 = "data/content/Udydn.out" ascii wide nocase
-        $path_marker2 = "data\\content\\Udydn.out" ascii wide nocase
-
-    condition:
-        any of them
+        1 of ($jdbc*, $db*) or all of ($recon*)
 }
 ```
 
