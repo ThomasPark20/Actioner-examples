@@ -1,0 +1,30 @@
+title: TerminalFix DLL Sideloading via LockScreenContentServer
+id: 5e6f7a8b-9c0d-4e1f-2a3b-4c5d6e7f8a9b
+status: experimental
+description: >
+    Detects loading of malicious dui70.dll by LockScreenContentServer.exe from a
+    non-standard directory, indicating DLL sideloading used in the TerminalFix campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\LockScreenContentServer.exe'
+        ImageLoaded|endswith: '\dui70.dll'
+    filter_legit_paths:
+        ImageLoaded|contains:
+            - '\Windows\System32'
+            - '\Windows\SysWOW64'
+            - '\Windows\WinSxS'
+            - '\Program Files'
+            - '\Program Files (x86)'
+    condition: selection and not filter_legit_paths
+falsepositives:
+    - LockScreenContentServer.exe loading dui70.dll from a non-standard path outside of this campaign
+level: high
