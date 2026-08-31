@@ -1,0 +1,30 @@
+title: SLEEPWALKER Suspicious DLL Load by ERAAgent
+id: c3d4e5f6-7890-1234-cdef-123456789012
+status: experimental
+description: >
+  Detects ERAAgent.exe loading an unsigned DLL matching SLEEPWALKER characteristics:
+  a dpapi.dll not from a standard Windows path that exports the expected seven
+  functions. This is a higher-fidelity variant targeting the specific masquerade.
+references:
+  - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: CTI Draft (automated)
+date: 2026/08/31
+tags:
+  - attack.t1574.001
+  - attack.t1036.005
+logsource:
+  category: image_load
+  product: windows
+detection:
+  selection:
+    Image|endswith: '\ERAAgent.exe'
+    ImageLoaded|endswith: '\dpapi.dll'
+    Signed: 'false'
+  filter_system:
+    ImageLoaded|startswith:
+      - 'C:\Windows\System32\'
+      - 'C:\Windows\SysWOW64\'
+  condition: selection and not filter_system
+falsepositives:
+  - Unsigned test builds of ESET components (very unlikely in production)
+level: critical

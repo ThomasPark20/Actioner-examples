@@ -1,0 +1,27 @@
+title: TerminalFix Fake Cloudflare Verification via PowerShell
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects PowerShell execution containing the fake Cloudflare verification
+    string used by the TerminalFix campaign to social-engineer victims into
+    running malicious downloads.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/31
+tags:
+    - attack.t1059.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ps:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains: 'Starting Cloudflare verification'
+    condition: selection_ps
+falsepositives:
+    - Unlikely; this exact string is specific to the TerminalFix ClickFix social engineering lure
+level: high

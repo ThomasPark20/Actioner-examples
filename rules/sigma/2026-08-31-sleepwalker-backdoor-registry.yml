@@ -1,0 +1,26 @@
+title: SLEEPWALKER Registry Modification - Anonymous Access Enabled
+id: b2c3d4e5-6f78-9012-bcde-f12345678901
+status: experimental
+description: >
+  Detects EveryoneIncludesAnonymous set to 1, a registry modification associated
+  with the SLEEPWALKER backdoor that weakens Windows access controls to facilitate
+  unauthenticated named-pipe communication.
+references:
+  - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: CTI Draft (automated)
+date: 2026/08/31
+tags:
+  - attack.t1112
+  - attack.t1562
+logsource:
+  category: registry_set
+  product: windows
+detection:
+  selection_anon:
+    TargetObject|endswith: '\Lsa\EveryoneIncludesAnonymous'
+    Details: 'DWORD (0x00000001)'
+  condition: selection_anon
+falsepositives:
+  - Legacy applications requiring anonymous access (rare on modern Windows)
+  - Misconfigured Group Policy objects
+level: medium

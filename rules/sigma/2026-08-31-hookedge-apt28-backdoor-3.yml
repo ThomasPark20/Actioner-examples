@@ -1,0 +1,41 @@
+title: Edge Headless Spawned by Batch Script From User Profile (HOOKEDGE)
+id: c3e5a7b9-4d6f-4c8e-a0b2-3f5d7e9c1b4a
+status: experimental
+description: >
+    Detects Microsoft Edge launched in headless mode as a child of cmd.exe,
+    where the parent command line references a batch script in the user
+    profile directory. This parent-child pattern matches the HOOKEDGE
+    backdoor execution chain used by APT28/BlueDelta.
+references:
+    - https://thehackernews.com/2026/08/apt28-linked-hookedge-backdoor-targets.html
+author: Actioner
+date: 2026/08/31
+tags:
+    - attack.t1059.003
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_child:
+        Image|endswith:
+            - '\msedge.exe'
+            - '\msedge_proxy.exe'
+        CommandLine|contains:
+            - '--headless'
+            - '--window-position=-32000'
+            - '--window-size=1,1'
+    selection_parent:
+        ParentImage|endswith: '\cmd.exe'
+        ParentCommandLine|contains:
+            - '%userprofile%'
+            - '\Users\'
+    selection_parent_script:
+        ParentCommandLine|contains:
+            - '.cmd'
+            - '.bat'
+    condition: selection_child and selection_parent and selection_parent_script
+falsepositives:
+    - Developer scripts that invoke Edge headless from user profile directories
+    - Automated testing frameworks stored in user directories
+level: medium

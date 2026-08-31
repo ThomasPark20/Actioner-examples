@@ -1,0 +1,11 @@
+# Snort rules for TerminalFix ClickFix Campaign C2 domains
+# Status: uncompiled (Snort not installed) — structural check only
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TerminalFix C2 Domain gitnow.dev in HTTP Host Header"; flow:established,to_server; content:"Host|3a| "; nocase; content:"gitnow.dev"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; metadata:author Actioner, created_at 2026-08-31; sid:2300101; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TerminalFix Stego Image Host bestsocialmedianewspapper.com"; flow:established,to_server; content:"Host|3a| "; nocase; content:"bestsocialmedianewspapper.com"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; metadata:author Actioner, created_at 2026-08-31; sid:2300102; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TerminalFix Failover Domain offlineupdater.com"; flow:established,to_server; content:"Host|3a| "; nocase; content:"offlineupdater.com"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; metadata:author Actioner, created_at 2026-08-31; sid:2300103; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - TerminalFix Compromised Site linked-log.com"; flow:established,to_server; content:"Host|3a| "; nocase; content:"linked-log.com"; nocase; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; metadata:author Actioner, created_at 2026-08-31; sid:2300104; rev:1;)

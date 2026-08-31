@@ -1,0 +1,38 @@
+title: Scheduled Task With Short Recurrence From User Profile Script (HOOKEDGE)
+id: b2d4f6a8-3c5e-4b7d-9f1a-2e4c6d8b0a3f
+status: experimental
+description: >
+    Detects scheduled task creation with 5-minute or 30-minute recurrence
+    intervals that reference batch files in the user profile directory,
+    matching the HOOKEDGE backdoor persistence mechanism used by
+    APT28/BlueDelta.
+references:
+    - https://thehackernews.com/2026/08/apt28-linked-hookedge-backdoor-targets.html
+author: Actioner
+date: 2026/08/31
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: '/create'
+    selection_recurrence:
+        CommandLine|contains:
+            - '/mo 5 '
+            - '/mo 30 '
+    selection_userprofile:
+        CommandLine|contains:
+            - '%userprofile%'
+            - '\Users\'
+    selection_script:
+        CommandLine|contains:
+            - '.cmd'
+            - '.bat'
+    condition: selection_schtasks and selection_recurrence and selection_userprofile and selection_script
+falsepositives:
+    - Legitimate administrative scripts using schtasks with short recurrence from user directories
+    - Software update mechanisms running from user profile paths
+level: medium

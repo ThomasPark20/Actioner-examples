@@ -1,0 +1,29 @@
+title: TerminalFix DLL Sideloading via LockScreenContentServer
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects LockScreenContentServer.exe executing from C:\ProgramData and
+    spawning Python interpreters, consistent with the TerminalFix campaign
+    DLL sideloading chain.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/31
+tags:
+    - attack.t1574.002
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\LockScreenContentServer.exe'
+        ParentImage|contains: '\ProgramData\'
+    selection_child:
+        Image|endswith:
+            - '\pythonw.exe'
+            - '\python.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate LockScreenContentServer.exe is a Windows system binary but does not normally reside in ProgramData or spawn Python interpreters
+level: high

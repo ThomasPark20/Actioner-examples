@@ -1,0 +1,34 @@
+title: Microsoft Edge Headless Mode Spawned Without User Interaction (HOOKEDGE)
+id: a1c3e5f7-2b4d-4a6c-8e0f-1d3b5c7a9e2f
+status: experimental
+description: >
+    Detects Microsoft Edge launched in headless or hidden mode, a technique
+    used by the HOOKEDGE backdoor (APT28/BlueDelta) to silently communicate
+    with webhook.site C2 infrastructure. Legitimate Edge headless usage
+    (CI/CD, automated testing) should be baselined and excluded.
+references:
+    - https://thehackernews.com/2026/08/apt28-linked-hookedge-backdoor-targets.html
+author: Actioner
+date: 2026/08/31
+tags:
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_edge:
+        Image|endswith:
+            - '\msedge.exe'
+            - '\msedge_proxy.exe'
+    selection_headless:
+        CommandLine|contains:
+            - '--headless'
+            - '--window-position=-32000'
+            - '--window-size=1,1'
+    filter_parent_edge:
+        ParentImage|endswith: '\msedge.exe'
+    condition: selection_edge and selection_headless and not filter_parent_edge
+falsepositives:
+    - Legitimate automated testing frameworks using Edge in headless mode
+    - CI/CD pipelines invoking headless Edge for rendering or screenshot tasks
+level: medium
