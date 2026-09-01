@@ -176,7 +176,7 @@ Ensure Kaspersky Endpoint Security database definitions are up to date. The fix 
 
 ## Detection Rules
 
-These detections target the HardBreacher PoC at the advisory-specific altitude, covering the primary DLL artifact, the hardcoded synchronization event, suspicious process interaction with `avpui.exe`, and file-level binary signatures. All Sigma rules convert cleanly to both Splunk SPL and CrowdStrike LogScale. The YARA rules compile without error under yarac 4.5.0.
+These detections target the HardBreacher PoC at the advisory-specific altitude, covering the primary DLL artifact, suspicious process interaction with `avpui.exe`, and file-level binary signatures. All Sigma rules convert cleanly to both Splunk SPL and CrowdStrike LogScale. The YARA rules compile without error under yarac 4.5.0.
 
 ### Sigma: HardBreacher DLL Drop in System32
 Detects creation of `MY_SNAKE_IS_SOLID.dll` in System32 -- the definitive artifact of successful HardBreacher exploitation.
@@ -240,9 +240,10 @@ logsource:
     category: process_access
     product: windows
 detection:
+<!-- revision: GrantedAccess changed from |contains to plain equality — Sysmon EID 10 emits a single hex value, not substring-searchable -->
     selection:
         TargetImage|endswith: '\avpui.exe'
-        GrantedAccess|contains:
+        GrantedAccess:
             - '0x1F0FFF'
             - '0x1FFFFF'
             - '0x001F0FFF'
@@ -266,8 +267,9 @@ rule HardBreacher_Exploit_Binary
         description = "Detects HardBreacher PoC exploit binary or SolidSnake DLL payload targeting Kaspersky Endpoint Security"
         author = "Actioner"
         date = "2026-09-01"
+<!-- revision: normalized reference2 meta key to reference -->
         reference = "https://github.com/MSNightmare/HardBreacher"
-        reference2 = "https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html"
+        reference = "https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html"
 
     strings:
         $s1 = "MY_SNAKE_IS_SOLID.dll" ascii wide
@@ -311,17 +313,17 @@ rule SolidSnake_DLL_Payload
         reference = "https://github.com/MSNightmare/HardBreacher/tree/main/SolidSnake"
 
     strings:
+<!-- revision: removed $comment pattern — source code comment unlikely to survive compilation -->
         $export = "MySnakeIsSolid" ascii
         $event = "HardBreacher-SolidSnake-Sync-Event" ascii wide
         $target = "avpui.exe" ascii wide
         $window = "Notification from Kaspersky Endpoint Security" ascii wide
-        $comment = "ALWAYS COMPILE FOR X86" ascii wide
 
     condition:
         uint16(0) == 0x5A4D and
         filesize < 2MB and
         $export and
-        any of ($event, $target, $window, $comment)
+        any of ($event, $target, $window)
 }
 ```
 
@@ -334,4 +336,4 @@ rule SolidSnake_DLL_Payload
 
 ---
 
-*DRAFT -- This report has not undergone peer review. Detection rules require environment-specific tuning before production deployment. The PoC's ransomware-adjacent capabilities (AES-128-CBC encryption, .WNCRY extension) were identified through automated source code analysis and require independent verification. Monitor Kaspersky advisories for CVE assignment and formal security bulletin.*
+*REVISED -- Detection rules require environment-specific tuning before production deployment. The PoC's ransomware-adjacent capabilities (AES-128-CBC encryption, .WNCRY extension) were identified through automated source code analysis and require independent verification. Monitor Kaspersky advisories for CVE assignment and formal security bulletin.*
