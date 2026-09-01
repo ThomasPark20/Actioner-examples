@@ -236,6 +236,7 @@ These detections target TerminalFix-specific artifacts: DLL sideloading of dui70
 
 Detects LockScreenContentServer.exe loading dui70.dll from a non-system directory, the core sideloading mechanism of the TerminalFix campaign.
 **Status:** compile ✅ compiles · confidence: high
+<!-- revision: removed attack.t1204.002 tag — DLL sideloading is automatic, user did not execute the DLL -->
 <!-- audit: sigma check blocked by proxy (MITRE ATT&CK data 403); sigma convert splunk exit 0. LockScreenContentServer.exe loading dui70.dll from ProgramData is a definitive IOC match; no legitimate deployment of this binary outside system directories. -->
 ```yaml
 title: TerminalFix ClickFix DLL Sideloading via LockScreenContentServer
@@ -250,7 +251,6 @@ references:
     - https://thehackernews.com/2026/08/terminalfix-uses-fake-cloudflare.html
 author: Actioner
 date: 2026/09/01
-<!-- revision: removed attack.t1204.002 — DLL sideloading is automatic, user did not execute the DLL -->
 tags:
     - attack.t1574.002
 logsource:
@@ -571,7 +571,6 @@ rule Malware_TerminalFix_Python_Tunnel_Implant
             ($pythonw and $c2 and $tunnel)
         )
 }
-
 ```
 
 ## Lessons Learned
