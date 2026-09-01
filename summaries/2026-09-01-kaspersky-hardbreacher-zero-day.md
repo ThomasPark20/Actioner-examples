@@ -258,7 +258,7 @@ level: high
 
 ### YARA: HardBreacher Exploit Binary and SolidSnake DLL Payload
 Detects both the HardBreacher exploit binary and its SolidSnake DLL companion through hardcoded strings, registry paths, NT API references, and DLL export names extracted from the PoC source code.
-<!-- revision: normalized reference2 meta key to reference in HardBreacher_Exploit_Binary -->
+<!-- revision: normalized reference2 meta key to reference in HardBreacher_Exploit_Binary; removed $comment pattern from SolidSnake_DLL_Payload — source code comment unlikely to survive compilation -->
 **Status:** compile pass (yarac 4.5.0) | confidence: high
 
 ```yara
@@ -313,7 +313,6 @@ rule SolidSnake_DLL_Payload
         reference = "https://github.com/MSNightmare/HardBreacher/tree/main/SolidSnake"
 
     strings:
-<!-- revision: removed $comment pattern — source code comment unlikely to survive compilation -->
         $export = "MySnakeIsSolid" ascii
         $event = "HardBreacher-SolidSnake-Sync-Event" ascii wide
         $target = "avpui.exe" ascii wide
