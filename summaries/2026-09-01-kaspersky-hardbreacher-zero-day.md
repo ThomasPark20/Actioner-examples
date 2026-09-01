@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-01
-Version: 0.1 (DRAFT)
+Version: 0.2 (REVISED)
 
 ## Executive Summary
 
@@ -119,13 +119,12 @@ The author explicitly notes the PoC is unstable: "The PoC is not in the best sha
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
+<!-- revision: removed T1574.001 (DLL Search Order Hijacking — bespoke DLL name, no system DLL shadowed) and T1036.005 (MY_SNAKE_IS_SOLID.dll is conspicuously illegitimate, not masquerading) -->
 | T1068 | Exploitation for Privilege Escalation | Exploits Kaspersky Endpoint Security UI process interaction to gain write access to System32 from unprivileged user context |
-| T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Places attacker-controlled DLL (`MY_SNAKE_IS_SOLID.dll`) in `C:\Windows\System32` to be loaded by system processes |
 | T1134.004 | Access Token Manipulation: Parent PID Spoofing | Uses `NtCreateUserProcess` with `PS_ATTRIBUTE_PARENT_PROCESS` to create processes under `avpui.exe`'s token |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | SolidSnake DLL terminates `avpui.exe` and suppresses Kaspersky notification windows, disrupting endpoint protection |
 | T1106 | Native API | Extensive use of NT native APIs (`NtCreateSymbolicLinkObject`, `NtCreateDirectoryObject`, `NtCreateUserProcess`, `NtSetInformationFile`) |
 | T1012 | Query Registry | Queries `HKLM\SOFTWARE\WOW6432Node\KasperskyLab\protected\KES` to locate installation path |
-| T1036.005 | Masquerading: Match Legitimate Name or Location | DLL planted in System32 to blend with legitimate system libraries |
 
 ## Impact Assessment
 
@@ -198,9 +197,9 @@ references:
     - https://github.com/MSNightmare/HardBreacher
 author: Actioner
 date: 2026/09/01
+<!-- revision: removed attack.t1574.001 tag — DLL name is bespoke, no system DLL shadowed -->
 tags:
     - attack.t1068
-    - attack.t1574.001
 logsource:
     category: file_event
     product: windows
@@ -213,38 +212,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: HardBreacher Named Event Synchronization
-Detects command lines containing the hardcoded synchronization event name used between the HardBreacher exploit binary and its SolidSnake DLL payload.
-**Status:** compile pass (Splunk, LogScale) | confidence: high
-
-```yaml
-title: HardBreacher Named Event Synchronization
-id: b2e5d0f3-8c4e-4b9f-ad20-6e3f1c9b4a7d
-status: experimental
-description: >
-    Detects creation of the named synchronization event
-    "Local\HardBreacher-SolidSnake-Sync-Event" used for inter-process
-    coordination between the HardBreacher exploit binary and its SolidSnake
-    DLL payload. This event name is hardcoded in the PoC source.
-references:
-    - https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html
-    - https://www.securityweek.com/nightmare-eclipse-drops-hardbreacher-kaspersky-product-exploit/
-    - https://github.com/MSNightmare/HardBreacher
-author: Actioner
-date: 2026/09/01
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        CommandLine|contains: 'HardBreacher-SolidSnake-Sync-Event'
-    condition: selection
-falsepositives:
-    - None expected; this is a unique hardcoded string from the HardBreacher PoC
-level: critical
-```
+<!-- revision: Named Event Synchronization rule cut — CreateEventW() parameters do not appear in process creation telemetry. -->
 
 ### Sigma: Suspicious Process Targeting Kaspersky avpui.exe
 Detects non-Kaspersky processes requesting full access to `avpui.exe`, consistent with the HardBreacher exploit's process enumeration, parent PID spoofing, and termination of the Kaspersky UI process.
