@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-01
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -250,9 +250,9 @@ references:
     - https://thehackernews.com/2026/08/terminalfix-uses-fake-cloudflare.html
 author: Actioner
 date: 2026/09/01
+<!-- revision: removed attack.t1204.002 — DLL sideloading is automatic, user did not execute the DLL -->
 tags:
     - attack.t1574.002
-    - attack.t1204.002
 logsource:
     category: image_load
     product: windows
@@ -347,7 +347,8 @@ level: high
 
 Detects pythonw.exe or python.exe executing client.py with --server and --uuid arguments, matching the reverse tunnel implant command-line pattern.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0. Triple conjunction (client.py + --server + --uuid) provides sufficient specificity; legitimate Python apps named client.py with these exact argument names are rare but possible in development environments. -->
+<!-- revision: added cert.pem to contains|all list to maintain HIGH confidence (quadruple conjunction) -->
+<!-- audit: sigma convert splunk exit 0. Quadruple conjunction (client.py + --server + --uuid + cert.pem) provides high specificity; legitimate Python apps matching all four are extremely unlikely. -->
 ```yaml
 title: TerminalFix Python Reverse Tunnel Implant Execution
 id: d4b7c0e5-6f1a-7b8d-2c9e-0a5b4d3f6e7c
@@ -375,6 +376,7 @@ detection:
             - 'client.py'
             - '--server'
             - '--uuid'
+            - 'cert.pem'
     condition: selection_python
 falsepositives:
     - Legitimate Python applications named client.py using --server and --uuid arguments (review context)
@@ -385,7 +387,8 @@ level: high
 
 Detects PowerShell executing the Extract-RawFileFromImage function or processing RGBA pixel channels, consistent with the steganographic extraction stage.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0. Extract-RawFileFromImage is a campaign-specific function name; RGBA in PowerShell command lines is uncommon outside image processing scripts, but included as a secondary indicator. -->
+<!-- revision: changed CommandLine|contains (OR) to CommandLine|contains|all (AND) — RGBA alone would fire on benign image-processing scripts -->
+<!-- audit: sigma convert splunk exit 0. Extract-RawFileFromImage is a campaign-specific function name; both function name AND RGBA required to fire. -->
 ```yaml
 title: TerminalFix Steganographic Payload Extraction via PowerShell
 id: e5c8d1f6-7a2b-8c9e-3d0f-1b6c5e4a7f8d
@@ -409,7 +412,7 @@ detection:
         Image|endswith:
             - '\powershell.exe'
             - '\pwsh.exe'
-        CommandLine|contains:
+        CommandLine|contains|all:
             - 'Extract-RawFileFromImage'
             - 'RGBA'
     condition: selection
@@ -418,19 +421,20 @@ falsepositives:
 level: high
 ```
 
-### Sigma: TerminalFix AD Reconnaissance Commands
+### Sigma: AD Reconnaissance Commands (TerminalFix Context)
 
-Detects domain trust and domain admin enumeration commands consistent with the TerminalFix post-exploitation reconnaissance phase.
+Detects Active Directory reconnaissance commands consistent with the TerminalFix post-exploitation reconnaissance phase.
 **Status:** compile ✅ compiles · confidence: medium
+<!-- revision: fixed title to acknowledge generality; fixed description — OR logic, not temporal correlation -->
 <!-- audit: sigma convert splunk exit 0. These commands are individually legitimate for domain administrators. Medium confidence because the individual commands are common in AD administration; correlation of both nltest and net group within a short window would increase confidence. -->
 ```yaml
-title: TerminalFix AD Reconnaissance Commands
+title: AD Reconnaissance Commands (TerminalFix Context)
 id: f6d9e2a7-8b3c-9d0f-4e1a-2c7d6f5b8a9e
 status: experimental
 description: >
-    Detects a sequence of Active Directory reconnaissance commands (nltest,
-    net group domain admins, ADSI searcher) consistent with the TerminalFix
-    post-exploitation phase.
+    Detects Active Directory reconnaissance commands (nltest, net group
+    domain admins) consistent with the TerminalFix post-exploitation phase.
+    Uses OR logic; individual matches are alertworthy but not correlated.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
 author: Actioner
@@ -462,8 +466,9 @@ level: medium
 ### Suricata: TerminalFix Network Indicators
 
 Detects C2 communication to gitnow[.]dev (both HTTP host and TLS SNI), payload delivery from steganographic image hosts, WebSocket tunnel upgrade requests, and the compromised distribution site.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0. All rules match exact IOC domains or specific behavioral patterns (WebSocket upgrade to /tunnel). Domain-based rules are high confidence IOC matches. sid:2200205 (WebSocket /tunnel) is behavioral and could match legitimate WebSocket applications, but combined with the gitnow.dev TLS SNI rule provides layered detection. -->
+**Status:** compile ✅ compiles · confidence: high (SIDs 2200201-2200204, 2200206) / medium (SID 2200205)
+<!-- revision: downgraded SID 2200205 (WebSocket /tunnel) confidence to medium — any WebSocket upgrade to /tunnel path matches; VPNs, dev tools, etc. -->
+<!-- audit: suricata -T -S exit 0. Domain-based rules are high confidence IOC matches. sid:2200205 (WebSocket /tunnel) is behavioral and could match legitimate WebSocket applications (VPNs, dev tools); medium confidence standalone, high when combined with gitnow.dev TLS SNI rule. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TerminalFix C2 Reverse Tunnel to gitnow.dev"; flow:established,to_server; http.host; content:"gitnow.dev"; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/; metadata:author Actioner, created_at 2026-09-01; sid:2200201; rev:1;)
 
@@ -480,12 +485,12 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TerminalFix Compr
 
 ### YARA: TerminalFix Malicious DLL and Python Implant Detection
 
-Detects malicious dui70.dll variants by DLL export stubs combined with steganographic extraction or C2 indicators, and the Python reverse-tunnel implant by WebSocket tunnel endpoint, C2 domain, and multiplexing protocol markers.
-**Status:** compile ✅ compiles · confidence: high (DLL, Implant) / medium (Stego PNG)
+Detects malicious dui70.dll variants by DLL export stubs combined with steganographic extraction or C2 indicators, and the Python reverse-tunnel implant by WebSocket tunnel endpoint, C2 domain, and multiplexing protocol markers. (Steganographic PNG YARA rule cut -- 2-byte MZ marker has near-random match probability in normal PNG files >100KB.)
+**Status:** compile ✅ compiles · confidence: high
 - Malware_TerminalFix_DUI70_Sideload_DLL: sample: untested (no real sample available; string combinations are campaign-specific IOCs)
 - Malware_TerminalFix_Python_Tunnel_Implant: sample: untested (no real sample; string combinations target published C2 and protocol indicators)
-- Malware_TerminalFix_Stego_PNG_Payload: sample: untested (generic detection for MZ headers embedded in PNG images; medium confidence due to potential FPs with legitimate PNG+PE combinations)
-<!-- audit: yarac exit 0. DLL rule uses IOC domains and campaign-specific function names as anchors. Python rule targets unique combination of gitnow.dev + /tunnel + CERT_NONE + stream multiplexing. Stego PNG rule is intentionally broad (any PNG with embedded MZ header) and carries medium confidence. -->
+<!-- revision: cut Malware_TerminalFix_Stego_PNG_Payload — 2-byte MZ marker {4D 5A} has near-random match probability (~53%+) in normal PNG files >100KB; rule fires on benign PNGs -->
+<!-- audit: yarac exit 0. DLL rule uses IOC domains and campaign-specific function names as anchors. Python rule targets unique combination of gitnow.dev + /tunnel + CERT_NONE + stream multiplexing. -->
 ```yara
 rule Malware_TerminalFix_DUI70_Sideload_DLL
 {
@@ -567,25 +572,6 @@ rule Malware_TerminalFix_Python_Tunnel_Implant
         )
 }
 
-rule Malware_TerminalFix_Stego_PNG_Payload
-{
-    meta:
-        description = "Detects PNG images containing steganographic payloads as used by TerminalFix for payload delivery via RGBA channel extraction"
-        author = "Actioner"
-        date = "2026-09-01"
-        reference = "https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/"
-        severity = "medium"
-
-    strings:
-        $png_header = { 89 50 4E 47 0D 0A 1A 0A }
-        $mz_marker = { 4D 5A }
-
-    condition:
-        $png_header at 0 and
-        filesize > 100KB and
-        filesize < 15MB and
-        #mz_marker > 0
-}
 ```
 
 ## Lessons Learned
