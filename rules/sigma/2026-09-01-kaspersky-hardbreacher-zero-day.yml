@@ -1,0 +1,67 @@
+# HardBreacher -- Kaspersky Endpoint Security Zero-Day Privilege Escalation
+# Source: https://github.com/MSNightmare/HardBreacher
+# Report: summaries/2026-09-01-kaspersky-hardbreacher-zero-day.md
+# Generated: 2026-09-01 | Version: 0.2 (REVISED)
+# Rules: 2 Sigma (Named Event Synchronization rule cut — CreateEventW() parameters do not appear in process creation telemetry)
+---
+title: HardBreacher DLL Drop in System32
+id: a1f4c9e2-7b3d-4a8e-9c1f-5d2e0b8a3f6c
+status: experimental
+description: >
+    Detects creation of the MY_SNAKE_IS_SOLID.dll file in System32, the primary
+    artifact produced by the HardBreacher PoC exploit targeting Kaspersky Endpoint
+    Security v14.0.0.504. Successful exploitation writes this DLL with full user
+    permissions to a directory normally protected from unprivileged writes.
+references:
+    - https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html
+    - https://www.securityweek.com/nightmare-eclipse-drops-hardbreacher-kaspersky-product-exploit/
+    - https://github.com/MSNightmare/HardBreacher
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\MY_SNAKE_IS_SOLID.dll'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments; this filename is unique to the HardBreacher PoC
+level: critical
+---
+title: Suspicious Process Targeting Kaspersky avpui.exe
+id: c3f6e1a4-9d5f-4c0a-be31-7f4a2d0c5b8e
+status: experimental
+description: >
+    Detects non-Kaspersky processes enumerating or interacting with avpui.exe,
+    the Kaspersky Endpoint Security UI process. The HardBreacher exploit
+    manipulates avpui.exe via parent PID spoofing and process enumeration to
+    gain elevated privileges and disrupt antivirus functionality.
+references:
+    - https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html
+    - https://www.securityweek.com/nightmare-eclipse-drops-hardbreacher-kaspersky-product-exploit/
+    - https://github.com/MSNightmare/HardBreacher
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1134.004
+    - attack.t1562.001
+logsource:
+    category: process_access
+    product: windows
+detection:
+    selection:
+        TargetImage|endswith: '\avpui.exe'
+        GrantedAccess:
+            - '0x1F0FFF'
+            - '0x1FFFFF'
+            - '0x001F0FFF'
+    filter_kaspersky:
+        SourceImage|contains: '\Kaspersky Lab\'
+    condition: selection and not filter_kaspersky
+falsepositives:
+    - Security scanning tools auditing running processes
+    - System management software inspecting endpoint protection status
+level: high

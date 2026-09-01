@@ -180,6 +180,7 @@ These detections target the HardBreacher PoC at the advisory-specific altitude, 
 
 ### Sigma: HardBreacher DLL Drop in System32
 Detects creation of `MY_SNAKE_IS_SOLID.dll` in System32 -- the definitive artifact of successful HardBreacher exploitation.
+<!-- revision: removed attack.t1574.001 tag — DLL name is bespoke, no system DLL shadowed -->
 **Status:** compile pass (Splunk, LogScale) | confidence: high
 
 ```yaml
@@ -197,7 +198,6 @@ references:
     - https://github.com/MSNightmare/HardBreacher
 author: Actioner
 date: 2026/09/01
-<!-- revision: removed attack.t1574.001 tag — DLL name is bespoke, no system DLL shadowed -->
 tags:
     - attack.t1068
 logsource:
@@ -216,6 +216,7 @@ level: critical
 
 ### Sigma: Suspicious Process Targeting Kaspersky avpui.exe
 Detects non-Kaspersky processes requesting full access to `avpui.exe`, consistent with the HardBreacher exploit's process enumeration, parent PID spoofing, and termination of the Kaspersky UI process.
+<!-- revision: GrantedAccess changed from |contains to plain equality — Sysmon EID 10 emits a single hex value, not substring-searchable -->
 **Status:** compile pass (Splunk, LogScale) | confidence: medium
 
 ```yaml
@@ -240,7 +241,6 @@ logsource:
     category: process_access
     product: windows
 detection:
-<!-- revision: GrantedAccess changed from |contains to plain equality — Sysmon EID 10 emits a single hex value, not substring-searchable -->
     selection:
         TargetImage|endswith: '\avpui.exe'
         GrantedAccess:
@@ -258,6 +258,7 @@ level: high
 
 ### YARA: HardBreacher Exploit Binary and SolidSnake DLL Payload
 Detects both the HardBreacher exploit binary and its SolidSnake DLL companion through hardcoded strings, registry paths, NT API references, and DLL export names extracted from the PoC source code.
+<!-- revision: normalized reference2 meta key to reference in HardBreacher_Exploit_Binary -->
 **Status:** compile pass (yarac 4.5.0) | confidence: high
 
 ```yara
@@ -267,7 +268,6 @@ rule HardBreacher_Exploit_Binary
         description = "Detects HardBreacher PoC exploit binary or SolidSnake DLL payload targeting Kaspersky Endpoint Security"
         author = "Actioner"
         date = "2026-09-01"
-<!-- revision: normalized reference2 meta key to reference -->
         reference = "https://github.com/MSNightmare/HardBreacher"
         reference = "https://securityaffairs.com/198214/hacking/chaotic-eclipse-releases-kaspersky-zero-day-hardbreacher.html"
 
