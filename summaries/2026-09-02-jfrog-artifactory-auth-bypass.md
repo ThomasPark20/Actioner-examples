@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-02
-Version: 0.1 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -72,7 +72,7 @@ The NetSPI research (CVE-2026-42018, CVE-2026-69107) documents related Artifacto
 - AWS token endpoint trailing-slash bypass (`/access/api/v1/aws/token/`)
 - Stash results endpoint abuse for arbitrary file write
 
-These techniques may be chained with CVE-2026-82329 for deeper compromise.
+These are distinct vulnerabilities (not part of CVE-2026-82329) but may be chained with it for deeper compromise.
 
 ## Indicators of Compromise (IOCs)
 
@@ -123,9 +123,9 @@ Hunt for:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated exploitation of JFrog Access token endpoint via forged JWT |
-| T1078.001 | Valid Accounts: Default Accounts | Abusing phantom join key in default configuration to mint admin credentials |
-| T1087.004 | Account Discovery: Cloud Account | Post-exploitation enumeration of users and groups via Access API |
-| T1069.003 | Permission Groups Discovery: Cloud Groups | Enumeration of groups and permission targets after gaining admin access |
+| T1078 | Valid Accounts | Abusing phantom join key in default configuration to mint admin credentials |
+| T1087 | Account Discovery | Post-exploitation enumeration of users and groups via Access API |
+| T1069 | Permission Groups Discovery | Enumeration of groups and permission targets after gaining admin access |
 | T1098 | Account Manipulation | Creation of backdoor admin accounts for persistence |
 | T1592.002 | Gather Victim Host Information: Software | Version endpoint probing to identify vulnerable instances |
 
@@ -145,7 +145,7 @@ The affected version ranges span six major branches, indicating the vulnerabilit
 
 ### Immediate Detection
 
-Check your Artifactory version:
+Check your Artifactory version (run from an internal/trusted host, not over the public internet):
 
 ```bash
 curl -s https://<your-artifactory>/artifactory/api/system/version
@@ -179,15 +179,15 @@ grep "USR" $JFROG_HOME/artifactory/var/log/access-security-audit.log | grep ",C,
 ### Remediation
 
 1. **Patch immediately**: Upgrade to the applicable fixed version for your branch. Prioritize internet-exposed instances.
-2. **Rotate all credentials**: Revoke and reissue all access tokens, API keys, and service account credentials.
-3. **Audit admin accounts**: Review all admin-level users and tokens for unauthorized additions.
-4. **Inspect audit logs**: Search for TKN (token) and USR (user) creation events from unknown IPs.
-5. **Review connected systems**: Check federated Artifactory instances and downstream build pipelines for malicious modifications.
-6. **Network segmentation**: Restrict access to ports 8081/8082 to authorized networks only.
+2. **Configure an explicit join key**: Do not rely on defaults for any self-managed deployment. This eliminates the "phantom" join key that enables the exploit.
+3. **Rotate all credentials**: Revoke and reissue all access tokens, API keys, and service account credentials.
+4. **Audit admin accounts**: Review all admin-level users and tokens for unauthorized additions.
+5. **Inspect audit logs**: Search for TKN (token) and USR (user) creation events from unknown IPs.
+6. **Review connected systems**: Check federated Artifactory instances and downstream build pipelines for malicious modifications.
+7. **Network segmentation**: Restrict access to ports 8081/8082 to authorized networks only.
 
 ### Long-Term Hardening
 
-- Configure an explicit join key (do not rely on defaults) for all self-managed deployments.
 - Place Artifactory behind a reverse proxy with authentication and rate limiting.
 - Enable and forward audit logs to a SIEM for continuous monitoring.
 - Implement network-level access controls restricting Access API endpoints to internal management networks.
@@ -195,13 +195,15 @@ grep "USR" $JFROG_HOME/artifactory/var/log/access-security-audit.log | grep ",C,
 
 ## Detection Rules
 
-These rules target the behavioral patterns of CVE-2026-82329 exploitation: token minting via the Access API, post-exploitation enumeration, version reconnaissance, and related path traversal techniques. No specific IOCs (IPs, domains, hashes) have been publicly disclosed, so all rules are behavioral and carry medium confidence. Operators should tune false-positive filters to their environment before promoting to production.
+**Detection altitude: behavioral.** No IOC-keyed rules are included because no specific attacker IPs, domains, or file hashes have been publicly disclosed. All rules below operate at the TTP/behavioral level, matching exploit-chain request patterns against web-server and network logs. This increases false-positive surface relative to artifact-keyed detections; operators should tune filters and thresholds to their environment before promoting to production.
+
+These rules target the behavioral patterns of CVE-2026-82329 exploitation: token minting via the Access API, post-exploitation enumeration, version reconnaissance, and related path traversal techniques (CVE-2026-42018/CVE-2026-69107).
 
 ### Sigma Rule 1: JFrog Artifactory Suspicious Admin Token Creation via Access API
 
 Detects unauthenticated POST requests to the JFrog Access token creation endpoint, the primary exploitation vector for CVE-2026-82329.
 
-**Compile**: sigma convert -t splunk PASS, sigma convert -t log_scale PASS, sigma check blocked by environment (MITRE data fetch 403 from proxy)
+**Compile**: sigma convert -t splunk PASS, sigma convert -t log_scale PASS
 **Confidence**: Medium
 
 ```yaml
@@ -209,10 +211,11 @@ title: JFrog Artifactory Suspicious Admin Token Creation via Access API
 id: 9c3a7b1e-4d2f-4e8a-b5c6-1f0d9e8a7b3c
 status: experimental
 description: >
-    Detects HTTP POST requests to the JFrog Access token creation endpoint
-    (/access/api/v1/tokens), which is the primary exploitation vector for
-    CVE-2026-82329. Attackers abuse a default-configuration authentication
-    weakness to mint administrator-level tokens without credentials.
+    Detects unauthenticated HTTP POST requests to the JFrog Access token creation
+    endpoint (/access/api/v1/tokens), which is the primary exploitation vector for
+    CVE-2026-82329. Attackers abuse a default-configuration authentication weakness
+    to mint administrator-level tokens without credentials. The rule selects for
+    empty or placeholder usernames indicating no authentication was presented.
 references:
     - https://thehackernews.com/2026/09/attackers-exploit-critical-jfrog.html
     - https://docs.jfrog.com/releases/docs/jfrog-security-advisories
@@ -220,7 +223,7 @@ author: Actioner
 date: 2026-09-02
 tags:
     - attack.t1190
-    - attack.t1078.001
+    - attack.t1078
 logsource:
     category: webserver
 detection:
@@ -228,67 +231,27 @@ detection:
         cs-method: 'POST'
     selection_uri:
         cs-uri-stem|contains: '/access/api/v1/tokens'
-    filter_authenticated:
-        cs-username|contains:
-            - 'admin'
-            - 'service'
-    condition: selection_method and selection_uri and not filter_authenticated
+    filter_known_admins:
+        cs-username:
+            - '-'
+            - ''
+    condition: selection_method and selection_uri and filter_known_admins
 falsepositives:
-    - Legitimate token creation by authenticated administrators
-    - CI/CD pipelines using service accounts for token rotation
-level: high
-```
-
-<!-- Audit: sigma check fails due to environment proxy blocking MITRE ATT&CK data fetch (HTTP 403), not a rule defect. sigma convert --without-pipeline -t splunk produces valid SPL: "cs-method"="POST" "cs-uri-stem"="*/access/api/v1/tokens*" NOT ("cs-username" IN ("*admin*", "*service*")). sigma convert -t log_scale also produces valid query. Filter should be tuned per-environment to match actual admin/service account naming conventions. No defanging needed in rules per logsource-encoding ref. -->
-
-### Sigma Rule 2: JFrog Artifactory Access API User and Group Enumeration
-
-Detects requests to JFrog Access API enumeration endpoints used in post-exploitation after CVE-2026-82329 admin token minting.
-
-**Compile**: sigma convert -t splunk PASS, sigma convert -t log_scale PASS, sigma check blocked by environment
-**Confidence**: Medium
-
-```yaml
-title: JFrog Artifactory Access API User and Group Enumeration
-id: b7e4a2c1-5f3d-4a9b-8c6e-2d1f0a9b8c7d
-status: experimental
-description: >
-    Detects HTTP requests to JFrog Access user and group enumeration endpoints.
-    After exploiting CVE-2026-82329 to mint admin tokens, attackers enumerate
-    users, groups, credential sets and federated access topologies for lateral
-    movement and persistence.
-references:
-    - https://thehackernews.com/2026/09/attackers-exploit-critical-jfrog.html
-    - https://docs.jfrog.com/releases/docs/jfrog-security-advisories
-author: Actioner
-date: 2026-09-02
-tags:
-    - attack.t1087.004
-    - attack.t1069.003
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-uri-stem|contains:
-            - '/access/api/v1/users'
-            - '/access/api/v1/groups'
-            - '/access/api/v1/permissions'
-            - '/access/api/v1/configs'
-    condition: selection
-falsepositives:
-    - Legitimate administrative audit or compliance scanning
-    - Automated user sync from identity providers
-    - CI/CD tooling querying permissions
+    - Health-check or monitoring tools hitting the tokens endpoint without authentication
+    - Load balancers or reverse proxies that strip authentication headers before logging
 level: medium
 ```
 
-<!-- Audit: Original version used deprecated pipe aggregation syntax (count() by c-ip > 20); rewritten as simple selection to pass pySigma. Threshold/aggregation should be applied at the SIEM layer. sigma convert -t splunk and -t log_scale both produce valid queries. Consider adding threshold logic in the SIEM (e.g., tstats with count by src_ip in Splunk). -->
+<!-- Audit: sigma convert --without-pipeline -t splunk produces valid SPL: "cs-method"="POST" "cs-uri-stem"="*/access/api/v1/tokens*" "cs-username" IN ("-", ""). sigma convert -t log_scale also produces valid query. filter_known_admins selects for empty/"-" cs-username (unauthenticated pattern); tune to match your log format's representation of missing usernames. -->
+<!-- revision: filter_authenticated renamed to filter_known_admins; logic changed from excluding admin/service substrings to selecting for empty/"-" cs-username (unauthenticated exploit pattern); T1078.001 narrowed to T1078; level downgraded high->medium -->
 
-### Sigma Rule 3: JFrog Artifactory Version Endpoint Probing
+<!-- revision: Sigma Rule 2 (Access API User and Group Enumeration, id b7e4a2c1) DROPPED — no method filter, no threshold, no source constraint; fires on IdP syncs, admin UI loads, and compliance scans, shipping unacceptable detection burden to operators. Enumeration coverage retained via Suricata Rule 4 (threshold-gated, external-only). -->
+
+### Sigma Rule 2: JFrog Artifactory Version Endpoint Probing
 
 Detects external reconnaissance probing of the Artifactory version endpoint used to identify vulnerable instances.
 
-**Compile**: sigma convert -t splunk PASS, sigma convert -t log_scale partial (CIDR OR unsupported in LogScale backend)
+**Compile**: sigma convert -t splunk PASS, sigma convert -t log_scale partial (CIDR OR unsupported in LogScale backend -- see portability caveat in description)
 **Confidence**: Low
 
 ```yaml
@@ -299,6 +262,9 @@ description: >
     Detects HTTP GET requests to the Artifactory version endpoint
     (/artifactory/api/system/version), commonly used for reconnaissance
     to identify vulnerable instances of CVE-2026-82329 before exploitation.
+    Portability caveat: the CIDR filter uses an OR list which is not supported
+    by all backends (e.g., CrowdStrike LogScale); deploy without the CIDR
+    filter or replace with explicit IP-range patterns on those platforms.
 references:
     - https://thehackernews.com/2026/09/attackers-exploit-critical-jfrog.html
     - https://www.penligent.ai/hackinglabs/cve-2026-82329/
@@ -320,10 +286,11 @@ detection:
 falsepositives:
     - Legitimate monitoring or health check systems from external sources
     - Authorized vulnerability scanners
-level: medium
+level: low
 ```
 
-<!-- Audit: sigma convert -t splunk produces valid SPL. sigma convert -t log_scale fails with "ORing CIDR matching is not yet supported by LogScale backend" — this is a backend limitation, not a rule defect. For LogScale deployment, replace CIDR filter with explicit IP range patterns. The version endpoint is benign on its own — this rule is low confidence as a standalone detection but valuable when correlated with subsequent token creation attempts. -->
+<!-- Audit: sigma convert -t splunk produces valid SPL. sigma convert -t log_scale fails with "ORing CIDR matching is not yet supported by LogScale backend" — documented as portability caveat in rule description. For LogScale deployment, replace CIDR filter with explicit IP range patterns. The version endpoint is benign on its own — this rule is low confidence as a standalone detection but valuable when correlated with subsequent token creation attempts. -->
+<!-- revision: level downgraded medium->low; LogScale CIDR incompatibility documented as portability caveat in rule description; renumbered from Rule 3 to Rule 2 after Sigma Rule 2 drop -->
 
 ### Suricata Rule 1: JFrog Artifactory CVE-2026-82329 Token Minting Attempt
 
@@ -338,18 +305,19 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory
 
 <!-- Audit: suricata -T validates clean. Uses http protocol with dot-notation sticky buffers (http.method, http.uri). fast_pattern on the URI content for efficient matching. May fire on legitimate token creation from external CI/CD — tune $EXTERNAL_NET or add authorized source exclusions. No defanging in rule content per logsource-encoding ref. -->
 
-### Suricata Rule 2: JFrog Artifactory Path Traversal via Semicolon Normalization Bypass
+### Suricata Rule 2: JFrog Artifactory Path Traversal via Semicolon Normalization Bypass (CVE-2026-42018 / CVE-2026-69107)
 
-Detects path traversal attempts using the Tomcat semicolon normalization bypass (`..;/`) documented in related Artifactory CVEs.
+Detects path traversal attempts using the Tomcat semicolon normalization bypass (`..;/`) documented in CVE-2026-42018 and CVE-2026-69107. These are separate vulnerabilities from CVE-2026-82329 but target the same product and may be chained with it.
 
 **Compile**: suricata -T PASS (after encoding fix)
 **Confidence**: Medium
 
 ```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory Path Traversal via Semicolon Normalization Bypass"; flow:established,to_server; http.uri.raw; content:"/artifactory/"; content:"|2e 2e 3b 2f|"; distance:0; fast_pattern; classtype:web-application-attack; reference:url,www.netspi.com/blog/technical-blog/red-teaming/stealing-the-artifact-jfrog-artifactory-vulnerability/; metadata:author Actioner, created_at 2026-09-02; sid:2100102; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory Path Traversal via Semicolon Normalization Bypass (CVE-2026-42018 / CVE-2026-69107)"; flow:established,to_server; http.uri.raw; content:"/artifactory/"; content:"|2e 2e 3b 2f|"; distance:0; fast_pattern; classtype:web-application-attack; reference:cve,2026-42018; reference:cve,2026-69107; reference:url,www.netspi.com/blog/technical-blog/red-teaming/stealing-the-artifact-jfrog-artifactory-vulnerability/; metadata:author Actioner, created_at 2026-09-02; sid:2100102; rev:2;)
 ```
 
 <!-- Audit: suricata -T validates clean. The semicolon in "..;/" caused a Suricata parsing error when written as a literal string (content:"..;/") because the semicolon is an option delimiter. Resolved by hex-encoding the pattern: |2e 2e 3b 2f| = "..;/". Uses http.uri.raw to inspect the unnormalized URI where the traversal sequence would appear before server-side normalization. -->
+<!-- revision: msg and metadata updated to reference CVE-2026-42018/CVE-2026-69107 (the actual CVEs this rule targets), not CVE-2026-82329; added reference:cve entries; rev bumped to 2; prose clarified these are separate/chainable CVEs -->
 
 ### Suricata Rule 3: JFrog Artifactory Version Endpoint Reconnaissance
 
@@ -400,7 +368,7 @@ No YARA rules generated. The publicly available intelligence contains no file-le
 - [IONIX Threat Center — CVE-2026-82329](https://www.ionix.io/threat-center/cve-2026-82329/) — affected version ranges, remediation guidance
 - [NetSPI — Stealing the Artifact: JFrog Artifactory Vulnerability](https://www.netspi.com/blog/technical-blog/red-teaming/stealing-the-artifact-jfrog-artifactory-vulnerability/) — related CVE technical details (CVE-2026-42018, CVE-2026-69107), exploitation request patterns, path traversal techniques
 - [JFrog Documentation — Audit Trail Log](https://docs.jfrog.com/administration/docs/audit-trail-log) — audit log format, event types, file paths for forensic investigation
-- [SC World — JFrog Artifactory Flaw Exploited Days After Patch Release](https://www.scworld.com/news/jfrog-artifactory-flaw-exploited-days-after-patch-release) — source returned HTTP 403; content not verified
+- [SC World — JFrog Artifactory Flaw Exploited Days After Patch Release](https://www.scworld.com/news/jfrog-artifactory-flaw-exploited-days-after-patch-release) [unverified] — source returned HTTP 403; content could not be verified
 
 ---
 *Report generated by Actioner*

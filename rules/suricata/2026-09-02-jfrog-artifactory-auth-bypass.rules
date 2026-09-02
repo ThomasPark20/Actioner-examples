@@ -1,0 +1,11 @@
+# Actioner - JFrog Artifactory CVE-2026-82329 Authentication Bypass
+# Date: 2026-09-02
+# Reference: https://docs.jfrog.com/releases/docs/jfrog-security-advisories
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory CVE-2026-82329 Token Minting Attempt via Access API"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/access/api/v1/tokens"; fast_pattern; classtype:web-application-attack; reference:cve,2026-82329; reference:url,docs.jfrog.com/releases/docs/jfrog-security-advisories; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-82329; sid:2100101; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory Path Traversal via Semicolon Normalization Bypass (CVE-2026-42018 / CVE-2026-69107)"; flow:established,to_server; http.uri.raw; content:"/artifactory/"; content:"|2e 2e 3b 2f|"; distance:0; fast_pattern; classtype:web-application-attack; reference:cve,2026-42018; reference:cve,2026-69107; reference:url,www.netspi.com/blog/technical-blog/red-teaming/stealing-the-artifact-jfrog-artifactory-vulnerability/; metadata:author Actioner, created_at 2026-09-02; sid:2100102; rev:2;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory Version Endpoint Reconnaissance"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/artifactory/api/system/version"; fast_pattern; threshold:type both, track by_src, count 3, seconds 60; classtype:attempted-recon; reference:cve,2026-82329; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-82329; sid:2100103; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - JFrog Artifactory Post-Exploitation User and Group Enumeration"; flow:established,to_server; http.uri; content:"/access/api/v1/"; fast_pattern; pcre:"/\/access\/api\/v1\/(users|groups|permissions|configs)/"; threshold:type both, track by_src, count 10, seconds 60; classtype:web-application-activity; reference:cve,2026-82329; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-82329; sid:2100104; rev:1;)
