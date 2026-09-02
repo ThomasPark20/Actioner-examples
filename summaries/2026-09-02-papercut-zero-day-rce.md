@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-02
-Version: 1.0 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -98,7 +98,7 @@ Recovered malicious Java .class payloads (with randomized 5-character filenames 
 
 ### 5. Anti-Forensics / Evasion Techniques
 
-- **Log deletion**: server.log files deleted or truncated to remove exploitation evidence (T1070.002)
+- **Log deletion**: server.log files deleted or truncated to remove exploitation evidence (T1070.004)
 - **Payload self-deletion**: Malicious .class, .cmd, and .out files deleted after execution
 - **Randomized filenames**: 5-character randomized names for deployed artifacts to evade static IOC matching
 - **OS-agnostic payloads**: Java .class files work across Windows and Linux deployments
@@ -176,8 +176,7 @@ Recovered malicious Java .class payloads (with randomized 5-character filenames 
 | T1033 | System Owner/User Discovery | Execution of "whoami" to identify current user context |
 | T1057 | Process Discovery | Execution of "tasklist" to enumerate running processes |
 | T1018 | Remote System Discovery | Domain controller enumeration via nltest |
-| T1070.002 | Clear Linux or Mac System Logs | Deletion/truncation of server.log and derby.log files |
-| T1070.004 | File Deletion | Self-deletion of malicious .class, .cmd, and .out payloads |
+| T1070.004 | File Deletion | Deletion/truncation of PaperCut server.log and derby.log application log files; self-deletion of malicious .class, .cmd, and .out payloads |
 | T1105 | Ingress Tool Transfer | Download of SimpleHelp and AnyDesk installers from external file-sharing (sendit.sh) |
 | T1543.003 | Windows Service | SimpleHelp installed as "Remote Access Service" Windows service |
 
@@ -235,7 +234,7 @@ stat /opt/papercut/server/logs/server.log
 ### Remediation
 
 1. **Immediate**: Remove PaperCut web management interface from public internet exposure using firewall rules, network ACLs, or VPN requirements -- regardless of whether exploitation indicators are observed
-2. **Patch**: Apply Emergency Patch Release 2 (or later) for PaperCut NG/MF versions 24, 25, and 26. Versions 23 and earlier have no patch -- upgrade to a supported version
+2. **Patch**: Apply Emergency Patch Release 2 (or later) for PaperCut NG/MF versions 24, 25, and 26. Versions 23 and earlier have no patch -- upgrade to a supported version. Note that this upgrade is non-trivial: approximately 47% of tracked installations remain on v23 or earlier, and organizations on these versions may face license, compatibility, or budget barriers to a full major-version upgrade. Until the upgrade is completed, network-level mitigations (firewall rules, VPN-only access) are the only available protection
 3. **If compromised**: Isolate the server, secure backups, wipe and rebuild from clean backups. Do not attempt to clean a compromised server in place
 4. **Verify**: Confirm Site Servers and secondary/print servers are also updated
 5. **Hunt**: Search for SimpleHelp and AnyDesk installations, check for "Remote Access Service" Windows service, review process creation logs for pc-app.exe child processes
@@ -251,7 +250,7 @@ stat /opt/papercut/server/logs/server.log
 
 ## Detection Rules
 
-The following rules target the specific exploitation chain and post-exploitation activity documented by Huntress, Rapid7, and Horizon3 for CVE-2026-81578 / CVE-2026-82078. All rules use indicators drawn directly from confirmed incidents; the primary caveat is that attackers may vary their post-exploitation tooling while the initial access vector (Tapestry direct requests) remains structurally consistent.
+20 detection rules (6 Sigma, 6 Suricata, 6 Snort, 2 YARA) target the specific exploitation chain and post-exploitation activity documented by Huntress, Rapid7, and Horizon3 for CVE-2026-81578 / CVE-2026-82078. All rules use indicators drawn directly from confirmed incidents; the primary caveat is that attackers may vary their post-exploitation tooling while the initial access vector (Tapestry direct requests) remains structurally consistent.
 
 ### Sigma Rule 1: PaperCut Tapestry Direct Request Authentication Bypass Attempt
 
@@ -328,8 +327,6 @@ detection:
     selection_child:
         Image|endswith:
             - '\cmd.exe'
-            - '\powershell.exe'
-            - '\pwsh.exe'
             - '\whoami.exe'
             - '\tasklist.exe'
             - '\net.exe'
@@ -342,11 +339,13 @@ falsepositives:
 level: critical
 ```
 
-<!-- Audit: sigma check 0 errors 0 issues. Field names Image, ParentImage match Sysmon EID 1 and Windows 4688 schema. Process list derived from Huntress confirmed exploitation observations (whoami, ver, tasklist, nltest, net) plus charmap.exe flagged by CISA/SecurityAffairs reporting. -->
+<!-- Audit: sigma check 0 errors 0 issues. Field names Image, ParentImage match Sysmon EID 1 and Windows 4688 schema. Process list limited to tools confirmed in exploitation observations: cmd.exe, whoami.exe, tasklist.exe, net.exe, net1.exe, nltest.exe (Huntress), and charmap.exe (CISA/SecurityAffairs). powershell.exe and pwsh.exe removed -- not documented in any confirmed incident at specific altitude. -->
 
 ### Sigma Rule 3: PaperCut JDBC Exploitation Artifacts in Application Logs
 
 Detects the distinctive JDBC error strings that appear in PaperCut server.log during CVE-2026-82078 exploitation.
+
+**Portability caveat**: `product: papercut` is not in the standard Sigma taxonomy. Deployers need a custom log ingestion pipeline that maps PaperCut `server.log` entries into the `Message` field. The `--without-pipeline` conversion produces raw field names that will not match default Splunk indexes (or other SIEM field mappings) without manual adjustment.
 
 **Compile**: sigma check pass, sigma convert splunk pass, sigma convert log_scale pass | **Confidence**: high
 
@@ -404,7 +403,7 @@ references:
 author: Actioner
 date: 2026-09-02
 tags:
-    - attack.t1059.004
+    - attack.t1105
 logsource:
     category: file_event
     product: windows
@@ -450,9 +449,7 @@ logsource:
     product: windows
 detection:
     selection_parent:
-        ParentImage|endswith:
-            - '\pc-app.exe'
-            - '\cmd.exe'
+        ParentImage|endswith: '\pc-app.exe'
     selection_rat:
         - Image|endswith:
             - '\SimpleService.exe'
@@ -470,7 +467,7 @@ falsepositives:
 level: high
 ```
 
-<!-- Audit: sigma check 0 errors 0 issues. Medium confidence because future campaigns may use different RAT tooling; these specific tools (SimpleHelp, AnyDesk) are tied to the observed August 2026 campaign. Parent cmd.exe included because exploitation chains through cmd.exe before launching RAT installer. -->
+<!-- Audit: sigma check 0 errors 0 issues. Medium confidence because future campaigns may use different RAT tooling; these specific tools (SimpleHelp, AnyDesk) are tied to the observed August 2026 campaign. Parent constrained to pc-app.exe only -- cmd.exe removed to avoid firing on any cmd.exe spawning RAT binaries system-wide, which is too broad for specific altitude. -->
 
 ### Sigma Rule 6: PaperCut Server Log File Deletion
 
@@ -492,7 +489,7 @@ references:
 author: Actioner
 date: 2026-09-02
 tags:
-    - attack.t1070.002
+    - attack.t1070.004
 logsource:
     category: file_delete
     product: windows
@@ -508,11 +505,11 @@ falsepositives:
 level: high
 ```
 
-<!-- Audit: sigma check 0 errors 0 issues. Requires Sysmon EID 23/26 (FileDelete) or equivalent. Log rotation typically renames files rather than deleting, so delete events on these specific files are high-signal. -->
+<!-- Audit: sigma check 0 errors 0 issues. MITRE tag corrected to T1070.004 (File Deletion) -- these are application log files on Windows, not Linux/Mac system logs (T1070.002). Requires Sysmon EID 23/26 (FileDelete) or equivalent. Log rotation typically renames files rather than deleting, so delete events on these specific files are high-signal. -->
 
 ### Suricata Rules: PaperCut Tapestry Auth Bypass Network Detection
 
-Three Suricata rules detecting the HTTP-level exploitation requests targeting ConfigEditor and UserList components through Error and Exception public pages.
+Six Suricata rules detecting the HTTP-level exploitation requests targeting ConfigEditor and UserList components through Error, Exception, and Home public pages -- covering all documented bypass variants.
 
 **Compile**: suricata -T pass ("Configuration provided was successfully loaded") | **Confidence**: high
 
@@ -522,13 +519,19 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Ta
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Tapestry Auth Bypass via Exception Page (CVE-2026-81578)"; flow:established,to_server; http.uri; content:"service=direct"; content:"ConfigEditor"; content:"/Exception/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,horizon3.ai/attack-research/vulnerabilities/cve-2026-81578-cve-2026-82078/; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-81578; sid:2100101; rev:1;)
 
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList QuickFind Auth Bypass (CVE-2026-81578)"; flow:established,to_server; http.uri; content:"service=direct"; content:"UserList"; content:"/Error/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-81578; sid:2100102; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Tapestry Auth Bypass via Home Page - ConfigEditor (CVE-2026-81578)"; flow:established,to_server; http.uri; content:"service=direct"; content:"ConfigEditor"; content:"/Home/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,horizon3.ai/attack-research/vulnerabilities/cve-2026-81578-cve-2026-82078/; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-81578; sid:2100103; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList Auth Bypass via Exception Page (CVE-2026-81578)"; flow:established,to_server; http.uri; content:"service=direct"; content:"UserList"; content:"/Exception/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-81578; sid:2100104; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList Auth Bypass via Home Page (CVE-2026-81578)"; flow:established,to_server; http.uri; content:"service=direct"; content:"UserList"; content:"/Home/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created_at 2026-09-02, cve CVE-2026-81578; sid:2100105; rev:1;)
 ```
 
-<!-- Audit: suricata -T -S suricata_papercut_exploit.rules -l /tmp/actioner exit 0. Uses http.uri dot-notation sticky buffer (Suricata 7.x). Three content matches per rule provide sufficient specificity; all three strings must appear in the URI to trigger. Direction $EXTERNAL_NET -> $HOME_NET assumes PaperCut server is inside protected network. -->
+<!-- Audit: suricata -T -S suricata_papercut_exploit.rules -l /tmp/actioner exit 0. Uses http.uri dot-notation sticky buffer (Suricata 7.x). Three content matches per rule provide sufficient specificity; all three strings must appear in the URI to trigger. Direction $EXTERNAL_NET -> $HOME_NET assumes PaperCut server is inside protected network. Six rules cover all combinations: ConfigEditor x {Error, Exception, Home} and UserList x {Error, Exception, Home}. -->
 
 ### Snort Rules: PaperCut Tapestry Auth Bypass Network Detection
 
-Equivalent Snort 3 rules for the same HTTP exploitation patterns.
+Six equivalent Snort 3 rules for the same HTTP exploitation patterns, covering all ConfigEditor and UserList bypass variants through Error, Exception, and Home public pages.
 
 **Compile**: not available (snort not installed) | **Confidence**: high
 
@@ -538,9 +541,15 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Ta
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Tapestry Auth Bypass via Exception Page (CVE-2026-81578)"; flow:established, to_server; http_uri; content:"service=direct", fast_pattern; content:"ConfigEditor"; content:"/Exception/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,horizon3.ai/attack-research/vulnerabilities/cve-2026-81578-cve-2026-82078/; metadata:author Actioner, created 2026-09-02; sid:2100201; rev:1;)
 
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList QuickFind Auth Bypass (CVE-2026-81578)"; flow:established, to_server; http_uri; content:"service=direct", fast_pattern; content:"UserList"; content:"/Error/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created 2026-09-02; sid:2100202; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF Tapestry Auth Bypass via Home Page - ConfigEditor (CVE-2026-81578)"; flow:established, to_server; http_uri; content:"service=direct", fast_pattern; content:"ConfigEditor"; content:"/Home/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,horizon3.ai/attack-research/vulnerabilities/cve-2026-81578-cve-2026-82078/; metadata:author Actioner, created 2026-09-02; sid:2100203; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList Auth Bypass via Exception Page (CVE-2026-81578)"; flow:established, to_server; http_uri; content:"service=direct", fast_pattern; content:"UserList"; content:"/Exception/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created 2026-09-02; sid:2100204; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PaperCut NG/MF UserList Auth Bypass via Home Page (CVE-2026-81578)"; flow:established, to_server; http_uri; content:"service=direct", fast_pattern; content:"UserList"; content:"/Home/"; classtype:web-application-attack; reference:cve,2026-81578; reference:url,rapid7.com/blog/post/etr-papercut-ng-mf-critical-zero-day-exploited-in-the-wild/; metadata:author Actioner, created 2026-09-02; sid:2100205; rev:1;)
 ```
 
-<!-- Audit: snort not available for compilation. Rules use Snort 3 underscore-notation sticky buffers (http_uri), http service protocol, and comma-delimited content modifiers per Snort 3 syntax. Structural review confirms balanced parentheses, all required fields (msg, sid, rev), semicolon termination, and flow keywords present. -->
+<!-- Audit: snort not available for compilation. Rules use Snort 3 underscore-notation sticky buffers (http_uri), http service protocol, and comma-delimited content modifiers per Snort 3 syntax. Structural review confirms balanced parentheses, all required fields (msg, sid, rev), semicolon termination, and flow keywords present. Six rules cover all combinations: ConfigEditor x {Error, Exception, Home} and UserList x {Error, Exception, Home}. -->
 
 ### YARA Rules: PaperCut Malicious Java Class Payload Detection
 
