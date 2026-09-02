@@ -1,0 +1,92 @@
+title: CVE-2026-9586 PostgreSQL COPY TO PROGRAM Spawning Shell on Switchvox
+id: 7a3e8c1f-4b2d-4e6a-9f01-c5d8b7e2a3f6
+status: experimental
+description: >
+    Detects PostgreSQL process spawning shell commands whose command line
+    contains COPY TO PROGRAM strings, indicative of CVE-2026-9586 SQL
+    injection exploitation on Sangoma Switchvox systems. Scoped to
+    Switchvox-related artifacts to reduce false positives from generic
+    PostgreSQL maintenance.
+references:
+    - https://horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/
+    - https://labs.sra.io/posts/switchvox/
+author: Actioner
+date: 2026-09-02
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith: '/postgres'
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/nc'
+            - '/ncat'
+            - '/curl'
+            - '/wget'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'COPY'
+            - 'TO PROGRAM'
+    condition: selection_parent and selection_cmdline
+falsepositives:
+    - PostgreSQL maintenance scripts using COPY TO PROGRAM for legitimate exports
+level: medium
+---
+title: CVE-2026-9586 Inbound Connection from Known Switchvox Exploitation IP
+id: b4f1d2e8-9c3a-4d7b-8e5f-a6c0d1b3e2f4
+status: experimental
+description: >
+    Detects inbound network connections from IP address 176.65.148.184,
+    which was observed actively exploiting CVE-2026-9586 against Sangoma
+    Switchvox systems from August 30, 2026 onward.
+references:
+    - https://thehackernews.com/2026/09/attackers-exploit-critical-switchvox.html
+    - https://horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/
+author: Actioner
+date: 2026-09-02
+tags:
+    - attack.t1190
+logsource:
+    category: firewall
+detection:
+    selection:
+        src_ip: '176.65.148.184'
+    condition: selection
+falsepositives:
+    - Unlikely - this IP is flagged for port scanning, brute-force, and exploitation activity
+level: high
+---
+title: CVE-2026-9586 Switchvox POST Request to Vulnerable /pa Endpoint
+id: e2a7f3b1-6d4c-4e8a-b9f0-d1c5e3a2b4d6
+status: experimental
+description: >
+    Detects HTTP POST requests to the Sangoma Switchvox /pa phone
+    provisioning endpoint. This endpoint is the attack surface for
+    CVE-2026-9586 unauthenticated SQL injection. High volume from
+    non-phone subnets warrants investigation.
+references:
+    - https://horizon3.ai/attack-research/disclosures/cve-2026-9586-sangoma-switchvox-rce/
+    - https://labs.sra.io/posts/switchvox/
+author: Actioner
+date: 2026-09-02
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-method: 'POST'
+        cs-uri-stem:
+            - '/pa'
+            - '/pa/'
+    filter_phones:
+        cs-uri-stem|contains: '.cfg'
+    condition: selection and not filter_phones
+falsepositives:
+    - Legitimate Polycom IP phone provisioning requests from trusted subnets
+level: medium
