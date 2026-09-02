@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-02
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -119,8 +119,8 @@ Prior campaigns demonstrated memory-resident artifact deployment that is flushed
 | T1505.003 | Server Software Component: Web Shell | ORANGETAIL Java web shell deployed on compromised appliances (prior campaign) |
 | T1078 | Valid Accounts | Stolen credentials used for lateral movement from compromised appliance (prior campaign) |
 | T1021 | Remote Services | NTLM lateral movement from appliance IP to domain controllers (prior campaign) |
-| T1543 | Create or Modify System Process | NGINX Unit configuration tampering for persistence (prior campaign) |
-| T1557 | Adversary-in-the-Middle | tcpdump LDAP credential interception on secondary appliance (prior campaign) |
+| T1546 | Event Triggered Execution | NGINX Unit configuration tampering to route traffic to web shells for persistence (prior campaign) |
+| T1040 | Network Sniffing | tcpdump LDAP credential interception on secondary appliance (prior campaign) |
 
 ## Impact Assessment
 
@@ -152,20 +152,25 @@ Prior campaigns demonstrated memory-resident artifact deployment that is flushed
 ### Long-Term Hardening
 
 - Implement network segmentation to isolate SMA appliances from sensitive internal systems
-- Deploy a web application firewall (WAF) in front of the Appliance Work Place interface
+- Deploy a web application firewall (WAF) in front of the Appliance Work Place interface (note: WAF insertion is only feasible when TLS can be terminated before the SMA appliance, e.g., via a reverse proxy or load balancer that re-encrypts to the appliance)
 - Enable comprehensive logging on SMA appliances and forward to SIEM
 - Establish a rapid patching cadence for edge/VPN appliances given the frequency of zero-day targeting
 - Monitor CISA KEV catalog for additions of these CVEs and comply with remediation deadlines
 
 ## Detection Rules
 
-These rules cover network-level SSRF exploitation patterns targeting SonicWall SMA1000 Appliance Work Place and AMC interfaces, post-compromise lateral movement indicators, appliance configuration tampering, and file-level malware artifacts from prior exploitation campaigns. The primary caveat is that SonicWall has not disclosed the specific exploitation path for CVE-2026-83548 (the new SSRF), so network detection rules are based on observable architectural patterns and prior exploitation TTPs rather than confirmed payloads.
+<!-- revision: added behavioral-altitude caveat; all rules derived from prior-campaign TTPs, not confirmed CVE-2026-83548 payloads -->
+
+**Effective altitude: behavioral.** All rules below are derived from prior UTA0533 campaign TTPs and known SMA1000 architectural patterns -- not from confirmed CVE-2026-83548/83549 exploit payloads, which SonicWall has not disclosed. They will detect reuse of the same tradecraft but will not catch novel exploitation paths targeting the new SSRF access vector. Update rules when vendor or researcher IOCs become available.
+
+These rules cover network-level SSRF exploitation patterns targeting SonicWall SMA1000 Appliance Work Place and AMC interfaces, post-compromise lateral movement indicators, appliance configuration tampering, and file-level malware artifacts from prior exploitation campaigns.
 
 ### Sigma: SonicWall SMA1000 Appliance Work Place SSRF Exploitation Indicators
 
 Detects HTTP access log patterns indicative of SSRF exploitation via the SMA1000 Appliance Work Place interface, covering both the prior `/wsproxy` abuse and internal API access patterns.
 
 <!-- audit: Webserver logsource maps generically; field names (cs-uri-stem, sc-status) follow W3C extended log format. No defanged values in rule. Sigma converts to Splunk and LogScale without pipeline. Prior exploitation patterns (/__api__/, /wsproxy, host=localhost) are documented by Rapid7. New SSRF path unknown -- rule covers known architectural indicators only. FP risk from legitimate SMA Connect Agent sessions or monitoring tools. -->
+<!-- revision: merged selection_proxy_ssrf into selection_wsproxy to require /wsproxy prefix; standalone host=127.0.0.1 no longer fires on arbitrary URIs -->
 
 - Compile: sigma convert Splunk ✅ / LogScale ✅
 - Confidence: **medium** -- covers known exploitation patterns but the new CVE-2026-83548 access path is undisclosed
@@ -202,13 +207,15 @@ detection:
     selection_wsproxy:
         cs-uri-stem|contains: '/wsproxy'
         sc-status: 101
-    selection_proxy_ssrf:
+    selection_proxy_wsproxy:
+        cs-uri-stem|contains: '/wsproxy'
+    selection_proxy_localhost:
         cs-uri-stem|contains:
             - 'host=0.0.0.0'
             - 'host=127.0.0.1'
             - 'host=localhost'
             - '::ffff:127.0.0.1'
-    condition: 1 of selection_*
+    condition: selection_ssrf_api or selection_wsproxy or (selection_proxy_wsproxy and selection_proxy_localhost)
 falsepositives:
     - Legitimate SMA Connect Agent sessions using /wsproxy with valid bmID values
     - Internal monitoring tools accessing the appliance API
@@ -220,6 +227,7 @@ level: high
 Detects NTLM network logon events from compromised SMA1000 appliances with suspicious workstation names observed in prior UTA0533 exploitation campaigns.
 
 <!-- audit: Windows Security logsource with EventID 4624/LogonType 3. Workstation names from Rapid7 IOC report for prior CVE-2026-15409/15410 campaign. Same threat actors may reuse infrastructure against new CVEs. No defanged values in rule (workstation names are literal). FP from legitimate hosts named KALI (pen-test boxes). Tune SourceNetworkAddress to SMA appliance IP range for higher fidelity. -->
+<!-- revision: downgraded level high->medium; added SourceNetworkAddress placeholder with deployer comment; added KALI pen-test FP note -->
 
 - Compile: sigma convert Splunk ✅ / LogScale ✅
 - Confidence: **medium** -- workstation names are from prior campaign; same actors may reuse them
@@ -257,21 +265,26 @@ detection:
             - 'DESKTOP-5P0TSCP'
             - 'KALI'
             - 'localhost'
+        # DEPLOYER: Replace the CIDR below with your SMA appliance management IP range
+        # to scope this rule and reduce false positives. Remove the comment markers.
+        # SourceNetworkAddress|cidr: '10.0.0.0/8'
     condition: selection
 falsepositives:
     - Legitimate workstations that happen to have matching names
-    - Penetration testing from authorized workstations named KALI
-level: high
+    - Penetration testing or authorized security assessments from workstations named KALI
+level: medium
 ```
 
 ### Sigma: SonicWall SMA1000 NGINX Unit Configuration Tampering
 
 Detects modification of the NGINX Unit configuration file on SMA1000 appliances, a persistence technique used after exploitation to expose web shells.
 
-<!-- audit: Linux file_event logsource. TargetFilename path is the documented NGINX Unit config location on SMA1000 appliances per Rapid7 analysis. Modification of this file outside firmware updates is highly anomalous. Requires Sysmon for Linux or auditd file monitoring on the appliance (may not be feasible on all deployments). No defanged values. -->
+<!-- audit: Linux file_event logsource. TargetFilename path is the documented NGINX Unit config location on SMA1000 appliances per Rapid7 analysis. Modification of this file outside firmware updates is highly anomalous. No defanged values. -->
+<!-- revision: confidence high->medium (TTP ceiling); level critical->high; removed T1543 tag (replaced with T1546); surfaced Sysmon/auditd prerequisite as visible caveat -->
 
 - Compile: sigma convert Splunk ✅ / LogScale ✅
-- Confidence: **high** -- modification of this specific file outside patch operations is a strong indicator of compromise
+- Confidence: **medium** -- strong indicator when observed, but detection depends on Sysmon-for-Linux or auditd file monitoring being deployed on the SMA appliance, which may not be feasible in all environments
+- Prerequisite: Requires Sysmon for Linux or auditd with file-write watches on `/var/lib/unit/` deployed on the SMA1000 appliance
 
 ```yaml
 title: SonicWall SMA1000 NGINX Unit Configuration Tampering
@@ -292,7 +305,7 @@ author: Actioner
 date: 2026-09-02
 tags:
     - attack.t1505.003
-    - attack.t1543
+    - attack.t1546
 logsource:
     category: file_event
     product: linux
@@ -304,14 +317,15 @@ detection:
 falsepositives:
     - Legitimate SMA appliance firmware updates or hotfix installations
     - Authorized administrator configuration changes
-level: critical
+level: high
 ```
 
 ### Suricata: SonicWall SMA1000 SSRF and Exploitation Network Detection
 
-Three Suricata rules detecting network-level exploitation patterns: internal API access attempts via SSRF, wsproxy endpoint abuse with localhost targeting, and the SMA Connect Agent user-agent spoofing pattern.
+Two Suricata rules detecting network-level exploitation patterns: internal API access attempts via SSRF, and wsproxy endpoint abuse with localhost targeting.
 
-<!-- audit: All rules use http protocol with dot-notation sticky buffers. SID range 2100301-2100303. Flow established,to_server on all rules. Second rule fixed to avoid duplicate http.uri buffer (content chained within single sticky buffer context). Third rule combines URI and UA matching for higher fidelity. All three validated with suricata -T. Reference URLs use bare domain (no protocol) per Suricata convention. -->
+<!-- audit: All rules use http protocol with dot-notation sticky buffers. SID range 2100301-2100302. Flow established,to_server on all rules. Second rule constrains to localhost SSRF only. Both validated with suricata -T. Reference URLs use bare domain (no protocol) per Suricata convention. -->
+<!-- revision: DROPPED SID 2100303 (SMA Connect Agent UA) -- alerts on legitimate SMA Connect Agent sessions, zero signal. FIX SID 2100302 to add content:"host=127.0.0.1" constraining to localhost SSRF -->
 
 - Compile: suricata -T ✅
 - Confidence: **medium** -- patterns cover known exploitation vectors; the specific new SSRF path is undisclosed
@@ -319,9 +333,9 @@ Three Suricata rules detecting network-level exploitation patterns: internal API
 ```
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 SSRF Exploitation - Internal API Access Attempt"; flow:established,to_server; http.uri; content:"/__api__/"; fast_pattern; http.method; content:"GET"; classtype:web-application-attack; reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016; reference:cve,2026-83548; metadata:author Actioner, created_at 2026-09-02, confidence medium; sid:2100301; rev:1;)
 
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 Wsproxy SSRF to Localhost Service"; flow:established,to_server; http.uri; content:"/wsproxy"; fast_pattern; content:"host="; content:"port="; classtype:web-application-attack; reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016; reference:cve,2026-83548; metadata:author Actioner, created_at 2026-09-02, confidence medium; sid:2100302; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 Wsproxy SSRF to Localhost Service"; flow:established,to_server; http.uri; content:"/wsproxy"; fast_pattern; content:"host=127.0.0.1"; content:"port="; classtype:web-application-attack; reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016; reference:cve,2026-83548; metadata:author Actioner, created_at 2026-09-02, confidence medium; sid:2100302; rev:2;)
 
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 SMA Connect Agent SSRF User-Agent"; flow:established,to_server; http.uri; content:"/wsproxy"; http.user_agent; content:"SMA Connect Agent"; fast_pattern; classtype:web-application-attack; reference:url,rapid7.com/blog/post/etr-rapid7-mdr-team-discovers-new-sonicwall-sma1000-zero-days-being-actively-exploited-cve-2026-15409-cve-2026-15410/; reference:cve,2026-83548; metadata:author Actioner, created_at 2026-09-02, confidence medium; sid:2100303; rev:1;)
+# DROPPED: SID 2100303 (SMA Connect Agent UA) -- alerts on legitimate SMA Connect Agent sessions; zero detection signal.
 ```
 
 ### Snort: SonicWall SMA1000 SSRF Internal API Access
@@ -331,8 +345,10 @@ Snort 3 equivalent of the Suricata internal API access rule. Snort is not availa
 - Compile: ⚠️ uncompiled (snort not available)
 - Confidence: **medium**
 
+<!-- revision: fixed comma delimiters to semicolons between content and fast_pattern -->
+
 ```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 SSRF - Internal API Access Attempt"; flow:established, to_server; http_uri; content:"/__api__/", fast_pattern; http_method; content:"GET"; classtype:web-application-attack; reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016; reference:cve,2026-83548; metadata:author Actioner, created 2026-09-02; sid:2100304; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000 SSRF - Internal API Access Attempt"; flow:established,to_server; http_uri; content:"/__api__/"; fast_pattern; http_method; content:"GET"; classtype:web-application-attack; reference:url,psirt.global.sonicwall.com/vuln-detail/SNWLID-2026-0016; reference:cve,2026-83548; metadata:author Actioner, created 2026-09-02; sid:2100304; rev:2;)
 ```
 
 ### YARA: SonicWall SMA1000 Post-Exploitation Malware Artifacts
@@ -340,6 +356,7 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - SonicWall SMA1000
 Detects post-exploitation artifacts from SonicWall SMA1000 compromises including ORANGETAIL web shell, KNUCKLEBALL dropper, Suo5 proxy, ROOTRUN escalation tool, and exploitation payload strings.
 
 <!-- audit: Two rules. First rule targets file-system malware artifacts (deploy_new.py, agent_wp8/9.jar, xzfind, conf.json tampering indicators, remove_hotfix exploitation strings). Second rule targets PCAP/network capture artifacts containing SSRF exploitation request patterns. All strings are ASCII with appropriate modifiers. Conditions use logical combinations to avoid single-string false positives. Compiled with yarac exit 0. Malware names from Volexity/BleepingComputer reporting on prior UTA0533 campaign. -->
+<!-- revision: YARA rule 1: $rootrun1 alone no longer triggers; now requires at least one $path* string alongside it -->
 
 - Compile: yarac ✅
 - Confidence: **medium** -- malware artifacts are from the prior July 2026 campaign but may be reused against newly compromised appliances
@@ -383,7 +400,7 @@ rule SonicWall_SMA1000_Post_Exploit_Artifacts
             2 of ($knuckleball*) or
             all of ($orangetail*) or
             all of ($suo5_*) or
-            $rootrun1 or
+            ($rootrun1 and 1 of ($path*)) or
             (2 of ($path*) and 1 of ($cmd*)) or
             ($cmd2)
         )
