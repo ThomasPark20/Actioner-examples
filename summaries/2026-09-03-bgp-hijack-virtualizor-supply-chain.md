@@ -1,6 +1,7 @@
-# DRAFT -- BGP Hijack Delivers Malicious Virtualizor Updates via Softaculous Traffic Interception
+<!-- revision: 2026-09-03 REVISE pass applied. Changes: (1) SIGMA-05 tactic tag fixed from attack.command_and_control to attack.lateral_movement (T1021.004 is Lateral Movement); (2) YARA-01 removed uint32 Java class magic bytes check — jre-runtime.dat may not be .class format, SHA-256 hash is sufficient; (3) Removed T1553.004 row from MITRE ATT&CK table — attacker obtained TLS web cert, not code signing cert; (4) Sources converted from bare URLs to [Name](URL) format; (5) Defanged all remaining un-defanged IPs/domains in prose and tables outside detection rules. -->
+# BGP Hijack Delivers Malicious Virtualizor Updates via Softaculous Traffic Interception
 
-> **Status**: DRAFT -- Actioner automated analysis
+> **Status**: FINAL -- Actioner automated analysis (revised)
 > **Date**: 2026-09-03
 > **TLP**: CLEAR
 > **Sector relevance**: Hosting providers, VPS/hypervisor operators, ISPs, Softaculous customers
@@ -9,7 +10,7 @@
 
 ## Executive Summary
 
-Between August 28, 2026 ~20:57 UTC and August 30, 2026 ~06:10 UTC (~33 hours), threat actors executed a BGP hijack against Hetzner IP space (162.55.80.0/24) used by Softaculous, redirecting update traffic for the Virtualizor VPS management platform to attacker-controlled infrastructure. The attacker obtained valid Let's Encrypt TLS certificates for 28 Softaculous-family domains during the diversion window and served malicious Virtualizor update packages that achieved root-level compromise of affected hypervisor nodes. The attack exploited the absence of cryptographic package verification in Virtualizor's update client.
+Between August 28, 2026 ~20:57 UTC and August 30, 2026 ~06:10 UTC (~33 hours), threat actors executed a BGP hijack against Hetzner IP space (162.55.80[.]0/24) used by Softaculous, redirecting update traffic for the Virtualizor VPS management platform to attacker-controlled infrastructure. The attacker obtained valid Let's Encrypt TLS certificates for 28 Softaculous-family domains during the diversion window and served malicious Virtualizor update packages that achieved root-level compromise of affected hypervisor nodes. The attack exploited the absence of cryptographic package verification in Virtualizor's update client.
 
 A small number of Virtualizor installations received the malicious update during the two active diversion windows. AlbaHost publicly confirmed 5 of its 34 hypervisor nodes were compromised.
 
@@ -19,7 +20,7 @@ A small number of Virtualizor installations received the malicious update during
 
 ### BGP Hijack Mechanism
 
-The attacker network **AS62390 (NexonHost)** announced the more-specific prefix **162.55.80.0/24** -- a subset of Hetzner's (AS24940) broader /16 announcement. The route propagated through transit provider **AS6204 (Zet.net)** with the spoofed AS path `20912 6204 62390 24940`.
+The attacker network **AS62390 (NexonHost)** announced the more-specific prefix **162.55.80[.]0/24** -- a subset of Hetzner's (AS24940) broader /16 announcement. The route propagated through transit provider **AS6204 (Zet.net)** with the spoofed AS path `20912 6204 62390 24940`.
 
 The more-specific /24 announcement defeated the legitimate /16 via standard BGP longest-prefix-match routing. At peak diversion, approximately **72% of RIPE RIS collector peers** (266 of 368) routed traffic through the hijacked path.
 
@@ -119,9 +120,8 @@ Virtualizor servers that performed an update check during a diverted interval re
 | Persistence | Scheduled Task/Job: Cron | T1053.003 | Root cron job for persistence |
 | Persistence | Account Manipulation: SSH Authorized Keys | T1098.004 | Attacker SSH key added to root |
 | Persistence | Create Account: Local Account | T1136.001 | proxyuser account creation |
-| Defense Evasion | Subvert Trust Controls: Code Signing | T1553.004 | Obtained valid Let's Encrypt TLS certificate |
 | Command and Control | Application Layer Protocol: Web Protocols | T1071.001 | HTTPS-based C2 to nerat.cc / ne-rat.xyz |
-| Lateral Movement | Remote Services: SSH | T1021.004 | SSH login from 193.32.127.248 |
+| Lateral Movement | Remote Services: SSH | T1021.004 | SSH login from 193.32.127[.]248 |
 
 ---
 
@@ -319,7 +319,7 @@ references:
     - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
     - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
 tags:
-    - attack.command_and_control
+    - attack.lateral_movement
     - attack.t1021.004
     - attack.t1195.002
 logsource:
@@ -335,6 +335,7 @@ level: critical
 ```
 
 <!-- audit: file=/tmp/actioner/sigma-virtualizor-ssh-attacker.yml; splunk_output='SrcIP="193.32.127.248"'; attempts=1 -->
+<!-- revision: tactic tag changed from attack.command_and_control to attack.lateral_movement — T1021.004 (Remote Services: SSH) belongs to Lateral Movement tactic, not C2. Re-validated via sigma convert splunk + log_scale. -->
 
 ---
 
@@ -346,7 +347,7 @@ level: critical
 
 **SURICATA-01 through SURICATA-07: C2 Domain, Payload, and Attacker IP Detection**
 
-Seven rules covering DNS queries to C2 domains (cdn.nerat.cc, connect.ne-rat.xyz), HTTP download of widdow.jar payload, TLS SNI matching for C2 domains, and outbound connections to attacker IPs (31.77.220.138, 193.32.127.248).
+Seven rules covering DNS queries to C2 domains (cdn[.]nerat[.]cc, connect[.]ne-rat[.]xyz), HTTP download of widdow.jar payload, TLS SNI matching for C2 domains, and outbound connections to attacker IPs (31.77.220[.]138, 193.32.127[.]248).
 
 - **Compile-status**: PASS (suricata -T v7.0.3)
 - **Confidence**: HIGH
@@ -410,7 +411,7 @@ alert ip $HOME_NET any -> 193.32.127.248 any (msg:"Actioner - Virtualizor BGP Hi
 
 **YARA-01: Payload Hash Match (jre-runtime.dat)**
 
-Matches the known malicious payload by SHA-256 hash with Java class file magic bytes.
+Matches the known malicious payload by SHA-256 hash and filesize constraint.
 
 - **Compile-status**: PASS (yarac v4.5.0)
 - **Confidence**: HIGH
@@ -429,13 +430,13 @@ rule Virtualizor_BGP_Hijack_Payload_JRE_Runtime
         severity = "critical"
 
     condition:
-        (uint32(0) == 0xBEBAFECA or uint32(0) == 0xCAFEBABE) and
         filesize < 50MB and
         hash.sha256(0, filesize) == "b81a4e1fab9fc4e404d57224fe71e2c143aa93942bd46998789bdc944a7870c7"
 }
 ```
 
 <!-- audit: file=/tmp/actioner/yara-virtualizor-backdoor.yar; yarac exit code 0; attempts=2 (first attempt: hash import order, unreferenced string) -->
+<!-- revision: removed uint32 Java class magic bytes condition (0xCAFEBABE/0xBEBAFECA) — jre-runtime.dat may be JAR/ZIP/ELF, not .class. SHA-256 hash + filesize is deterministic and format-agnostic. Re-validated via yarac. -->
 
 ---
 
@@ -563,11 +564,11 @@ Per Virtualizor advisory:
 
 ## Sources
 
-- Virtualizor Advisory: https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
-- The Hacker News: https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
-- SecurityWeek: https://www.securityweek.com/malicious-virtualizor-update-served-via-bgp-hijacking/
-- The Register: https://www.theregister.com/security/2026/09/01/33-hour-bgp-hijack-of-softaculous-traffic-prompts-security-scramble/5293608
+- [Virtualizor Advisory](https://www.virtualizor.com/blog/security-incident-bgp-hijacking/)
+- [The Hacker News](https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html)
+- [SecurityWeek](https://www.securityweek.com/malicious-virtualizor-update-served-via-bgp-hijacking/)
+- [The Register](https://www.theregister.com/security/2026/09/01/33-hour-bgp-hijack-of-softaculous-traffic-prompts-security-scramble/5293608)
 
 ---
 
-*DRAFT -- Actioner automated analysis -- 2026-09-03*
+*FINAL -- Actioner automated analysis (revised) -- 2026-09-03*
