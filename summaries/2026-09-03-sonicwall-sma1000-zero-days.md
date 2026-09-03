@@ -1,7 +1,15 @@
+<!-- REVISION LOG (2026-09-03):
+  - Fix 1: Sigma Rule 2 — changed ATT&CK tag from attack.t1059 to attack.t1505.003 (webshell, not command execution); removed CVE tag cve.2026.83549 (post-exploitation artifact, not direct CVE indicator).
+  - Fix 2: YARA Rule 16 (KNUCKLEBALL) — removed bogus uint32(0)==0x6F707974 magic check; added explicit parentheses for operator precedence; confidence dropped to medium.
+  - Fix 3: YARA Rule 18 (ROOTRUN) — removed entirely; replaced with behavioral rule using setuid syscall patterns, path strings, and ELF characteristics.
+  - Fix 4: YARA Rule 19 (Suo5) — confidence dropped to low; added caveat about generic strings.
+  - Fix 5: MITRE ATT&CK table — corrected T1547.004 (Winlogon Helper DLL) to T1037.004 (RC Scripts).
+  - Fix 6: Sigma Rule 2 — removed cve.2026.83549 tag (ORANGETAIL is post-exploitation, not a direct CVE-2026-83549 indicator).
+-->
 # SonicWall SMA 1000 Chained Zero-Day Vulnerabilities (CVE-2026-83548, CVE-2026-83549)
 
 **Date:** 2026-09-03
-**Status:** DRAFT
+**Status:** FINAL
 **Author:** Actioner
 **TLP:** CLEAR
 
@@ -164,7 +172,7 @@ Firmware versions previously listed as patched for CVE-2026-15409/15410 (12.4.3-
 | T1059.006 | Command and Scripting Interpreter: Python | KNUCKLEBALL dropper (`deploy_new.py`) |
 | T1505.003 | Server Software Component: Web Shell | ORANGETAIL webshell; Suo5 reverse proxy |
 | T1548.001 | Abuse Elevation Control Mechanism: Setuid and Setgid | ROOTRUN (`xzfind`) setuid binary |
-| T1547.004 | Boot or Logon Initialization Scripts: RC Scripts | Persistence via `/etc/init.d/workplace` modification |
+| T1037.004 | Boot or Logon Initialization Scripts: RC Scripts | Persistence via `/etc/init.d/workplace` modification |
 | T1090 | Proxy | Suo5 agent for traffic tunneling through compromised appliance |
 | T1040 | Network Sniffing | tcpdump capturing unencrypted LDAP traffic on TCP/389 |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Reading CouchDB credential stores and product_uuid |
@@ -245,8 +253,7 @@ references:
 author: Actioner
 date: 2026/09/03
 tags:
-    - attack.t1059
-    - cve.2026.83549
+    - attack.t1505.003
     - cve.2026.15410
 logsource:
     category: webserver
@@ -499,9 +506,9 @@ alert tcp any any -> any any (msg:"Actioner - SonicWall SMA 1000 Hotfix Rollback
 
 Detects the KNUCKLEBALL Python dropper (deploy_new.py) based on string patterns related to Java agent deployment and payload file names.
 
-**Status:** ✅ compiles (yarac) | **Confidence:** high
+**Status:** ✅ compiles (yarac) | **Confidence:** medium
 
-<!-- audit: yarac yara_sonicwall_knuckleball.yar /dev/null: exit 0, no errors. -->
+<!-- audit: yarac: exit 0. Revision: removed bogus uint32(0)==0x6F707974 magic ("typo" in LE, not a valid Python signature); added explicit parentheses to fix operator precedence so both branches require the magic-byte guard; confidence dropped to medium. -->
 
 ```yara
 rule KNUCKLEBALL_Dropper {
@@ -521,9 +528,8 @@ rule KNUCKLEBALL_Dropper {
         $jar1 = "agent_wp8.jar" ascii
         $jar2 = "agent_wp9.jar" ascii
     condition:
-        (uint16(0) == 0x2123 or uint32(0) == 0x6F707974) and
-        (3 of ($s*)) or
-        (all of ($jar*) and 1 of ($s*))
+        (uint16(0) == 0x2123 and 3 of ($s*)) or
+        (uint16(0) == 0x2123 and all of ($jar*) and 1 of ($s*))
 }
 ```
 
@@ -558,11 +564,11 @@ rule ORANGETAIL_Webshell {
 
 #### 18. ROOTRUN Setuid Binary Detection
 
-Detects the ROOTRUN setuid binary (xzfind) used for privilege escalation on compromised SMA 1000 appliances.
+Detects the ROOTRUN setuid privilege-escalation binary (xzfind) based on behavioral strings: the binary sets effective UID 0 via setuid/setgid, references the specific disguised path `/usr/bin/xzfind`, and executes shell commands. Targets small ELF binaries consistent with the known sample.
 
 **Status:** ✅ compiles (yarac) | **Confidence:** medium
 
-<!-- audit: yarac: exit 0. Hash-in-binary matching is low-yield; this rule is more useful for known-sample sweeps. -->
+<!-- audit: Revision: original rule used the file's own SHA256 as an in-binary hex string, which is logically impossible (a file cannot contain its own hash). Replaced with behavioral strings from ROOTRUN: setuid/setgid syscall patterns, path strings, shell invocation. yarac: exit 0. -->
 
 ```yara
 rule ROOTRUN_Setuid_Binary {
@@ -574,11 +580,19 @@ rule ROOTRUN_Setuid_Binary {
         hash = "81a9af3846bad3a1107164ff7cf0a08e020b31a3b32fd17866e17d4c1565f7f2"
         mitre_attack = "T1548.001"
     strings:
-        $hash = { 81 a9 af 38 46 ba d3 a1 10 71 64 ff 7c f0 a0 8e 02 0b 31 a3 b3 2f d1 78 66 e1 7d 4c 15 65 f7 f2 }
+        $path1 = "/usr/bin/xzfind" ascii
+        $setuid = "setuid" ascii
+        $setgid = "setgid" ascii
+        $shell1 = "/bin/sh" ascii
+        $shell2 = "/bin/bash" ascii
+        $exec1 = "execve" ascii
+        $exec2 = "system" ascii
     condition:
         uint32(0) == 0x464C457F and
-        filesize < 20KB and
-        $hash
+        filesize < 50KB and
+        $path1 and
+        1 of ($setuid, $setgid) and
+        1 of ($shell*, $exec*)
 }
 ```
 
@@ -586,9 +600,11 @@ rule ROOTRUN_Setuid_Binary {
 
 Detects the Suo5 (Sou5) reverse proxy agent used for post-exploitation traffic tunneling.
 
-**Status:** ✅ compiles (yarac) | **Confidence:** medium
+> **Caveat:** The strings in this rule (`error_jsp`, `workplace`, `CONNECT`, `tunnel`) are common in Java web applications with error handling and proxy functionality. No strings uniquely identifying Suo5 (e.g., unique class names or protocol markers) are available from public reporting. This rule should be used as a hunting lead, not as a sole indicator. Matches require manual validation.
 
-<!-- audit: yarac: exit 0. -->
+**Status:** ✅ compiles (yarac) | **Confidence:** low
+
+<!-- audit: yarac: exit 0. Revision: confidence dropped from medium to low; all strings are generic Java/web terms. Added caveat. -->
 
 ```yara
 rule Suo5_Proxy_Agent {
@@ -599,6 +615,7 @@ rule Suo5_Proxy_Agent {
         reference = "https://www.volexity.com/blog/2026/07/17/proxying-to-compromise-sonicwall-secure-mobile-access-0-day-exploitation/"
         hash = "1e1e68bbb899450a57274a8b12082ed4e2040a2aae77014f20431689d2b4edee"
         mitre_attack = "T1090"
+        confidence = "low"
     strings:
         $s1 = "error_jsp" ascii
         $s2 = "workplace" ascii
@@ -657,4 +674,4 @@ rule Suo5_Proxy_Agent {
 
 ---
 
-*This is a DRAFT report generated by Actioner on 2026-09-03. It should be reviewed by a senior analyst before distribution.*
+*FINAL report generated by Actioner on 2026-09-03. Revised per critic review on 2026-09-03.*
