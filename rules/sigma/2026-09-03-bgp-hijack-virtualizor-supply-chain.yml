@@ -1,0 +1,141 @@
+# Actioner Detection Rules - BGP Hijack Virtualizor Supply Chain (2026-09-03)
+# Source: /home/user/Actioner-examples/summaries/2026-09-03-bgp-hijack-virtualizor-supply-chain.md
+
+# SIGMA-01: Malicious Systemd Service Creation
+---
+title: Virtualizor BGP Hijack - Malicious Systemd Service Creation
+id: d24108df-3d46-485a-85c8-720ff3ab60a9
+status: experimental
+description: Detects creation of the java-jre-update.service systemd unit file, a persistence mechanism deployed by the malicious Virtualizor update delivered via BGP hijack of Softaculous infrastructure (Aug 28-30, 2026).
+author: Actioner
+date: 2026/09/03
+references:
+    - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
+    - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
+tags:
+    - attack.persistence
+    - attack.t1543.002
+    - attack.t1195.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/java-jre-update.service'
+        TargetFilename|contains: '/systemd/'
+    condition: selection
+falsepositives:
+    - Legitimate Java update service with identical naming (highly unlikely)
+level: critical
+
+# SIGMA-02: Malicious Payload File Creation
+---
+title: Virtualizor BGP Hijack - Malicious Payload File Creation
+id: 442e7e43-7eb5-4d11-a3cf-ae355af49239
+status: experimental
+description: Detects creation of payload and marker files associated with the malicious Virtualizor update delivered via BGP hijack, including jre-runtime.dat, widdow.jar, and installation markers.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
+    - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
+tags:
+    - attack.execution
+    - attack.t1059
+    - attack.t1195.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_payload:
+        TargetFilename: '/usr/lib/jvm/.cache/jre-runtime.dat'
+    selection_marker_installed:
+        TargetFilename: '/usr/lib/jvm/.cache/.installed'
+    selection_marker_jar:
+        TargetFilename: '/tmp/widdow.jar'
+    selection_marker_done:
+        TargetFilename: '/tmp/.vz_svc_done'
+    condition: 1 of selection_*
+falsepositives:
+    - None expected
+level: critical
+
+# SIGMA-03: C2 Domain DNS Query
+---
+title: Virtualizor BGP Hijack - C2 Domain DNS Query
+id: e904fdb3-d174-4f1b-b264-84582b72ac86
+status: experimental
+description: Detects DNS queries to C2 domains used by the malicious Virtualizor backdoor delivered via BGP hijack of Softaculous infrastructure.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
+    - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+    product: linux
+detection:
+    selection:
+        QueryName|endswith:
+            - 'nerat.cc'
+            - 'ne-rat.xyz'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
+
+# SIGMA-04: Unauthorized Proxyuser Account
+---
+title: Virtualizor BGP Hijack - Unauthorized Proxyuser Account
+id: 94c6b215-d489-467f-aa34-40d96bf716ad
+status: experimental
+description: Detects creation of or login to the proxyuser account, an unauthorized system account created by the malicious Virtualizor update.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
+    - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
+tags:
+    - attack.persistence
+    - attack.t1136.001
+    - attack.t1195.002
+logsource:
+    product: linux
+    service: sshd
+detection:
+    selection:
+        User: 'proxyuser'
+    condition: selection
+falsepositives:
+    - Legitimate proxyuser account on non-Virtualizor systems
+level: high
+
+# SIGMA-05: Attacker SSH Source IP
+---
+title: Virtualizor BGP Hijack - Attacker SSH Source IP
+id: 71b9939d-8432-4185-8088-e56ac06af15b
+status: experimental
+description: Detects SSH connections from the known attacker IP address 193.32.127.248 observed logging into compromised Virtualizor hosts via the proxyuser account.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://www.virtualizor.com/blog/security-incident-bgp-hijacking/
+    - https://thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html
+tags:
+    - attack.lateral_movement
+    - attack.t1021.004
+    - attack.t1195.002
+logsource:
+    product: linux
+    service: sshd
+detection:
+    selection:
+        SrcIP: '193.32.127.248'
+    condition: selection
+falsepositives:
+    - IP reassignment after incident
+level: critical
