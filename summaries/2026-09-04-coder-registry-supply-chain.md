@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-04
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -121,7 +121,7 @@ The attack was designed for stealth: the `data "external" "telemetry"` block was
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Attacker injected malicious servers into Coder's Cloudflare origin pool to serve trojanized Terraform modules |
-| T1557 | Adversary-in-the-Middle | Cloudflare origin pool poisoning to intercept and modify module downloads in transit |
+| T1584.004 | Compromise Infrastructure: Server | Attacker gained access to Coder's Cloudflare configuration and added unauthorized origin servers to the module registry pool |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Malicious `dlp-docker.sh` and `dlp.sh` bash scripts executed via Terraform `data "external"` block |
 | T1005 | Data from Local System | Scripts harvested environment variables, SSH keys, configuration files, terminal history |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Targeted configuration-file secrets, database passwords, API keys stored in environment |
@@ -178,7 +178,7 @@ Run the pre-built SQL queries provided in the [GHSA-vx42-ghc9-gw65 advisory](htt
 
 ## Detection Rules
 
-These detections target the Coder registry supply chain compromise IOCs: the exfiltration domain `coder-infra[.]com`, the attacker IP `199.91.220[.]205`, the malicious `data.external.telemetry` Terraform block, and the `dlp-docker.sh`/`dlp.sh` credential-harvesting scripts. All rules are PoC/advisory-specific (default altitude, strict leniency). Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; `sigma check` could not validate due to a proxy-blocked MITRE ATT&CK data fetch (network issue, not a rule defect). YARA, Snort, and Suricata compilers are not installed -- those rules carry structural checks only.
+These detections target the Coder registry supply chain compromise IOCs: the exfiltration domain `coder-infra[.]com`, the attacker IP `199.91.220[.]205`, the malicious `data.external.telemetry` Terraform block, and the `dlp-docker.sh`/`dlp.sh` credential-harvesting scripts. All rules are PoC/advisory-specific (default altitude, strict leniency). Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; `sigma check` could not validate due to a proxy-blocked MITRE ATT&CK data fetch (network issue, not a rule defect). YARA rules compile clean with yarac 4.5.0. Suricata rules validate clean with Suricata 7.0.3.
 
 ### Sigma: DNS Query to Coder Exfiltration Domain
 
@@ -248,7 +248,8 @@ level: critical
 
 Detects the `data.external.telemetry` pattern and `dlp-docker.sh`/`dlp.sh` script names characteristic of the compromised Coder modules.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data fetch 403, network/proxy issue); splunk convert exit 0; log_scale convert exit 0. Distinctive strings from advisory — dlp-docker.sh and data.external.telemetry are highly specific. The selection_terraform arm (Image endswith /terraform + CommandLine contains apply) is broad on its own but is OR'd with the specific indicators, not AND'd alone — acceptable at this altitude. -->
+<!-- audit: sigma check failed (MITRE data fetch 403, network/proxy issue); splunk convert exit 0; log_scale convert exit 0. Distinctive strings from advisory — dlp-docker.sh and data.external.telemetry are highly specific. Condition requires terraform process AND specific indicator strings, or specific indicators alone. -->
+<!-- revision: fixed condition logic — selection_terraform no longer fires independently on every `terraform apply`; must co-occur with telemetry/script indicators. Fixed tag attack.t1059 → attack.t1059.004 (Unix Shell sub-technique). -->
 ```yaml
 title: Malicious Terraform External Data Block in Coder Provisioner Logs
 id: 4e7a9c2d-f5b1-48d3-a6e0-8d3f2c1b7e5a
@@ -263,7 +264,7 @@ references:
 author: Actioner
 date: 2026/09/04
 tags:
-    - attack.t1059
+    - attack.t1059.004
     - attack.t1005
 logsource:
     category: process_creation
@@ -280,7 +281,7 @@ detection:
         CommandLine|contains:
             - 'dlp-docker.sh'
             - 'dlp.sh'
-    condition: selection_terraform or selection_telemetry or selection_scripts
+    condition: (selection_terraform and (selection_telemetry or selection_scripts)) or selection_telemetry or selection_scripts
 falsepositives:
     - Legitimate use of external data blocks named telemetry (uncommon)
 level: high
@@ -290,7 +291,8 @@ level: high
 
 Detects web proxy traffic to the exfiltration domain `coder-infra[.]com` and its known `/cli/check` path.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data fetch 403, network/proxy issue); splunk convert exit 0; log_scale convert exit 0. Known malicious domain + exfiltration URI path. cs-host/cs-uri-stem are standard proxy log fields. -->
+<!-- audit: sigma check failed (MITRE data fetch 403, network/proxy issue); splunk convert exit 0; log_scale convert exit 0. Known malicious domain + exfiltration URI path. -->
+<!-- revision: fixed Boolean absorption (condition was `A or (A and B)` = just `A`); narrowed to `A and B`. Fixed field cs-uri-stem → c-uri-stem (standard Sigma proxy field). Changed cs-host|contains → cs-host|endswith for domain IOC precision. -->
 ```yaml
 title: HTTP Connection to Coder Exfiltration Endpoint
 id: 6c8d3e2f-a4b5-49e1-9c07-5a1d8f3e2b6c
@@ -311,10 +313,10 @@ logsource:
     category: proxy
 detection:
     selection_domain:
-        cs-host|contains: 'coder-infra.com'
+        cs-host|endswith: 'coder-infra.com'
     selection_uri:
-        cs-uri-stem|contains: '/cli/check'
-    condition: selection_domain or (selection_domain and selection_uri)
+        c-uri-stem|contains: '/cli/check'
+    condition: selection_domain and selection_uri
 falsepositives:
     - Unlikely - known malicious domain and exfiltration path
 level: critical
@@ -323,8 +325,9 @@ level: critical
 ### Suricata: DNS Query to Coder Exfiltration Domain
 
 Detects DNS queries for `coder-infra.com` at the network level using Suricata's `dns.query` buffer.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: suricata not installed; structural check: dot-notation buffer (dns.query), correct protocol (dns), semicolons terminate all options, sid in 2200000+ range, msg prefixed "Actioner - ", metadata present. Known malicious domain. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata 7.0.3 validate exit 0. dot-notation buffer (dns.query), correct protocol (dns), semicolons terminate all options, sid in 2200000+ range, msg prefixed "Actioner - ", metadata present. Known malicious domain. -->
+<!-- revision: updated compile status — suricata 7.0.3 is installed; rule validates clean. -->
 ```suricata
 alert dns $HOME_NET any -> any any (
     msg:"Actioner - DNS Query to Coder Exfil Domain coder-infra.com";
@@ -343,8 +346,9 @@ alert dns $HOME_NET any -> any any (
 ### Suricata: HTTP Request to Coder Exfiltration Endpoint
 
 Detects HTTP connections to `coder-infra.com/cli/check` with Suricata dot-notation sticky buffers.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: suricata not installed; structural check: dot-notation buffers (http.host, http.uri), correct protocol (http), semicolons present, sid:2200002. Real (non-defanged) values in rule. Known malicious endpoint. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata 7.0.3 validate exit 0. dot-notation buffers (http.host, http.uri), correct protocol (http), semicolons present, sid:2200002. Real (non-defanged) values in rule. Known malicious endpoint. -->
+<!-- revision: updated compile status — suricata 7.0.3 is installed; rule validates clean. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (
     msg:"Actioner - HTTP Request to Coder Exfil Endpoint coder-infra.com/cli/check";
@@ -364,13 +368,15 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (
 
 ### Snort: N/A
 
-Suricata rules cover the network detection layer for this topic. Snort 3 lacks the `dns.query` sticky buffer required for the DNS rule, and the HTTP rule's `startswith` modifier is Suricata-only. A Snort-native DNS rule would require raw payload content matching with label-length encoding, which provides no advantage over the Suricata rule for this single-domain IOC.
+Suricata rules cover the network detection layer for this topic. While Snort 3 supports `dns_query` (underscore syntax), the DNS and HTTP rules use Suricata-specific features (`startswith` modifier, dot-notation buffers) that would need rewriting for Snort syntax. For this single-domain IOC set, the Suricata rules provide equivalent coverage without a separate Snort port.
+<!-- revision: corrected claim that Snort 3 "lacks dns.query" — Snort 3 has `dns_query` (underscore). Reworded to accurately explain why Snort rules were omitted. -->
 
 ### YARA: Coder Registry Malicious DLP Scripts
 
 Detects the credential-stealing `dlp-docker.sh`/`dlp.sh` scripts by matching the exfiltration domain, custom HTTP header, and script-name strings characteristic of the compromised Coder modules.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: yarac not installed; structural check: valid string definitions with modifiers (ascii, wide), condition uses filesize constraint and logical combinations, meta section complete with all required fields. Strings are drawn directly from the advisory (exfil domain, header name, script names). Second rule provides hash-based matching metadata for context. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac 4.5.0 compile exit 0. Valid string definitions with modifiers (ascii, wide), condition uses filesize constraint and logical combinations, meta section complete with all required fields. Strings are drawn directly from the advisory (exfil domain, header name, script names). -->
+<!-- revision: updated compile status — yarac 4.5.0 is installed; both rules compile clean. Renamed second rule from hash-based to string-based (hashes are metadata only, detection is string-based). -->
 ```yara
 rule Coder_Registry_Malicious_DLP_Script
 {
@@ -396,10 +402,10 @@ rule Coder_Registry_Malicious_DLP_Script
         (1 of ($script*) or ($tf_block and $telemetry))
 }
 
-rule Coder_Registry_Compromised_Terraform_Module
+rule Coder_Registry_Malicious_Module_Strings
 {
     meta:
-        description = "Detects compromised Terraform modules from the Coder registry attack using known file hashes"
+        description = "Detects compromised Terraform modules from the Coder registry attack using malicious string patterns"
         author = "Actioner"
         date = "2026-09-04"
         reference = "https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65"
