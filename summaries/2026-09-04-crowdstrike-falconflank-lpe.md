@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-04
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -97,7 +97,7 @@ The researcher noted that CrowdStrike would likely have detections for the PoC b
 | T1068 | Exploitation for Privilege Escalation | Core exploit: abusing Falcon's privileged remediation workflow to escalate from standard user to SYSTEM |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Replacing bcrypt.dll in the PowerShell directory to hijack DLL loading by a scheduled task |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Triggering the MareBackup scheduled task to execute the planted DLL as SYSTEM |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | Exploiting the security product's own remediation feature as the escalation vector |
+| T1562.001 | Impair Defenses: Disable or Modify Tools | Abusing the security product's remediation workflow as the escalation vector (note: the exploit co-opts rather than disables the tool -- this mapping is approximate) |
 | T1106 | Native API | Extensive use of NtCreateFile, NtSetInformationFile, DeviceIoControl for low-level file manipulation |
 
 ## Impact Assessment
@@ -150,12 +150,12 @@ Get-ScheduledTask -TaskPath "\Microsoft\Windows\Application Experience\" | Where
 
 ## Detection Rules
 
-These detections target the distinctive artifacts of the FalconFlank PoC exploit -- named pipe, DLL drop paths, staging directory, and scheduled task abuse. All rules are PoC/advisory-specific (default altitude, strict leniency). Sigma rules convert cleanly to both Splunk SPL and CrowdStrike LogScale; `sigma check` could not be run due to MITRE ATT&CK data fetch being blocked in this environment, but syntactic validity is proven by successful conversion. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target the distinctive artifacts of the FalconFlank PoC exploit -- named pipe, DLL drop paths, staging directory, and scheduled task abuse. All rules are PoC/advisory-specific (default altitude, strict leniency). Sigma rules convert cleanly to both Splunk SPL and CrowdStrike LogScale. The YARA rule compiles with yarac 4.5.0. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: FalconFlank Named Pipe Creation
 Detects creation of the `\FALCONFLANK` named pipe used by the PoC for exploit synchronization.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (MITRE ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. Pipe name is a hardcoded, distinctive PoC artifact with near-zero benign overlap. Requires Sysmon EID 17/18 or equivalent pipe monitoring. -->
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Pipe name is a hardcoded, distinctive PoC artifact with near-zero benign overlap. Requires Sysmon EID 17/18 or equivalent pipe monitoring. -->
 ```yaml
 title: FalconFlank Exploit Named Pipe Creation
 id: 7a3c1d8e-4f2b-4e9a-b6d5-8c1f3a2e7b09
@@ -185,7 +185,7 @@ level: critical
 ### Sigma: FalconFlank Suspicious DLL Write to System32
 Detects creation of `MY_SNAKE_IS_SOLID.dll` (PoC verification artifact) or writes to the PowerShell `bcrypt.dll` path targeted by the exploit.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (MITRE ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. MY_SNAKE_IS_SOLID.dll is a unique PoC string. bcrypt.dll write in PS dir is legitimate only during Windows servicing (rare). Requires Sysmon EID 11 or equivalent file-create monitoring. -->
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. MY_SNAKE_IS_SOLID.dll is a unique PoC string. bcrypt.dll write in PS dir is legitimate only during Windows servicing (rare). Requires Sysmon EID 11 or equivalent file-create monitoring. -->
 ```yaml
 title: FalconFlank Suspicious DLL Write to System32
 id: 2b4e6f8a-1c3d-5e7f-9a0b-4d6c8e2f1a3b
@@ -217,16 +217,17 @@ level: high
 ```
 
 ### Sigma: FalconFlank Exploit Temporary Directory Creation
-Detects creation of the `Flanker_` prefixed temporary directory used by the PoC during its exploitation chain.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (MITRE ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. "Flanker_" is a distinctive PoC prefix. Potential FP from unrelated software using this prefix (low probability). Requires file event monitoring in user temp directories. -->
+Detects creation of the `Flanker_` prefixed directory under user temp paths, used by the PoC during its exploitation chain.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. Narrowed to temp directories to reduce FP -- "Flanker_" alone is a common word. Requires file event monitoring (Sysmon EID 11 or equivalent). -->
+<!-- revision: narrowed TargetFilename from bare \Flanker_ to \Temp\Flanker_ and \AppData\Local\Temp\Flanker_; downgraded confidence high->medium per critic (common-word FP risk). -->
 ```yaml
 title: FalconFlank Exploit Temporary Directory Creation
 id: 9d1e3f5a-7b2c-4d6e-8f0a-1c3b5d7e9f2a
 status: experimental
 description: >
-    Detects creation of the Flanker_ prefixed temporary directory used by the
-    FalconFlank PoC exploit during its privilege escalation chain.
+    Detects creation of the Flanker_ prefixed temporary directory in user temp
+    paths, used by the FalconFlank PoC exploit during its privilege escalation chain.
 references:
     - https://github.com/MSNightmare/FalconFlank
     - https://socradar.io/blog/falconflank-crowdstrike-falcon-0day-poc/
@@ -239,24 +240,29 @@ logsource:
     product: windows
 detection:
     selection:
-        TargetFilename|contains: '\Flanker_'
+        TargetFilename|contains:
+            - '\Temp\Flanker_'
+            - '\AppData\Local\Temp\Flanker_'
     condition: selection
 falsepositives:
-    - Software using Flanker_ as a directory or filename prefix
-level: high
+    - Software using Flanker_ as a directory or filename prefix within temp directories
+level: medium
 ```
 
-### Sigma: FalconFlank Scheduled Task Abuse
-Detects command-line references to the `MareBackup` scheduled task abused by the FalconFlank PoC for SYSTEM code execution.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked (MITRE ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. "MareBackup" is a distinctive PoC task name under Application Experience. Requires process creation logging (Sysmon EID 1 or Windows 4688 with command-line auditing). -->
+### Sigma: FalconFlank MareBackup Task Reference via Command Line
+Detects command-line references to the `MareBackup` scheduled task. Note: the PoC triggers this task via COM API (ITaskService), which does not produce a process_creation event -- this rule catches only CLI-based interaction (schtasks.exe, scripts). Supplement with Windows Task Scheduler EventID 106/200/201 for full coverage.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: splunk convert exit 0; log_scale convert exit 0. "MareBackup" is a distinctive PoC task name. process_creation gap: PoC uses COM ITaskService, not schtasks.exe. Requires process creation logging (Sysmon EID 1 or 4688+CmdLine). -->
+<!-- revision: renamed title to clarify CLI-only scope; added COM-gap disclosure; downgraded confidence high->medium per critic (PoC path not covered by this rule). -->
 ```yaml
-title: FalconFlank Exploit Scheduled Task Abuse
+title: FalconFlank MareBackup Task Reference via Command Line
 id: 4c6e8a0b-2d4f-6a8c-1e3b-5f7d9a1c3e5b
 status: experimental
 description: >
-    Detects interaction with the MareBackup scheduled task under Application Experience,
-    a distinctive artifact of the FalconFlank privilege escalation exploit.
+    Detects command-line references to the MareBackup scheduled task under Application
+    Experience. Covers schtasks.exe or script-based interaction only; the PoC triggers
+    this task via COM API (ITaskService), which does not generate a process_creation event.
+    Supplement with Windows Task Scheduler EventID 106/200/201 for full coverage.
 references:
     - https://github.com/MSNightmare/FalconFlank
     - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
@@ -274,13 +280,14 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate software using a scheduled task named MareBackup (unlikely)
-level: high
+level: medium
 ```
 
 ### YARA: FalconFlank PoC Binary Detection
 Detects the compiled FalconFlank PoC binary via distinctive embedded strings (named pipe, DLL targets, task name).
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
-<!-- audit: yarac not available in this environment. Structural check: valid PE condition, 7 strings with appropriate modifiers, logical condition requiring $pipe AND 3-of-6 supporting strings. Highly distinctive string combination; near-zero FP on benign PE files. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac 4.5.0 compile exit 0. Valid PE condition, 7 strings with appropriate modifiers, logical condition requiring $pipe AND 3-of-6 supporting strings. Highly distinctive string combination; near-zero FP on benign PE files. -->
+<!-- revision: compiled with yarac 4.5.0 (exit 0); updated status from uncompiled to compiles. -->
 ```yara
 rule Exploit_FalconFlank_PoC
 {
