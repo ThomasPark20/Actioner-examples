@@ -1,0 +1,25 @@
+title: DNS Query to Coder Registry Exfiltration Domain
+id: 8a3c1f7e-b2d4-4e6a-9f81-3c5d7e9a0b42
+status: experimental
+description: >
+    Detects DNS queries to the attacker-controlled lookalike domain coder-infra.com
+    used as the exfiltration endpoint in the Coder registry supply chain compromise
+    of August 31, 2026.
+references:
+    - https://www.bleepingcomputer.com/news/security/coders-registry-infrastructure-compromised-to-push-malicious-modules/
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'coder-infra.com'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known malicious domain registered for this campaign
+level: critical

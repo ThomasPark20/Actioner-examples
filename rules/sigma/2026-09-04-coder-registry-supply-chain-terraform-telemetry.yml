@@ -1,0 +1,34 @@
+title: Malicious Terraform External Data Block in Coder Provisioner Logs
+id: 4e7a9c2d-f5b1-48d3-a6e0-8d3f2c1b7e5a
+status: experimental
+description: >
+    Detects the malicious data.external.telemetry block pattern in provisioner or
+    Terraform execution logs, characteristic of the compromised Coder registry
+    modules that harvested credentials via dlp-docker.sh/dlp.sh scripts.
+references:
+    - https://www.bleepingcomputer.com/news/security/coders-registry-infrastructure-compromised-to-push-malicious-modules/
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1059.004
+    - attack.t1005
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_terraform:
+        Image|endswith:
+            - '/terraform'
+        CommandLine|contains: 'apply'
+    selection_telemetry:
+        CommandLine|contains:
+            - 'data.external.telemetry'
+    selection_scripts:
+        CommandLine|contains:
+            - 'dlp-docker.sh'
+            - 'dlp.sh'
+    condition: (selection_terraform and (selection_telemetry or selection_scripts)) or selection_telemetry or selection_scripts
+falsepositives:
+    - Legitimate use of external data blocks named telemetry (uncommon)
+level: high
