@@ -1,0 +1,32 @@
+title: DNS Query to Ted Backdoor C2 Domains
+id: 8f3a1c7e-4b2d-4e9f-a6c8-1d5e0f7b3a2c
+status: experimental
+description: >
+    Detects DNS queries to known C2 domains used by the Ted HAProxy backdoor
+    and CurlRAT toolkit attributed to North Korean state-sponsored actors
+    targeting South Korean organizations.
+references:
+    - https://www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/
+    - https://thehackernews.com/2026/09/new-ted-backdoor-hides-inside-victims.html
+author: Actioner
+date: 2026/09/05
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.monderhouse.space'
+            - '.smartnords.site'
+            - '.darklights.store'
+            - '.pstatic.autos'
+            - '.socialteams.store'
+            - '.worksongo.store'
+            - '.primgs.lol'
+            - '.grip-cdns.space'
+            - '.cleanos.online'
+    condition: selection
+falsepositives:
+    - Unlikely - these are attacker-registered domains with no known legitimate use
+level: high

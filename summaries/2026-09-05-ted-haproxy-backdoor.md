@@ -1,9 +1,10 @@
+<!-- revision: v1.1 2026-09-05 — (1) Sigma DNS: removed attack.t1568 (hardcoded domains, not DGA); (2) Sigma files: replaced attack.t1547.004 with T1074.001; (3) ATT&CK table: T1070.004→T1070.002, T1574.002→T1554, T1497.001→T1480; (4) YARA CurlRAT: removed unverifiable meta hash 83f7d565…; (5) Suricata: added 3 DNS rules for maltrail domains (primgs.lol, grip-cdns.space, cleanos.online) as sid:2200009-2200011. -->
 # Technical Analysis Report: Ted HAProxy Backdoor (2026-09-05)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-05
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
 
 ## Executive Summary
 
@@ -171,11 +172,11 @@ A trojanized SSH daemon captures plaintext passwords, encrypts them, and writes 
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Command execution via popen (CurlRAT mode 0) and shell (Ted opcode 3) |
 | T1056.001 | Input Capture: Keylogging | Trojanized SSH daemon captures plaintext passwords |
 | T1070.003 | Indicator Removal: Clear Command History | Strips keywords from root's bash_history |
-| T1070.004 | Indicator Removal: File Deletion | Strips keywords from six system log files |
+| T1070.002 | Indicator Removal: Clear Linux or Mac System Logs | Selectively strips keywords from six system log files |
 | T1070.006 | Indicator Removal: Timestomp | Backdoored crond given timestamp of /usr/bin/ssh |
-| T1497.001 | Virtualization/Sandbox Evasion: System Checks | CurlRAT verifies /usr/lib/libvirtlog.so.0 exists before executing |
+| T1480 | Execution Guardrails | CurlRAT requires /usr/lib/libvirtlog.so.0 to exist before executing (environment gate, not evasion) |
 | T1041 | Exfiltration Over C2 Channel | Captured credentials and file exfiltration over HTTP C2 |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | HAProxy binary replaced with backdoored version (binary replacement, analogous technique) |
+| T1554 | Compromise Client Software Binary | HAProxy binary replaced with backdoored version containing ted implant |
 | T1557 | Adversary-in-the-Middle | Ted intercepts and modifies HTTP traffic through HAProxy |
 | T1105 | Ingress Tool Transfer | File upload/download via Ted opcodes 1 and 2 |
 
@@ -242,7 +243,7 @@ These detections target the Ted HAProxy backdoor and CurlRAT toolkit at PoC/advi
 
 Detects DNS queries to known C2 domains used by the Ted/CurlRAT campaign infrastructure.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed due to network error fetching MITRE ATT&CK data (proxy 403), not a rule issue. sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. No pipeline-mapped conversion available for dns_query category. All domain values are real (not defanged) in the rule. Nine domain suffixes cover the six Rapid7-reported domains plus three from maltrail APT37 trails. -->
+<!-- audit: sigma check failed due to network error fetching MITRE ATT&CK data (proxy 403), not a rule issue. sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. No pipeline-mapped conversion available for dns_query category. All domain values are real (not defanged) in the rule. Nine domain suffixes cover the six Rapid7-reported domains plus three from maltrail APT37 trails. Revision: removed attack.t1568 (Dynamic Resolution) -- these are hardcoded C2 domains, not DGA-generated. -->
 ```yaml
 title: DNS Query to Ted Backdoor C2 Domains
 id: 8f3a1c7e-4b2d-4e9f-a6c8-1d5e0f7b3a2c
@@ -258,7 +259,6 @@ author: Actioner
 date: 2026/09/05
 tags:
     - attack.t1071.001
-    - attack.t1568
 logsource:
     category: dns_query
 detection:
@@ -283,7 +283,7 @@ level: high
 
 Detects file creation at paths specific to the Ted backdoor config cache, SSH keylogger output, and CurlRAT victim ID storage.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed due to network error fetching MITRE ATT&CK data (proxy 403), not a rule issue. sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Paths are distinctive enough for high confidence: haproxy-1000.cache is not a legitimate HAProxy artifact, c8c68e629bba773a10ac80012d10bf19 is an attacker-chosen MD5-like path, g580/g105 under snapd are not legitimate snapd files. -->
+<!-- audit: sigma check failed due to network error fetching MITRE ATT&CK data (proxy 403), not a rule issue. sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. Paths are distinctive enough for high confidence: haproxy-1000.cache is not a legitimate HAProxy artifact, c8c68e629bba773a10ac80012d10bf19 is an attacker-chosen MD5-like path, g580/g105 under snapd are not legitimate snapd files. Revision: replaced attack.t1547.004 (Winlogon Helper DLL, Windows-only) with attack.t1074.001 (Local Data Staging). -->
 ```yaml
 title: Ted Backdoor Distinctive File Artifacts on Linux Host
 id: 2e7b4d9a-6c1f-4a8e-b3d5-9f0e2c7a1b4d
@@ -299,7 +299,7 @@ author: Actioner
 date: 2026/09/05
 tags:
     - attack.t1036.005
-    - attack.t1547.004
+    - attack.t1074.001
 logsource:
     category: file_event
     product: linux
@@ -334,7 +334,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CurlRAT C2 Beacon
 
 Detects the Ted C2 trigger URI, DNS queries to campaign C2 domains, and CurlRAT beacon POST with the hardcoded `api_token` header.
 **Status:** compile ⚠️ uncompiled (structural check only -- suricata not installed) · confidence: high
-<!-- audit: suricata binary not available in this environment. Structural check: dot-notation sticky buffers (http.uri, http.method, http.request_header, http.request_body, dns.query), flow directives present, semicolons terminate all options, SIDs in 2200000+ range, msg prefixed "Actioner - ", metadata includes author and created_at. Eight rules: sid:2200001 Ted trigger URI, sid:2200002-2200007 per-domain DNS, sid:2200008 CurlRAT beacon. /actioner:setup installs the full toolchain. -->
+<!-- audit: suricata binary not available in this environment. Structural check: dot-notation sticky buffers (http.uri, http.method, http.request_header, http.request_body, dns.query), flow directives present, semicolons terminate all options, SIDs in 2200000+ range, msg prefixed "Actioner - ", metadata includes author and created_at. Eleven rules: sid:2200001 Ted trigger URI, sid:2200002-2200007 six Rapid7-sourced C2 domain DNS, sid:2200009-2200011 three maltrail-sourced C2 domain DNS, sid:2200008 CurlRAT beacon. /actioner:setup installs the full toolchain. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Ted Backdoor C2 Trigger URI Request (favorite_list_2x_m500_ico.jpg)"; flow:established,to_server; http.uri; content:"/favorite_list_2x_m500_ico.jpg"; fast_pattern; endswith; classtype:trojan-activity; reference:url,www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/; metadata:author Actioner, created_at 2026-09-05; sid:2200001; rev:1;)
 
@@ -349,6 +349,12 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2 Domain (socialteams.store)"; flow:to_server; dns.query; content:"socialteams.store"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/; metadata:author Actioner, created_at 2026-09-05; sid:2200006; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2 Domain (worksongo.store)"; flow:to_server; dns.query; content:"worksongo.store"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/; metadata:author Actioner, created_at 2026-09-05; sid:2200007; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2 Domain (primgs.lol)"; flow:to_server; dns.query; content:"primgs.lol"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/stamparm/maltrail; metadata:author Actioner, created_at 2026-09-05; sid:2200009; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2 Domain (grip-cdns.space)"; flow:to_server; dns.query; content:"grip-cdns.space"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/stamparm/maltrail; metadata:author Actioner, created_at 2026-09-05; sid:2200010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Ted Backdoor C2 Domain (cleanos.online)"; flow:to_server; dns.query; content:"cleanos.online"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/stamparm/maltrail; metadata:author Actioner, created_at 2026-09-05; sid:2200011; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CurlRAT C2 Beacon POST with api_token Header"; flow:established,to_server; http.method; content:"POST"; http.request_header; content:"api_token"; content:"ecd427ea8330a4ff73618483e00b9b41"; http.request_body; content:"name="; content:"&value="; content:"&type="; classtype:trojan-activity; reference:url,www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/; metadata:author Actioner, created_at 2026-09-05; sid:2200008; rev:1;)
 ```
@@ -429,7 +435,7 @@ rule DPRK_Ted_HAProxy_Backdoor : backdoor apt
 
 Detects CurlRAT variants masquerading as legitimate Linux daemons (crond, sshd, agetty, atd, polkitd) via distinctive `atd_` prefixed function names, victim ID seed, C2 POST format, and virtualization gate path.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: positive file with ELF magic + atd_reverse_try_root/atd_reverse_create_conn/atd_http_request/atd_download_to_file/atd_get_system_info + /var/lib/snapd/g580 matched DPRK_CurlRAT_Trojanized_Binary; negative clean HAProxy file did not match. The $id_seed "cron_3.0pl1-137ubuntu3" is a fabricated version string unique to this actor's victim ID generation. $post_fmt "name=%s&value=%s&type=%d" is somewhat generic but only fires in combination with the virtualization check path. -->
+<!-- audit: yarac exit 0. Sample test: positive file with ELF magic + atd_reverse_try_root/atd_reverse_create_conn/atd_http_request/atd_download_to_file/atd_get_system_info + /var/lib/snapd/g580 matched DPRK_CurlRAT_Trojanized_Binary; negative clean HAProxy file did not match. The $id_seed "cron_3.0pl1-137ubuntu3" is a fabricated version string unique to this actor's victim ID generation. $post_fmt "name=%s&value=%s&type=%d" is somewhat generic but only fires in combination with the virtualization check path. Revision: removed unverifiable meta hash 83f7d565b0465546027052b597af46eae3a199e7a91fcc2ab936341147349130 (not present in Rapid7 IOC table or public sources). -->
 ```yara
 rule DPRK_CurlRAT_Trojanized_Binary : backdoor apt
 {
@@ -439,7 +445,6 @@ rule DPRK_CurlRAT_Trojanized_Binary : backdoor apt
         date = "2026-09-05"
         reference = "https://www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/"
         hash = "5db1b6d52faf60b4f32d6fd0c7c938e4d05d29a14c32ded4a9668357c08b6a91"
-        hash = "83f7d565b0465546027052b597af46eae3a199e7a91fcc2ab936341147349130"
         severity = "critical"
         tlp = "WHITE"
 
