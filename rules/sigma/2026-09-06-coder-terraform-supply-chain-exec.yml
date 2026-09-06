@@ -1,0 +1,30 @@
+title: Execution of Coder Registry Malicious DLP Script
+id: 9e1a3b5c-d7f2-4a8e-b6c9-2d4f1e3a7b5d
+status: experimental
+description: >
+    Detects execution of the malicious credential-stealing scripts (dlp-docker.sh, dlp.sh)
+    dropped by compromised Coder registry Terraform modules during the August 31, 2026
+    supply chain attack.
+references:
+    - https://coder.com/blog/coder-registry-security-incident-what-happened-and-what-to-do
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1059.004
+    - attack.t1552.001
+logsource:
+    category: process_creation
+detection:
+    selection_script_name:
+        CommandLine|contains:
+            - 'dlp-docker.sh'
+            - 'dlp.sh'
+    selection_exfil:
+        CommandLine|contains|all:
+            - 'coder-infra.com'
+            - 'cli/check'
+    condition: selection_script_name or selection_exfil
+falsepositives:
+    - Legitimate scripts named dlp.sh in data loss prevention tooling
+level: high

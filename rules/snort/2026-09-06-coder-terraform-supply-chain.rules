@@ -1,0 +1,4 @@
+# Actioner - Coder Registry Infrastructure Compromise (2026-09-06)
+# Reference: https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Coder Registry Compromise HTTP Exfil to coder-infra.com"; flow:established,to_server; content:"coder-infra.com"; http_header; fast_pattern; content:"/cli/check"; http_uri; sid:2100010; rev:1; classtype:trojan-activity; reference:url,github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65;)
