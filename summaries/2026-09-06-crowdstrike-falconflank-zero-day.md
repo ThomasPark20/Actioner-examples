@@ -234,7 +234,7 @@ logsource:
     product: windows
 detection:
     selection:
-        TargetFilename|contains: '\Flanker_'
+        TargetFilename|contains: '\Temp\Flanker_'
     condition: selection
 falsepositives:
     - Applications using directory names starting with Flanker_
@@ -251,9 +251,9 @@ title: FalconFlank Exploit MareBackup Scheduled Task Execution
 id: 5e9a1d3c-7b4f-42e8-a6d0-8c2e3f1b9a7d
 status: experimental
 description: >
-    Detects execution or registration of the MareBackup scheduled task in
-    the Application Experience folder, used by the FalconFlank exploit to
-    trigger privilege escalation via CrowdStrike Falcon Sensor.
+    Detects command-line references to the MareBackup scheduled task
+    (e.g., via schtasks.exe); does not cover the PoC's COM-based
+    invocation path.
 references:
     - https://github.com/MSNightmare/FalconFlank
     - https://www.bleepingcomputer.com/news/security/new-crowdstrike-falconflank-zero-day-grants-system-privileges/
