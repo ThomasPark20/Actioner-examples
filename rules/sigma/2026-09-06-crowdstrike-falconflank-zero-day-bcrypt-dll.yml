@@ -1,0 +1,30 @@
+title: Suspicious bcrypt.dll Modification in PowerShell Directory
+id: 8f2c6e4a-1d9b-43e7-b5a0-7e3d1c8f9a2b
+status: experimental
+description: >
+    Detects file modification or creation of bcrypt.dll in the PowerShell
+    v1.0 directory, which is targeted by the FalconFlank exploit for DLL
+    sideloading to achieve SYSTEM privileges.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://www.bleepingcomputer.com/news/security/new-crowdstrike-falconflank-zero-day-grants-system-privileges/
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\WindowsPowerShell\v1.0\bcrypt.dll'
+    filter_trusted:
+        Image|startswith:
+            - 'C:\Windows\servicing\'
+            - 'C:\Windows\WinSxS\'
+            - 'C:\Windows\System32\poqexec.exe'
+    condition: selection and not filter_trusted
+falsepositives:
+    - Windows servicing stack updates to bcrypt.dll
+level: high

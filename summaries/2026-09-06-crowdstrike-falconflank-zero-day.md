@@ -3,7 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-06
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
+
+<!-- revision: v1.1 — tightened Flanker_ filter to \Temp\Flanker_; rewrote MareBackup description re COM vs schtasks; removed incorrect T1055 mapping -->
 
 ## Executive Summary
 
@@ -122,7 +124,6 @@ The researcher noted that CrowdStrike may have detections for the unmodified PoC
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Plants malicious `bcrypt.dll` in PowerShell's application directory to be loaded before the legitimate system copy |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Runs the `MareBackup` scheduled task via COM to trigger PowerShell execution with the sideloaded DLL |
 | T1106 | Native API | Uses NTDLL functions (`NtCreateFile`, `NtSetInformationFile`) and low-level Windows APIs for oplock and reparse point manipulation |
-| T1055 | Process Injection | Transactional NTFS and reparse point redirect effectively inject a malicious DLL into the PowerShell process space |
 
 ## Impact Assessment
 
@@ -243,7 +244,7 @@ level: high
 
 ### Sigma: FalconFlank MareBackup Scheduled Task Execution
 
-Detects command-line references to the `MareBackup` scheduled task in the Application Experience folder, used to trigger the sideloaded DLL.
+Detects command-line references to the `MareBackup` scheduled task (e.g., via schtasks.exe); does not cover the PoC's COM-based invocation path.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check 0 (attacktag excluded); splunk convert 0; log_scale convert 0. MareBackup is not a standard Windows task — highly distinctive. The PoC uses COM ITaskService, so this rule catches schtasks-based invocations or logged COM task runs, not necessarily the silent COM path unless process auditing captures the task host execution. -->
 ```yaml

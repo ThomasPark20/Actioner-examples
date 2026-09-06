@@ -1,0 +1,24 @@
+title: FalconFlank Exploit Named Pipe Creation
+id: 7a3e9c1b-4d2f-48a6-b5e0-9f1c3d7a2e8b
+status: experimental
+description: >
+    Detects creation of the FALCONFLANK named pipe used by the FalconFlank
+    privilege escalation exploit targeting CrowdStrike Falcon Sensor's
+    malicious macro remediation feature.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://www.bleepingcomputer.com/news/security/new-crowdstrike-falconflank-zero-day-grants-system-privileges/
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1068
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName|endswith: '\FALCONFLANK'
+    condition: selection
+falsepositives:
+    - Unlikely - highly specific pipe name tied to the FalconFlank PoC
+level: critical

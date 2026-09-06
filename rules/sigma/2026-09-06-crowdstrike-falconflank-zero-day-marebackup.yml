@@ -1,0 +1,27 @@
+title: FalconFlank Exploit MareBackup Scheduled Task Execution
+id: 5e9a1d3c-7b4f-42e8-a6d0-8c2e3f1b9a7d
+status: experimental
+description: >
+    Detects command-line references to the MareBackup scheduled task
+    (e.g., via schtasks.exe); does not cover the PoC's COM-based
+    invocation path.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://www.bleepingcomputer.com/news/security/new-crowdstrike-falconflank-zero-day-grants-system-privileges/
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1068
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'Application Experience'
+            - 'MareBackup'
+    condition: selection
+falsepositives:
+    - Unlikely - MareBackup is not a standard Windows scheduled task
+level: critical
