@@ -1,0 +1,25 @@
+title: DNS Query to Coder-Infra Exfiltration Domain
+id: 8b3e1d4f-a7c2-4e9b-b5d8-3f6a1c2e9d07
+status: experimental
+description: >
+    Detects DNS queries to coder-infra.com, the lookalike exfiltration domain used in the
+    Coder registry infrastructure compromise (August 31, 2026). Malicious Terraform modules
+    exfiltrated stolen credentials to this domain.
+references:
+    - https://coder.com/blog/coder-registry-security-incident-what-happened-and-what-to-do
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'coder-infra.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of coder-infra.com is not expected; this is an attacker-registered domain
+level: high
