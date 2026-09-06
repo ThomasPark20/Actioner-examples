@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-06
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
+<!-- revision: v1.1 — CUT file_event Sigma rule (over-broad, cannot inspect content via logsource); defanged IOCs in Remediation §5; renumbered Technical Analysis §§3–6; removed T1552.007 (Container API does not match observed behavior). -->
 
 ## Executive Summary
 
@@ -58,7 +59,7 @@ Multiple variants of the exfiltration script were distributed, each tailored to 
 - **External authentication tokens** — OAuth/SAML tokens from connected identity providers
 - **Database passwords** — when the provisioner ran co-located with `coderd` (Coder's server process)
 
-### 3. C2 Infrastructure
+### 4. C2 Infrastructure
 
 | Attribute | Value |
 |-----------|-------|
@@ -70,13 +71,13 @@ Multiple variants of the exfiltration script were distributed, each tailored to 
 
 The domain `coder-infra[.]com` was a deliberate typosquat of Coder's legitimate infrastructure, designed to blend into network logs. The `/cli/check` URI path mimics a legitimate health-check endpoint.
 
-### 4. Platform-Specific Behavior
+### 5. Platform-Specific Behavior
 
 #### Linux (Primary Target)
 
 All Coder workspaces are Linux-based containers or VMs. The `dlp-docker.sh` script executed within the Terraform provisioner context, which runs as part of `terraform apply` during workspace builds. The script used standard Unix utilities (`printenv`, `cat`, `curl`) to harvest and exfiltrate credentials.
 
-### 5. Anti-Forensics / Evasion Techniques
+### 6. Anti-Forensics / Evasion Techniques
 
 - **Trusted distribution channel** — modules were served through the legitimate registry.coder.com domain with valid TLS certificates, bypassing network-layer detection
 - **Benign naming** — the injected block used "telemetry" as the resource name; scripts were named "dlp" (data loss prevention), both names designed to avoid suspicion in code review
@@ -131,7 +132,6 @@ All Coder workspaces are Linux-based containers or VMs. The `dlp-docker.sh` scri
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Attacker injected malicious code into legitimate Terraform modules served by the Coder registry |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Malicious Terraform external data source executed bash scripts (dlp-docker.sh, dlp.sh) |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Scripts harvested SSH keys, config files, terminal history, and stored credentials |
-| T1552.007 | Unsecured Credentials: Container API | Environment variables harvested from container/provisioner runtime |
 | T1041 | Exfiltration Over C2 Channel | Stolen credentials exfiltrated via HTTP POST to coder-infra[.]com/cli/check |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP used for credential exfiltration to attacker domain |
 | T1078 | Valid Accounts | Stolen credentials (API keys, OIDC tokens, SSH keys) enable downstream access |
@@ -181,7 +181,7 @@ SQL queries to identify affected cached modules and template versions are availa
    - Database passwords (if provisioner ran co-located with coderd)
    - Any secrets present as environment variables during provisioning
 4. **Review audit logs** in cloud providers for unauthorized access using potentially stolen credentials
-5. **Block the exfiltration domain** — add `coder-infra.com` and IP `199.91.220.205` to firewall/proxy blocklists
+5. **Block the exfiltration domain** — add `coder-infra[.]com` and IP `199.91.220[.]205` to firewall/proxy blocklists
 6. **Preserve logs** before clearing caches for forensic analysis
 
 ### Long-Term Hardening
@@ -262,45 +262,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Malicious Terraform External Telemetry Data Source / DLP Script Files
-
-Detects file-system artifacts of the compromised modules: Terraform files in `.terraform` cache or the distinctive `dlp-docker.sh`/`dlp.sh` scripts.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy (ATT&CK data fetch 403); splunk convert exit 0; log_scale convert exit 0. The .terraform + .tf selection is broad (lowers confidence); dlp script filenames are distinctive but could overlap with DLP tooling. -->
-```yaml
-title: Malicious Terraform External Telemetry Data Source in Coder Module
-id: c4d7e2a1-f8b3-4c5d-9a6e-1b2d3f4a5c78
-status: experimental
-description: >
-    Detects the malicious Terraform external data source pattern (data.external.telemetry)
-    used in compromised Coder registry modules to execute credential-stealing shell scripts.
-    The malicious modules contained a data "external" "telemetry" block invoking dlp-docker.sh.
-references:
-    - https://coder.com/blog/coder-registry-security-incident-what-happened-and-what-to-do
-    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
-author: Actioner
-date: 2026/09/06
-tags:
-    - attack.t1195.002
-    - attack.t1059.004
-logsource:
-    category: file_event
-detection:
-    selection_file_content:
-        TargetFilename|endswith:
-            - '.tf'
-            - '.tf.json'
-        TargetFilename|contains:
-            - '.terraform'
-    filter_normal:
-        TargetFilename|contains:
-            - 'dlp-docker.sh'
-            - 'dlp.sh'
-    condition: selection_file_content or filter_normal
-falsepositives:
-    - Legitimate Terraform modules with .terraform paths (selection is broad); dlp script names are distinctive
-level: medium
-```
+*One Sigma file_event rule was cut during review (over-broad, unable to inspect file content via log source).*
 
 ### Sigma: Execution of Coder Registry Malicious DLP Script
 
