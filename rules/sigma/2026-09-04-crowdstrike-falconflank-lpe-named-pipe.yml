@@ -1,0 +1,23 @@
+title: FalconFlank Exploit Named Pipe Creation
+id: 7a3c1d8e-4f2b-4e9a-b6d5-8c1f3a2e7b09
+status: experimental
+description: >
+    Detects creation of the named pipe used by the FalconFlank privilege escalation
+    PoC targeting CrowdStrike Falcon's Office macro remediation feature.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1068
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName: '\FALCONFLANK'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a distinctive PoC artifact name
+level: critical

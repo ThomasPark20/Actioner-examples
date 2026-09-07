@@ -1,0 +1,26 @@
+title: FalconFlank MareBackup Task Reference via Command Line
+id: 4c6e8a0b-2d4f-6a8c-1e3b-5f7d9a1c3e5b
+status: experimental
+description: >
+    Detects command-line references to the MareBackup scheduled task under Application
+    Experience. Covers schtasks.exe or script-based interaction only; the PoC triggers
+    this task via COM API (ITaskService), which does not generate a process_creation event.
+    Supplement with Windows Task Scheduler EventID 106/200/201 for full coverage.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1068
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: 'MareBackup'
+    condition: selection
+falsepositives:
+    - Legitimate software using a scheduled task named MareBackup (unlikely)
+level: medium

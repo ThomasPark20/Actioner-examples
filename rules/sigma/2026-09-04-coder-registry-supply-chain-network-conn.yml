@@ -1,0 +1,23 @@
+title: Network Connection to Coder Registry Exfiltration IP
+id: 2f9b4d6e-a1c3-47e5-8d09-6b2e8f1a3c5d
+status: experimental
+description: >
+    Detects outbound network connections to IP address 199.91.220.205, the original
+    IP hosting the coder-infra.com exfiltration endpoint used in the Coder registry
+    supply chain compromise.
+references:
+    - https://www.bleepingcomputer.com/news/security/coders-registry-infrastructure-compromised-to-push-malicious-modules/
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '199.91.220.205'
+    condition: selection
+falsepositives:
+    - Unlikely - this is a known attacker-controlled IP address
+level: critical

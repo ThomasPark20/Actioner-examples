@@ -1,0 +1,25 @@
+title: FalconFlank Exploit Temporary Directory Creation
+id: 9d1e3f5a-7b2c-4d6e-8f0a-1c3b5d7e9f2a
+status: experimental
+description: >
+    Detects creation of the Flanker_ prefixed temporary directory in user temp
+    paths, used by the FalconFlank PoC exploit during its privilege escalation chain.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://socradar.io/blog/falconflank-crowdstrike-falcon-0day-poc/
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains:
+            - '\Temp\Flanker_'
+            - '\AppData\Local\Temp\Flanker_'
+    condition: selection
+falsepositives:
+    - Software using Flanker_ as a directory or filename prefix within temp directories
+level: medium

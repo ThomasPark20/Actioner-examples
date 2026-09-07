@@ -1,0 +1,27 @@
+title: FalconFlank Suspicious DLL Write to System32
+id: 2b4e6f8a-1c3d-5e7f-9a0b-4d6c8e2f1a3b
+status: experimental
+description: >
+    Detects the creation of MY_SNAKE_IS_SOLID.dll in System32 or suspicious DLL writes
+    to the PowerShell bcrypt.dll path, both artifacts of the FalconFlank privilege
+    escalation exploit against CrowdStrike Falcon.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://blackswan-cybersecurity.com/threat-advisory-crowdstrike-falcon-sensor-local-privilege-escalation-zero-day-falconflank-august-26-2026/
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_snake:
+        TargetFilename|endswith: '\MY_SNAKE_IS_SOLID.dll'
+    selection_bcrypt:
+        TargetFilename: 'C:\Windows\System32\WindowsPowerShell\v1.0\bcrypt.dll'
+    condition: selection_snake or selection_bcrypt
+falsepositives:
+    - Legitimate Windows updates modifying bcrypt.dll in the PowerShell directory (rare)
+level: high

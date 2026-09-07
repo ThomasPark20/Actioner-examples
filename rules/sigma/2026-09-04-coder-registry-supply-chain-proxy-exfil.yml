@@ -1,0 +1,26 @@
+title: HTTP Connection to Coder Exfiltration Endpoint
+id: 6c8d3e2f-a4b5-49e1-9c07-5a1d8f3e2b6c
+status: experimental
+description: >
+    Detects HTTP connections to the known exfiltration endpoint
+    coder-infra.com/cli/check used by the malicious Terraform modules
+    in the Coder registry supply chain compromise.
+references:
+    - https://www.bleepingcomputer.com/news/security/coders-registry-infrastructure-compromised-to-push-malicious-modules/
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/04
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        cs-host|endswith: 'coder-infra.com'
+    selection_uri:
+        c-uri-stem|contains: '/cli/check'
+    condition: selection_domain and selection_uri
+falsepositives:
+    - Unlikely - known malicious domain and exfiltration path
+level: critical
