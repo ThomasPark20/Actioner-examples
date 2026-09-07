@@ -1,0 +1,108 @@
+title: FalconFlank PoC Named Pipe Creation
+id: d2574f0d-4d95-4abd-a428-9355d8bbf508
+status: experimental
+description: Detects creation of the FALCONFLANK named pipe used by the FalconFlank privilege escalation PoC targeting CrowdStrike Falcon Sensor.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName: '\FALCONFLANK'
+    condition: selection
+falsepositives:
+    - Unlikely - highly specific pipe name from the PoC
+level: critical
+---
+title: FalconFlank PoC Temp Directory Pattern
+id: 65c3a3e8-7aff-4242-937f-6966a12e6bd1
+status: experimental
+description: Detects creation of Flanker_ prefixed directories in user temp folder with bcrypt.dll, characteristic of the FalconFlank privilege escalation PoC.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.defense_evasion
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Flanker_'
+    selection_dll:
+        TargetFilename|endswith: '\bcrypt.dll'
+    condition: selection and selection_dll
+falsepositives:
+    - Unlikely - specific directory and file pattern from the PoC
+level: critical
+---
+title: FalconFlank PoC Scheduled Task MareBackup
+id: 448994ec-da63-4b6f-935f-cd8993c8841c
+status: experimental
+description: Detects creation or execution of the MareBackup scheduled task in Application Experience folder, used by FalconFlank PoC for privilege escalation via DLL hijacking.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.execution
+    - attack.t1053.005
+logsource:
+    product: windows
+    service: security
+    definition: Requires audit policy for Scheduled Task events (Event IDs 4698, 4702)
+detection:
+    selection:
+        EventID:
+            - 4698
+            - 4702
+        TaskName|contains: 'MareBackup'
+    condition: selection
+falsepositives:
+    - Legitimate software using the exact task name MareBackup is extremely unlikely
+level: critical
+---
+title: FalconFlank bcrypt.dll Modification in PowerShell Directory
+id: aab1303c-1aee-4710-abde-09621b65d043
+status: experimental
+description: Detects suspicious modification of bcrypt.dll in the WindowsPowerShell directory via transactional NTFS, indicative of the FalconFlank DLL hijacking technique.
+author: Actioner
+date: 2026/09/03
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://thehackernews.com/2026/09/researcher-releases-falconflank-poc.html
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.persistence
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\WindowsPowerShell\v1.0\bcrypt.dll'
+    filter_trusted:
+        Image|startswith:
+            - 'C:\Windows\servicing\'
+            - 'C:\Windows\WinSxS\'
+            - 'C:\Windows\System32\sfc'
+    condition: selection and not filter_trusted
+falsepositives:
+    - Windows servicing operations updating bcrypt.dll
+level: high

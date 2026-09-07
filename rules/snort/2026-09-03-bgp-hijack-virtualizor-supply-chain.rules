@@ -1,0 +1,11 @@
+# Actioner Detection Rules - BGP Hijack Virtualizor Supply Chain (2026-09-03)
+# Source: /home/user/Actioner-examples/summaries/2026-09-03-bgp-hijack-virtualizor-supply-chain.md
+
+# SNORT-01: Detect HTTP request for malicious widdow.jar payload
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Virtualizor BGP Hijack Payload Download (widdow.jar)"; flow:to_server,established; content:"GET"; http_method; content:"/installer/widdow.jar"; http_uri; sid:2100001; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html; metadata:created_at 2026_09_03, attack_target Server;)
+
+# SNORT-02: Detect outbound connection to attacker C2 infrastructure
+alert ip $HOME_NET any -> 31.77.220.138 any (msg:"Actioner - Virtualizor BGP Hijack Attacker C2 IP (31.77.220.138)"; sid:2100002; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html; metadata:created_at 2026_09_03, attack_target Server;)
+
+# SNORT-03: Detect outbound connection to known attacker SSH source
+alert ip $HOME_NET any -> 193.32.127.248 any (msg:"Actioner - Virtualizor BGP Hijack Attacker SSH IP (193.32.127.248)"; sid:2100003; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html; metadata:created_at 2026_09_03, attack_target Server;)

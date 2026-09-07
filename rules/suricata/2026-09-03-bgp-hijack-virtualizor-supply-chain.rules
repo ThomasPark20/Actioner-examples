@@ -1,0 +1,23 @@
+# Actioner Detection Rules - BGP Hijack Virtualizor Supply Chain (2026-09-03)
+# Source: /home/user/Actioner-examples/summaries/2026-09-03-bgp-hijack-virtualizor-supply-chain.md
+
+# SURICATA-01: Detect DNS queries to C2 domain cdn.nerat.cc
+alert dns $HOME_NET any -> any any (msg:"Actioner - Virtualizor BGP Hijack C2 DNS Query (cdn.nerat.cc)"; dns.query; content:"cdn.nerat.cc"; nocase; endswith; sid:2200001; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,www.virtualizor.com/blog/security-incident-bgp-hijacking/;)
+
+# SURICATA-02: Detect DNS queries to C2 domain connect.ne-rat.xyz
+alert dns $HOME_NET any -> any any (msg:"Actioner - Virtualizor BGP Hijack C2 DNS Query (connect.ne-rat.xyz)"; dns.query; content:"connect.ne-rat.xyz"; nocase; endswith; sid:2200002; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,www.virtualizor.com/blog/security-incident-bgp-hijacking/;)
+
+# SURICATA-03: Detect HTTP request for malicious widdow.jar payload
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Virtualizor BGP Hijack Payload Download (widdow.jar)"; http.uri; content:"/installer/widdow.jar"; sid:2200003; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html;)
+
+# SURICATA-04: Detect TLS connection to C2 domain nerat.cc
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Virtualizor BGP Hijack C2 TLS SNI (nerat.cc)"; tls.sni; content:"nerat.cc"; endswith; sid:2200004; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,www.virtualizor.com/blog/security-incident-bgp-hijacking/;)
+
+# SURICATA-05: Detect TLS connection to C2 domain ne-rat.xyz
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Virtualizor BGP Hijack C2 TLS SNI (ne-rat.xyz)"; tls.sni; content:"ne-rat.xyz"; endswith; sid:2200005; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,www.virtualizor.com/blog/security-incident-bgp-hijacking/;)
+
+# SURICATA-06: Detect outbound connection to attacker command infrastructure
+alert ip $HOME_NET any -> 31.77.220.138 any (msg:"Actioner - Virtualizor BGP Hijack Attacker C2 IP (31.77.220.138)"; sid:2200006; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html;)
+
+# SURICATA-07: Detect outbound connection to known attacker SSH source
+alert ip $HOME_NET any -> 193.32.127.248 any (msg:"Actioner - Virtualizor BGP Hijack Attacker SSH IP (193.32.127.248)"; sid:2200007; rev:1; metadata:created_at 2026_09_03, updated_at 2026_09_03, attack_target Server, deployment Perimeter, signature_severity Critical, tag Supply_Chain; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/bgp-hijack-delivers-malicious.html;)
