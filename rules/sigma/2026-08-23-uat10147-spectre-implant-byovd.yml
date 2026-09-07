@@ -1,0 +1,27 @@
+title: SPECTRE BYOVD Vulnerable Driver Loading
+id: 7e3a91c4-d2f8-4b5e-9c1a-3f6d8e2b7a05
+status: experimental
+description: >
+    Detects loading of known vulnerable drivers (RTCore64.sys, DBUtil_2_3.sys) used by
+    SPECTRE implant for BYOVD-based EDR callback unlinking. UAT-10147 downloads these
+    drivers from C2 to achieve arbitrary kernel read/write.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt
+author: Actioner
+date: 2026/08/23
+tags:
+    - attack.t1068
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith:
+            - '\RTCore64.sys'
+            - '\DBUtil_2_3.sys'
+    condition: selection
+falsepositives:
+    - Legitimate MSI Afterburner or Dell BIOS utility installations (rare in enterprise)
+level: high

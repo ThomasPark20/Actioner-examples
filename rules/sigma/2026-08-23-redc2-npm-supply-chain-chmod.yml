@@ -1,0 +1,38 @@
+title: Node.js Process Spawning chmod on Binary in node_modules dist Directory
+id: 2f8e5b1a-c3d7-49e8-a6f0-1d4b7c9e2a35
+status: experimental
+description: >
+    Detects a Node.js process making a binary executable via chmod within a
+    node_modules package dist directory, consistent with the RedC2 4.0 npm
+    supply chain attack loader. Supplementary behavioral rule -- pair with
+    the package-name anchor rule for higher fidelity.
+references:
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-23
+tags:
+    - attack.t1195.002
+    - attack.t1222.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '/nodejs'
+    selection_chmod:
+        Image|endswith: '/chmod'
+        CommandLine|contains|all:
+            - '+x'
+            - 'node_modules'
+    selection_target:
+        CommandLine|contains|all:
+            - '/dist/'
+            - '.bin'
+    filter_npm_binlink:
+        CommandLine|contains: 'node_modules/.bin/'
+    condition: selection_parent and selection_chmod and selection_target and not filter_npm_binlink
+falsepositives:
+    - npm packages with legitimate native binary addons using chmod in postinstall on dist/ binaries
+level: medium

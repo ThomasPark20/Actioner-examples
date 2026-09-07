@@ -1,0 +1,41 @@
+title: Installation of Known Trojanized RedC2 npm Packages
+id: 9c4d6e2f-a1b8-4357-8d9e-5f0c3a7b1e64
+status: experimental
+description: >
+    Detects npm install commands referencing one of the 14 known trojanized
+    packages that deliver the RedC2 4.0 RedShell Linux backdoor. These packages
+    masquerade as calendar/streak utility libraries.
+references:
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-23
+tags:
+    - attack.t1195.002
+logsource:
+    category: process_creation
+detection:
+    selection_npm:
+        Image|endswith:
+            - '/npm'
+            - '/npx'
+            - '/yarn'
+            - '/pnpm'
+        CommandLine|contains:
+            - 'streak-metrics-math'
+            - 'kit-map-vim'
+            - 'streak-map-cache'
+            - 'streak-map-kit'
+            - 'map-streak-kit'
+            - 'streak-cache-map'
+            - 'streak-calc-metrics'
+            - 'streak-calc-math'
+            - 'streak-math-abz'
+            - 'streak-metricsaz'
+            - 'streak-math-metrics'
+            - 'streak-metricazbd'
+            - 'streak-metricsazb'
+            - 'streak-kit-map'
+    condition: selection_npm
+falsepositives:
+    - None expected - these are known malicious package names
+level: critical
