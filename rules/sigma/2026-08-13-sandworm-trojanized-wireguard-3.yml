@@ -1,0 +1,24 @@
+title: DNS Query to UAC-0145 SopraVPN Campaign Infrastructure
+id: ac3e5f9d-6b4f-4c1a-d7e0-f8a9b2c3d4e5
+status: experimental
+description: >
+    Detects DNS queries to the soprasteria-bg.com phishing domain used by UAC-0145
+    to distribute the trojanized WireGuard VPN client (SopraVPN) while impersonating
+    Sopra Steria Bulgaria.
+references:
+    - https://cert.gov.ua/article/6318863
+    - https://www.bleepingcomputer.com/news/security/sandworm-hackers-target-it-pros-with-trojanized-wireguard-vpn-client/
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1566.002
+    - attack.t1583.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'soprasteria-bg.com'
+    condition: selection
+falsepositives:
+    - None expected - this domain has no legitimate use
+level: critical

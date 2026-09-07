@@ -1,0 +1,30 @@
+title: ShieldBreak Exploit - wermgr.exe Spawning conhost.exe
+id: 5a2b9c3d-7e8f-4d1a-b0c6-4f3e2d1a8b7c
+status: experimental
+description: >
+    Detects wermgr.exe spawning conhost.exe outside normal console host
+    inheritance (0xffffffff). This is the final step of the ShieldBreak exploit
+    where wer.dll loads attacker-planted phoneinfo.dll, which spawns conhost.exe.
+    Pair with host context to confirm SYSTEM privilege level.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1068
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\wermgr.exe'
+        Image|endswith: '\conhost.exe'
+    filter_normal_conhost:
+        CommandLine|contains: '0xffffffff'
+    condition: selection and not filter_normal_conhost
+falsepositives:
+    - Legitimate Windows Error Reporting edge cases spawning conhost
+level: high

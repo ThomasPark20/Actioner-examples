@@ -1,0 +1,28 @@
+title: LiteLLM Supply Chain - Kubernetes Privileged Pod Deployment
+id: a9c3f5e1-2d7b-4e8a-b6c4-3f1d0e9a8b5c
+status: experimental
+description: >
+    Detects creation of privileged pods matching the TeamPCP naming convention
+    node-setup-* in the kube-system namespace, used for lateral movement across
+    Kubernetes cluster nodes during the LiteLLM supply chain attack.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1610
+    - attack.t1611
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'kubectl'
+            - 'kube-system'
+            - 'node-setup-'
+    condition: selection
+falsepositives:
+    - Legitimate cluster provisioning using node-setup naming convention
+level: high

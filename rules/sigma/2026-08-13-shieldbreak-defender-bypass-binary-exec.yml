@@ -1,0 +1,34 @@
+title: ShieldBreak Exploit Binary Execution
+id: 3d8e5f2a-1b4c-4a7d-9e6f-0c3a2b1d8e5f
+status: experimental
+description: >
+    Detects execution of the ShieldBreak exploit binary or related Nightmare
+    Eclipse exploit tools by process name. The ShieldBreak PoC repository
+    includes ShieldBreak.exe and Warden.dll as key components of the exploit.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_shieldbreak:
+        Image|endswith:
+            - '\ShieldBreak.exe'
+    selection_family:
+        Image|endswith:
+            - '\RoguePlanet.exe'
+            - '\BlueHammer.exe'
+            - '\RedSun.exe'
+            - '\undef.exe'
+            - '\GreenPlasma.exe'
+            - '\MiniPlasma.exe'
+            - '\YellowKey.exe'
+    condition: selection_shieldbreak or selection_family
+falsepositives:
+    - Unlikely - these are known exploit tool names from the Nightmare Eclipse campaign
+level: critical

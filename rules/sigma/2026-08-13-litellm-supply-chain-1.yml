@@ -1,0 +1,27 @@
+title: LiteLLM Supply Chain - Malicious PTH File Creation
+id: 3f8a2c1d-9e4b-4d7a-b5f6-8c3e1a0d2f9b
+status: experimental
+description: >
+    Detects creation of litellm_init.pth in Python site-packages directories,
+    a persistence mechanism used by TeamPCP in the LiteLLM supply chain attack
+    (CVE-2026-33634). The .pth file executes malicious code on every Python
+    interpreter startup.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://docs.litellm.ai/blog/security-update-march-2026
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1546
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/litellm_init.pth'
+    condition: selection
+falsepositives:
+    - Legitimate LiteLLM installations of known-safe versions (verify version is not 1.82.7 or 1.82.8)
+level: critical

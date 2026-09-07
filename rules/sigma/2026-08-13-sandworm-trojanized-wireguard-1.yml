@@ -1,0 +1,31 @@
+title: WireGuard or SopraVPN Process Spawning PowerShell
+id: 8a1c3e7b-4f2d-4a9e-b5c8-d6e7f0a1b2c3
+status: experimental
+description: >
+    Detects WireGuard or SopraVPN process spawning PowerShell, consistent with
+    the UAC-0145 trojanized WireGuard campaign where the modified client decrypts
+    and executes embedded PowerShell via the runScriptCommand mechanism.
+references:
+    - https://cert.gov.ua/article/6318863
+    - https://www.bleepingcomputer.com/news/security/sandworm-hackers-target-it-pros-with-trojanized-wireguard-vpn-client/
+author: Actioner
+date: 2026/08/13
+tags:
+    - attack.t1059.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\wireguard.exe'
+            - '\sopravpn.exe'
+    selection_child:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate WireGuard PostUp scripts that invoke PowerShell for network configuration
+level: high

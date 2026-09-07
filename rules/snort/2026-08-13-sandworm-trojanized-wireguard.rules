@@ -1,0 +1,1 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to UAC-0145 SopraVPN Phishing Domain soprasteria-bg.com"; flow:to_server; content:"|0e|soprasteria-bg|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,cert.gov.ua/article/6318863; metadata:author Actioner, created 2026-08-13; sid:2100001; rev:1;)
