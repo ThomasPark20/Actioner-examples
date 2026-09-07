@@ -1,0 +1,33 @@
+title: Suspicious phoneinfo.dll Creation in System32
+id: 1a3c5e7f-9b2d-4f6a-8c1e-0d3f5a7b9c2e
+status: experimental
+description: >
+    Detects creation of phoneinfo.dll in the System32 directory, the key payload
+    delivery step in the ShieldBreak exploit. The exploit uses Defender's SYSTEM-level
+    file remediation to write an attacker-controlled Warden.dll payload as
+    phoneinfo.dll in System32, which is then loaded by wer.dll (Windows Error
+    Reporting) to spawn conhost.exe with SYSTEM privileges.
+    NOTE: The recommended Tanium 0-byte phoneinfo.dll placeholder mitigation will
+    also trigger this rule. SOC teams deploying the workaround should pre-suppress
+    or expect alerts from the mitigation deployment process.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.securityweek.com/nightmare-eclipse-drops-windows-zero-day-exploit-shieldbreak/
+    - https://www.tanium.com/blog/shieldbreak-mitigation
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\System32\phoneinfo.dll'
+    condition: selection
+falsepositives:
+    - Legitimate Windows updates installing phoneinfo.dll (not present by default)
+    - Tanium 0-byte phoneinfo.dll placeholder mitigation deployment
+level: critical

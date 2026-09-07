@@ -1,0 +1,25 @@
+title: ShieldBreak Named Pipe Creation
+id: 2b4d6f8a-1c3e-5a7b-9d0f-4e6c8a2b1d3f
+status: experimental
+description: >
+    Detects creation of the SHIELDBREAK named pipe used by the ShieldBreak exploit
+    for inter-process coordination during the privilege escalation sequence. The
+    exploit creates \\.\pipe\SHIELDBREAK to synchronize the token duplication
+    between the Warden.dll payload running as SYSTEM and the user-level exploit process.
+references:
+    - https://www.threatlocker.com/blog/nightmareeclipse-releases-new-poc-shieldbreak-exploits-same-weakness-as-rogueplanet
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName: '\SHIELDBREAK'
+    condition: selection
+falsepositives:
+    - Unlikely - SHIELDBREAK is a distinctive exploit artifact name
+level: critical

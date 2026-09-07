@@ -1,0 +1,26 @@
+title: Suspicious AFD.sys Driver Load from Non-Standard Path
+id: 7a3c1e9d-4f2b-48a6-b5d0-91e8f7c3a2d4
+status: experimental
+description: >
+    Detects loading of afd.sys from outside the standard System32 drivers
+    directory, which may indicate a tampered or replaced driver binary.
+    This is a generic anomaly rule and does not detect CVE-2026-68820
+    exploitation, which targets the legitimate in-place driver via a race
+    condition.
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\afd.sys'
+    filter_system:
+        ImageLoaded|startswith: 'C:\Windows\System32\drivers\'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate driver updates from non-standard paths
+    - Driver test/development environments
+level: medium

@@ -1,0 +1,35 @@
+title: Suspicious Child Process Spawned by Windows Error Reporting Manager
+id: 5c7a9e1b-3d2f-4b6c-8e0a-1f4d7b9c3e5a
+status: experimental
+description: >
+    Detects wermgr.exe spawning conhost.exe or cmd.exe as a child process, which
+    is the final privilege escalation step in the ShieldBreak exploit. After
+    phoneinfo.dll is planted in System32, the QueueReporting scheduled task runs
+    wermgr.exe -upload, which loads wer.dll, which in turn loads the attacker-
+    controlled phoneinfo.dll, spawning a SYSTEM-level shell via conhost.exe.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.securityweek.com/nightmare-eclipse-drops-windows-zero-day-exploit-shieldbreak/
+    - https://www.tanium.com/blog/shieldbreak-mitigation
+    - https://github.com/MSNightmare/ShieldBreak
+author: Actioner
+date: 2026/08/16
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\wermgr.exe'
+    selection_child:
+        Image|endswith:
+            - '\conhost.exe'
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Windows Error Reporting spawning conhost.exe for console output during crash reporting (rare)
+level: high

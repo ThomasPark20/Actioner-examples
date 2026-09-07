@@ -1,0 +1,30 @@
+title: GeoServer jsonArrayContains Probe in OGC Filter Request
+id: 8b2f4d6e-1a3c-5e7f-9d0b-4c8a2e6f1b3d
+status: experimental
+description: >
+    Detects any HTTP request to GeoServer endpoints where the query string
+    includes jsonArrayContains within a CQL_FILTER or OGC filter parameter.
+    This function is the injection vector for GHSA-mqjf-5f49-2fjh and its
+    presence in external requests warrants investigation, even without
+    obvious injection markers.
+references:
+    - https://github.com/geotools/geotools/security/advisories/GHSA-mqjf-5f49-2fjh
+    - https://thehackernews.com/2026/08/unpatched-geoserver-zero-day-targeted.html
+author: Actioner
+date: 2026-08-16
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_endpoint:
+        cs-uri-stem|contains:
+            - '/geoserver/ows'
+            - '/geoserver/wfs'
+            - '/geoserver/wms'
+    selection_function:
+        cs-uri-query|contains: 'jsonArrayContains'
+    condition: selection_endpoint and selection_function
+falsepositives:
+    - Legitimate GeoServer applications using jsonArrayContains for normal JSON array queries against PostGIS layers
+level: medium
