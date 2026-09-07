@@ -1,0 +1,15 @@
+# Actioner - TeamPCP/LiteLLM Supply Chain Attack (CVE-2026-33634) - Suricata Rules
+# Date: 2026-08-17
+# Reference: https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+
+# DNS query for primary exfiltration domain
+alert dns $HOME_NET any -> any any (msg:"Actioner - TeamPCP C2 DNS Query to models.litellm.cloud"; flow:to_server; dns.query; content:"models.litellm.cloud"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-17; sid:2200001; rev:1;)
+
+# DNS query for C2 polling domain
+alert dns $HOME_NET any -> any any (msg:"Actioner - TeamPCP C2 DNS Query to checkmarx.zone"; flow:to_server; dns.query; content:"checkmarx.zone"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-17; sid:2200002; rev:1;)
+
+# DNS query for Trivy typosquat domain
+alert dns $HOME_NET any -> any any (msg:"Actioner - TeamPCP Trivy Typosquat Domain aquasecurtiy.org"; flow:to_server; dns.query; content:"aquasecurtiy.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-17; sid:2200003; rev:1;)
+
+# HTTP exfiltration header
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TeamPCP Exfiltration Header X-Filename tpcp.tar.gz"; flow:established,to_server; http.header; content:"X-Filename"; content:"tpcp.tar.gz"; distance:0; within:20; fast_pattern; classtype:trojan-activity; reference:url,securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-17; sid:2200004; rev:1;)

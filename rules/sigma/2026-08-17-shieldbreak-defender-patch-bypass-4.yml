@@ -1,0 +1,35 @@
+title: WerMgr Spawning Unexpected Child Process
+id: 3d8b6a1e-2c4f-4e7a-9b5d-1f0e8c3a7d2b
+status: experimental
+description: >
+    Detects wermgr.exe spawning unexpected child processes such as conhost.exe or
+    cmd.exe. In the ShieldBreak exploit (CVE-2026-69414), after phoneinfo.dll is
+    sideloaded by wermgr.exe running as SYSTEM, the payload spawns conhost.exe to
+    provide a SYSTEM-level interactive shell.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/microsoft-working-on-defender-patch-for-shieldbreak-zero-day/
+    - https://blog.projectnightcrawler.dev/posts/2026-08-11-shieldbreak-august-2026-disclosure/
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\wermgr.exe'
+    selection_child:
+        Image|endswith:
+            - '\conhost.exe'
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    filter_normal:
+        Image|endswith: '\conhost.exe'
+        CommandLine|contains: '0xffffffff'
+    condition: selection_parent and selection_child and not filter_normal
+falsepositives:
+    - WER-related legitimate conhost.exe console host allocation (filtered by the 0xffffffff pattern for standard console initialization)
+level: high

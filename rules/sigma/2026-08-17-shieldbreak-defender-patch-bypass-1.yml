@@ -1,0 +1,32 @@
+title: Suspicious phoneinfo.dll Creation in System32
+id: 8b4e2f1a-3c7d-4e9a-b6f5-2d1e0c8a9b7f
+status: experimental
+description: >
+    Detects creation of phoneinfo.dll in C:\Windows\System32, which does not exist
+    by default on Windows. The ShieldBreak exploit (CVE-2026-69414) uses CLFS and
+    Cloud Filter API hydration to plant a malicious phoneinfo.dll in System32, which
+    is subsequently loaded by wermgr.exe via wer.dll during QueueReporting scheduled
+    task execution, achieving SYSTEM-level code execution.
+references:
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+    - https://www.bleepingcomputer.com/news/security/microsoft-working-on-defender-patch-for-shieldbreak-zero-day/
+    - https://blog.projectnightcrawler.dev/posts/2026-08-11-shieldbreak-august-2026-disclosure/
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1574.001
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\system32\phoneinfo.dll'
+    filter_trusted:
+        Image|endswith:
+            - '\TiWorker.exe'
+            - '\TrustedInstaller.exe'
+    condition: selection and not filter_trusted
+falsepositives:
+    - Legitimate Windows component installation that installs phoneinfo.dll (not present on default installations)
+level: critical

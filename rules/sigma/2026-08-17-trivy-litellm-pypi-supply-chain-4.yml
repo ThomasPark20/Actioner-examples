@@ -1,0 +1,29 @@
+title: TeamPCP Kubernetes Privileged node-setup Pod Creation
+id: f1b3d7e9-4a26-4c80-95d2-e8c0a6f47b13
+status: experimental
+description: >
+    Detects creation of pods named node-setup-* in kube-system namespace via
+    Kubernetes audit logs, consistent with the TeamPCP campaign (CVE-2026-33634)
+    lateral movement that deploys privileged DaemonSet pods to mount host
+    filesystems and install persistent backdoors on cluster nodes.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/17
+tags:
+    - attack.t1610
+    - attack.t1611
+logsource:
+    product: kubernetes
+    service: audit
+detection:
+    selection:
+        verb: 'create'
+        objectRef.resource: 'pods'
+        objectRef.namespace: 'kube-system'
+        objectRef.name|startswith: 'node-setup-'
+    condition: selection
+falsepositives:
+    - Legitimate Kubernetes operators deploying pods with node-setup prefix in kube-system
+level: high
