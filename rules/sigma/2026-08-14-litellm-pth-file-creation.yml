@@ -1,0 +1,22 @@
+title: LiteLLM Malicious PTH File Creation
+id: 8a3c7e2d-4f1b-4e9a-b5d6-1c2e3f4a5b6c
+status: experimental
+description: Detects creation of the malicious litellm_init.pth file used by TeamPCP to execute credential-stealing code at Python interpreter startup (CVE-2026-33634).
+references:
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+author: Actioner
+date: 2026-08-14
+tags:
+    - attack.t1546
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: 'litellm_init.pth'
+    condition: selection
+falsepositives:
+    - Legitimate litellm package installations prior to the attack (versions before 1.82.7 did not contain this file)
+level: critical

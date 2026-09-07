@@ -1,0 +1,36 @@
+title: Installation of Compromised LiteLLM Package Version
+id: ce7ab1c6-8d5f-4a3e-f9ba-5a6c7d8e9f0a
+status: experimental
+description: Detects pip install commands targeting the known-compromised LiteLLM versions 1.82.7 or 1.82.8 associated with the TeamPCP supply chain attack (CVE-2026-33634).
+references:
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://blog.pypi.org/posts/2026-04-02-incident-report-litellm-telnyx-supply-chain-attack/
+author: Actioner
+date: 2026-08-14
+tags:
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_pip_binary:
+        Image|endswith:
+            - '/pip'
+            - '/pip3'
+    selection_pip_module:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+        CommandLine|contains:
+            - '-m pip'
+    selection_package:
+        CommandLine|contains: 'litellm'
+    selection_version:
+        CommandLine|contains:
+            - '1.82.7'
+            - '1.82.8'
+    condition: (selection_pip_binary or selection_pip_module) and selection_package and selection_version
+falsepositives:
+    - Forensic analysis or testing of the compromised versions in isolated environments
+    - Unpinned pip install commands (without explicit version) will not be detected by this rule
+level: high

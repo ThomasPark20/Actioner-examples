@@ -1,0 +1,31 @@
+title: TeamPCP Kubernetes Privileged Pod Deployment
+id: bd6fa0b5-7c4e-4f2d-e8a9-4f5b6c7d8e9f
+status: experimental
+description: Detects creation of privileged pods matching TeamPCP naming patterns used for lateral movement after LiteLLM supply chain compromise (CVE-2026-33634).
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026-08-14
+tags:
+    - attack.t1610
+    - attack.t1611
+logsource:
+    category: application
+    product: kubernetes
+    service: audit
+detection:
+    selection_resource:
+        objectRef.resource: 'pods'
+    selection_names:
+        objectRef.name|startswith: 'node-setup-'
+    selection_containers:
+        requestObject.spec.containers.name:
+            - 'kamikaze'
+            - 'provisioner'
+            - 'host-provisioner-std'
+            - 'host-provisioner-iran'
+    condition: selection_resource and (selection_names or selection_containers)
+falsepositives:
+    - Custom Kubernetes deployments using node-setup naming convention
+level: critical

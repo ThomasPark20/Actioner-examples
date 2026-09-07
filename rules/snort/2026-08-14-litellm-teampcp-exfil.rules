@@ -1,0 +1,9 @@
+# TeamPCP LiteLLM Supply Chain Attack - Network Exfiltration Detection (CVE-2026-33634)
+# NOTE: These rules inspect HTTP-layer content and require TLS decryption/SSL inspection
+# to match, since the attacker's C2 and exfiltration endpoints use HTTPS.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE TeamPCP LiteLLM Credential Exfiltration to models.litellm.cloud"; flow:established,to_server; content:"models.litellm.cloud"; http_header; content:"POST"; http_method; content:"tpcp.tar.gz"; http_header; reference:cve,2026-33634; classtype:trojan-activity; sid:2026081401; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE TeamPCP C2 Polling to checkmarx.zone"; flow:established,to_server; content:"checkmarx.zone"; http_header; content:"/raw"; http_uri; content:"GET"; http_method; reference:cve,2026-33634; classtype:trojan-activity; sid:2026081402; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE TeamPCP X-Filename tpcp.tar.gz Exfiltration Header"; flow:established,to_server; content:"X-Filename|3a 20|tpcp.tar.gz"; http_header; reference:cve,2026-33634; classtype:trojan-activity; sid:2026081403; rev:1;)

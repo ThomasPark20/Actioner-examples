@@ -1,0 +1,23 @@
+title: TeamPCP Sysmon Persistence Service Installation
+id: 9b4d8f3e-5a2c-4d0b-c6e7-2d3f4a5b6c7d
+status: experimental
+description: Detects creation of the sysmon.py backdoor or sysmon.service systemd unit used by TeamPCP for persistent C2 polling after LiteLLM compromise (CVE-2026-33634).
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026-08-14
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_sysmon_py:
+        TargetFilename|endswith: '/.config/sysmon/sysmon.py'
+    selection_sysmon_svc:
+        TargetFilename|endswith: '/.config/systemd/user/sysmon.service'
+    condition: selection_sysmon_py or selection_sysmon_svc
+falsepositives:
+    - Legitimate system monitoring tools named sysmon (unlikely on Linux)
+level: critical

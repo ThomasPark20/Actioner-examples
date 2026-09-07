@@ -1,0 +1,26 @@
+title: TeamPCP Exfiltration Staging Files Created
+id: df8bc2d7-9e6a-4b4f-a0cb-6b7d8e9f0a1b
+status: experimental
+description: Detects creation of temporary files used by TeamPCP for staging encrypted credential exfiltration after LiteLLM compromise (CVE-2026-33634).
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+author: Actioner
+date: 2026-08-14
+tags:
+    - attack.t1074.001
+    - attack.t1560.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/tpcp.tar.gz'
+            - '/tmp/payload.enc'
+            - '/tmp/session.key.enc'
+            - '/tmp/.pg_state'
+    condition: selection
+falsepositives:
+    - Unlikely; file names tpcp.tar.gz, payload.enc, and session.key.enc are distinctive to this campaign
+level: high
