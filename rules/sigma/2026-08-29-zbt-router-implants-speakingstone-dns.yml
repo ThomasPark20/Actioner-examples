@@ -1,0 +1,26 @@
+title: ZBT SPEAKINGSTONE C2 Beacon to Known Domain
+id: 8a3e1c4f-7b29-4d6e-a1f3-5c8d2e9b0a47
+status: experimental
+description: >
+    Detects DNS queries to the hardcoded C2 domains used by the SPEAKINGSTONE
+    (yunmgrd) factory implant found in ZBT routers. The implant beacons via UDP
+    port 10000 to ac-link.com or the backup domain findmyipaddr.com.
+references:
+    - https://vulncheck.com/blog/zbt-darklantern-speakingstone
+    - https://thehackernews.com/2026/08/china-made-zbt-routers-ship-with-two.html
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1071
+    - attack.t1132.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'ac-link.com'
+            - 'findmyipaddr.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of ac-link.com for non-malicious purposes (unlikely)
+level: high

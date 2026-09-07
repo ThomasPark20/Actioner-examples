@@ -1,0 +1,26 @@
+title: PaperCut JDBC Driver Exploitation Indicators in Application Logs
+id: 2c3d4e5f-6a7b-8c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects specific error strings in PaperCut application logs indicative of
+    CVE-2026-82078 exploitation through unsafe JDBC driver class loading.
+    These error patterns appear when an attacker manipulates the database
+    driver configuration to trigger arbitrary class instantiation.
+references:
+    - https://thehackernews.com/2026/08/papercut-zero-day-exploited-in-attacks.html
+    - https://thehackernews.com/2026/08/attackers-chain-two-papercut-flaws-to.html
+    - https://www.papercut.com/kb/Main/PO-1216-and-PO-1219
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1190
+logsource:
+    category: application
+detection:
+    selection:
+        - 'No suitable driver found for jdbc:no:x'
+        - 'Database error looking up cardID: VALUES CAST'
+    condition: selection
+falsepositives:
+    - Legitimate database driver misconfiguration generating similar error text
+level: critical

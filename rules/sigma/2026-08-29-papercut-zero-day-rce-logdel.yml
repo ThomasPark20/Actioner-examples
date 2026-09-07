@@ -1,0 +1,30 @@
+title: PaperCut Server Log File Deletion
+id: 4b5c6d7e-8f9a-0b1c-2d3e-4f5a6b7c8d9e
+status: experimental
+description: >
+    Detects deletion of PaperCut server.log or derby.log files within a
+    PaperCut installation directory, consistent with anti-forensic log
+    tampering observed during CVE-2026-81578/CVE-2026-82078 exploitation.
+references:
+    - https://www.securityweek.com/papercut-releases-emergency-patch-for-exploited-zero-day/
+    - https://thehackernews.com/2026/08/attackers-chain-two-papercut-flaws-to.html
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1070.004
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection_file:
+        TargetFilename|endswith:
+            - '\server.log'
+            - '\derby.log'
+    selection_path:
+        TargetFilename|contains:
+            - 'PaperCut'
+            - 'papercut'
+    condition: selection_file and selection_path
+falsepositives:
+    - Legitimate PaperCut log rotation or maintenance operations
+level: high

@@ -1,0 +1,32 @@
+title: TerminalFix Python Reverse Tunnel Implant Execution
+id: 2a4b6c8d-0e1f-4a3b-8c5d-9e7f6a1b2c3d
+status: experimental
+description: >
+    Detects execution of the TerminalFix Python-based reverse tunnel implant via
+    pythonw.exe with the characteristic command-line arguments client.py, --server,
+    --uuid, and cert.pem.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1572
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\pythonw.exe'
+            - '\python.exe'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - 'client.py'
+            - '--server'
+            - '--uuid'
+            - 'cert.pem'
+    condition: selection_process and selection_cmdline
+falsepositives:
+    - Unlikely; highly specific command-line combination
+level: critical

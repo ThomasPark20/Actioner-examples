@@ -1,0 +1,32 @@
+title: PaperCut Application Server Spawning Reconnaissance Commands
+id: 7f3a1b2c-9d4e-4f5a-8b6c-1e2d3f4a5b6c
+status: experimental
+description: >
+    Detects PaperCut Application Server process (pc-app.exe) spawning command
+    shell processes executing reconnaissance commands such as whoami, ver, and
+    tasklist, consistent with post-exploitation activity observed during
+    CVE-2026-81578 and CVE-2026-82078 chained exploitation.
+references:
+    - https://www.papercut.com/kb/Main/PO-1216-and-PO-1219
+    - https://thehackernews.com/2026/08/attackers-chain-two-papercut-flaws-to.html
+    - https://www.securityweek.com/papercut-releases-emergency-patch-for-exploited-zero-day/
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1190
+    - attack.t1059.003
+    - attack.t1082
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\pc-app.exe'
+    selection_cmd:
+        CommandLine|contains:
+            - 'whoami'
+            - 'tasklist'
+    condition: selection_parent and selection_cmd
+falsepositives:
+    - Legitimate PaperCut maintenance scripts that invoke system enumeration commands
+level: high

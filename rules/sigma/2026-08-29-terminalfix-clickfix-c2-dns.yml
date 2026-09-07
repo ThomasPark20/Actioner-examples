@@ -1,0 +1,26 @@
+title: TerminalFix Campaign C2 Domain DNS Query
+id: 8d9e0f1a-2b3c-4d5e-6f7a-8b9c0d1e2f3a
+status: experimental
+description: >
+    Detects DNS queries to known TerminalFix campaign command-and-control and payload
+    delivery domains including gitnow.dev, bestsocialmedianewspapper.com, and
+    offlineupdater.com.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/08/29
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'gitnow.dev'
+            - 'bestsocialmedianewspapper.com'
+            - 'offlineupdater.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these domains are campaign-specific infrastructure
+level: critical
