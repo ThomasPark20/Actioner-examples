@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-07
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -170,10 +170,10 @@ The implant re-adds the cron entry within one second of removal. One compromised
 | T1036.004 | Masquerade Task or Service | Process masquerades as [kworker/u:8:0] kernel thread |
 | T1053.003 | Cron | Cron persistence every 5 minutes, written directly to spool |
 | T1071.001 | Web Protocols | WebSocket/TLS C2 on port 443 |
-| T1071.004 | DNS | C2 disguised as NTP traffic on port 123/UDP |
+| T1572 | Protocol Tunneling | C2 data tunneled inside fake NTP traffic on port 123/UDP |
 | T1005 | Data from Local System | Session data exfiltrated via local Redis |
 | T1027 | Obfuscated Files or Information | Base64-encoded PHP payloads; stripped Rust binary |
-| T1070.006 | Timestomping | Direct cron spool writes bypass logging |
+| T1562.001 | Disable or Modify Tools | Direct cron spool writes bypass crontab logging |
 
 ## Impact Assessment
 
@@ -233,6 +233,7 @@ These detections target the StyleSmuggler exploitation chain and its Rust backdo
 Detects HTTP POST to Magento's `/graphql` endpoint with `styles[` query parameter injection, the distinctive entry vector for StyleSmuggler.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed (proxy blocks MITRE ATT&CK data fetch, not a rule defect); sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Values are real (not defanged). No applicable pipeline for webserver category. -->
+<!-- revision: companion Snort/Suricata GraphQL rules had direction reversed (was $HOME_NET->$EXTERNAL_NET, fixed to $EXTERNAL_NET->$HOME_NET for inbound exploitation); this Sigma rule is direction-agnostic (webserver logsource). -->
 ```yaml
 title: StyleSmuggler GraphQL Exploitation Attempt on Magento
 id: 7a3c1e4b-9f2d-4a6e-8b7c-1d5e8f0a3c2b
@@ -267,7 +268,8 @@ level: high
 
 Detects file creation in `.gvfsd`, `.cache/fontconfig`, or `/tmp/.kw_`/`.cache_` paths characteristic of the StyleSmuggler Rust implant.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (proxy blocks MITRE ATT&CK data fetch); splunk exit 0; log_scale exit 0. File paths from Sansec IOCs. Legitimate GVFS/fontconfig unlikely on headless e-commerce servers. -->
+<!-- audit: sigma check failed (proxy blocks MITRE ATT&CK data fetch); splunk exit 0; log_scale exit 0. File paths from Sansec IOCs. Legitimate GVFS/fontconfig unlikely on headless e-commerce servers. Portability note: |re modifier requires pySigma >=0.9; backends without regex support will skip those conditions — |contains alternatives provided for /tmp/.kw_ and /tmp/.cache_ patterns; the .gvfsd_ lock pattern retains |re for hex-suffix precision. -->
+<!-- revision: switched /tmp/.kw_ and /tmp/.cache_ from |re to |contains for broader backend portability; added |re portability note per critic. -->
 ```yaml
 title: StyleSmuggler Backdoor Persistence via Fake GVFSD Process
 id: b8d2f5a1-3c7e-4b9d-a6f8-2e1c0d9e8f4b
@@ -292,9 +294,9 @@ detection:
     selection_lock:
         TargetFilename|re: '/\.gvfsd_[0-9a-f]{8}\.lock$'
     selection_tmp_kw:
-        TargetFilename|re: '/tmp/\.kw_'
+        TargetFilename|contains: '/tmp/.kw_'
     selection_tmp_cache:
-        TargetFilename|re: '/tmp/\.cache_'
+        TargetFilename|contains: '/tmp/.cache_'
     selection_fc_cache:
         TargetFilename|contains: '/.cache/fontconfig/fc-cache'
     condition: 1 of selection_*
@@ -306,16 +308,17 @@ level: high
 
 ### Sigma: StyleSmuggler Kernel Thread Masquerading
 
-Detects user-space processes masquerading as `[kworker/u:8:0]` via the `gvfsd-user` or `fc-cache` binaries placed in hidden directories.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (proxy blocks MITRE ATT&CK data fetch); splunk exit 0; log_scale exit 0. Process name from Sansec IOCs. Genuine kworker threads are kernel-space, not user binaries. -->
+Detects process execution from the hidden-directory paths used by the StyleSmuggler implant. The implant renames itself to `[kworker/u:8:0]` post-exec via `prctl(PR_SET_NAME)`, so process-creation telemetry captures the original binary path, not the spoofed name.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (proxy blocks MITRE ATT&CK data fetch); splunk exit 0; log_scale exit 0. -->
+<!-- revision: removed CommandLine|contains 'kworker/u:8:0' — implant renames post-exec via prctl(PR_SET_NAME); process-creation telemetry captures original invocation path, not spoofed name. Dropped bare Image|endswith '/fc-cache' (matches legitimate fontconfig); retained only hidden-directory Image|contains paths. Downgraded from high to medium — hidden-path match without binary hash is advisory-specific but not hash-pinned. -->
 ```yaml
 title: StyleSmuggler Kernel Thread Masquerading Process
 id: c9e3f6b2-4d8a-5c0e-b7a9-3f2d1e0a9b5c
 status: experimental
 description: >
-    Detects user-space processes masquerading as Linux kernel threads using the name
-    [kworker/u:8:0], a distinctive indicator of the StyleSmuggler Rust backdoor implant.
+    Detects process execution from hidden-directory paths characteristic of the StyleSmuggler
+    Rust backdoor implant, which masquerades as a Linux kernel thread post-execution.
 references:
     - https://sansec.io/research/stylesmuggler
     - https://thehackernews.com/2026/09/unpatched-magento-and-adobe-commerce.html
@@ -327,25 +330,25 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection:
-        Image|endswith:
-            - '/gvfsd-user'
-            - '/fc-cache'
-        CommandLine|contains:
-            - 'kworker/u:8:0'
-    condition: selection
+    selection_gvfsd:
+        Image|contains: '/.local/share/.gvfsd/gvfsd-user'
+    selection_fc_cache:
+        Image|contains: '/.cache/fontconfig/fc-cache'
+    condition: 1 of selection_*
 falsepositives:
-    - Legitimate gvfsd-user processes on desktop Linux systems with GNOME
-level: high
+    - Legitimate GNOME GVFS daemon activity on desktop Linux systems (unlikely on headless e-commerce servers)
+    - Legitimate fontconfig cache rebuilds at the standard path (verify binary hash)
+level: medium
 ```
 
 ### Snort: StyleSmuggler GraphQL Exploit Attempt
 
-Detects HTTP POST to `/graphql` with `styles%5B` in the URI, matching the StyleSmuggler exploitation entry vector.
+Detects inbound HTTP POST to `/graphql` with `styles%5B` in the URI, matching the StyleSmuggler exploitation entry vector.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -c /etc/snort/snort.conf -T exit 0 (Snort 2.9.20). Uses tcp protocol with http_method/http_uri sticky buffers per Snort 2.9 syntax. -->
+<!-- revision: fixed direction from $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET $HTTP_PORTS — this is inbound exploitation of the Magento server, not outbound traffic. rev bumped to 2. -->
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler Magento GraphQL Exploit Attempt"; flow:established,to_server; content:"POST"; http_method; content:"/graphql"; http_uri; content:"styles%5B"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler; sid:2100101; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler Magento GraphQL Exploit Attempt"; flow:established,to_server; content:"POST"; http_method; content:"/graphql"; http_uri; content:"styles%5B"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler; sid:2100101; rev:2;)
 ```
 
 ### Snort: StyleSmuggler C2 WebSocket to windwsecurity.run
@@ -357,24 +360,19 @@ Detects TLS traffic containing the `windwsecurity` C2 domain string in the hands
 alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - StyleSmuggler C2 WebSocket to windwsecurity.run"; flow:established,to_server; content:"windwsecurity"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; sid:2100102; rev:1;)
 ```
 
-### Snort: StyleSmuggler Fake NTP C2 Beacons
+### Snort: StyleSmuggler Fake NTP C2 Beacons — DROPPED
 
-Detects DNS-encoded domain names in UDP/123 traffic matching StyleSmuggler's fake NTP C2 domains (timesysnc.net, microsft.run).
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. DNS label-length encoding matches NTP-shaped UDP payload. Two rules cover the two primary C2 domain patterns. -->
-```snort
-alert udp $HOME_NET any -> $EXTERNAL_NET 123 (msg:"Actioner - StyleSmuggler Fake NTP C2 to timesysnc.net"; content:"|0c|timesysnc|03|net|00|"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; sid:2100103; rev:1;)
-
-alert udp $HOME_NET any -> $EXTERNAL_NET 123 (msg:"Actioner - StyleSmuggler Fake NTP C2 to microsft.run"; content:"|04|time|08|microsft|03|run|00|"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; sid:2100104; rev:1;)
-```
+<!-- revision: SIDs 2100103 and 2100104 dropped. The rules used DNS label-length encoding (|0c|timesysnc|03|net|00|) in a non-DNS payload — the fake NTP C2 uses MessagePack over UDP/123, not DNS wire format, so domain names do not appear as DNS labels in the UDP payload. Additionally, the label-length byte 0x0c was wrong (timesysnc is 9 chars, should be 0x09). The fake NTP C2 domains are already covered by the Suricata DNS query rules (SIDs 2200102-2200108), which detect DNS resolution of these domains before the NTP-shaped traffic begins. -->
+Two Snort rules for fake NTP C2 payload inspection (SIDs 2100103, 2100104) were removed: they applied DNS label-length encoding to a MessagePack-over-UDP/123 payload where domain names do not appear in DNS wire format. C2 domain detection is covered by the Suricata DNS query rules (SIDs 2200102-2200108).
 
 ### Suricata: StyleSmuggler GraphQL Exploit Attempt
 
-Detects HTTP POST to `/graphql` with `styles%5B` in the URI via Suricata dot-notation HTTP buffers.
+Detects inbound HTTP POST to `/graphql` with `styles%5B` in the URI via Suricata dot-notation HTTP buffers.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0 (Suricata 7.0.3). Uses dot-notation sticky buffers (http.method, http.uri, http.content_type). -->
+<!-- audit: suricata -T -S exit 0 (Suricata 7.0.3). Uses dot-notation sticky buffers (http.method, http.uri). -->
+<!-- revision: fixed direction from $HOME_NET->$EXTERNAL_NET to $EXTERNAL_NET->$HOME_NET — inbound exploitation. Removed http.content_type condition — exploit arrives via URI parameter, not request body; content-type match was unnecessary and could cause false negatives. rev bumped to 2. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - StyleSmuggler Magento GraphQL Exploit Attempt"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/graphql"; fast_pattern; content:"styles%5B"; http.content_type; content:"application/json"; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200101; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Magento GraphQL Exploit Attempt"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/graphql"; fast_pattern; content:"styles%5B"; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200101; rev:2;)
 ```
 
 ### Suricata: StyleSmuggler C2 DNS Queries
@@ -401,8 +399,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query t
 ### YARA: StyleSmuggler Rust Backdoor Implant
 
 Detects the StyleSmuggler Rust backdoor binary via embedded C2 domain strings and process masquerading indicators. Scope to binary scanning; not for log analysis.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: fired on constructed sample with published C2 domains + process name. Negative test: quiet on benign file. Condition requires 2+ C2 domains or (process name + path string), reducing FP risk. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive test: fired on constructed sample containing published C2 domain strings + process name; this is NOT a real upstream binary — no published sample was available for testing. Negative test: quiet on benign file. Condition requires 2+ C2 domains or (process name + path string), reducing FP risk. -->
+<!-- revision: changed label from "sample: fired ✓" to "sample: constructed" — tested against a locally constructed file carrying published IOC strings, not a confirmed upstream binary. -->
 ```yara
 rule Malware_StyleSmuggler_Rust_Backdoor
 {
@@ -444,8 +443,9 @@ rule Malware_StyleSmuggler_Rust_Backdoor
 ### YARA: StyleSmuggler PHP Dropper
 
 Detects PHP dropper code injected into Magento failure reports, matching the `X_TRACE_` marker with `eval(base64_decode(...))` payloads.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: fired on constructed sample with X_TRACE_ + eval(base64_decode( pattern. Negative: quiet. Condition requires marker + exec function, or report path + eval, keeping precision high. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. Positive test: fired on constructed sample containing X_TRACE_ + eval(base64_decode( pattern; this is NOT a real upstream sample. Negative: quiet. Condition requires marker + exec function, or report path + eval, keeping precision high. -->
+<!-- revision: changed label from "sample: fired ✓" to "sample: constructed" — tested against a locally constructed file, not a confirmed upstream sample. -->
 ```yara
 rule Exploit_StyleSmuggler_PHP_Dropper
 {
