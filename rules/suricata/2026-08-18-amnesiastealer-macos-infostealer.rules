@@ -1,0 +1,7 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer C2 DNS Query to allllowef.space"; flow:to_server; dns.query; content:"allllowef.space"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200101; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - AmnesiaStealer Delivery Domain DNS Query to aoitour.com"; flow:to_server; dns.query; content:"aoitour.com"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200102; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AmnesiaStealer C2 Bot Registration POST"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/bot/join"; fast_pattern; http.host; content:"allllowef.space"; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200103; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AmnesiaStealer C2 Data Exfiltration POST"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/send/"; fast_pattern; http.host; content:"allllowef.space"; classtype:trojan-activity; reference:url,www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/; metadata:author Actioner, created_at 2026-08-18; sid:2200104; rev:1;)

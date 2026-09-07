@@ -1,0 +1,28 @@
+title: SANDCLOCK C2 DNS Query to Known Infrastructure
+id: 5e9f1a3b-2c7d-4e8f-b0a6-3d1c5e7f9a2b
+status: experimental
+description: >
+    Detects DNS queries to known SANDCLOCK campaign C2 and exfiltration
+    domains including models.litellm.cloud (exfil), checkmarx.zone
+    (persistence C2), and scan.aquasecurtiy.org (Trivy-related exfil).
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://www.cloudsek.com/blog/ai-supply-chain-breach-2500-companies-434000-cicd-pipelines
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'models.litellm.cloud'
+            - 'checkmarx.zone'
+            - 'scan.aquasecurtiy.org'
+    condition: selection
+falsepositives:
+    - None expected - these are attacker-controlled typosquatted domains
+level: critical

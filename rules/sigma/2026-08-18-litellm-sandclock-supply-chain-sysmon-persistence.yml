@@ -1,0 +1,28 @@
+title: SANDCLOCK Persistence via Fake Sysmon Systemd User Service
+id: 3c7d1e5f-9a2b-4f6c-8d0e-1b3a5c7d9e2f
+status: experimental
+description: >
+    Detects creation of the SANDCLOCK backdoor persistence mechanism which
+    installs a fake sysmon.py script under ~/.config/sysmon/ and registers
+    it as a systemd user service (sysmon.service) that polls checkmarx.zone
+    for follow-on payloads every 50 minutes.
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://www.resecurity.com/blog/article/the-litellm-supply-chain-attack-teampcp-sandclock-cicd-credential-harvesting-campaign-via-a-backdoored-trivy-github-action
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1543.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_sysmon_script:
+        TargetFilename|contains: '/.config/sysmon/sysmon.py'
+    selection_sysmon_service:
+        TargetFilename|contains: '/.config/systemd/user/sysmon.service'
+    condition: selection_sysmon_script or selection_sysmon_service
+falsepositives:
+    - Legitimate Sysmon for Linux installations (would use different paths)
+level: high

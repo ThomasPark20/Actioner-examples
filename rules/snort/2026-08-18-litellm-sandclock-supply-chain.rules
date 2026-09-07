@@ -1,0 +1,5 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to Exfil Domain models.litellm.cloud"; flow:to_server; content:"|06|models|07|litellm|05|cloud|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100001; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to C2 Domain checkmarx.zone"; flow:to_server; content:"|09|checkmarx|04|zone|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100002; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SANDCLOCK DNS Query to Typosquat Domain scan.aquasecurtiy.org"; flow:to_server; content:"|04|scan|0c|aquasecurtiy|03|org|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,snyk.io/blog/poisoned-security-scanner-backdooring-litellm/; reference:cve,2026-33634; metadata:author Actioner, created 2026-08-18; sid:2100003; rev:1;)

@@ -1,0 +1,83 @@
+title: AmnesiaStealer macOS LaunchDaemon Persistence via Fake CrashReporter
+id: 7e3a4b2c-9f1d-4e8a-b6c5-d3f2a1e09874
+status: experimental
+description: >
+    Detects creation or modification of a LaunchDaemon plist impersonating Apple's
+    CrashReporter service, as used by AmnesiaStealer for persistence on macOS.
+references:
+    - https://www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/
+    - https://www.bleepingcomputer.com/news/security/new-amnesiastealer-macos-malware-hijacks-browser-sessions-via-remote-control/
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1543.004
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith: '/Library/LaunchDaemons/com.apple.ReportCrash.plist'
+    filter_apple:
+        Image|startswith: '/System/'
+    condition: selection and not filter_apple
+falsepositives:
+    - Legitimate Apple system updates touching this plist (filtered by System path)
+level: high
+---
+title: AmnesiaStealer C2 Domain DNS Query
+id: 9c4e7f3a-1b2d-4a6e-8d5c-f0e3b7a29816
+status: experimental
+description: >
+    Detects DNS queries to known AmnesiaStealer command-and-control domains
+    used for data exfiltration and operator tasking.
+references:
+    - https://www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/
+    - https://thehackernews.com/2026/08/amnesiastealer-hijacks-chromium.html
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'allllowef.space'
+            - 'aoitour.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these domains are infrastructure-specific to this campaign
+level: critical
+---
+title: AmnesiaStealer Staging File Creation in /tmp
+id: a1d2e3f4-5b6c-7d8e-9f0a-1b2c3d4e5f60
+status: experimental
+description: >
+    Detects creation of characteristic AmnesiaStealer temporary staging files in /tmp,
+    including hidden Apple-impersonating executables and credential cache files.
+references:
+    - https://www.jamf.com/blog/amnesia-stealer-macos-infostealer-clickfix/
+    - https://www.bleepingcomputer.com/news/security/new-amnesiastealer-macos-malware-hijacks-browser-sessions-via-remote-control/
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_apple_dt:
+        TargetFilename|startswith: '/tmp/.com.apple.dt.'
+    selection_staging_files:
+        TargetFilename:
+            - '/tmp/tempAppleScript.scpt'
+            - '/tmp/starter'
+            - '/tmp/.snap_read'
+            - '/tmp/.snap_tcc'
+            - '/tmp/.tcc_mod.db'
+            - '/tmp/.tcc_bak.db'
+            - '/tmp/mail_accounts_smoke'
+    condition: selection_apple_dt or selection_staging_files
+falsepositives:
+    - Apple developer tools may create files with com.apple.dt prefix; correlate with other AmnesiaStealer indicators
+level: medium

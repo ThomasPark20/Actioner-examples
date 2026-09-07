@@ -1,0 +1,27 @@
+title: SANDCLOCK Backdoor Staging Files in /tmp
+id: 7a2b4c6d-8e0f-1a3b-5c7d-9e2f4a6b8c0d
+status: experimental
+description: >
+    Detects creation of SANDCLOCK-specific staging files in /tmp used by
+    the persistence backdoor for C2 state tracking (.pg_state) and
+    downloaded payload storage (pglog).
+references:
+    - https://snyk.io/blog/poisoned-security-scanner-backdooring-litellm/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/18
+tags:
+    - attack.t1059.006
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/.pg_state'
+            - '/tmp/pglog'
+    condition: selection
+falsepositives:
+    - PostgreSQL temporary state files could overlap with .pg_state naming
+level: medium
