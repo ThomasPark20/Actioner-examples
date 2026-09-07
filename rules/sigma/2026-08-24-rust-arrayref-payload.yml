@@ -1,0 +1,30 @@
+title: Rust Arrayref Supply Chain Attack - Payload File Creation
+id: 5e7a9c1b-3d2f-4b6e-8a0c-6f4d2e1b9a3c
+status: experimental
+description: >
+    Detects creation of the stage-1 dropper files associated with the Rust
+    crate supply-chain attack. The malicious build script writes rust-setup
+    to /tmp on Unix or rust-setup.ps1 and rust-setup-launch.vbs to the Windows
+    temp directory.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://thehackernews.com/2026/08/rust-supply-chain-attack-puts-build.html
+    - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1105
+    - attack.t1059.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains:
+            - '\rust-setup.ps1'
+            - '\rust-setup-launch.vbs'
+            - '\rust-setup.ps1.cfg'
+    condition: selection
+falsepositives:
+    - No legitimate Rust tooling creates files with these exact names
+level: critical

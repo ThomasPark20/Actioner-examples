@@ -1,0 +1,32 @@
+title: Network Connection to Rust Arrayref Supply Chain C2 Infrastructure
+id: 8a3c1e7d-4f2b-4e9a-b6d8-1c5f3a9e7b2d
+status: experimental
+description: >
+    Detects outbound network connections to the C2 IP addresses used in the
+    August 2026 Rust crate supply-chain attack targeting arrayref, internment,
+    and append-only-vec packages. The attacker used 23.254.165.112 (ports 9089
+    and 443) for payload delivery and C2, with secondary C2 at 23.254.167.107
+    and 23.254.167.216.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/24
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationIp:
+            - '23.254.165.112'
+            - '23.254.167.107'
+            - '23.254.167.216'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to Hostwinds infrastructure at these specific IPs is unlikely but possible
+level: critical
