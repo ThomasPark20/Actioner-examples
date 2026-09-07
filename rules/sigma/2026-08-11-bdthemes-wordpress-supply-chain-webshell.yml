@@ -1,0 +1,22 @@
+title: BdThemes Supply Chain - Webshell emer-run.php Access
+id: 4d6a8b0c-3e5f-7a9b-1c2d-4f6e8a0b2c3d
+status: experimental
+description: >
+    Detects HTTP requests to emer-run.php, the webshell deployed by the BdThemes supply chain
+    attack through a fake plugin (e.g., wp-smart-thumbnails) to maintain persistent remote access.
+references:
+    - https://www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/
+    - https://www.wordfence.com/blog/2026/08/psa-supply-chain-compromise-in-bdthemes-ecosystem-via-poisoned-api-response/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: 'emer-run.php'
+    condition: selection
+falsepositives:
+    - Legitimate files named emer-run.php (extremely unlikely)
+level: critical

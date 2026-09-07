@@ -1,0 +1,25 @@
+title: Kimwolf v7 Outbound Connection to Known C2 Infrastructure
+id: 5e9d3a7c-1f4b-42e8-a6c9-8d2b0e5f7a3c
+status: experimental
+description: >
+    Detects outbound network connections to known Kimwolf v7 C2 IP addresses
+    in the 212.193.31.x range (AS202799, Saint Petersburg, Russia).
+references:
+    - https://unit42.paloaltonetworks.com/kimwolf-v7-botnet-malware/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip|startswith: '212.193.31.'
+        dst_port:
+            - 13
+            - 443
+    condition: selection
+falsepositives:
+    - Legitimate traffic to this IP range (verify with AS202799 ownership)
+level: high

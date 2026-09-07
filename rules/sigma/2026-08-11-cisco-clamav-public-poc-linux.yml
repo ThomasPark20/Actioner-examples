@@ -1,0 +1,38 @@
+title: ClamAV Process Crash or Abnormal Termination
+id: 9a3e7c12-bf4d-4e8a-a1c6-d5f2e0b89734
+status: experimental
+description: >
+    Detects ClamAV scanning processes (clamd, clamscan) terminating abnormally,
+    which may indicate exploitation of CVE-2026-20337, CVE-2026-20338, or related
+    ClamAV parser vulnerabilities via crafted files.
+references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-clamav-WuuvVd26
+    - https://blog.clamav.net/2026/08/clamav-154-and-146-security-patch.html
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1499.004
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_process:
+        SyslogIdentifier|contains:
+            - 'clamd'
+            - 'clamscan'
+            - 'clamdscan'
+    selection_crash:
+        Message|contains:
+            - 'segfault'
+            - 'SIGSEGV'
+            - 'SIGABRT'
+            - 'core dumped'
+            - 'signal 11'
+            - 'signal 6'
+            - 'double free'
+            - 'corrupted size'
+            - 'heap-buffer-overflow'
+    condition: selection_process and selection_crash
+falsepositives:
+    - Legitimate ClamAV crashes due to resource exhaustion or unrelated bugs
+level: high

@@ -1,0 +1,25 @@
+title: Aeternum Botnet GitHub Payload Download from Known Operator Accounts
+id: 2f8b4d6e-7c9a-4e3f-b1d5-a0c2e3f4d5e6
+status: experimental
+description: >
+    Detects outbound connections to GitHub repositories associated with the
+    Aeternum botnet operator (lencod, Mash3Do) used for hosting and delivering
+    malicious payloads after C2 domain resolution via blockchain.
+references:
+    - https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1105
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-host: 'github.com'
+        cs-uri|contains:
+            - '/lencod/'
+            - '/Mash3Do/'
+    condition: selection
+falsepositives:
+    - Legitimate use of these GitHub accounts, though both are associated with malicious activity
+level: high

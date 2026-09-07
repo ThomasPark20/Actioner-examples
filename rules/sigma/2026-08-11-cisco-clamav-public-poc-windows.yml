@@ -1,0 +1,32 @@
+title: ClamAV Process Crash on Windows - Potential Parser Exploit
+id: b7d4e1f8-3a52-4c9b-8e06-f1a2d3c4b5e7
+status: experimental
+description: >
+    Detects ClamAV scanning processes crashing on Windows via Application Error
+    events, which may indicate exploitation of CVE-2026-20337 through CVE-2026-20348
+    ClamAV parser vulnerabilities. Windows is rated High severity as ClamAV runs
+    in a privileged security context on this platform.
+references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-clamav-WuuvVd26
+    - https://blog.clamav.net/2026/08/clamav-154-and-146-security-patch.html
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1499.004
+logsource:
+    product: windows
+    service: application
+detection:
+    selection_event:
+        EventID: 1000
+    selection_process:
+        Data|contains:
+            - 'clamd.exe'
+            - 'clamscan.exe'
+            - 'clamdscan.exe'
+            - 'ClamScanSvc.exe'
+    condition: selection_event and selection_process
+falsepositives:
+    - Legitimate ClamAV crashes due to resource exhaustion
+    - ClamAV version upgrades or configuration issues
+level: high

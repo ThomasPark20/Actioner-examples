@@ -1,0 +1,80 @@
+# DeadLock Ransomware Sigma Detection Rules
+# Generated: 2026-08-11
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/
+
+title: DeadLock Ransomware UAC Elevation via Random CMD File
+id: 7a3e8b1c-5d4f-4e92-b6a1-9c0d2e3f4a5b
+status: experimental
+description: >
+    Detects DeadLock ransomware privilege escalation pattern where a randomly named 8-character
+    uppercase CMD file is generated and executed with RunAs verb via ShellExecuteW to bypass UAC.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/
+    - https://www.group-ib.com/blog/deadlock-ransomware-polygon-smart-contracts/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1548.002
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentCommandLine|re: '\\[A-Z]{8}\.cmd'
+    selection_child:
+        IntegrityLevel: 'High'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate administrative scripts with 8-character uppercase names
+    - IntegrityLevel field requires Sysmon; CrowdStrike and other EDR backends may not populate it
+level: medium
+---
+title: DeadLock Ransomware Event Log Channel Disabling via Registry
+id: 3c5d7e9f-2a4b-6c8d-0e1f-5b7a9d3c1e0f
+status: experimental
+description: >
+    Detects DeadLock ransomware disabling Windows event log channels by setting the Enabled
+    registry value to 0 under WINEVT Channels, a distinctive anti-forensics technique.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1562.002
+    - attack.t1070.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Microsoft\Windows\CurrentVersion\WINEVT\Channels\'
+        TargetObject|endswith: '\Enabled'
+        Details: 'DWORD (0x00000000)'
+    condition: selection
+falsepositives:
+    - Legitimate event log management by administrators
+level: high
+---
+title: DeadLock Ransomware Custom File Extension Icon Registration
+id: 4d6e8f0a-3b5c-7d9e-1f2a-6c8b0d4e2f1a
+status: experimental
+description: >
+    Detects DeadLock ransomware registering a custom icon for the .dlock file extension
+    by creating the DefaultIcon registry key under HKLM\SOFTWARE\Classes\.dlock.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/10/deadlock-ransomware-breaking-down-a-rust-based-encryptor-with-decentralized-recovery-infrastructure/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\SOFTWARE\Classes\.dlock\DefaultIcon'
+    condition: selection
+falsepositives:
+    - Legitimate software registering .dlock extension (unlikely)
+level: critical

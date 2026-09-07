@@ -1,0 +1,24 @@
+title: BdThemes Supply Chain - Magic Login Backdoor URL Parameter
+id: 3c5f7a9b-2d4e-6f8a-0b1c-3e5d7f9a1b2c
+status: experimental
+description: >
+    Detects HTTP requests containing the _wplogin URL parameter used by the BdThemes supply chain
+    attack's must-use plugin backdoor to grant unauthenticated administrative access to compromised
+    WordPress sites.
+references:
+    - https://www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/
+    - https://www.wordfence.com/blog/2026/08/psa-supply-chain-compromise-in-bdthemes-ecosystem-via-poisoned-api-response/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1556
+    - attack.t1078.004
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-query|contains: '_wplogin='
+    condition: selection
+falsepositives:
+    - Custom WordPress plugins using a similarly named parameter (review context)
+level: high

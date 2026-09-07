@@ -1,0 +1,15 @@
+# Actioner - Aeternum Blockchain C2 Detection Rules (Suricata 7.x)
+# Reference: https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+# Date: 2026-08-11
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Aeternum C2 SystemInfo Bot User-Agent Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.user_agent; content:"SystemInfo Bot/2.0"; fast_pattern; http.content_type; content:"multipart/form-data"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Aeternum C2 Blockchain RPC getDomain Function Selector"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"0xb68d1809"; fast_pattern; content:"eth_call"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Aeternum C2 Known Malicious Domain sftp-api-group-wechat"; flow:to_server; dns.query; content:"sftp-api-group-wechat.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Aeternum C2 Known Malicious Domain update-launcher"; flow:to_server; dns.query; content:"update-launcher.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200104; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Aeternum C2 Telegram Bot sendDocument Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; startswith; content:"/sendDocument"; endswith; fast_pattern; http.user_agent; content:"cpp-httplib/0.18.3"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200105; rev:2;)
+
+alert http $HOME_NET any -> 193.221.200.219 any (msg:"Actioner - Aeternum C2 Known Exfiltration Server AES-128 ECB Data"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"uqhash"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis; metadata:author Actioner, created_at 2026-08-11; sid:2200106; rev:1;)

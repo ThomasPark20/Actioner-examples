@@ -1,0 +1,23 @@
+title: BdThemes Supply Chain - C2 Communication to ia-cdn.com
+id: 7a3f1c8e-9b2d-4e5f-a6c7-1d8e0f3b2a4c
+status: experimental
+description: >
+    Detects outbound web requests to ia-cdn.com, the C2 domain used in the BdThemes WordPress
+    plugin supply chain attack to deliver targeting instructions and malicious JavaScript payloads.
+references:
+    - https://www.bleepingcomputer.com/news/security/bdthemes-plugins-supply-chain-hack-creates-rogue-wordpress-admins/
+    - https://www.wordfence.com/blog/2026/08/psa-supply-chain-compromise-in-bdthemes-ecosystem-via-poisoned-api-response/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains: 'ia-cdn.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of ia-cdn.com domain (unlikely given its association with this campaign)
+level: high

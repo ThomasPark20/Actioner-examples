@@ -1,0 +1,2 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET 13 (msg:"Actioner - Kimwolf v7 C2 Connection to Port 13"; flow:established,to_server; content:"|05 01 00|"; depth:3; reference:url,unit42.paloaltonetworks.com/kimwolf-v7-botnet-malware/; classtype:trojan-activity; sid:2100101; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query for Kimwolf v7 Operator RPC Domain rpcuniverse.com"; content:"|0b|rpcuniverse|03|com|00|"; nocase; fast_pattern; reference:url,unit42.paloaltonetworks.com/kimwolf-v7-botnet-malware/; classtype:trojan-activity; sid:2100102; rev:1;)

@@ -1,0 +1,23 @@
+title: Aeternum Botnet System Info Exfiltration via Custom User-Agent
+id: 9c4f6a8b-2d5e-4f1a-b3c7-e8d9f0a1b2c3
+status: experimental
+description: >
+    Detects HTTP POST requests using the distinctive User-Agent string
+    'SystemInfo Bot/2.0' used by the Aeternum botnet DLL to exfiltrate
+    system information to Telegram.
+references:
+    - https://unit42.paloaltonetworks.com/aeternum-blockchain-c2-analysis/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection_ua:
+        c-useragent|contains: 'SystemInfo Bot/2.0'
+    condition: selection_ua
+falsepositives:
+    - Unlikely - highly distinctive User-Agent string
+level: high

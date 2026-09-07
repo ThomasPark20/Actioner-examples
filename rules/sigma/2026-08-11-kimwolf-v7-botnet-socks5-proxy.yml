@@ -1,0 +1,23 @@
+title: Kimwolf v7 Local SOCKS5 Proxy to Tor Fallback
+id: 9b1c4e8d-3a5f-46d7-82e9-6f0d7b2a1c5e
+status: experimental
+description: >
+    Detects local network connections to 127.0.0.1 on port 23075, the hard-coded
+    local proxy port used by Kimwolf v7 to route C2 traffic through Tor or clearnet.
+references:
+    - https://unit42.paloaltonetworks.com/kimwolf-v7-botnet-malware/
+author: Actioner
+date: 2026/08/11
+tags:
+    - attack.t1090.003
+    - attack.t1573
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '127.0.0.1'
+        DestinationPort: 23075
+    condition: selection
+falsepositives:
+    - Custom applications configured to use local SOCKS proxy on this specific port
+level: high
