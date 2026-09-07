@@ -1,0 +1,28 @@
+title: Wscript launching rust-setup VBS launcher (arrayref supply chain)
+id: 3b8f2c6e-1d5a-4e9b-a7f0-2c4d6e8a1b3f
+status: experimental
+description: >-
+  Detects wscript.exe executing a VBScript launcher that starts the rust-setup.ps1
+  PowerShell backdoor. The arrayref/append-only-vec supply chain attack (August 2026)
+  writes rust-setup-launch.vbs to %TEMP% and spawns it via wscript.exe to escape
+  Cargo's job object.
+references:
+  - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+  - https://semgrep.dev/blog/2026/rust-crates-arrayref-append-only-vec-compromised-proc-macro1/
+author: Actioner
+date: 2026/08/21
+tags:
+  - attack.t1195.001
+  - attack.t1059.005
+  - attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection:
+    Image|endswith: '\wscript.exe'
+    CommandLine|contains: 'rust-setup-launch.vbs'
+  condition: selection
+falsepositives:
+  - Very unlikely - the filename rust-setup-launch.vbs is unique to this campaign
+level: critical

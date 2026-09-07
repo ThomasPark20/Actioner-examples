@@ -1,0 +1,31 @@
+# Suricata rules for SPECTRE C2 communication detection
+# Author: Actioner
+# Reference: https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+# SIDs: custom range 9000001-9000009 (avoids ET reserved 2000000-2999999)
+
+# SPECTRE C2 beacon registration
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Registration Beacon POST to /api/v1/register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/register"; http.header; content:"X-ID"; content:"x9"; sid:9000001; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# SPECTRE C2 command output exfiltration
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SPECTRE C2 Output Exfiltration POST to /api/v1/output"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/output"; http.header; content:"X-ID"; content:"x9"; sid:9000002; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# UAT-10147 staging server download
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 Staging Domain adminapi.tippusoni.in"; flow:established,to_server; http.host; content:"adminapi.tippusoni.in"; sid:9000003; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
+
+# UAT-10147 C2 domain kl21177.com
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain kl21177.com DNS Lookup"; dns.query; content:"kl21177.com"; sid:9000004; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/;)
+
+# UAT-10147 SEO fraud domain
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 SEO Fraud Domain vip8888vn.xyz DNS Lookup"; dns.query; content:"vip8888vn.xyz"; sid:9000005; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# UAT-10147 C2 IP
+alert ip $HOME_NET any -> 139.180.197.150 any (msg:"Actioner - UAT-10147 C2 Server 139.180.197.150"; sid:9000006; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# UAT-10147 SEO fraud JS delivery
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-10147 SEO Fraud JS Delivery Domain jyzyps.com"; flow:established,to_server; http.host; content:"jyzyps.com"; sid:9000007; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# UAT-10147 C2 domain niupilao.vip
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain niupilao.vip DNS Lookup"; dns.query; content:"niupilao.vip"; sid:9000008; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)
+
+# UAT-10147 C2 domain udvyiwvfs.cyou
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-10147 C2 Domain udvyiwvfs.cyou DNS Lookup"; dns.query; content:"udvyiwvfs.cyou"; sid:9000009; rev:1; metadata:created_at 2026_08_21; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/;)

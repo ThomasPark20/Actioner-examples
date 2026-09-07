@@ -1,0 +1,32 @@
+title: Registry Hive Credential Dumping via reg.exe
+id: 9c1e3a5b-7d2f-4f98-e6a0-8b4d2c6e0a1f
+status: experimental
+description: >
+    Detects reg.exe saving SAM, SYSTEM, or SECURITY hives, a generic T1003.002
+    technique used by numerous threat actors including UAT-10147's SPECTRE implant
+    for offline credential extraction.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.credential_access
+    - attack.t1003.002
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection_tool:
+        Image|endswith: '\reg.exe'
+    selection_save:
+        CommandLine|contains: 'save'
+    selection_hive:
+        CommandLine|contains:
+            - 'hklm\sam'
+            - 'hklm\system'
+            - 'hklm\security'
+    condition: selection_tool and selection_save and selection_hive
+falsepositives:
+    - Legitimate backup or disaster recovery software
+    - System administrators performing authorized registry backups
+level: high

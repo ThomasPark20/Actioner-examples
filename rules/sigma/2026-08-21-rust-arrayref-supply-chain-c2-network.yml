@@ -1,0 +1,26 @@
+title: Network connection to arrayref supply chain C2 infrastructure
+id: 4f1a9c7e-2b3d-4e6f-8a5c-9d0e1b7f2c4a
+status: experimental
+description: >-
+  Detects outbound network connections to the C2 infrastructure used in the
+  arrayref/append-only-vec Rust supply chain attack (August 2026). The primary
+  payload host and C2 server reside at 23.254.165.112.
+references:
+  - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+  - https://semgrep.dev/blog/2026/rust-crates-arrayref-append-only-vec-compromised-proc-macro1/
+author: Actioner
+date: 2026/08/21
+tags:
+  - attack.t1071.001
+logsource:
+  category: network_connection
+detection:
+  selection:
+    DestinationIp:
+      - '23.254.165.112'
+      - '23.254.167.107'
+      - '23.254.167.216'
+  condition: selection
+falsepositives:
+  - Legitimate traffic to Hostwinds LLC infrastructure at these IPs (unlikely for developer workstations)
+level: high

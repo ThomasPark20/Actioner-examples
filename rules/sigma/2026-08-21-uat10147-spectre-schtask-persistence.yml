@@ -1,0 +1,25 @@
+title: SPECTRE Persistence via Google Chrome Masquerading Scheduled Task
+id: 3b5d7f9a-1c2e-4a86-d0f4-6e8b0a2c4d7f
+status: experimental
+description: >
+    Detects creation of scheduled tasks named Google Chrome Start used by UAT-10147
+    for persistence, configured to execute malware at highest privileges during
+    user logon events.
+references:
+    - https://blog.talosintelligence.com/uat-10147-chinese-speaking-adversary-integrates-agentic-ai-into-post-compromise-operations/
+author: Actioner
+date: 2026-08-21
+tags:
+    - attack.persistence
+    - attack.t1053.005
+logsource:
+    product: windows
+    category: process_creation
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'Google Chrome Start'
+    condition: selection
+falsepositives:
+    - Extremely unlikely - Google Chrome does not use scheduled tasks with this naming convention
+level: high

@@ -1,0 +1,26 @@
+title: Rust-setup payload file creation in temp directory
+id: 9e4c7b1a-5d8f-4a2e-b3c6-1f7d9a0e4b52
+status: experimental
+description: >-
+  Detects creation of the /tmp/rust-setup file on Unix/Linux, indicating the malicious
+  proc-macro1 build.rs dropper has staged the arrayref/append-only-vec supply chain
+  attack payload.
+references:
+  - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+  - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/21
+tags:
+  - attack.t1195.001
+  - attack.t1105
+logsource:
+  category: file_event
+  product: linux
+detection:
+  selection:
+    TargetFilename:
+      - '/tmp/rust-setup'
+  condition: selection
+falsepositives:
+  - Legitimate Rust toolchain operations using a similarly named file (unlikely)
+level: high
