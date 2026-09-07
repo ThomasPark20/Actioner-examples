@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-07
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -107,7 +107,7 @@ CVE-2026-67278 affects outbound TLS and IKEv2 connections regardless of inbound 
 - **SSH login with username "-2"**: Log entries formatted as `ssh:-2@<IP>` followed by configuration actions; the defining indicator of MikroTrick exploitation
 - **"ops" account creation**: Privileged backdoor user account created post-exploitation
 - **SSH key injection**: Unauthorized keys added via `/user ssh-keys import`
-- **Scheduler entries**: Scripts containing `fetch`, `http://`, or `https://` references that re-fetch payloads
+- **Scheduler entries**: Scripts containing `fetch`, `hxxp://`, or `hxxps://` references that re-fetch payloads
 - **SOCKS proxy activation**: `/ip socks` enabled for traffic relay
 - **Firewall rule changes**: Attacker-injected NAT/filter rules
 - **Packet sniffer configuration**: Traffic interception settings added
@@ -239,7 +239,8 @@ level: critical
 
 Detects creation or modification of the "ops" backdoor account in forwarded RouterOS syslog, a confirmed post-exploitation indicator from the MikroTrick campaign. Scope to MikroTik syslog sources to reduce false positives.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0 (with -x attacktag). splunk convert 0; log_scale convert 0. Keywords AND logic: both an account-action keyword AND "ops" must appear in the same log entry. Medium confidence because "ops" is a plausible legitimate account name in some environments; pair with the "-2" rule as anchor. -->
+<!-- audit: sigma check 0 (with -x attacktag). splunk convert 0; log_scale convert 0. Keywords AND logic: both an account-action keyword AND "ops" must appear in the same log entry. Medium confidence because "ops" is a 3-char substring that will collide with legitimate strings like "options", "operations", "devops", etc. in generic syslog streams. Scope this rule to MikroTik-only syslog sources (e.g. filter by source host or syslog tag) to reduce false-positive volume; pair with the "-2" rule as anchor for triage. -->
+<!-- revision: added substring-collision acknowledgment per critic; noted MikroTik-source scoping requirement. -->
 ```yaml
 title: MikroTik MikroTrick Post-Exploitation - Backdoor Account "ops" Creation
 id: a2f4b8c6-1d3e-4a7f-8b5c-9e0d2f6a3c18
