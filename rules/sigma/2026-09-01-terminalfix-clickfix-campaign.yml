@@ -1,0 +1,184 @@
+title: TerminalFix ClickFix DLL Sideloading via LockScreenContentServer
+id: a1e4f7b2-3c8d-4e5a-9f6b-7d2e1a0c3b4f
+status: experimental
+description: >
+    Detects LockScreenContentServer.exe loading dui70.dll from a non-system
+    directory, indicating DLL sideloading as used by the TerminalFix campaign
+    to execute malicious payloads within a trusted signed process.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+    - https://thehackernews.com/2026/08/terminalfix-uses-fake-cloudflare.html
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\LockScreenContentServer.exe'
+        ImageLoaded|endswith: '\dui70.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+            - 'C:\Windows\WinSxS\'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate use of LockScreenContentServer.exe outside system directories is not expected
+level: high
+---
+title: TerminalFix PowerShell Execution to ProgramData with Batch Launch
+id: b2f5a8c3-4d9e-5f6b-0a7c-8e3f2b1d4c5a
+status: experimental
+description: >
+    Detects PowerShell or cmd.exe spawning processes involving ProgramData
+    extraction and batch file execution of LockScreenContentServer.exe,
+    consistent with the TerminalFix ClickFix initial execution chain.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+    - https://thehackernews.com/2026/08/terminalfix-uses-fake-cloudflare.html
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1059.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\cmd.exe'
+            - '\wt.exe'
+        CommandLine|contains|all:
+            - '\ProgramData\'
+            - 'LockScreenContentServer'
+    condition: selection
+falsepositives:
+    - Unlikely; LockScreenContentServer.exe execution from ProgramData via CLI is not a legitimate workflow
+level: high
+---
+title: TerminalFix Scheduled Task Persistence for LockScreenContentServer
+id: c3a6b9d4-5e0f-6a7c-1b8d-9f4a3c2e5d6b
+status: experimental
+description: >
+    Detects creation of a scheduled task referencing LockScreenContentServer
+    for persistence, as used by the TerminalFix campaign with 60-minute
+    execution intervals.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'LockScreenContentServer'
+    condition: selection
+falsepositives:
+    - System administrators legitimately creating tasks for this binary (unlikely)
+level: high
+---
+title: TerminalFix Python Reverse Tunnel Implant Execution
+id: d4b7c0e5-6f1a-7b8d-2c9e-0a5b4d3f6e7c
+status: experimental
+description: >
+    Detects execution of pythonw.exe with command-line arguments matching the
+    TerminalFix reverse tunnel implant (client.py with server and UUID
+    parameters connecting to gitnow.dev).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1572
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_python:
+        Image|endswith:
+            - '\pythonw.exe'
+            - '\python.exe'
+        CommandLine|contains|all:
+            - 'client.py'
+            - '--server'
+            - '--uuid'
+            - 'cert.pem'
+    condition: selection_python
+falsepositives:
+    - Legitimate Python applications named client.py using --server and --uuid arguments (review context)
+level: high
+---
+title: TerminalFix Steganographic Payload Extraction via PowerShell
+id: e5c8d1f6-7a2b-8c9e-3d0f-1b6c5e4a7f8d
+status: experimental
+description: >
+    Detects PowerShell executing functions or patterns consistent with
+    steganographic extraction from PNG images, specifically the
+    Extract-RawFileFromImage pattern used by the TerminalFix campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1027.003
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'Extract-RawFileFromImage'
+            - 'RGBA'
+    condition: selection
+falsepositives:
+    - Legitimate image processing scripts using RGBA channel manipulation (review script context)
+level: high
+---
+title: AD Reconnaissance Commands (TerminalFix Context)
+id: f6d9e2a7-8b3c-9d0f-4e1a-2c7d6f5b8a9e
+status: experimental
+description: >
+    Detects Active Directory reconnaissance commands (nltest, net group
+    domain admins) consistent with the TerminalFix post-exploitation phase.
+    Uses OR logic; individual matches are alertworthy but not correlated.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/08/28/terminalfix-campaign-deploys-reverse-tunnel-through-multistage-intrusion/
+author: Actioner
+date: 2026/09/01
+tags:
+    - attack.t1482
+    - attack.t1069.002
+    - attack.t1018
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_nltest:
+        Image|endswith: '\nltest.exe'
+        CommandLine|contains:
+            - '/domain_trusts'
+            - '/dclist'
+    selection_netgroup:
+        Image|endswith: '\net.exe'
+        CommandLine|contains|all:
+            - 'group'
+            - 'domain admins'
+    condition: selection_nltest or selection_netgroup
+falsepositives:
+    - Legitimate domain administration tasks using nltest or net group
+level: medium
