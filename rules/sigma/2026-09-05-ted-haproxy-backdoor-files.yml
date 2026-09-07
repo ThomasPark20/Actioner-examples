@@ -1,0 +1,32 @@
+title: Ted Backdoor Distinctive File Artifacts on Linux Host
+id: 2e7b4d9a-6c1f-4a8e-b3d5-9f0e2c7a1b4d
+status: experimental
+description: >
+    Detects file creation at paths associated with the Ted HAProxy backdoor
+    and CurlRAT toolkit, including configuration cache files, SSH keylogger
+    output, and victim ID storage used by DPRK-attributed actors.
+references:
+    - https://www.rapid7.com/blog/post/tr-dprk-apts-ted-backdoor-curlrat-target-south-korean-media-automotive-sectors/
+    - https://thehackernews.com/2026/09/new-ted-backdoor-hides-inside-victims.html
+author: Actioner
+date: 2026/09/05
+tags:
+    - attack.t1036.005
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - '/cache/haproxy-1000.cache'
+            - '/cache/haproxy-1001.cache'
+            - '/cache/haproxy-1002.cache'
+            - '/var/lib/sshd/c8c68e629bba773a10ac80012d10bf19'
+            - '/var/lib/snapd/g580'
+            - '/var/lib/snapd/g105'
+            - '/tmp/jasper-log'
+    condition: selection
+falsepositives:
+    - Unlikely - these are distinctive attacker-chosen paths not used by legitimate software
+level: critical
