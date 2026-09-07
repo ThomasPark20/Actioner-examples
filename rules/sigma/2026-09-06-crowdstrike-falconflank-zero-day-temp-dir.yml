@@ -1,0 +1,23 @@
+title: FalconFlank Exploit Temp Directory Creation
+id: 2b8d4f1e-6a3c-49e7-8d5b-1c0f9e7a3b2d
+status: experimental
+description: >
+    Detects file creation within temporary directories matching the Flanker_
+    prefix pattern used by the FalconFlank privilege escalation exploit.
+references:
+    - https://github.com/MSNightmare/FalconFlank
+    - https://www.bleepingcomputer.com/news/security/new-crowdstrike-falconflank-zero-day-grants-system-privileges/
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Temp\Flanker_'
+    condition: selection
+falsepositives:
+    - Applications using directory names starting with Flanker_
+level: high

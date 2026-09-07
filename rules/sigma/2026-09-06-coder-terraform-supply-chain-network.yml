@@ -1,0 +1,24 @@
+title: Network Connection to Coder Registry Exfiltration Infrastructure
+id: 5a2f8c91-d3b7-4e6a-a1c4-7e9b2d5f3a08
+status: experimental
+description: >
+    Detects outbound network connections to the rogue IP address (199.91.220.205) used
+    in the Coder registry compromise to serve malicious Terraform modules and receive
+    exfiltrated credentials.
+references:
+    - https://coder.com/blog/coder-registry-security-incident-what-happened-and-what-to-do
+    - https://github.com/coder/coder/security/advisories/GHSA-vx42-ghc9-gw65
+author: Actioner
+date: 2026/09/06
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '199.91.220.205'
+    condition: selection
+falsepositives:
+    - IP address reuse after attacker infrastructure is decommissioned
+level: high
