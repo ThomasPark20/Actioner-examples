@@ -1,0 +1,9 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to LiteLLM Exfil Domain models.litellm.cloud"; flow:to_server; dns.query; content:"models.litellm.cloud"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-15; sid:2200101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TeamPCP Trivy C2 Domain scan.aquasecurtiy.org"; flow:to_server; dns.query; content:"scan.aquasecurtiy.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,github.com/advisories/GHSA-69fq-xp46-6x23; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-15; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TeamPCP Secondary C2 checkmarx.zone"; flow:to_server; dns.query; content:"checkmarx.zone"; nocase; fast_pattern; classtype:trojan-activity; reference:url,docs.litellm.ai/blog/security-update-march-2026; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-15; sid:2200103; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to LiteLLM Exfil Domain models.litellm.cloud"; flow:established,to_server; tls.sni; content:"models.litellm.cloud"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-15; sid:2200104; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to TeamPCP Secondary C2 checkmarx.zone/raw"; flow:established,to_server; http.host; content:"checkmarx.zone"; fast_pattern; http.uri; content:"/raw"; startswith; classtype:trojan-activity; reference:url,docs.litellm.ai/blog/security-update-march-2026; reference:cve,2026-33634; metadata:author Actioner, created_at 2026-08-15; sid:2200105; rev:1;)

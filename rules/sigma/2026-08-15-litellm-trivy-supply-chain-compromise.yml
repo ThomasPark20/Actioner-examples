@@ -1,0 +1,88 @@
+title: DNS Query to LiteLLM/Trivy Supply Chain C2 Domains
+id: 7a3e1c9b-4f2d-4e8a-b5c6-d7e9f0a1b2c3
+status: experimental
+description: >
+    Detects DNS queries to known C2 and exfiltration domains used in the TeamPCP
+    supply chain compromise (CVE-2026-33634) targeting LiteLLM PyPI packages and
+    Trivy vulnerability scanner. The domain models.litellm.cloud was used for
+    credential exfiltration, checkmarx.zone for secondary C2, and
+    scan.aquasecurtiy.org (typosquatted) for Trivy payload delivery.
+references:
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://www.securityweek.com/trivy-not-litellm-behind-the-2500-org-compromise/
+    - https://github.com/advisories/GHSA-69fq-xp46-6x23
+    - https://docs.litellm.ai/blog/security-update-march-2026
+author: Actioner
+date: 2026/08/15
+tags:
+    - attack.t1071.004
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'models.litellm.cloud'
+            - 'checkmarx.zone'
+            - 'scan.aquasecurtiy.org'
+    condition: selection
+falsepositives:
+    - None expected - these are attacker-controlled domains unrelated to legitimate LiteLLM or Checkmarx infrastructure
+level: critical
+---
+title: LiteLLM Malicious PTH File Creation
+id: 8b4f2d0c-5a3e-4f9b-c6d7-e8f0a1b2c3d4
+status: experimental
+description: >
+    Detects creation of litellm_init.pth, a malicious Python path configuration
+    file injected by compromised LiteLLM v1.82.8 (CVE-2026-33634). Python
+    automatically executes .pth files at interpreter startup, enabling the
+    malware to run without LiteLLM being explicitly imported.
+references:
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://docs.litellm.ai/blog/security-update-march-2026
+    - https://github.com/pypa/advisory-database/tree/main/vulns/litellm/PYSEC-2026-2.yaml
+author: Actioner
+date: 2026/08/15
+tags:
+    - attack.t1546.016
+    - attack.t1195.002
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith: 'litellm_init.pth'
+    condition: selection
+falsepositives:
+    - None expected - this file is unique to the malicious LiteLLM package
+level: critical
+---
+title: GitHub Repository Creation Matching TeamPCP Exfiltration Pattern
+id: 0d6b4f2e-7c5a-4b1d-e8f9-a0b1c2d3e4f5
+status: experimental
+description: >
+    Detects creation of or interaction with GitHub repositories matching the
+    tpcp-docs naming pattern used by the TeamPCP campaign (CVE-2026-33634) as
+    a fallback data exfiltration channel. Stolen credentials were uploaded as
+    release assets tagged data-<timestamp> to public repositories with
+    tpcp-docs or docs-tpcp prefixed names on victim accounts.
+references:
+    - https://thehackernews.com/2026/08/malicious-litellm-releases-tied-to.html
+    - https://github.com/advisories/GHSA-69fq-xp46-6x23
+author: Actioner
+date: 2026/08/15
+tags:
+    - attack.t1567.001
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains:
+            - 'tpcp-docs'
+            - 'docs-tpcp'
+        cs-host: 'github.com'
+    condition: selection
+falsepositives:
+    - Legitimate repositories with tpcp-docs in the name are extremely unlikely
+level: critical

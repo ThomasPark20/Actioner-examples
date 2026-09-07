@@ -1,0 +1,38 @@
+title: GeoServer jsonArrayContains SQL Injection Attempt
+id: d8977c16-3cb5-4336-bc5a-3acfd5918e68
+status: experimental
+description: >
+    Detects HTTP requests exploiting the GeoTools jsonArrayContains CQL filter
+    function SQL injection vulnerability (GHSA-mqjf-5f49-2fjh). The function
+    writes user-supplied values directly into SQL without escaping, enabling
+    unauthenticated SQL injection against PostGIS 12+ backends. Active
+    exploitation observed within hours of public disclosure on 2026-08-12.
+references:
+    - https://github.com/geotools/geotools/security/advisories/GHSA-mqjf-5f49-2fjh
+    - https://securityaffairs.com/197216/hacking/geoserver-zero-day-is-already-being-probed-thats-the-problem.html
+    - https://www.securityweek.com/hackers-exploiting-unpatched-geoserver-zero-day/
+author: Actioner
+date: 2026/08/15
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_function:
+        cs-uri-query|contains: 'jsonArrayContains'
+    selection_sqli:
+        cs-uri-query|contains:
+            - 'pg_sleep'
+            - 'UNION%20SELECT'
+            - 'COPY%20'
+            - 'version()'
+            - 'chr('
+            - 'FROM%20PROGRAM'
+            - '%22%27'
+            - '%27%20OR%20'
+            - '%27%20AND%20'
+            - '%27--%20'
+    condition: selection_function and selection_sqli
+falsepositives:
+    - Legitimate GeoServer CQL queries using jsonArrayContains whose values coincidentally contain PostgreSQL function names
+level: high
