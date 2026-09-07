@@ -1,0 +1,66 @@
+title: JFrog Artifactory Suspicious Admin Token Creation via Access API
+id: 9c3a7b1e-4d2f-4e8a-b5c6-1f0d9e8a7b3c
+status: experimental
+description: >
+    Detects unauthenticated HTTP POST requests to the JFrog Access token creation
+    endpoint (/access/api/v1/tokens), which is the primary exploitation vector for
+    CVE-2026-82329. Attackers abuse a default-configuration authentication weakness
+    to mint administrator-level tokens without credentials. The rule selects for
+    empty or placeholder usernames indicating no authentication was presented.
+references:
+    - https://thehackernews.com/2026/09/attackers-exploit-critical-jfrog.html
+    - https://docs.jfrog.com/releases/docs/jfrog-security-advisories
+author: Actioner
+date: 2026-09-02
+tags:
+    - attack.t1190
+    - attack.t1078
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains: '/access/api/v1/tokens'
+    filter_known_admins:
+        cs-username:
+            - '-'
+            - ''
+    condition: selection_method and selection_uri and filter_known_admins
+falsepositives:
+    - Health-check or monitoring tools hitting the tokens endpoint without authentication
+    - Load balancers or reverse proxies that strip authentication headers before logging
+level: medium
+---
+title: JFrog Artifactory Version Endpoint Probing
+id: d5f8c3a2-6e4b-4d1a-9f7e-3c2b1a0d9e8f
+status: experimental
+description: >
+    Detects HTTP GET requests to the Artifactory version endpoint
+    (/artifactory/api/system/version), commonly used for reconnaissance
+    to identify vulnerable instances of CVE-2026-82329 before exploitation.
+    Portability caveat: the CIDR filter uses an OR list which is not supported
+    by all backends (e.g., CrowdStrike LogScale); deploy without the CIDR
+    filter or replace with explicit IP-range patterns on those platforms.
+references:
+    - https://thehackernews.com/2026/09/attackers-exploit-critical-jfrog.html
+    - https://www.penligent.ai/hackinglabs/cve-2026-82329/
+author: Actioner
+date: 2026-09-02
+tags:
+    - attack.t1592.002
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/artifactory/api/system/version'
+    filter_internal:
+        c-ip|cidr:
+            - '10.0.0.0/8'
+            - '172.16.0.0/12'
+            - '192.168.0.0/16'
+    condition: selection and not filter_internal
+falsepositives:
+    - Legitimate monitoring or health check systems from external sources
+    - Authorized vulnerability scanners
+level: low
