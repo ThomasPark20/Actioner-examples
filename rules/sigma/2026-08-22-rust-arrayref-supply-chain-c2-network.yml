@@ -1,0 +1,28 @@
+title: Rust Crate Supply Chain Attack - Network Connection to Known C2 Infrastructure
+id: 7a3e1f8d-4b2c-4e9a-b5d6-8c1f0a3e7b9d
+status: experimental
+description: >
+    Detects outbound network connections to IP address 23.254.165.112 used as
+    C2 and payload delivery infrastructure in the compromised Rust crates
+    (arrayref, internment, append-only-vec) supply chain attack linked to
+    North Korean threat actors (Sapphire Sleet).
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-poison-arrayref-rust-crate-to-push-infostealer-malware/
+    - https://gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026-08-22
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: network_connection
+detection:
+    selection_primary_c2:
+        DestinationIp: '23.254.165.112'
+    selection_secondary_c2:
+        DestinationIp: '23.254.167.107'
+    condition: selection_primary_c2 or selection_secondary_c2
+falsepositives:
+    - Legitimate traffic to Hostwinds LLC infrastructure at this IP (unlikely for most environments)
+level: high

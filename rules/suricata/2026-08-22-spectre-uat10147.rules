@@ -1,0 +1,9 @@
+# UAT-10147 / SPECTRE Campaign - Suricata Rules
+# Date: 2026-08-22
+# Author: Actioner
+#
+# Note: The C2 registration beacon rule (POST /api/v1/register) was dropped
+# during review — /api/v1/register is a ubiquitous REST endpoint that would
+# produce extreme false-positive volume at strict leniency.
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UAT-10147 C2 Domain jyzyps.com"; flow:to_server; dns.query; content:"jyzyps.com"; nocase; endswith; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/; metadata:author Actioner, created_at 2026-08-22; sid:2200002; rev:1;)

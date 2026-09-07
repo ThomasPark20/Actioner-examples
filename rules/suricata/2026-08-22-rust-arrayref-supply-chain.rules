@@ -1,0 +1,5 @@
+alert tcp $HOME_NET any -> 23.254.165.112 [9089,443] (msg:"Actioner - Rust Crate Supply Chain Attack C2 to 23.254.165.112"; flow:established,to_server; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200101; rev:1;)
+
+alert tcp $HOME_NET any -> 23.254.167.107 443 (msg:"Actioner - Rust Crate Supply Chain Attack Secondary C2 to 23.254.167.107"; flow:established,to_server; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Crate Supply Chain Attack C2 Beacon POST /49890878"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/49890878"; fast_pattern; classtype:trojan-activity; reference:url,gist.github.com/marius-benthin/273aa302ac9fb36e1c309a9479c5a8cf; metadata:author Actioner, created_at 2026-08-22; sid:2200103; rev:1;)
