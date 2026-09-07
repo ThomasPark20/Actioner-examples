@@ -1,0 +1,25 @@
+title: Rust Supply Chain Attack - Linux rust-setup Payload Creation
+id: 6a2e4c1d-8b3f-4d7e-a9c5-e1b0d6f3a2c8
+status: experimental
+description: >
+    Detects creation of /tmp/rust-setup on Linux, the payload drop path
+    used by the malicious proc-macro1 build script in the compromised
+    Rust crates supply chain attack (August 2026).
+references:
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1195.001
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename: '/tmp/rust-setup'
+    condition: selection
+falsepositives:
+    - Legitimate Rust toolchain setup scripts (unlikely to use this exact path)
+level: high

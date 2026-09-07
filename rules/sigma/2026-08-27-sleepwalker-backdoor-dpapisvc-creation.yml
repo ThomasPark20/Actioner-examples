@@ -1,0 +1,24 @@
+title: SLEEPWALKER Companion DLL dpapisvc.dll Creation
+id: 9f2d84c1-3b7e-4a5f-8d6c-1e0a9b8c7d52
+status: experimental
+description: >
+    Detects creation of dpapisvc.dll, a non-existent Windows component fabricated by the
+    SLEEPWALKER backdoor. The malicious dpapi.dll attempts to forward calls to dpapisvc.dll.
+    This file should never appear on a legitimate Windows system.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1574.002
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\dpapisvc.dll'
+    condition: selection
+falsepositives:
+    - Unknown legitimate software using a DLL named dpapisvc.dll (highly unlikely)
+level: critical

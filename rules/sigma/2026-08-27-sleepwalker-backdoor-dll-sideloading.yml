@@ -1,0 +1,30 @@
+title: SLEEPWALKER Backdoor DLL Side-Loading via ESET Management Agent
+id: 7c3a91d2-4e8b-4f1a-b6c5-2d9e0f8a7b34
+status: experimental
+description: >
+    Detects loading of a masquerading dpapi.dll by ERAAgent.exe (ESET Management Agent),
+    consistent with the SLEEPWALKER backdoor DLL side-loading technique. The malware places
+    a malicious dpapi.dll alongside ERAAgent.exe to hijack the DLL search order.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026/08/27
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\ERAAgent.exe'
+    selection_dll:
+        ImageLoaded|endswith: '\dpapi.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection_process and selection_dll and not filter_system
+falsepositives:
+    - Legitimate third-party dpapi.dll placed alongside ERAAgent.exe (unlikely)
+level: high
