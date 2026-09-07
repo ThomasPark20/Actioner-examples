@@ -1,0 +1,12 @@
+# Suricata rules for Rust Crate Supply Chain Attack via proc-macro1 (2026-08-25)
+# Report: summaries/2026-08-25-rust-supply-chain-attack.md
+# TLS inspection: sid:2100101 and sid:2100102 require TLS decryption (C2 uses HTTPS)
+# IP review cadence: sid:2100103 C2 IPs are Hostwinds VPS — review every 90 days (next: 2026-11-23)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Rust Supply Chain Attack C2 Beacon POST to /49890878"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/49890878"; startswith; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created_at 2026-08-25; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> 23.254.165.112 any (msg:"Actioner - Rust Supply Chain Attack Payload Download from C2 Host"; flow:established,to_server; http.uri; content:"/rust-crate_0."; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/popular-rust-crates-compromised; metadata:author Actioner, created_at 2026-08-25; sid:2100102; rev:1;)
+
+alert tls $HOME_NET any -> [23.254.165.112,23.254.167.107,23.254.167.216,23.254.167.13] 443 (msg:"Actioner - TLS Connection to Rust Supply Chain Attack C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns; metadata:author Actioner, created_at 2026-08-25; sid:2100103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query for Rust Supply Chain Attack C2 Domain"; dns.query; content:"hwsrv-798836.hostwindsdns.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/popular-rust-crates-compromised; metadata:author Actioner, created_at 2026-08-25; sid:2100104; rev:1;)

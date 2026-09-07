@@ -1,0 +1,182 @@
+# Sigma rules for Rust Crate Supply Chain Attack via proc-macro1 (2026-08-25)
+# Report: summaries/2026-08-25-rust-supply-chain-attack.md
+# IP review cadence: C2 IPs in rule c8f1d4e6 are Hostwinds VPS — review every 90 days (next: 2026-11-23)
+
+title: Cargo Build Process Spawning Suspicious Payload Execution
+id: 7c3e8a1f-4b2d-4e9a-b6f5-1d8c0a3e7f2b
+status: experimental
+description: >
+    Detects cargo or rustc build processes spawning suspicious child processes
+    that write or execute payloads in temporary directories. This pattern was
+    observed in the proc-macro1 supply chain attack where a malicious build.rs
+    script downloaded and executed platform-specific backdoors during compilation.
+references:
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/25
+tags:
+    - attack.t1195.001
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/cargo'
+            - '/rustc'
+    selection_child:
+        Image|endswith:
+            - '/curl'
+            - '/wget'
+            - '/sh'
+            - '/bash'
+        CommandLine|contains:
+            - '/tmp/rust-setup'
+            - 'rust-crate_'
+            - 'rust-setup'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate build scripts that download dependencies at build time
+    - Custom Rust build scripts with atypical network activity
+level: high
+---
+title: Rust Supply Chain Attack Payload File Creation
+id: a9d4f2b8-1c6e-4a3d-8e7f-5b0c9d2a1e3f
+status: experimental
+description: >
+    Detects creation of payload files associated with the proc-macro1 Rust supply
+    chain attack. The malicious build.rs downloads platform-specific binaries and
+    writes them to /tmp/rust-setup (Unix) or %TEMP%\rust-setup.ps1 and
+    rust-setup-launch.vbs (Windows). Also detects creation of persistence artifacts
+    in .config/AzureKits and .config/ServiceKit directories.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
+author: Actioner
+date: 2026/08/25
+tags:
+    - attack.t1195.001
+    - attack.t1105
+logsource:
+    category: file_event
+detection:
+    selection_unix:
+        TargetFilename|contains:
+            - '/tmp/rust-setup'
+    selection_windows:
+        TargetFilename|endswith:
+            - '\rust-setup.ps1'
+            - '\rust-setup-launch.vbs'
+    selection_persistence:
+        TargetFilename|contains:
+            - '.config/AzureKits'
+            - '.config/ServiceKit'
+            - '/MonoService'
+            - '/MonoXpc'
+    condition: selection_unix or selection_windows or selection_persistence
+falsepositives:
+    - Legitimate software using similar naming conventions in temp directories
+level: critical
+---
+title: Rust Supply Chain Attack Windows Payload Execution via WScript
+id: b5e7c3d1-2f8a-4b6e-9d0c-4a1f3e8b7c2d
+status: experimental
+description: >
+    Detects wscript.exe launching a VBScript that executes a PowerShell payload
+    with ExecutionPolicy Bypass, as observed in the Windows variant of the
+    proc-macro1 Rust supply chain attack. The build.rs dropper writes a .vbs
+    launcher and .ps1 payload to %TEMP% and executes via wscript.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.stepsecurity.io/blog/arrayref-rust-crate-supply-chain-attack
+author: Actioner
+date: 2026/08/25
+tags:
+    - attack.t1059.001
+    - attack.t1059.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_wscript:
+        ParentImage|endswith: '\wscript.exe'
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains|all:
+            - 'ExecutionPolicy'
+            - 'Bypass'
+            - 'rust-setup'
+    condition: selection_wscript and selection_powershell
+falsepositives:
+    - Legitimate software installers using similar execution chains
+level: critical
+---
+title: Network Connection to Rust Supply Chain Attack C2 Infrastructure
+id: c8f1d4e6-3a9b-4c7e-8f2d-6b5a0e3c1d9f
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses and domains used by
+    the proc-macro1 Rust supply chain attack C2 infrastructure hosted on
+    Hostwinds VPS. The attacker used 23.254.165.112 for payload delivery
+    (port 9089) and C2 (port 443), with additional C2 nodes at
+    23.254.167.107, 23.254.167.216, and 23.254.167.13.
+    IP review cadence: Hostwinds VPS IPs churn. Review every 90 days (next: 2026-11-23).
+references:
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+    - https://socket.dev/blog/popular-rust-crates-compromised
+author: Actioner
+date: 2026/08/25
+tags:
+    - attack.t1071.001
+    - attack.t1573.002
+logsource:
+    category: network_connection
+detection:
+    selection_ip:
+        DestinationIp:
+            - '23.254.165.112'
+            - '23.254.167.107'
+            - '23.254.167.216'
+            - '23.254.167.13'
+    selection_domain:
+        DestinationHostname|contains: 'hwsrv-798836.hostwindsdns.com'
+    condition: selection_ip or selection_domain
+falsepositives:
+    - Legitimate services hosted on the same Hostwinds IP addresses after infrastructure turnover
+level: critical
+---
+title: Rust Supply Chain Attack Windows Registry Persistence
+id: d2a5b8c7-4e1f-4d3a-9c6b-7f0e8d1a2b5c
+status: experimental
+description: >
+    Detects the Windows persistence mechanism used by the proc-macro1 Rust
+    supply chain backdoor, which creates a Run registry key for automatic
+    execution at user logon. The malware establishes persistence under
+    HKCU\Software\Microsoft\Windows\CurrentVersion\Run.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/25
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run'
+        Details|contains:
+            - 'rust-setup'
+            - 'MonoService'
+            - 'AzureKits'
+            - 'ServiceKit'
+    condition: selection
+falsepositives:
+    - Legitimate software using similar binary names for auto-start entries
+level: critical
