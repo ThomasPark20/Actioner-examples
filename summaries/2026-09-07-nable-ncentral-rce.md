@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-07
-Version: DRAFT
+Version: FINAL
+<!-- revision: ATT&CK mapping fixes — replaced T1078 with T1136 (behavior is account creation, not credential reuse); merged T1098 into T1136 row (.invalid suffix is part of creation, not manipulation of existing accounts); added T1572 (Protocol Tunneling) for Cloudflare tunnel C2/persistence. All 6 detection rules KEEP per critic verdict, no rule changes. -->
 
 ## Executive Summary
 
@@ -121,10 +122,10 @@ Attackers used legitimate tooling (Cloudflare tunnels, N-central's own Take Cont
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Exploitation of N-central server via CVE-2026-86218 pre-auth RCE and related auth bypass CVEs |
-| T1078 | Valid Accounts | Unauthorized admin account creation on N-central console |
-| T1098 | Account Manipulation | Appending `.invalid` to legitimate email addresses during rogue account creation |
+| T1136 | Create Account | Unauthorized admin account creation on N-central console, with `.invalid` appended to legitimate email addresses to disguise rogue accounts |
 | T1219 | Remote Access Software | Abuse of N-central Take Control feature and Cloudflare tunnels for remote access |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Naming persistence binary `svchost.exe` to mimic legitimate Windows process |
+| T1572 | Protocol Tunneling | Cloudflare tunnel deployment via Take Control for C2 and persistence |
 | T1570 | Lateral Tool Transfer | Using Take Control to deploy tools to managed endpoints |
 
 ## Impact Assessment

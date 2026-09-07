@@ -1,0 +1,26 @@
+title: Suspicious svchost.exe in N-central GetSupportService Directory
+id: e4b8c2d3-0a5c-4f9e-b6a7-2c3d4e5f6a7b
+status: experimental
+description: >
+    Detects creation of svchost.exe in the N-central GetSupportService directory,
+    consistent with Cloudflare tunnel persistence observed during CVE-2026-86218
+    exploitation campaigns.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://www.bleepingcomputer.com/news/security/n-able-patches-max-severity-n-central-flaw-amid-ongoing-attacks/
+author: Actioner
+date: 2026/09/07
+tags:
+    - attack.t1036.005
+    - attack.t1219
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\GetSupportService_N-Central\'
+        TargetFilename|endswith: '\svchost.exe'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical
