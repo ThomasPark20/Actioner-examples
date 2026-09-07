@@ -1,0 +1,33 @@
+title: RedShell Implant Binary Execution from npm Package Directory
+id: aa08d6f8-0628-4509-bcb7-2a082627afc6
+status: experimental
+description: >
+    Detects execution of RedShell implant binaries (math-core.bin, math-calc.bin,
+    calc-math.dat, calc-cache.bin, calc.bin, calc-mapping.bin) launched from
+    node_modules directories, consistent with the trojanized npm package campaign.
+references:
+    - https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_binaries:
+        Image|endswith:
+            - '/math-core.bin'
+            - '/math-calc.bin'
+            - '/calc-math.dat'
+            - '/calc-cache.bin'
+            - '/calc.bin'
+            - '/calc-mapping.bin'
+    selection_npm_path:
+        Image|contains: 'node_modules'
+    condition: selection_binaries and selection_npm_path
+falsepositives:
+    - Legitimate npm packages with identical binary names (extremely unlikely)
+level: critical

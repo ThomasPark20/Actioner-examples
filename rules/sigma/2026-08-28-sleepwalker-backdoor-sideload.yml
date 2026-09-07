@@ -1,0 +1,29 @@
+title: SLEEPWALKER Backdoor DLL Side-Loading via ESET Management Agent
+id: 8a3c7e1f-b5d2-4f89-a6e1-c9d4f2b08e3a
+status: experimental
+description: >
+    Detects creation of a suspicious dpapi.dll or dpapisvc.dll in the ESET
+    Management Agent directory, consistent with the SLEEPWALKER backdoor
+    DLL side-loading technique.
+references:
+    - https://r136a1.dev/2026/08/24/sleepwalker-a-passive-backdoor-with-its-own-command-language/
+    - https://thehackernews.com/2026/08/newly-sleepwalker-backdoor-waits-for.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1574.001
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: '\ESET\RemoteAdministrator\Agent\'
+    selection_filename:
+        TargetFilename|endswith:
+            - '\dpapi.dll'
+            - '\dpapisvc.dll'
+    condition: selection_path and selection_filename
+falsepositives:
+    - Legitimate ESET Management Agent updates that include dpapi.dll (unlikely)
+level: critical

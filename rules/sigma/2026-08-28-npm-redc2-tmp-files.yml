@@ -1,0 +1,24 @@
+title: RedShell Temporary File Creation Pattern in /tmp
+id: dd975aff-d67b-413b-82eb-244601894ad7
+status: experimental
+description: >
+    Detects creation of temporary files matching the RedShell naming convention
+    (.sc_, .elf_, .dl_, .ft_, .st_, .sk_, .cr_ prefixes) in /tmp, used during
+    shellcode execution, ELF loading, file transfer, and credential staging.
+references:
+    - https://www.trendaisecurity.com/en-us/resources-insights/trendai-security-blog/redc2-ai-powered-linux-implant
+    - https://thehackernews.com/2026/08/14-trojanized-npm-packages-drop-redc2.html
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|re: '^/tmp/\.(sc|elf|dl|ft|st|sk|cr)_[A-Za-z0-9]{6}'
+    condition: selection
+falsepositives:
+    - Other software creating temp files with similar short prefixes (low probability given the dot-prefix convention)
+level: medium

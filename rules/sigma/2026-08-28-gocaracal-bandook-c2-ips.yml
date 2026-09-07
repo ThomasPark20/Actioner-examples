@@ -1,0 +1,26 @@
+title: Network Connection to Dark Caracal Bandook C2 Infrastructure
+id: d9e72f13-6a4b-4c85-9d31-8b0e5f2a1c6d
+status: experimental
+description: >
+    Detects outbound network connections to known Bandook backdoor C2 IP addresses
+    hosted on AlexHost, associated with Dark Caracal operations in LATAM.
+references:
+    - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '91.208.197.80'
+            - '91.208.184.45'
+            - '91.208.206.88'
+            - '91.208.184.130'
+            - '176.123.1.174'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on the same IPs after infrastructure rotation
+level: high

@@ -1,0 +1,24 @@
+title: GoCaracal Execution from Known Persistence Path
+id: b5c83d29-1e4f-4a7b-9c62-3d8a0f7e5b14
+status: experimental
+description: >
+    Detects process execution from AppData persistence paths matching the naming
+    pattern used by GoCaracal implants deployed by Dark Caracal.
+references:
+    - https://arcticwolf.com/resources/blog/dark-caracal-reloaded-new-malware-same-hunting-grounds/
+author: Actioner
+date: 2026-08-28
+tags:
+    - attack.t1547.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains:
+            - '\d30547514515\91ed375e.exe'
+            - '\e1d58f51c58a\5c0416e4.exe'
+    condition: selection
+falsepositives:
+    - Unlikely - paths use randomized directory and file naming specific to this campaign
+level: critical
