@@ -1,0 +1,23 @@
+title: LiteLLM Supply Chain Attack - C2 Domain DNS Lookups
+id: 7f3a1b2c-4d5e-6f78-9a0b-c1d2e3f4a5b6
+status: experimental
+description: Detects DNS queries to command-and-control domains used in the LiteLLM supply chain attack (TeamPCP/UNC6780). The domain models.litellm.cloud was registered one day before the attack and is unrelated to the legitimate LiteLLM project infrastructure.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns
+detection:
+    selection:
+        query|endswith:
+            - 'models.litellm.cloud'
+            - 'checkmarx.zone'
+            - 'scan.aquasecurtiy.org'
+    condition: selection
+falsepositives:
+    - Unlikely, these are attacker-controlled domains
+level: high

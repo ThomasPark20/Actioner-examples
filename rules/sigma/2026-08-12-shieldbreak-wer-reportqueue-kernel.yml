@@ -1,0 +1,37 @@
+title: Suspicious WER ReportQueue Kernel Directory Creation
+id: a7b8c9d0-1e2f-3a4b-5c6d-7e8f9a0b1c2d
+status: experimental
+description: >
+    Detects creation of WER report directories under C:\ProgramData\Microsoft\Windows\WER\ReportQueue\
+    with a Kernel_ prefix by non-WER processes. The ShieldBreak exploit stages a crafted Report.wer
+    file in this location to trigger the QueueReporting scheduled task, which then executes the
+    injected payload as SYSTEM.
+references:
+    - https://github.com/MSNightmare/ShieldBreak
+    - https://www.cyberkendra.com/2026/08/shieldbreak-poc-bypasses-microsofts.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1068
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\WER\ReportQueue\Kernel_'
+    filter_wer:
+        Image|endswith:
+            - '\WerFault.exe'
+            - '\wermgr.exe'
+            - '\WerFaultSecure.exe'
+    filter_svchost:
+        Image|endswith: '\svchost.exe'
+    filter_crashdump:
+        Image|endswith:
+            - '\WerFaultHost.exe'
+            - '\crashpad_handler.exe'
+    condition: selection and not 1 of filter_*
+falsepositives:
+    - Third-party crash reporting tools that write to the WER ReportQueue
+level: high

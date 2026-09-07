@@ -1,0 +1,42 @@
+title: LiteLLM Supply Chain Attack - Kubernetes Privileged Pod Deployment
+id: ac6d4e5f-7a8b-9c01-2d3e-f4a5b6c7d8e9
+status: experimental
+description: >
+    Detects Kubernetes audit log events for pod creation matching the node-setup-* naming
+    pattern or containers named kamikaze/provisioner in kube-system namespace, as used by
+    the LiteLLM/TeamPCP malicious payload for lateral movement across Kubernetes clusters.
+    These pods are created with hostPID, hostNetwork, and host filesystem mounts.
+references:
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-teampcp-supply-chain-campaign/
+    - https://www.trendmicro.com/en_us/research/26/c/inside-litellm-supply-chain-compromise.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1610
+logsource:
+    product: kubernetes
+    service: audit
+detection:
+    selection_pod_name:
+        objectRef.resource: 'pods'
+        objectRef.namespace: 'kube-system'
+        objectRef.name|startswith: 'node-setup-'
+        verb: 'create'
+    selection_container_names:
+        objectRef.resource: 'pods'
+        objectRef.namespace: 'kube-system'
+        verb: 'create'
+        requestObject.spec.containers.name:
+            - 'kamikaze'
+            - 'provisioner'
+    selection_daemonset:
+        objectRef.resource: 'daemonsets'
+        objectRef.namespace: 'kube-system'
+        objectRef.name:
+            - 'host-provisioner-std'
+            - 'host-provisioner-iran'
+        verb: 'create'
+    condition: selection_pod_name or selection_container_names or selection_daemonset
+falsepositives:
+    - Legitimate cluster provisioning tools using node-setup-* naming (uncommon)
+level: high

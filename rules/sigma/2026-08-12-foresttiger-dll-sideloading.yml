@@ -1,0 +1,33 @@
+title: Lazarus DLL Sideloading via libmupdf.dll from Non-Standard Path
+id: 7c4d2e91-a3f8-4b12-9e56-1d8f3a7c5b20
+status: experimental
+description: >
+    Detects loading of libmupdf.dll from a user-writable or non-standard
+    directory. In Operation Dream Job, Lazarus delivers a legitimate signed
+    PDF viewer that sideloads a malicious libmupdf.dll from the same
+    directory (typically a user download or temp folder) to execute the
+    MISTPEN in-memory downloader.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+    - https://www.securityweek.com/fresh-windows-zero-day-exploited-in-north-korean-cyberattacks/
+    - https://msrc.microsoft.com/update-guide/vulnerability/CVE-2026-68820
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1574.002
+    - attack.t1204.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\libmupdf.dll'
+    filter_legitimate_paths:
+        ImageLoaded|startswith:
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_legitimate_paths
+falsepositives:
+    - Portable MuPDF installations run from user directories
+    - Software development environments building MuPDF from source
+level: high

@@ -1,0 +1,27 @@
+title: ForestTiger or Troy Backdoor Known C2 DNS Resolution
+id: d4a29f81-5e73-4c16-b098-3f7a2d6e1c45
+status: experimental
+description: >
+    Detects DNS queries to known Lazarus Group C2 domains used in Operation
+    Dream Job for ForestTiger backdoor and Troy implant command and control.
+    These domains were identified by Check Point Research in August 2026.
+references:
+    - https://research.checkpoint.com/2026/shattering-the-dream-when-a-job-offer-becomes-a-zero-day-attack/
+    - https://www.securityweek.com/fresh-windows-zero-day-exploited-in-north-korean-cyberattacks/
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName|endswith:
+            - 'envell.xyz'
+            - 'enveil.online'
+            - 'uxtramine.org'
+    condition: selection
+falsepositives:
+    - None expected - these are confirmed adversary-controlled domains
+level: critical

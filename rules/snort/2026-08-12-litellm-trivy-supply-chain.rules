@@ -1,0 +1,15 @@
+# LiteLLM Supply Chain Attack (TeamPCP/UNC6780) - Snort Rules
+# Date: 2026-08-12
+# SID range: 1000001-1000004 (local)
+
+# Rule 9: HTTP traffic to models.litellm.cloud (primary exfiltration)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to models.litellm.cloud Exfiltration C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"models.litellm.cloud"; distance:0; http_header; classtype:trojan-activity; sid:1000001; rev:1;)
+
+# Rule 10: HTTP traffic to checkmarx.zone/raw (backdoor C2 polling)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to checkmarx.zone Backdoor C2 Polling"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"checkmarx.zone"; distance:0; http_header; content:"/raw"; http_uri; classtype:trojan-activity; sid:1000002; rev:1;)
+
+# Rule 11: HTTP traffic to scan.aquasecurtiy.org (Trivy campaign C2)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - HTTP to scan.aquasecurtiy.org Trivy C2"; flow:established,to_server; content:"Host|3a 20|"; http_header; content:"scan.aquasecurtiy.org"; distance:0; http_header; classtype:trojan-activity; sid:1000003; rev:1;)
+
+# Rule 12: tpcp.tar.gz exfiltration header
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - tpcp.tar.gz Exfiltration Header"; flow:established,to_server; content:"X-Filename|3a 20|tpcp.tar.gz"; http_header; classtype:trojan-activity; sid:1000004; rev:1;)

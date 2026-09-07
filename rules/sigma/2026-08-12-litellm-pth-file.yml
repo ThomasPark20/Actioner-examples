@@ -1,0 +1,26 @@
+title: LiteLLM Supply Chain Attack - Malicious PTH File Creation
+id: 8a4b2c3d-5e6f-7a89-0b1c-d2e3f4a5b6c7
+status: experimental
+description: >
+    Detects creation of litellm_init.pth in Python site-packages directories. This malicious
+    .pth file was the primary persistence mechanism in litellm 1.82.8, executing credential
+    harvesting code on every Python interpreter startup without requiring explicit import.
+    Legitimate LiteLLM releases do not contain .pth files.
+references:
+    - https://www.stepsecurity.io/blog/litellm-credential-stealer-hidden-in-pypi-wheel
+    - https://safedep.io/malicious-litellm-1-82-8-analysis/
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1546
+    - attack.t1195.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/litellm_init.pth'
+    condition: selection
+falsepositives:
+    - None expected. Legitimate LiteLLM does not ship .pth files.
+level: critical

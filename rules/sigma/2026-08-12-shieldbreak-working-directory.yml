@@ -1,0 +1,27 @@
+title: ShieldBreak Exploit Working Directory Creation
+id: a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects creation of the ShieldBreak exploit's characteristic working directory
+    C:\ShieldBreak_<GUID>, which is created with a hidden attribute as the first
+    stage of the CVE-2026-50656 patch bypass exploit chain targeting Microsoft
+    Defender's Malware Protection Engine (mpengine.dll).
+references:
+    - https://github.com/MSNightmare/ShieldBreak
+    - https://www.bleepingcomputer.com/news/security/new-microsoft-defender-shieldbreak-zero-day-grants-system-privileges/
+    - https://thehackernews.com/2026/08/shieldbreak-zero-day-poc-claims.html
+author: Actioner
+date: 2026/08/12
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\ShieldBreak_'
+        TargetFilename|startswith: 'C:\'
+    condition: selection
+falsepositives:
+    - Unlikely - ShieldBreak is a specific exploit tool name
+level: critical
