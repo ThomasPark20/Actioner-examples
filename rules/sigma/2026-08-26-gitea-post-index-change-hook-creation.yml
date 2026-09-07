@@ -1,0 +1,29 @@
+title: Git post-index-change Hook Creation in Gitea Data Directory
+id: a2d4e6f8-1b3c-4d5e-9f7a-8c0e2d4f6a1b
+status: experimental
+description: >
+    Detects creation of a post-index-change Git hook within Gitea data or temp
+    directories, the core exploit mechanic for CVE-2026-60004 RCE via diffpatch.
+references:
+    - https://github.com/go-gitea/gitea/security/advisories/GHSA-rcr6-4jqh-j84m
+    - https://www.cycognito.com/blog/emerging-threat-cve-2026-60004-gitea-remote-code-execution-via-diffpatch-git-hooks/
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/hooks/post-index-change'
+    selection_scope:
+        TargetFilename|contains:
+            - '/gitea/'
+            - '/forgejo/'
+            - '/data/tmp/'
+    condition: selection and selection_scope
+falsepositives:
+    - Manual creation of post-index-change hooks in Gitea-managed repositories
+level: high

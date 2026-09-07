@@ -1,0 +1,25 @@
+title: Rust Supply Chain Attack - Windows Registry Run Key Persistence
+id: 5c2d9e4f-a1b3-4f68-9d7e-c3f8a5b10d26
+status: experimental
+description: >
+    Detects the proc-macro1 payload establishing persistence via the Windows
+    Registry Run key, using wscript.exe to launch a VBS wrapper that executes
+    the PowerShell stage from the user temp directory.
+references:
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run\'
+        Details|contains: 'rust-setup'
+    condition: selection
+falsepositives:
+    - None known
+level: critical

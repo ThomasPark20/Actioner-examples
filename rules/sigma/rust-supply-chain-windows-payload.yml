@@ -1,0 +1,32 @@
+title: Rust Supply Chain Attack - Malicious Payload Execution from Cargo Build
+id: 7e4c1a3b-9f2d-4e8a-b5c6-d1f3a7e09b42
+status: experimental
+description: >
+    Detects execution of the rust-setup dropper or rust-crate payloads dropped
+    during the proc-macro1 supply chain attack on Rust crates (arrayref, internment,
+    append-only-vec). The build.rs script downloads and executes platform-specific
+    binaries to /tmp/rust-setup (Unix) or %TEMP%\rust-setup.ps1 (Windows).
+references:
+    - https://blog.rust-lang.org/2026/08/20/supply-chain-attack-on-arrayref/
+    - https://socket.dev/blog/popular-rust-crates-compromised
+    - https://www.wiz.io/blog/rust-supply-chain-attack-on-arrayref-significant-overlap-with-dprk-campaigns
+author: Actioner
+date: 2026/08/26
+tags:
+    - attack.t1195.001
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ps1:
+        CommandLine|contains|all:
+            - 'rust-setup'
+            - '.ps1'
+    selection_vbs:
+        Image|endswith: '\wscript.exe'
+        CommandLine|contains: 'rust-setup-launch.vbs'
+    condition: selection_ps1 or selection_vbs
+falsepositives:
+    - Legitimate Rust development tooling with coincidental naming (unlikely)
+level: high
