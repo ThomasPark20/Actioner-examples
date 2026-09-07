@@ -1,0 +1,21 @@
+title: SPECTRE C2 Configuration Storage via NTFS Alternate Data Stream on Hosts File
+id: 2b8d4e6f-1a3c-5d7e-9f0b-4c2a8e6d1f3b
+status: experimental
+description: Detects access to an NTFS Alternate Data Stream on the hosts file used by SPECTRE implant to store C2 configuration without modifying the visible file content.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1564.004
+    - attack.t1071.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: 'C:\Windows\System32\drivers\etc\hosts:cache'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments
+level: high

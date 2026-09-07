@@ -1,0 +1,36 @@
+title: SPECTRE UAT-10147 Known C2 Infrastructure DNS Queries
+id: 9e5a1c7b-3d2f-4a8e-6b0d-8f4c2e1a7d3b
+status: experimental
+description: Detects DNS queries to known command and control domains associated with the SPECTRE implant deployed by UAT-10147.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/08/UAT-10147%20deploys%20SPECTRE.txt
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns
+detection:
+    selection_subdomain:
+        query|endswith:
+            - '.jyzyps.com'
+            - '.niupilao.vip'
+            - '.udvyiwvfs.cyou'
+            - '.vip8888vn.xyz'
+            - '.mma888.cc'
+            - '.healthsave.net'
+    selection_apex:
+        query:
+            - 'jyzyps.com'
+            - 'niupilao.vip'
+            - 'b.niupilao.vip'
+            - 'vip.niupilao.vip'
+            - 'udvyiwvfs.cyou'
+            - 'vip8888vn.xyz'
+            - 'mma888.cc'
+            - 'healthsave.net'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely
+level: critical

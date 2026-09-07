@@ -1,0 +1,30 @@
+title: SPECTRE Rootkit Kernel Module Masquerading as ACPI Driver
+id: 3e7c9a5d-2b4f-1d8e-6a0c-9f3b7e2d5a1c
+status: experimental
+description: Detects loading of the acpi_pad.ko kernel module from non-standard locations, used by the SPECTRE rootkit to disguise itself as a legitimate ACPI processor power management module.
+references:
+    - https://blog.talosintelligence.com/uat-10147-deploys-spectre-a-cross-platform-implant-with-linux-rootkit-and-byovd-capabilities/
+author: Actioner
+date: 2026-08-20
+tags:
+    - attack.t1547.006
+    - attack.t1014
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_module:
+        - Message|contains|all:
+            - 'insmod'
+            - 'acpi_pad.ko'
+        - Message|contains|all:
+            - 'modprobe'
+            - 'acpi_pad'
+    filter_standard:
+        Message|contains:
+            - '/lib/modules/'
+            - '/usr/lib/modules/'
+    condition: selection_module and not filter_standard
+falsepositives:
+    - Manual loading of ACPI pad module for testing
+level: medium
