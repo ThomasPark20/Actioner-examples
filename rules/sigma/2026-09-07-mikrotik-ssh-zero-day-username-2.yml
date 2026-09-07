@@ -1,0 +1,30 @@
+title: MikroTik MikroTrick Exploitation - SSH Username "-2" in Syslog
+id: c7e3a1d4-8f2b-4e6a-9c1d-5b3f7a0e2d84
+status: experimental
+description: >
+    Detects the SSH username "-2" indicator in forwarded syslog, the forensic
+    hallmark of CVE-2026-86060 exploitation in the MikroTrick attack chain
+    against MikroTik RouterOS. The prohibited-character username triggers the
+    argument-handling flaw that escalates privileges to full admin.
+references:
+    - https://cert.pl/en/posts/2026/09/mikrotik-routeros-cve/
+    - https://securityaffairs.com/198538/security/your-mikrotik-router-may-already-be-compromised-look-for-ssh-user-2.html
+    - https://thehackernews.com/2026/09/attackers-hijack-mikrotik-routers.html
+author: Actioner
+date: 2026/09/07
+tags:
+    - attack.t1078
+    - attack.t1068
+logsource:
+    product: linux
+    service: syslog
+detection:
+    keywords:
+        - 'ssh:-2@'
+        - 'user -2 logged'
+        - 'for -2 from'
+        - 'Invalid user -2'
+    condition: keywords
+falsepositives:
+    - Legitimate usernames containing "-2" substring in unrelated SSH deployments (very unlikely)
+level: critical

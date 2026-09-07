@@ -1,0 +1,29 @@
+title: MikroTik MikroTrick Post-Exploitation - Backdoor Account "ops" Creation
+id: a2f4b8c6-1d3e-4a7f-8b5c-9e0d2f6a3c18
+status: experimental
+description: >
+    Detects the creation of a user account named "ops" in forwarded MikroTik
+    RouterOS syslog, a confirmed post-exploitation indicator from the MikroTrick
+    campaign exploiting CVE-2026-67276 and CVE-2026-86060. Attackers create this
+    privileged backdoor account after gaining unauthenticated admin access.
+references:
+    - https://cert.pl/en/posts/2026/09/mikrotik-routeros-cve/
+    - https://securityaffairs.com/198538/security/your-mikrotik-router-may-already-be-compromised-look-for-ssh-user-2.html
+    - https://thehackernews.com/2026/09/attackers-hijack-mikrotik-routers.html
+author: Actioner
+date: 2026/09/07
+tags:
+    - attack.t1136.001
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_account:
+        - 'user added'
+        - 'user changed'
+    selection_name:
+        - 'ops'
+    condition: selection_account and selection_name
+falsepositives:
+    - Legitimate creation of an account named "ops" on MikroTik devices (uncommon but possible in some environments)
+level: high
