@@ -136,10 +136,8 @@ On success, it downloads a ZIP (`https://phys.stunned-amniotic.com/hub.log`, SHA
 |-----|-----------|-------------------|
 | T1189 | Drive-by Compromise | Malicious Cloudflare Worker injected into compromised websites |
 | T1204.001 | User Execution: Malicious Link | Fake CAPTCHA / ClickFix prompt instructs manual Run-dialog paste-and-execute |
-| T1570 | Lateral Tool Transfer | DLL payload staged and executed directly from a WebDAV share |
 | T1218.011 | Signed Binary Proxy Execution: Rundll32 | `rundll32.exe <webdav-path>,#1` launches both loader DLL variants |
-| T1218.009 | Signed Binary Proxy Execution: Regsvr32/DLL Sideloading (via signed Chrome component) | `Secur32.dll` sideloaded by legitimate `platform_experience_helper.exe` |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | Legitimate `dbghelp.dll` hollowed/module-stomped by "verification.google" loader |
+| T1574.002 | Hijack Execution Flow: DLL Side-Loading | `Secur32.dll` sideloaded by legitimate `platform_experience_helper.exe` (search-order hijack) and legitimate `dbghelp.dll` hollowed/module-stomped by the "verification.google" loader |
 | T1055.012 | Process Injection: Process Hollowing | Manual PE mapping into a suspended `explorer.exe` |
 | T1027 | Obfuscation of Files or Information | XOR, LZNT1, control-flow flattening, API hashing, no import table |
 | T1140 | Deobfuscation/Decoding of Files or Information | Multi-layer XOR/base64 decoding of C2 configuration and IP |
@@ -235,9 +233,9 @@ level: high
 ```
 
 ### Sigma: PowerShell download-and-execute of the NetSupport stager
-Detects PowerShell using `DownloadString` combined with the campaign's specific stager hostnames/filenames, targeting the "verification.google" branch's NetSupport Manager installer chain.
+Detects PowerShell using `DownloadString` combined with the campaign's specific stager hostname, paired with its own filename so a bare filename can never match against an unrelated host.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: splunk => Image IN ("*\powershell.exe","*\pwsh.exe") CommandLine="*DownloadString*" CommandLine IN ("*cedar2glanz.ru*","*jewel.js*","*stunned-amniotic.com*","*hub.log*"); log_scale equivalent. Both exit 0. IOC-anchored (procedure-level), not generic DownloadString+IEX heuristic, so false-positive risk is near zero but the rule expires when the operator rotates these specific hostnames. -->
+<!-- audit: splunk => Image IN ("*\powershell.exe","*\pwsh.exe") CommandLine="*DownloadString*" AND (("*cedar2glanz.ru*" AND "*jewel.js*") OR ("*stunned-amniotic.com*" AND "*hub.log*")); log_scale equivalent. Both exit 0. IOC-anchored (procedure-level), not a generic DownloadString+IEX heuristic, so false-positive risk is near zero but the rule expires when the operator rotates these specific hostnames. Revision: the domain and filename lists were previously flattened into one CommandLine|contains list, so a bare "jewel.js" or "hub.log" substring from ANY host (not just the campaign's) would satisfy selection_domain on its own — fixed by requiring each filename alongside its paired domain via two AND-gated sub-selections joined with OR. Level dropped from critical to high: this is still an IOC-anchored (not zero-day) detection, and "critical" should be reserved for rules with corroborating destructive/irreversible behavior (e.g. the driver-load + EDR-kill rule), not a download-cradle match alone. -->
 ```yaml
 title: PowerShell Download and Execute of ClearFake NetSupport Manager Stager
 id: f28e3d84-93d0-496c-aeaa-9bc2f9f09251
@@ -265,16 +263,18 @@ detection:
   selection_pattern:
     CommandLine|contains|all:
       - 'DownloadString'
-  selection_domain:
-    CommandLine|contains:
+  selection_domain_stager:
+    CommandLine|contains|all:
       - 'cedar2glanz.ru'
       - 'jewel.js'
+  selection_domain_zip:
+    CommandLine|contains|all:
       - 'stunned-amniotic.com'
       - 'hub.log'
-  condition: selection_ps and selection_pattern and selection_domain
+  condition: selection_ps and selection_pattern and (selection_domain_stager or selection_domain_zip)
 falsepositives:
-  - None expected; matches campaign-specific hostnames and file names
-level: critical
+  - None expected; matches campaign-specific hostname/filename pairs
+level: high
 ```
 
 ### Sigma: NetSupport Manager client32.exe masquerading under an alternate name
@@ -402,9 +402,9 @@ rule Malware_Amatera_NativeAOT_Loader_Secur32
 ```
 
 ### YARA: ZigCryptoStealer clipboard clipper
-Flags the Zig-language clipper by its EtherHiding RPC endpoint/contract address plus clipboard API usage.
+Flags the Zig-language clipper by its EtherHiding RPC endpoint/contract address plus clipboard API usage, gated to PE files.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: `yarac clearfake-zigcryptostealer.yar /dev/null` exit 0. Medium: no sample hash was published for the ZigCryptoStealer binary itself (only for the containing archive, already covered by the NativeAOT-loader rule), so this rule is string/behavior-based rather than sample-validated; the RPC endpoint and contract address are the durable, campaign-specific signal, clipboard APIs are the corroborating behavioral gate. -->
+<!-- audit: `yarac clearfake-zigcryptostealer.yar /dev/null` exit 0. Medium: no sample hash was published for the ZigCryptoStealer binary itself (only for the containing archive, already covered by the NativeAOT-loader rule), so this rule is string/behavior-based rather than sample-validated; the RPC endpoint and contract address are the durable, campaign-specific signal, clipboard APIs are the corroborating behavioral gate. Revision: the original condition had no PE header check or filesize cap, so it could fire on any file (script, log, memory dump) carrying the strings, and the "$method and 1 of ($zigrt*)" branch alone was prone to matching a legitimate Zig-language Ethereum utility; added a `uint16(0) == 0x5A4D and filesize < 10MB` guard wrapping the existing logic to scope matches to plausible native Windows binaries. -->
 ```yara
 rule Malware_ZigCryptoStealer_EtherHiding_Clipper
 {
@@ -426,11 +426,15 @@ rule Malware_ZigCryptoStealer_EtherHiding_Clipper
         $clip3    = "SetClipboardData" ascii fullword
 
     condition:
+        uint16(0) == 0x5A4D and
+        filesize < 10MB and
         (
-            $rpc or $contract or ($method and 1 of ($zigrt*))
+            (
+                $rpc or $contract or ($method and 1 of ($zigrt*))
+            )
+            and
+            2 of ($clip*)
         )
-        and
-        2 of ($clip*)
 }
 ```
 
