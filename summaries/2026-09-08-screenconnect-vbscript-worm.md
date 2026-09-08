@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-09-08
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -210,7 +210,7 @@ This creates fully automated worm-like propagation across all systems accessible
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1566.002 | Phishing: Spearphishing Link | Phishing emails delivering rogue ScreenConnect MSI installer |
+| T1566.001 | Phishing: Spearphishing Attachment | Phishing emails delivering rogue ScreenConnect MSI installer |
 | T1204.002 | User Execution: Malicious File | Victim executes rogue ScreenConnect.ClientSetup.msi |
 | T1219 | Remote Access Software | Abuse of ScreenConnect RMM for C2 and lateral movement |
 | T1059.005 | Command and Scripting Interpreter: Visual Basic | Four-stage VBScript payload chain (1.vbs-4.vbs) |
@@ -281,16 +281,16 @@ dir "C:\Users\Public\Libraries\Default\Lib\SearchIndex.exe"
 
 ## Detection Rules
 
-Eight Sigma rules cover the endpoint behavioral chain (ScreenConnect spawning script hosts, VBScript execution from ScreenConnect directories, staging file creation, PyTorchFix payload execution, persistence via Run key, masqueraded binaries) plus network IOCs (C2 domains and IPs). Three YARA rules target the VBScript stager files, WindowsServiceHost persistence payload, and PyTorchFix PowerShell payload. Snort and Suricata rules cover DNS queries to C2 domains and TCP connections to C2 IP addresses. All rules are anchored to campaign-specific IOCs; the staging-file Sigma rule (`medium` level) has the broadest FP surface due to generic filenames.
+Eight Sigma rules cover the endpoint behavioral chain (ScreenConnect spawning script hosts, VBScript execution from ScreenConnect directories, staging file creation, PyTorchFix payload execution, persistence via Run key, masqueraded binaries) plus network IOCs (C2 domains and IPs). Three YARA rules target the VBScript stager files, WindowsServiceHost persistence payload, and PyTorchFix PowerShell payload. Snort and Suricata rules cover DNS queries to C2 domains and TCP connections to C2 IP addresses. Behavioral parent-child rules (Rules 1-2) are rated medium confidence; the staging-file rule (Rule 4) is low confidence due to generic filenames but is scoped to wscript/cscript process context; IOC-keyed and artifact-keyed rules remain high/critical.
 
-<!-- Validation audit: sigma check unavailable (MITRE ATT&CK data fetch blocked by proxy); sigma convert --without-pipeline -t splunk and -t log_scale passed for all 8 rules; yarac compiled 3 YARA rules after 1 fix (unreferenced string removed); Snort 2.9.20 validated via snort -T; Suricata 7.0.3 validated via suricata -T. All encoding follows logsource-encoding.md: values are real (not defanged), field names match Sysmon/Windows schema. -->
+<!-- Validation audit: sigma check unavailable (MITRE ATT&CK data fetch blocked by proxy); sigma convert --without-pipeline -t splunk and -t log_scale passed for all 8 rules (re-validated for rules 1,2,4,8 after v1.1 revision); yarac compiled 3 YARA rules after 1 fix (unreferenced string removed); Snort 2.9.20 validated via snort -T; Suricata 7.0.3 validated via suricata -T. All encoding follows logsource-encoding.md: values are real (not defanged), field names match Sysmon/Windows schema. -->
 
 ### Sigma Rules
 
 #### 1. ScreenConnect Client Spawns Windows Script Host
 
 Detects ScreenConnect client processes spawning wscript.exe or cscript.exe, the initial execution vector for the VBScript payload chain.
-**Compile: Splunk ✅ LogScale ✅ | Confidence: high**
+**Compile: Splunk ✅ LogScale ✅ | Confidence: medium**
 
 ```yaml
 title: ScreenConnect Client Spawns Windows Script Host
@@ -323,13 +323,13 @@ detection:
     condition: selection_parent and selection_child
 falsepositives:
     - Legitimate ScreenConnect automation scripts deployed by IT administrators
-level: high
+level: medium
 ```
 
 #### 2. VBScript Execution From ScreenConnect Temporary Directory
 
 Detects wscript.exe or cscript.exe executing VBS files from ScreenConnect file staging directories.
-**Compile: Splunk ✅ LogScale ✅ | Confidence: high**
+**Compile: Splunk ✅ LogScale ✅ | Confidence: medium**
 
 ```yaml
 title: VBScript Execution From ScreenConnect Temporary Directory
@@ -405,8 +405,8 @@ level: critical
 
 #### 4. ScreenConnect Worm Staging File Creation
 
-Detects creation of the campaign's characteristic staging files in the user TEMP directory.
-**Compile: Splunk ✅ LogScale ✅ | Confidence: medium**
+Detects creation of the campaign's characteristic staging files in the user TEMP directory by Windows Script Host processes.
+**Compile: Splunk ✅ LogScale ✅ | Confidence: low**
 
 ```yaml
 title: ScreenConnect Worm Staging File Creation
@@ -414,8 +414,9 @@ id: 8937b675-1df3-43f8-8b40-7d7254b99460
 status: experimental
 description: >
     Detects creation of staging files (value.txt, map.txt, out.enc, runner.ps1)
-    in the user TEMP directory, consistent with the multi-stage payload delivery
-    observed in the September 2026 ScreenConnect worm campaign.
+    in the user TEMP directory by wscript.exe or cscript.exe, consistent with
+    the multi-stage payload delivery observed in the September 2026
+    ScreenConnect worm campaign.
 references:
     - https://www.huntress.com/blog/rogue-screenconnect-installations
     - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
@@ -428,17 +429,21 @@ logsource:
     category: file_event
     product: windows
 detection:
-    selection:
+    selection_process:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_files:
         TargetFilename|endswith:
             - '\value.txt'
             - '\map.txt'
             - '\out.enc'
             - '\runner.ps1'
         TargetFilename|contains: '\Temp\'
-    condition: selection
+    condition: selection_process and selection_files
 falsepositives:
-    - Generic filenames may appear in unrelated legitimate software
-level: medium
+    - Generic filenames (value.txt, map.txt) may appear in unrelated VBScript automation
+level: low
 ```
 
 #### 5. PyTorchFix PowerShell Payload Execution
@@ -574,9 +579,9 @@ detection:
         Image|endswith:
             - '\Themes.exe'
             - '\SearchIndex.exe'
-    condition: selection_staging_path or selection_binaries
+    condition: selection_staging_path and selection_binaries
 falsepositives:
-    - Legitimate software named Themes.exe or SearchIndex.exe in non-standard paths
+    - Legitimate software named Themes.exe or SearchIndex.exe deployed to Public Libraries path
 level: high
 ```
 
@@ -584,14 +589,14 @@ level: high
 
 #### 9. ScreenConnect Worm VBScript Stager
 
-Detects VBScript stager files (1.vbs through 4.vbs) based on staging file references and scripting patterns.
+Detects later-stage VBScript stagers (primarily 3.vbs/4.vbs) that reference both staging filenames and final payload names (PyTorchFix/WindowsServiceHost). Early stagers (1.vbs, 2.vbs) that lack payload references will not match independently.
 **Compile: yarac ✅ | Confidence: medium**
 
 ```yara
 rule ScreenConnect_Worm_VBScript_Stager
 {
     meta:
-        description = "Detects VBScript stager files (1.vbs through 4.vbs) used in the September 2026 ScreenConnect worm campaign, based on unique string patterns and staging file references"
+        description = "Detects later-stage VBScript stagers from the September 2026 ScreenConnect worm campaign that reference staging filenames and final payload names (PyTorchFix.ps1 or WindowsServiceHost.vbs). Early stagers lacking payload references require other detection rules."
         author = "Actioner"
         date = "2026-09-08"
         reference = "https://www.huntress.com/blog/rogue-screenconnect-installations"
@@ -763,6 +768,8 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS Connection to 
 - [The Hacker News: Rogue ScreenConnect Clients Spread Four-Stage VBScript Payloads](https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html) — summary coverage with additional context on initial access vectors and payload variants
 - [SecurityWeek: Modified ScreenConnect Clients Used in Worm-Like Campaign](https://www.securityweek.com/modified-screenconnect-clients-used-in-worm-like-campaign/) — summary coverage noting ConnectWise advisory response
 - [ConnectWise Security Bulletins](https://www.connectwise.com/company/trust/security-bulletins) — vendor advisory acknowledging file-transfer behavior issue (September 3, 2026)
+
+<!-- revision: v1.1 2026-09-08 — Rule 1 confidence/level high→medium (behavioral TTP, FP from legit IT scripts); Rule 2 confidence high→medium (behavioral path-based, same FP concern); Rule 4 confidence medium→low, added wscript/cscript process-image filter (generic filenames in Temp); Rule 8 condition OR→AND (prevented binary-name branch firing from any path); MITRE T1566.002→T1566.001 (delivery is attachment not link); YARA Rule 9 description clarified to note it targets later-stage stagers only. All changed Sigma rules re-validated via sigma check/convert. -->
 
 ---
 *Report generated by Actioner*

@@ -3,7 +3,10 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-08
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
+
+<!-- revision: applied critic verdict NEEDS-REVISION (2026-09-08). Fixes: (1) Sigma "PowerShell Download and Execute" rule — split the flattened selection_domain list (which let bare filenames jewel.js/hub.log match any host) into two AND-gated domain+filename sub-selections joined by OR; downgraded level critical->high. (2) YARA ZigCryptoStealer rule — added `uint16(0)==0x5A4D and filesize<10MB` PE/size guard around the existing condition to stop non-PE false positives. (3) ATT&CK Mapping table — removed incorrect T1570 row (WebDAV DLL is external ingress, not lateral transfer; T1105 already covers it), removed duplicate/incorrect T1218.009 row (merged into the existing T1574.002 DLL Side-Loading row, which now covers both the Secur32.dll sideload and the dbghelp.dll hollowing), and corrected T1071.004 (DNS) to T1071.001 (Web Protocols) for the EtherHiding on-chain RPC row since EtherHiding uses HTTP/HTTPS JSON-RPC, not DNS. (4) For consistency with fix #3, the Sigma "Rundll32 Execution of DLL from WebDAV UNC Path" rule's attack.t1570 tag was also replaced with attack.t1105. (5) Non-blocking cleanups applied: removed unused `import "pe"` from the DCRCVDrv.sys YARA rule; added a Snort comma-content-modifier portability note to the global detection-rules audit comment. All four Sigma rules (two changed, two unchanged) re-verified with `sigma convert --without-pipeline -t splunk` and `-t log_scale` (exit 0 both); `sigma check` still fails on all rules with the same pre-existing offline HTTP 403 fetching MITRE ATT&CK data (environment has no outbound access to that endpoint — not a rule defect, unchanged from the draft). Both changed YARA rules (and the full concatenated rules/yara file) re-verified with `yarac ... /dev/null` (exit 0). Standalone rule files written/updated in the sink repo: rules/sigma/2026-09-08-clearfake-webdav-amatera.yml, rules/yara/2026-09-08-clearfake-webdav-amatera.yar, rules/snort/2026-09-08-clearfake-webdav-amatera.rules, rules/suricata/2026-09-08-clearfake-webdav-amatera.rules. -->
+
 
 ## Executive Summary
 
@@ -144,7 +147,7 @@ On success, it downloads a ZIP (`https://phys.stunned-amniotic.com/hub.log`, SHA
 | T1027.007 | Dynamic API Resolution | Amatera resolves APIs via export-table walking, no static import table |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | `DCRCVDrv.sys` BYOVD used to `ZwTerminateProcess` EDR processes |
 | T1497.001 | Virtualization/Sandbox Evasion: System Checks | NetSupport stager: volume serial, uptime, timing, RAM/VRAM, GPU adapter checks |
-| T1071.004 | Application Layer Protocol: DNS (EtherHiding via on-chain RPC lookups) | OS-selection and ZigCryptoStealer C2 resolved via BNB Smart Chain `eth_call` |
+| T1071.001 | Application Layer Protocol: Web Protocols (EtherHiding via on-chain RPC lookups) | OS-selection and ZigCryptoStealer C2 resolved via HTTP/HTTPS JSON-RPC (`eth_call`) POST requests to BNB Smart Chain RPC endpoints |
 | T1568 | Dynamic Resolution | Dead-drop resolver (`telegra.ph`) and rotating C2 subdomains |
 | T1005 | Data from Local System | Amatera file-grabber targeting Desktop/Downloads/Documents/Recent |
 | T1555 | Credentials from Password Stores | Amatera targets KeePass, Bitwarden, 1Password, RoboForm, NordPass, WinAuth, Authy |
@@ -188,14 +191,14 @@ Breadth is significant at the infrastructure level: Cisco Umbrella DNS telemetry
 
 ## Detection Rules
 
-<!-- audit(global): All Sigma rules fail `sigma check` with the same offline HTTP 403 fetching MITRE ATT&CK/D3FEND tactic data (RuntimeError in pySigma's mitre_attack loader) — this environment has no outbound access to that endpoint. It is NOT a rule defect: every rule's YAML parses, and both `sigma convert --without-pipeline -t splunk` and `-t log_scale` succeeded cleanly for all four rules (shown per-rule below). All 3 YARA rules compiled clean with `yarac <rule>.yar /dev/null` (exit 0). Snort rules were validated against the installed engine, which is Snort **2.9.20** (not Snort 3 as the reference doc assumes) via `snort -c /etc/snort/snort.conf -T` with the rule content staged into /etc/snort/rules/local.rules (Snort 2 has no -R rules-file flag; -R means pid-suffix) and restored afterward — required reformatting to single-line rules (Snort 2's parser does not accept unescaped multi-line rule bodies) and swapping the `http` service-header form (Snort-3-only) for `tcp $HTTP_PORTS` with post-content `http_method`/`http_header`/`http_uri` buffer-selector keywords, which Snort 2.9.20 supports. Suricata rules validated with `suricata -T -S <file>.rules -l <dir>` on Suricata 7.0.3 (exit 0 after removing a redundant `nocase` on an already-lowercased `http.host` buffer, and after switching to single-line rule bodies — Suricata 7.0.3 also rejected the multi-line body used in the reference doc's own examples). All values in the rules below are the real (non-defanged) indicators. -->
+<!-- audit(global): All Sigma rules fail `sigma check` with the same offline HTTP 403 fetching MITRE ATT&CK/D3FEND tactic data (RuntimeError in pySigma's mitre_attack loader) — this environment has no outbound access to that endpoint. It is NOT a rule defect: every rule's YAML parses, and both `sigma convert --without-pipeline -t splunk` and `-t log_scale` succeeded cleanly for all four rules (shown per-rule below). All 3 YARA rules compiled clean with `yarac <rule>.yar /dev/null` (exit 0). Snort rules were validated against the installed engine, which is Snort **2.9.20** (not Snort 3 as the reference doc assumes) via `snort -c /etc/snort/snort.conf -T` with the rule content staged into /etc/snort/rules/local.rules (Snort 2 has no -R rules-file flag; -R means pid-suffix) and restored afterward — required reformatting to single-line rules (Snort 2's parser does not accept unescaped multi-line rule bodies) and swapping the `http` service-header form (Snort-3-only) for `tcp $HTTP_PORTS` with post-content `http_method`/`http_header`/`http_uri` buffer-selector keywords, which Snort 2.9.20 supports. Suricata rules validated with `suricata -T -S <file>.rules -l <dir>` on Suricata 7.0.3 (exit 0 after removing a redundant `nocase` on an already-lowercased `http.host` buffer, and after switching to single-line rule bodies — Suricata 7.0.3 also rejected the multi-line body used in the reference doc's own examples). All values in the rules below are the real (non-defanged) indicators. Portability note (Snort): the DNS and HTTP Snort rules attach modifiers (`nocase`, `fast_pattern`, `http_method`/`http_header`/`http_uri`) to the immediately preceding `content` via comma continuation on the same statement — valid on the tested Snort 2.9.20 but some downstream rule-management tooling and stricter Snort 3 configurations expect each buffer-selector keyword as its own semicolon-terminated statement; reformat accordingly if importing into a Snort 3 deployment. -->
 
 These 11 rules cover the chain's most durable, campaign-specific artifacts: WebDAV-based rundll32 execution and the NetSupport masquerade/PowerShell stager (Sigma), file-level strings/structure for the Amatera NativeAOT loader, ZigCryptoStealer, and the DCRCVDrv.sys BYOVD driver (YARA), and the published C2 IPs/domains/URLs (Snort, Suricata). The one caveat that matters across the set: this campaign rotates WebDAV and C2 subdomains on a roughly weekly cadence (see Timeline), so the DNS/network rules have a short shelf life and should be refreshed against the linked Talos IOC repository rather than treated as permanent blocklists.
 
 ### Sigma: Rundll32 execution of a DLL from a WebDAV UNC path
 Detects `rundll32.exe` launching a DLL via a `DavWWWRoot` UNC path using an ordinal-1 or named export matching either observed loader variant.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: `sigma convert --without-pipeline -t splunk` => Image="*\rundll32.exe" CommandLine="*DavWWWRoot*" CommandLine IN ("*,#1*","*,moor*","*,CfgInspectModuleData*"); `-t log_scale` => equivalent regex form. Both exit 0. `DavWWWRoot` is the fixed marker the Windows WebDAV redirector inserts into any WebDAv UNC path, independent of which rotating subdomain is used, so this rule survives the campaign's domain rotation, unlike the DNS-based rules below. -->
+<!-- audit: `sigma convert --without-pipeline -t splunk` => Image="*\rundll32.exe" CommandLine="*DavWWWRoot*" CommandLine IN ("*,#1*","*,moor*","*,CfgInspectModuleData*"); `-t log_scale` => equivalent regex form. Both exit 0. `DavWWWRoot` is the fixed marker the Windows WebDAV redirector inserts into any WebDAv UNC path, independent of which rotating subdomain is used, so this rule survives the campaign's domain rotation, unlike the DNS-based rules below. Revision: tag attack.t1570 (Lateral Tool Transfer) replaced with attack.t1105 (Ingress Tool Transfer) — the DLL is pulled from an external attacker-controlled WebDAV server, not moved between already-compromised internal hosts, so T1570 was a mischaracterization; T1105 matches the ATT&CK Mapping table and the "verification.google" branch DLL is also delivered this way. -->
 ```yaml
 title: Rundll32 Execution of DLL from WebDAV UNC Path via DavWWWRoot
 id: c17762cc-1809-4225-a87d-6972191b3393
@@ -212,7 +215,7 @@ author: Actioner
 date: 2026/09/08
 tags:
   - attack.t1218.011
-  - attack.t1570
+  - attack.t1105
 logsource:
   category: process_creation
   product: windows
@@ -441,10 +444,8 @@ rule Malware_ZigCryptoStealer_EtherHiding_Clipper
 ### YARA: DCRCVDrv.sys BYOVD driver
 Flags the specific signed-but-vulnerable driver abused to terminate EDR processes via an unauthenticated IOCTL.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: `yarac clearfake-dcrcvdrv-byovd.yar /dev/null` exit 0. High confidence: device name \Device\DCRCVDRV_U and vendor strings are specific, low-prevalence artifacts of this one driver; the $ioctl hex pattern is the little-endian encoding of IOCTL 0x2205c0 (bytes C0 05 22 00) reported by Talos as the process-termination control code, included as corroboration, not sole trigger. -->
+<!-- audit: `yarac clearfake-dcrcvdrv-byovd.yar /dev/null` exit 0. High confidence: device name \Device\DCRCVDRV_U and vendor strings are specific, low-prevalence artifacts of this one driver; the $ioctl hex pattern is the little-endian encoding of IOCTL 0x2205c0 (bytes C0 05 22 00) reported by Talos as the process-termination control code, included as corroboration, not sole trigger. Revision: removed the unused `import "pe"` — the condition uses only builtin uint16()/filesize, never the pe module, so the import was dead weight. -->
 ```yara
-import "pe"
-
 rule Malware_ClearFake_DCRCVDrv_BYOVD_Driver
 {
     meta:
