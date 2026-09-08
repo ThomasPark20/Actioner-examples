@@ -1,0 +1,11 @@
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Magento/Adobe Commerce Object-Injection Gadget Parameter (CVE-2026-75650)"; flow:established,to_server; http.uri; content:"styles["; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200001; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Object-Injection Driver Parameter generatorClass (CVE-2026-75650)"; flow:established,to_server; http.uri; content:"generatorClass"; nocase; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200002; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query for StyleSmuggler Fake-NTP C2 Domain (CVE-2026-75650)"; dns.query; content:"ntp.timesync.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200003; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS Connection to StyleSmuggler C2 Domain windwsecurity.run (CVE-2026-75650)"; flow:established,to_server; tls.sni; content:"windwsecurity.run"; nocase; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200004; rev:1;)
+
+alert udp $HOME_NET any -> 185.157.160.251 123 (msg:"Actioner - StyleSmuggler Fake-NTP UDP C2 Beacon to 185.157.160.251 (CVE-2026-75650)"; dsize:48; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200005; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Secondary PHP Web Shell Activation Header X-Cache-Token (CVE-2026-75650)"; flow:established,to_server; http.request_header; content:"X-Cache-Token"; fast_pattern; content:"fced27f6d57702565353ecc11722533b"; classtype:trojan-activity; reference:url,securityaffairs.com/198603; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200006; rev:2;)

