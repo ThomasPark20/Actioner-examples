@@ -1,0 +1,15 @@
+alert tcp $HOME_NET any -> 45.13.237.190 any (msg:"Actioner - ScreenConnect Worm C2 Connection to 45.13.237.190 (tele-sync.opik.net)"; flow:established, to_server; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100001; rev:1;)
+
+alert tcp $HOME_NET any -> 131.123.40.98 8041 (msg:"Actioner - ScreenConnect Worm C2 Connection to 131.123.40.98:8041"; flow:established, to_server; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100002; rev:1;)
+
+alert tcp $HOME_NET any -> 146.59.55.107 any (msg:"Actioner - ScreenConnect Worm C2 Connection to 146.59.55.107"; flow:established, to_server; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100003; rev:1;)
+
+alert tcp $HOME_NET any -> 45.32.192.150 any (msg:"Actioner - ScreenConnect Worm C2 Connection to 45.32.192.150"; flow:established, to_server; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100004; rev:1;)
+
+alert tcp $HOME_NET any -> 15.204.185.204 any (msg:"Actioner - ScreenConnect Worm C2 Connection to 15.204.185.204"; flow:established, to_server; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100005; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ScreenConnect Worm C2 Domain tele-sync.opik.net"; flow:to_server; content:"|09|tele-sync|04|opik|03|net|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100006; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ScreenConnect Worm C2 Domain borertors92.anondns.net"; flow:to_server; content:"|0b|borertors92|07|anondns|03|net|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100007; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to ScreenConnect Worm C2 Domain homehub.opik.net"; flow:to_server; content:"|07|homehub|04|opik|03|net|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,www.huntress.com/blog/rogue-screenconnect-installations; metadata:author Actioner, created 2026-09-08; sid:2100008; rev:1;)
