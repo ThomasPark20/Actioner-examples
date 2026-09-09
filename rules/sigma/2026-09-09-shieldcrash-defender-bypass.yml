@@ -1,0 +1,77 @@
+title: ShieldCrash Exploit - Working Directory Creation
+id: 7a1e3c9d-b4f2-4d87-9e6a-8c5f0d2b1a7e
+status: experimental
+description: >
+    Detects creation of files or directories matching the ShieldCrash PoC exploit working
+    directory pattern (C:\ShieldCrash_{GUID}\). This is the bypass PoC for the ShieldBreak
+    patch (CVE-2026-69414) that demonstrates arbitrary file read as SYSTEM via Microsoft
+    Defender's scan remediation path manipulation.
+references:
+    - https://github.com/MSNightmare/ShieldCrash
+    - https://thehackernews.com/2026/09/researcher-drops-new-microsoft-defender.html
+    - https://securityaffairs.com/198726/security/chaotic-eclipse-released-shieldcrash-a-poc-for-microsoft-defender-zero-day.html
+author: Actioner
+date: 2026/09/09
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\ShieldCrash_'
+    condition: selection
+falsepositives:
+    - Unlikely; ShieldCrash_ is a distinctive directory name prefix unique to this PoC
+level: high
+---
+title: ShieldCrash Exploit Binary Execution
+id: 2d8f4b6a-e1c3-49a7-b5d0-3f7e9c1a8d2b
+status: experimental
+description: >
+    Detects execution of the ShieldCrash PoC exploit binary, which bypasses the ShieldBreak
+    patch (CVE-2026-69414) to achieve arbitrary file read as SYSTEM. The binary takes a file
+    path as an argument specifying which privileged file to leak.
+references:
+    - https://github.com/MSNightmare/ShieldCrash
+    - https://thehackernews.com/2026/09/researcher-drops-new-microsoft-defender.html
+    - https://securityaffairs.com/198726/security/chaotic-eclipse-released-shieldcrash-a-poc-for-microsoft-defender-zero-day.html
+author: Actioner
+date: 2026/09/09
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\ShieldCrash.exe'
+    condition: selection
+falsepositives:
+    - None expected; ShieldCrash.exe is a known exploit binary
+level: critical
+---
+title: ShieldCrash Exploit - BERN2 Temp File Creation
+id: 9c3d5e7f-a1b4-4f28-8d6e-2b0c9a4f7e3d
+status: experimental
+description: >
+    Detects creation of .BERN2 temp files in the user TEMP directory, an artifact of the
+    ShieldCrash PoC exploit (CVE-2026-69414 patch bypass). ShieldCrash stages leaked file
+    content at %TEMP%\ShieldCrash_{GUID}.BERN2 before extracting it to the output location.
+references:
+    - https://github.com/MSNightmare/ShieldCrash
+    - https://thehackernews.com/2026/09/researcher-drops-new-microsoft-defender.html
+author: Actioner
+date: 2026/09/09
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.BERN2'
+    condition: selection
+falsepositives:
+    - Unlikely; .BERN2 is a distinctive file extension unique to the ShieldCrash PoC
+level: high
