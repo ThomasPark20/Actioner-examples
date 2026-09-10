@@ -1,0 +1,29 @@
+title: Apache httpd Reading proc self maps for Memory Mapping
+id: 9c5a4e13-6d0f-4b8a-c3f7-1e2d5a9b4c06
+status: experimental
+description: >
+    Detects Apache httpd process accessing /proc/self/maps, which PoisonedRefresh
+    uses to locate the libphp shared library in memory before injecting a fileless
+    PHP web shell via mmap() interception.
+references:
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1055.009
+    - attack.t1082
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: SYSCALL
+        exe|endswith: '/httpd'
+    selection_path:
+        type: PATH
+        name: '/proc/self/maps'
+    condition: selection and selection_path
+falsepositives:
+    - Application performance monitoring (APM) agents or memory profilers reading memory maps from httpd context
+level: medium

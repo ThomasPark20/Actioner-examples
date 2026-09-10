@@ -1,0 +1,28 @@
+title: HTTP 201 Response from PHP3 Endpoint
+id: 1d6b5f24-7e1a-4c9b-d4a8-2f3e6b0c5d17
+status: experimental
+description: >
+    Detects HTTP 201 responses from .php3 endpoints, a distinctive behavioral
+    signature of the PoisonedRefresh web shell C2 communication pattern on
+    compromised F5 BIG-IP APM systems.
+references:
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1505.003
+    - attack.t1071.001
+logsource:
+    category: webserver
+detection:
+    selection:
+        sc-status: 201
+        cs-uri-stem|endswith:
+            - 'apm_css.php3'
+            - 'full_wt.php3'
+            - 'webtop_popup_css.php3'
+    condition: selection
+falsepositives:
+    - Legitimate F5 BIG-IP APM webtop scripts should not return HTTP 201
+level: critical
