@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-10
-Version: 1.0
+Version: 1.1
+<!-- revision: v1.1 — ATT&CK T1574.002→T1574.006 (dynamic linker hijacking), T1542.003→T1601.001 (modify system image); Sigma rule 1 tag t1071.004→t1559; Sigma rules 2+3 level capped at medium with caveats; Sigma rule 4 title/desc fixed (no content_type in detection); Suricata rule 2 msg fixed (no URI check), deployment note added; Snort rule 2 confidence→low with limitation docs; .php3 blocking remediation reworded for APM dependency. -->
 
 ## Executive Summary
 
@@ -190,7 +191,7 @@ strings /proc/$(pgrep -o httpd)/mem 2>/dev/null | grep -E "(BSOHAzPB|wSLjN1beuR|
 
 - Restrict management interface access to trusted administrative networks only
 - Enable ptrace restrictions: `echo 1 > /proc/sys/kernel/yama/ptrace_scope`
-- Block `.php3` execution if not required: `<FilesMatch "\.php3$"> Require all denied </FilesMatch>`
+- Block `.php3` execution only if the APM webtop is decommissioned (APM inherently requires these `.php3` endpoints): `<FilesMatch "\.php3$"> Require all denied </FilesMatch>`
 - Implement file integrity monitoring on `/usr/sbin/httpd` and BIG-IP upgrade image directories
 - Deploy memory forensics capabilities (e.g., Volatility) for periodic Apache process inspection
 - Monitor for UNIX socket creation in `/run/` via auditd rules
@@ -438,13 +439,14 @@ alert http any any -> $HOME_NET any (msg:"Actioner - PoisonedRefresh Web Shell C
 
 ### Suricata: PoisonedRefresh Web Shell HTTP 201 CSS Response
 
-Detects outbound HTTP 201 responses with `text/css` content type, the distinctive response pattern used by PoisonedRefresh to camouflage web shell output as legitimate CSS content.
+Detects outbound HTTP 201 responses with `text/css` content type, the distinctive response pattern used by PoisonedRefresh to camouflage web shell output as legitimate CSS content. Caveat: no URI check is present (http.uri is unavailable in to_client flow in Suricata < 7); deploy on BIG-IP-facing network segments only to reduce false positives.
 <!-- audit: suricata -T -S poisonedrefresh_suricata.rules -l /tmp/actioner EXIT:0 after rev:2 fix removing http.uri from to_client rule (direction conflict). Response-only buffers: http.stat_code + http.content_type. -->
+<!-- revision: dropped "from php3 Endpoint" from msg (no URI check in rule); added deployment note for BIG-IP-facing segments; bumped rev to 3. -->
 
-**Compile:** Suricata -T: pass | **Confidence:** medium (HTTP 201 + text/css alone may match non-malicious APIs; best deployed on BIG-IP-facing segments)
+**Compile:** Suricata -T: pass | **Confidence:** medium (HTTP 201 + text/css alone may match non-malicious APIs; deploy on BIG-IP-facing segments only)
 
 ```
-alert http $HOME_NET any -> any any (msg:"Actioner - PoisonedRefresh Web Shell HTTP 201 CSS Response from php3 Endpoint"; flow:established,to_client; http.stat_code; content:"201"; http.content_type; content:"text/css"; classtype:web-application-attack; reference:url,www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/; metadata:author Actioner, created_at 2026-09-10, cve CVE-2025-53521; sid:2100102; rev:2;)
+alert http $HOME_NET any -> any any (msg:"Actioner - PoisonedRefresh Web Shell HTTP 201 CSS Response"; flow:established,to_client; http.stat_code; content:"201"; http.content_type; content:"text/css"; classtype:web-application-attack; reference:url,www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/; metadata:author Actioner, created_at 2026-09-10, cve CVE-2025-53521, deployment BIG-IP-facing-segments-only; sid:2100102; rev:3;)
 ```
 
 ### Snort: PoisonedRefresh Web Shell C2 Request
@@ -459,9 +461,11 @@ alert http any any -> $HOME_NET any (msg:"Actioner - PoisonedRefresh Web Shell C
 
 ### Snort: PoisonedRefresh Web Shell HTTP 201 CSS Response
 
-Detects outbound HTTP 201 responses with `text/css` content type from BIG-IP APM `.php3` endpoints.
+Detects outbound HTTP 201 responses with `text/css` content type from BIG-IP APM `.php3` endpoints. Caveat: `http_uri` in `to_client` flow is unreliable in Snort, and `http_header` with `content:"text/css"` scans the entire header buffer which may false-positive on other header values containing that substring; the Suricata equivalent is preferred where available.
+<!-- audit: Snort is not installed -- structural check only. Limitation: http_uri in to_client flow is problematic; http_header content:"text/css" scans entire header. Suricata rule 2100102 is the preferred equivalent. -->
+<!-- revision: confidence downgraded to low; documented http_uri/http_header limitations; noted Suricata equivalent is preferred. -->
 
-**Compile:** Snort is not installed -- structural check only | **Confidence:** medium
+**Compile:** Snort is not installed -- structural check only | **Confidence:** low
 
 ```
 alert http $HOME_NET any -> any any (msg:"Actioner - PoisonedRefresh Web Shell HTTP 201 CSS Response"; flow:established, to_client; http_stat_code; content:"201"; http_header; content:"text/css"; http_uri; content:".php3"; classtype:web-application-attack; reference:url,www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/; metadata:author Actioner, created 2026-09-10, cve CVE-2025-53521; sid:2100202; rev:1;)
