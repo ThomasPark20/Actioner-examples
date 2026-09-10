@@ -130,13 +130,13 @@ PoisonedRefresh creates a UNIX domain socket at `/run/bigtlog.pipe` for local pr
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1190 | Exploit Public-Facing Application | Exploitation of CVE-2025-53521 for initial access to BIG-IP APM |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | Hooking `apr_dso_load` to intercept Apache module loading |
+| T1574.006 | Hijack Execution Flow: Dynamic Linker Hijacking | Hooking `apr_dso_load` to intercept Apache module loading |
 | T1055.009 | Process Injection: Proc Memory | In-memory modification of libphp via mmap()/mprotect() interception |
 | T1505.003 | Server Software Component: Web Shell | Fileless PHP web shell injected into Apache worker memory |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Interactive /bin/bash via UNIX socket backdoor |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication disguised as CSS responses (HTTP 201 + text/css) |
 | T1027 | Obfuscated Files or Information | RC4 encryption of operational strings with hardcoded key |
-| T1542.003 | Pre-OS Boot: Bootkit | Persistence embedded in BIG-IP upgrade images (/mnt/tm_install) |
+| T1601.001 | Modify System Image: Patch System Image | Persistence embedded in BIG-IP upgrade images (/mnt/tm_install) |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | SELinux configuration modification |
 | T1082 | System Information Discovery | Reading /proc/self/maps to enumerate memory layout |
 
@@ -220,7 +220,7 @@ references:
 author: Actioner
 date: 2026-09-10
 tags:
-    - attack.t1071.004
+    - attack.t1559
     - attack.t1059.004
 logsource:
     product: linux
@@ -237,8 +237,9 @@ level: critical
 
 ### Sigma: Apache httpd Process Spawning Bash Shell
 
-Detects Apache httpd spawning `/bin/bash`, consistent with the PoisonedRefresh UNIX socket backdoor delivering interactive shell access.
+Detects Apache httpd spawning `/bin/bash`, consistent with the PoisonedRefresh UNIX socket backdoor delivering interactive shell access. Caveat: this is a hunt/triage signal, not an alerting rule -- CGI scripts and ops automation tools can legitimately trigger httpd-to-bash chains.
 <!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; process_creation logsource with linux product. ParentImage/Image endswith matching is pipeline-dependent. -->
+<!-- revision: level capped at medium (behavioral pattern); added hunt/triage caveat per critic. -->
 
 **Compile:** Sigma convert Splunk/LogScale: pass | **Confidence:** medium
 
@@ -268,13 +269,15 @@ detection:
     condition: selection
 falsepositives:
     - CGI scripts or legitimate server-side applications that invoke bash from Apache
-level: high
+    - Operations automation or monitoring tools executed from Apache context
+level: medium
 ```
 
 ### Sigma: Apache httpd Reading /proc/self/maps
 
-Detects Apache httpd accessing `/proc/self/maps`, used by PoisonedRefresh to locate the libphp shared library in memory before injection. Caveat: requires auditd rules auditing open() syscalls on `/proc/self/maps`.
+Detects Apache httpd accessing `/proc/self/maps`, used by PoisonedRefresh to locate the libphp shared library in memory before injection. Caveat: requires a pre-joined auditd event model for cross-record correlation (SYSCALL + PATH are separate audit records); APM agents and memory profilers routinely read `/proc/self/maps`.
 <!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; uses auditd SYSCALL+PATH correlation; field names are auditd-native. -->
+<!-- revision: level capped at medium; added auditd cross-record correlation caveat and APM/profiler FP note per critic. -->
 
 **Compile:** Sigma convert Splunk/LogScale: pass | **Confidence:** medium
 
@@ -306,25 +309,26 @@ detection:
         name: '/proc/self/maps'
     condition: selection and selection_path
 falsepositives:
-    - Application performance monitoring or debugging tools reading memory maps from httpd context
-level: high
+    - Application performance monitoring (APM) agents or memory profilers reading memory maps from httpd context
+level: medium
 ```
 
-### Sigma: HTTP 201 Response with CSS Content-Type from PHP3 Endpoint
+### Sigma: HTTP 201 Response from PHP3 Endpoint
 
-Detects the distinctive PoisonedRefresh C2 response pattern: HTTP 201 status codes returned from BIG-IP APM webtop `.php3` endpoints that normally return CSS content.
+Detects the distinctive PoisonedRefresh C2 response pattern: HTTP 201 status codes returned from BIG-IP APM webtop `.php3` endpoints, which should not produce 201 responses under normal operation.
 <!-- audit: sigma convert --without-pipeline -t splunk EXIT:0; sigma convert --without-pipeline -t log_scale EXIT:0; webserver logsource uses W3C/IIS field naming (sc-status, cs-uri-stem); Apache environments may need field mapping. -->
+<!-- revision: title corrected -- detection block has no content_type field; removed CSS claim from title and description. -->
 
 **Compile:** Sigma convert Splunk/LogScale: pass | **Confidence:** high
 
 ```yaml
-title: HTTP 201 Response with CSS Content-Type from PHP3 Endpoint
+title: HTTP 201 Response from PHP3 Endpoint
 id: 1d6b5f24-7e1a-4c9b-d4a8-2f3e6b0c5d17
 status: experimental
 description: >
-    Detects HTTP 201 responses with text/css content type from .php3 endpoints,
-    a distinctive behavioral signature of the PoisonedRefresh web shell C2
-    communication pattern on compromised F5 BIG-IP APM systems.
+    Detects HTTP 201 responses from .php3 endpoints, a distinctive behavioral
+    signature of the PoisonedRefresh web shell C2 communication pattern on
+    compromised F5 BIG-IP APM systems.
 references:
     - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
     - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/
