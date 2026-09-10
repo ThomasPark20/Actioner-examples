@@ -1,9 +1,11 @@
 # Technical Analysis Report: ClearFake WebDAV Infection Chain Delivering Amatera Stealer, ZigCryptoStealer, and NetSupport Manager (2026-09-10)
 
+<!-- revision: v2.0 — critic NEEDS-REVISION pass applied. Dropped sid:2100107 TLS SNI rule (matches all github.com traffic). Fixed Sigma #1 OR→AND + downgraded to medium. Fixed Sigma #6 dropped selection_vm_check. Fixed Sigma #4 added .paternal-angrily.com to endswith. Fixed Snort #14 label-length 0x0d→0x0c. Fixed YARA #18 $ver requires $cfg*. Fixed YARA #19 requires $s1. Fixed MITRE: T1568.002→T1102.001, removed T1014, T1053→T1053.005. Removed impractical remediation #5 (SNI/IP matching). -->
+
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-10
-Version: 1.0
+Version: 2.0
 
 ## Executive Summary
 
@@ -202,6 +204,8 @@ BNB contract `0x68DcE15C1002a2689E19D33A3aE509DD1fEb11A5` routes macOS targets t
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: T1568.002→T1102.001 (blockchain dead-drop is not DGA). Removed T1014 (BYOVD terminates processes, does not hide artifacts — T1562.001 covers this). T1053→T1053.005 (Windows Scheduled Task sub-technique). -->
+
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1189 | Drive-by Compromise | Compromised websites with injected ClearFake JavaScript |
@@ -215,16 +219,15 @@ BNB contract `0x68DcE15C1002a2689E19D33A3aE509DD1fEb11A5` routes macOS targets t
 | T1140 | Deobfuscate/Decode Files or Information | XOR decryption, LZNT1 decompression, Base64 decoding throughout chain |
 | T1027 | Obfuscated Files or Information | Exception-driven control flow, API hashing, control flow flattening |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | BYOVD via DCRCVDrv.sys for EDR process termination |
-| T1014 | Rootkit | Vulnerable driver (BYOVD) for kernel-mode process termination |
 | T1497.001 | Virtualization/Sandbox Evasion: System Checks | Volume serial, timing, CPU, RAM, GPU checks in PowerShell |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS C2 with SNI spoofing; WebSocket Secure for Go proxy |
-| T1568.002 | Dynamic Resolution: Domain Generation Algorithms | Blockchain contract-based C2 resolution (EtherHiding) |
+| T1102.001 | Web Service: Dead Drop Resolver | Blockchain contract-based C2 resolution (EtherHiding), Telegraph dead-drop pages |
 | T1008 | Fallback Channels | Telegraph dead-drop, Steam profiles, blockchain contracts for C2 |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | ChaCha20-Poly1305 encrypted C2 communications |
 | T1105 | Ingress Tool Transfer | Secondary payload download via Amatera tasking |
 | T1115 | Clipboard Data | ZigCryptoStealer clipboard polling and cryptocurrency address replacement |
 | T1219 | Remote Access Software | NetSupport Manager deployed for persistent remote control |
-| T1053 | Scheduled Task/Job | User logon scheduled task for NetSupport persistence |
+| T1053.005 | Scheduled Task/Job: Scheduled Task | User logon scheduled task for NetSupport persistence |
 
 ## Impact Assessment
 
@@ -267,20 +270,24 @@ Get-DnsClientCache | Where-Object { $_.Entry -match "leaguejazire|propertyfind|q
 2. Implement application whitelisting to prevent execution from temporary/user-writable directories.
 3. Deploy WDAC or equivalent driver block policies to prevent loading of known vulnerable drivers.
 4. Enable PowerShell Script Block Logging (Event ID 4104) and Module Logging for sandbox evasion detection.
-5. Monitor for TLS connections where the SNI does not match the destination IP's expected organization.
-6. Consider blocking or monitoring BNB testnet RPC endpoints if not required for business operations.
+5. Consider blocking or monitoring BNB testnet RPC endpoints if not required for business operations.
 
 ## Detection Rules
 
-These rules cover the ClearFake WebDAV campaign across host behavioral indicators (Sigma), network traffic (Suricata/Snort), and file-level artifacts (YARA). All rules are advisory-specific and tuned for this campaign's distinctive artifacts. The TLS SNI rule (sid:2100107) will require tuning as it broadly matches any `github[.]com` SNI -- pair it with destination IP exclusions for GitHub's actual IP ranges.
+These rules cover the ClearFake WebDAV campaign across host behavioral indicators (Sigma), network traffic (Suricata/Snort), and file-level artifacts (YARA). All rules are advisory-specific and tuned for this campaign's distinctive artifacts.
+
+**Cut by critic:** ClearFake Amatera TLS SNI Spoofing github.com (sid:2100107) -- matches all TLS traffic to github.com with no destination IP exclusion, firing on every legitimate connection.
 
 ### Sigma Rules
 
 #### 1. ClearFake WebDAV Execution via Pushd and Rundll32
 
-Detects the ClickFix clipboard command pattern: `pushd` to a UNC path or `rundll32` with ordinal `#1` invocation.
+<!-- revision: condition changed OR→AND so both pushd-UNC and rundll32-ordinal must appear in the same CommandLine. Level downgraded high→medium. -->
 
-<!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0; sigma check: skipped (MITRE ATT&CK data fetch blocked by proxy 403). Condition uses OR to catch either the pushd UNC mount or the rundll32 ordinal execution independently. -->
+Detects the ClickFix clipboard command pattern: `pushd` to a UNC path AND `rundll32` with ordinal `#1` in the same command line.
+Caveat: Behavioral detection; will not fire if the command is split across separate processes or obfuscated.
+
+<!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0. Condition uses AND to require both the pushd UNC mount and the rundll32 ordinal execution in the same command line. -->
 
 **Status:** Compiled (splunk, logscale) | Confidence: medium
 
@@ -291,8 +298,8 @@ status: experimental
 description: >
     Detects the ClearFake ClickFix infection chain where a victim is tricked into
     executing a pushd command to mount a remote WebDAV share followed by rundll32
-    executing a DLL by ordinal number. This matches the clipboard-pasted command
-    used in the ClearFake campaign delivering Amatera Stealer.
+    executing a DLL by ordinal number. Requires both pushd UNC mount and rundll32
+    ordinal execution in the same command line to reduce false positives.
 references:
     - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
 author: Actioner
@@ -312,11 +319,10 @@ detection:
         CommandLine|contains|all:
             - 'rundll32'
             - ',#1'
-    condition: selection_pushd or selection_rundll32
+    condition: selection_pushd and selection_rundll32
 falsepositives:
-    - Legitimate network drive mapping scripts using pushd with UNC paths
-    - Administrative tools using rundll32 with ordinal exports
-level: high
+    - Legitimate scripts combining pushd UNC mount with rundll32 ordinal execution — uncommon but possible in software deployment
+level: medium
 ```
 
 #### 2. Chrome Component DLL Side-Loading of Secur32
@@ -398,6 +404,8 @@ level: high
 
 #### 4. ClearFake Campaign C2 Domain DNS Lookup
 
+<!-- revision: added .paternal-angrily.com to endswith selection for subdomain parity. Fixed tag T1568.002→T1102.001. -->
+
 Detects DNS queries to 11 known C2 domains across all payload families in this campaign.
 
 <!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0. IOC-specific rule; domains are purpose-registered for this campaign. Uses endswith for subdomain coverage plus exact match for apex domains. -->
@@ -418,7 +426,7 @@ author: Actioner
 date: 2026-09-10
 tags:
     - attack.t1071.001
-    - attack.t1568.002
+    - attack.t1102.001
 logsource:
     category: dns_query
 detection:
@@ -434,6 +442,7 @@ detection:
             - '.dubbedmuch.cc'
             - '.stunned-amniotic.com'
             - '.cedar2glanz.ru'
+            - '.paternal-angrily.com'
     selection_exact:
         QueryName:
             - 'leaguejazire.com'
@@ -455,12 +464,14 @@ level: critical
 
 #### 5. ClearFake BYOVD EDR Termination via DCRCVDrv Driver
 
+<!-- revision: removed T1014 tag (BYOVD terminates processes, does not hide artifacts; T1562.001 already covers). -->
+
 Detects loading of the vulnerable DCRCVDrv.sys driver used for BYOVD EDR termination.
+Caveat: May fire in environments with legitimate MOCOMSYS DCRC software.
 
 <!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0. Requires Sysmon EID 6 (driver_load) or equivalent driver load telemetry. -->
 
 **Status:** Compiled (splunk, logscale) | Confidence: medium
-Caveat: May fire in environments with legitimate MOCOMSYS DCRC software.
 
 ```yaml
 title: ClearFake BYOVD EDR Termination via DCRCVDrv Driver
@@ -476,7 +487,6 @@ author: Actioner
 date: 2026-09-10
 tags:
     - attack.t1562.001
-    - attack.t1014
 logsource:
     category: driver_load
     product: windows
@@ -491,9 +501,12 @@ level: high
 
 #### 6. ClearFake NetSupport Installer Sandbox Evasion Checks
 
-Detects PowerShell script blocks containing the specific anti-sandbox fingerprints used in this campaign.
+<!-- revision: dropped selection_vm_check branch (AdapterRAM + VideoController is too generic — SCCM and inventory scripts fire constantly). Kept selection_serial (hardcoded 4E014A2F) and selection_timing (NtDelayExecution + LastBootUpTime). -->
 
-<!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0. Requires PowerShell Script Block Logging (EID 4104). Three independent detection branches: volume serial, timing+boot check, or GPU memory check. -->
+Detects PowerShell script blocks containing the specific anti-sandbox fingerprints used in this campaign: hardcoded volume serial `4E014A2F` or NtDelayExecution+LastBootUpTime timing pair.
+Caveat: The serial check is campaign-specific; the timing check is behavioral and may match other sandbox-aware malware.
+
+<!-- audit: sigma convert --without-pipeline -t splunk: exit 0; sigma convert --without-pipeline -t log_scale: exit 0. Requires PowerShell Script Block Logging (EID 4104). Two independent detection branches: volume serial or timing+boot check. -->
 
 **Status:** Compiled (splunk, logscale) | Confidence: medium
 
@@ -522,11 +535,7 @@ detection:
         ScriptBlockText|contains|all:
             - 'NtDelayExecution'
             - 'LastBootUpTime'
-    selection_vm_check:
-        ScriptBlockText|contains|all:
-            - 'AdapterRAM'
-            - 'VideoController'
-    condition: selection_serial or selection_timing or selection_vm_check
+    condition: selection_serial or selection_timing
 falsepositives:
     - Security testing scripts that check system hardware configuration
     - VM detection utilities
@@ -539,7 +548,7 @@ level: medium
 
 Six rules detecting DNS queries to campaign-specific C2 domains (WebDAV delivery, ZigCryptoStealer, Go reverse proxy, NetSupport gateway, NetSupport payload, Amatera payload).
 
-<!-- audit: suricata -T -S suricata_clearfake.rules -l /tmp/actioner: exit 0. All 7 rules validated as a set. IOC-specific DNS rules with nocase matching. -->
+<!-- audit: suricata -T -S suricata_clearfake.rules -l /tmp/actioner: exit 0. All 6 rules validated as a set. IOC-specific DNS rules with nocase matching. -->
 
 **Status:** Compiled (suricata -T exit 0) | Confidence: high (IOC-specific)
 
@@ -557,21 +566,11 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake NetSupport Payload
 alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake Amatera Payload Domain DNS Query (cedar2glanz.ru)"; flow:to_server; dns.query; content:"cedar2glanz.ru"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100106; rev:1;)
 ```
 
-#### 13. ClearFake Amatera TLS SNI Spoofing
-
-Detects TLS ClientHello with `github[.]com` SNI -- broadly matches and requires tuning with destination IP exclusions for GitHub's real infrastructure.
-
-<!-- audit: suricata -T exit 0 as part of rule set. This rule will produce false positives against real GitHub traffic; intended as a hunting rule to be narrowed by excluding GitHub's IP ranges (e.g., 140.82.112.0/20, 192.30.252.0/22). -->
-
-**Status:** Compiled (suricata -T exit 0) | Confidence: low (requires destination IP tuning)
-
-```
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ClearFake Amatera TLS SNI Spoofing github.com to Non-GitHub IP"; flow:established,to_server; tls.sni; content:"github.com"; fast_pattern; threshold:type limit, track by_src, count 1, seconds 600; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100107; rev:1;)
-```
-
 ### Snort Rules
 
-#### 14-17. ClearFake C2 Domain DNS Queries (Snort 3)
+#### 13-16. ClearFake C2 Domain DNS Queries (Snort 3)
+
+<!-- revision: fixed sid:2100201 label-length bug: |0d|leaguejazire→|0c|leaguejazire (12 chars, not 13). Bumped rev to 2. -->
 
 Four rules detecting DNS queries to key campaign domains via label-length-encoded content matching.
 
@@ -580,7 +579,7 @@ Four rules detecting DNS queries to key campaign domains via label-length-encode
 **Status:** Uncompiled (structural check only) | Confidence: high (IOC-specific)
 
 ```
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake WebDAV Delivery Domain DNS Query (leaguejazire.com)"; flow:to_server; content:"|0d|leaguejazire|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100201; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake WebDAV Delivery Domain DNS Query (leaguejazire.com)"; flow:to_server; content:"|0c|leaguejazire|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100201; rev:2;)
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake Go Reverse Proxy C2 Domain DNS Query (dubbedmuch.cc)"; flow:to_server; content:"|0a|dubbedmuch|02|cc|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100202; rev:1;)
 
@@ -591,9 +590,12 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake Amatera Payload Dom
 
 ### YARA Rules
 
-#### 18. Amatera Stealer Configuration Artifacts
+#### 17. Amatera Stealer Configuration Artifacts
+
+<!-- revision: fixed condition so $ver alone cannot trigger — now requires at least one $cfg* string alongside it. -->
 
 Detects Amatera Stealer via its XOR decryption key, dead-drop resolver patterns, and exported function names.
+Caveat: The $xor_key string is a 9-digit numeric sequence; very unlikely but not impossible in non-malicious binaries.
 
 <!-- audit: yarac yara_clearfake.yar /dev/null: exit 0. All 5 YARA rules compiled as a single file. PE header check + filesize constraint + string-based detection. -->
 
@@ -623,15 +625,18 @@ rule Malware_Amatera_Stealer_Config : ClearFake
     condition:
         uint16(0) == 0x5A4D and
         filesize < 10MB and
-        ($xor_key or $ver or (1 of ($deadrop*) and 1 of ($cfg*)))
+        ($xor_key or ($ver and 1 of ($cfg*)) or (1 of ($deadrop*) and 1 of ($cfg*)))
 }
 ```
 
-#### 19. NativeAOT DLL Side-Loading Loader
+#### 18. NativeAOT DLL Side-Loading Loader
+
+<!-- revision: changed condition from "1 of ($s*)" to require $s1 (platform_experience_helper) always present, preventing $s2 ("secur32") alone from triggering on thousands of legitimate PEs. -->
 
 Detects the NativeAOT loader DLL (secur32.dll) used for DLL side-loading via Chrome components.
+Caveat: Requires $s1 ("platform_experience_helper") to be present, so will not fire on the DLL in isolation without the side-loading host reference.
 
-<!-- audit: yarac exit 0. Targets PE files with both the side-loading host name and process injection API imports. -->
+<!-- audit: yarac exit 0. Targets PE files with the side-loading host name AND process injection API imports. -->
 
 **Status:** Compiled (yarac exit 0) | Confidence: medium
 
@@ -660,11 +665,11 @@ rule Malware_ClearFake_NativeAOT_Loader : ClearFake
     condition:
         uint16(0) == 0x5A4D and
         filesize < 5MB and
-        (1 of ($s*) and 2 of ($api*))
+        ($s1 and (1 of ($s*) and 2 of ($api*)))
 }
 ```
 
-#### 20. NetSupport Manager ClearFake Configuration
+#### 19. NetSupport Manager ClearFake Configuration
 
 Detects the campaign-specific NetSupport Manager configuration with license serial NSM789508 and associated gateway.
 
@@ -697,7 +702,7 @@ rule Malware_NetSupport_ClearFake_Config : ClearFake
 }
 ```
 
-#### 21. Go Reverse Proxy Binary
+#### 20. Go Reverse Proxy Binary
 
 Detects the Go reverse proxy binary by its module path and C2 infrastructure strings.
 
@@ -728,7 +733,7 @@ rule Malware_GoReverseProxy_ClearFake : ClearFake
 }
 ```
 
-#### 22. DCRCVDrv BYOVD Driver
+#### 21. DCRCVDrv BYOVD Driver
 
 Detects the vulnerable DCRCVDrv.sys driver by its device name and vendor strings.
 
