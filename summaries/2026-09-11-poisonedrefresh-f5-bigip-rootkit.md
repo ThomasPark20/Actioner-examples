@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-11
-Version: 1.0-DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -201,7 +201,7 @@ The rootkit provides a second access channel independent of the web shell:
 
 Detects Apache httpd workers reading `/proc/self/maps` to locate libphp memory ranges -- a key step in the PoisonedRefresh memory injection chain.
 
-**Status**: compiled (Splunk, LogScale) | confidence: high
+**Status**: compiled (Splunk, LogScale) | confidence: medium
 
 ```yaml
 title: PoisonedRefresh - Apache Worker Reading /proc/self/maps
@@ -215,7 +215,7 @@ author: Actioner
 date: 2026/09/11
 tags:
     - attack.t1055
-    - attack.t1003
+    - attack.t1106
 logsource:
     product: linux
     category: file_access
