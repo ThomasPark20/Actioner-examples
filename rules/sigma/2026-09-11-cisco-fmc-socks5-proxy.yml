@@ -1,0 +1,30 @@
+title: Cisco FMC Post-Exploitation - Python SOCKS5 Proxy Deployment
+id: d6f2b8a4-9c5e-43d1-af70-e3b4c1d9a2f6
+status: experimental
+description: >
+    Detects execution of a Python-based SOCKS5 proxy (socks5.py) on Cisco FMC
+    as observed in UAT-11988 (Qilin ransomware) activity for lateral movement
+    and network tunneling following exploitation of CVE-2026-20316.
+references:
+    - https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1090.001
+    - attack.t1059.006
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_socks:
+        CommandLine|contains:
+            - 'socks5.py'
+    selection_python_socks:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+        CommandLine|contains: 'socks5'
+    condition: selection_socks or selection_python_socks
+falsepositives:
+    - Legitimate use of Python SOCKS5 proxies on network appliances (very unusual)
+level: high

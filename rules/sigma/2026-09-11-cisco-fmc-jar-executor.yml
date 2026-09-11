@@ -1,0 +1,26 @@
+title: Cisco FMC CVE-2026-20079 Post-Exploitation - Malicious JAR Command Executor
+id: e7a3c9b5-0d6f-44e2-b081-f4c5d2e0b3a7
+status: experimental
+description: >
+    Detects execution of cmd.jar, a malicious Java Archive command executor deployed
+    by UAT-12197 following CVE-2026-20079 exploitation on Cisco FMC. The JAR file is
+    used to execute system commands including credential extraction queries.
+references:
+    - https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1059.004
+    - attack.t1059
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_jar:
+        CommandLine|contains|all:
+            - 'java'
+            - 'cmd.jar'
+    condition: selection_jar
+falsepositives:
+    - Legitimate Java applications with cmd.jar filename (uncommon on FMC)
+level: high

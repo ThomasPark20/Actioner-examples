@@ -1,0 +1,27 @@
+title: Netcat Reverse Shell via Named Pipe
+id: c5e1a7f3-8b4d-42c9-9e6f-d2a3b0c8f1e5
+status: experimental
+description: >
+    Detects the classic Netcat reverse shell pattern that creates a named pipe at
+    /tmp/f to establish a reverse shell. This generic TTP was observed in UAT-11823
+    (Sandworm) activity on Cisco FMC but is not CVE-specific.
+references:
+    - https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1059.004
+    - attack.t1071.001
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_mkfifo:
+        CommandLine|contains|all:
+            - 'mkfifo'
+            - '/tmp/f'
+            - 'nc'
+    condition: selection_mkfifo
+falsepositives:
+    - Legitimate use of named pipes with Netcat in /tmp (highly unlikely on production servers)
+level: high
