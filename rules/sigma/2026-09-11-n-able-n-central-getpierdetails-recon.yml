@@ -1,0 +1,28 @@
+title: CVE-2026-86218 N-central getPierDetails Reconnaissance Probing
+id: d4a7c1e9-2f8b-4e3a-b6d5-9c0f1a2b3e4d
+status: experimental
+description: >
+    Detects HTTP requests to the N-central /remoteControlAction.do endpoint with
+    the getPierDetails method parameter, consistent with reconnaissance activity
+    observed in CVE-2026-86218 exploitation campaigns. Attackers probe this endpoint
+    to enumerate appliance details and map the N-central environment prior to
+    exploiting the pre-authentication RCE vulnerability.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://thehackernews.com/2026/09/n-able-n-central-pre-auth-rce-flaw.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1190
+    - cve.2026.86218
+logsource:
+    category: webserver
+detection:
+    selection_path:
+        cs-uri-stem|contains: '/remoteControlAction.do'
+    selection_param:
+        cs-uri-query|contains: 'getPierDetails'
+    condition: selection_path and selection_param
+falsepositives:
+    - Legitimate N-central Take Control operations using the getPierDetails API
+level: medium
