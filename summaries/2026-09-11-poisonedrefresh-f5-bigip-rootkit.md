@@ -143,12 +143,12 @@ The rootkit provides a second access channel independent of the web shell:
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Interactive `/bin/bash` via UNIX socket backdoor |
 | T1055 | Process Injection | In-memory PHP web shell injection via mmap hooking |
 | T1505.003 | Server Software Component: Web Shell | PHP web shell injected into Apache memory space |
-| T1574.002 | Hijack Execution Flow: DLL Side-Loading | APR function hooking (`apr_dso_load`, `apr_time_now`) |
+| T1574 | Hijack Execution Flow | APR function hooking (`apr_dso_load`, `apr_time_now`) |
 | T1140 | Deobfuscate/Decode Files or Information | RC4 decryption of operational strings at runtime |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Socket named `bigtlog.pipe` mimicking BIG-IP logging; HTTP 201/CSS response |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | SELinux disablement during installation |
-| T1542.003 | Pre-OS Boot: Bootkit | Persistence via infected BIG-IP install images and rc.local |
-| T1070.004 | Indicator Removal: File Deletion | Fileless operation -- web shell never written to disk |
+| T1037.004 | Boot or Logon Initialization Scripts: RC Scripts | Persistence via infected BIG-IP install images and rc.local |
+| T1620 | Reflective Code Loading | Fileless operation -- web shell loaded into memory via mmap hooking, never written to disk |
 | T1106 | Native API | Custom ELF loading, relocation patching, `mprotect` syscalls |
 | T1071 | Application Layer Protocol | Web shell communication disguised as CSS requests |
 
@@ -184,10 +184,12 @@ The rootkit provides a second access channel independent of the web shell:
 
 ### Hardening Recommendations
 
-- Restrict `.php3` execution in Apache configuration:
+- Restrict `.php3` POST requests in Apache configuration (**caveat**: fully denying `.php3` breaks APM webtop if in use; scope the deny to POST method only):
   ```apache
   <FilesMatch "\.php3$">
-      Require all denied
+      <LimitExcept GET HEAD>
+          Require all denied
+      </LimitExcept>
   </FilesMatch>
   ```
 - Restrict ptrace scope: `echo 1 > /proc/sys/kernel/yama/ptrace_scope`
@@ -527,7 +529,7 @@ alert http any any -> any any (msg:"MALWARE PoisonedRefresh HTTP 201 CSS respons
 
 Detects the PoisonedRefresh web shell magic prefix (`BSOHAzPB`) in the first 16 bytes of an HTTP POST request body.
 
-**Status**: compiled (suricata -T exit 0) | confidence: critical
+**Status**: compiled (suricata -T exit 0) | confidence: high
 
 ```
 alert http any any -> any any (msg:"MALWARE PoisonedRefresh web shell magic prefix in HTTP request body"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"BSOHAzPB"; depth:16; classtype:web-application-attack; sid:2026091103; rev:1; metadata:created_at 2026_09_11, updated_at 2026_09_11;)
@@ -536,6 +538,8 @@ alert http any any -> any any (msg:"MALWARE PoisonedRefresh web shell magic pref
 > Highly specific -- the 8-byte magic prefix at the start of request bodies is distinctive to PoisonedRefresh.
 
 <!-- audit: suricata -T -S poisonedrefresh.rules -l /tmp/actioner/: exit 0. -->
+
+<!-- revision: v1.1 2026-09-11 — R1 ATT&CK T1003→T1106, confidence→medium. R2 ATT&CK T1071→T1036.005, level/confidence critical→high. R3 confidence→medium. R4 (SELinux disable) dropped — too generic. R5 level/confidence critical→high. R6 severity/confidence critical→high. R8 severity→medium, confidence→medium, condition tightened ($socket_path or $rc4_key required). R10/R11 confidence critical→high. ATT&CK table: T1574.002→T1574, T1542.003→T1037.004, T1070.004→T1620. Hardening: .php3 deny scoped to POST only with APM webtop caveat. -->
 
 ## Sources
 

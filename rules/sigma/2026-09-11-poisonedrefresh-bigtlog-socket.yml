@@ -1,0 +1,22 @@
+title: PoisonedRefresh - Suspicious UNIX Socket Creation at /run/bigtlog.pipe
+id: 2f9b4a6c-8d1e-4c3f-a7b5-9e0d2f6a1b8c
+status: experimental
+description: Detects creation of a UNIX domain socket at /run/bigtlog.pipe, the hardcoded backdoor socket path used by the PoisonedRefresh rootkit on compromised F5 BIG-IP APM servers for interactive shell access.
+references:
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1036.005
+    - attack.t1059.004
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection:
+        TargetFilename: '/run/bigtlog.pipe'
+    condition: selection
+falsepositives:
+    - Unlikely in legitimate environments as this is a hardcoded rootkit artifact
+level: high
