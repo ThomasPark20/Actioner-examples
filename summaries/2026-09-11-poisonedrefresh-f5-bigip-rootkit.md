@@ -240,7 +240,7 @@ level: high
 
 Detects creation of the PoisonedRefresh backdoor UNIX socket at its hardcoded path.
 
-**Status**: compiled (Splunk, LogScale) | confidence: critical
+**Status**: compiled (Splunk, LogScale) | confidence: high
 
 ```yaml
 title: PoisonedRefresh - Suspicious UNIX Socket Creation at /run/bigtlog.pipe
@@ -253,7 +253,7 @@ references:
 author: Actioner
 date: 2026/09/11
 tags:
-    - attack.t1071
+    - attack.t1036.005
     - attack.t1059.004
 logsource:
     product: linux
@@ -264,7 +264,7 @@ detection:
     condition: selection
 falsepositives:
     - Unlikely in legitimate environments as this is a hardcoded rootkit artifact
-level: critical
+level: high
 ```
 
 > Very low false-positive rate due to hardcoded artifact path.
@@ -277,7 +277,7 @@ level: critical
 
 Detects `/bin/bash` executed as a child of Apache httpd, the behavior observed when PoisonedRefresh's UNIX socket backdoor is accessed.
 
-**Status**: compiled (Splunk, LogScale) | confidence: high
+**Status**: compiled (Splunk, LogScale) | confidence: medium
 
 ```yaml
 title: PoisonedRefresh - Bash Shell Spawned from Apache httpd
@@ -312,56 +312,13 @@ level: high
 
 ---
 
-#### Rule 4: SELinux Disabled on BIG-IP
+> **Dropped**: SELinux disable rule (original Rule 4) removed -- too generic for specific detection altitude; fires on routine admin operations.
 
-Detects SELinux disablement, a preparatory step in the PoisonedRefresh installation process.
-
-**Status**: compiled (Splunk, LogScale) | confidence: medium
-
-```yaml
-title: PoisonedRefresh - SELinux Disabled on F5 BIG-IP
-id: 7e4b1d9a-6c3f-4e2a-8d5b-0a9c3e7f2d1b
-status: experimental
-description: Detects attempts to disable SELinux enforcement, a step performed by the PoisonedRefresh installer to allow rootkit operations on F5 BIG-IP APM servers.
-references:
-    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit
-    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
-author: Actioner
-date: 2026/09/11
-tags:
-    - attack.t1562.001
-logsource:
-    product: linux
-    category: process_creation
-detection:
-    selection_setenforce:
-        Image|endswith: '/setenforce'
-        CommandLine|contains: '0'
-    selection_selinux_config:
-        Image|endswith:
-            - '/sed'
-            - '/echo'
-        CommandLine|contains:
-            - 'SELINUX=disabled'
-            - 'SELINUX=permissive'
-    condition: 1 of selection_*
-falsepositives:
-    - Legitimate SELinux administration
-    - System provisioning scripts
-level: medium
-```
-
-> Generic rule -- gains value when correlated with other PoisonedRefresh indicators on BIG-IP systems.
-
-<!-- audit: sigma convert --without-pipeline -t splunk: exit 0, output valid. sigma convert --without-pipeline -t log_scale: exit 0. sigma check: blocked by proxy. -->
-
----
-
-#### Rule 5: HTTP 201 CSS Response from PHP3 Endpoint
+#### Rule 4: HTTP 201 CSS Response from PHP3 Endpoint
 
 Detects the distinctive PoisonedRefresh web shell response pattern: HTTP 201 with CSS content type from BIG-IP APM `.php3` endpoints.
 
-**Status**: compiled (Splunk, LogScale) | confidence: critical
+**Status**: compiled (Splunk, LogScale) | confidence: high
 
 ```yaml
 title: PoisonedRefresh - HTTP 201 Response with CSS Content-Type from PHP Endpoint
@@ -389,7 +346,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate BIG-IP APM webtop operations returning 201 status codes are not expected for these endpoints
-level: critical
+level: high
 ```
 
 > Requires Apache access log ingestion with status code and URI fields.
@@ -404,7 +361,7 @@ level: critical
 
 Detects PoisonedRefresh ELF binary based on combinations of hardcoded operational strings including encryption keys, socket paths, and web shell markers.
 
-**Status**: compiled (yarac exit 0) + positive/negative test pass | confidence: critical
+**Status**: compiled (yarac exit 0) + positive/negative test pass | confidence: high
 
 ```yara
 rule PoisonedRefresh_Rootkit_Strings
@@ -415,7 +372,7 @@ rule PoisonedRefresh_Rootkit_Strings
         date = "2026-09-11"
         reference = "https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit"
         hash = "26bd5b0722d1dbab5db749a063c49bc8638653ac2addfead7a9cb3d6d57bccc9"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $rc4_key = "TrswBWIl90Z5e38n"
@@ -496,7 +453,7 @@ rule PoisonedRefresh_PHP_Webshell
 
 Detects the installer component that infects httpd and BIG-IP install media.
 
-**Status**: compiled (yarac exit 0) | confidence: high
+**Status**: compiled (yarac exit 0) | confidence: medium
 
 ```yara
 rule PoisonedRefresh_Installer
@@ -506,12 +463,13 @@ rule PoisonedRefresh_Installer
         author = "Actioner"
         date = "2026-09-11"
         reference = "https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit"
-        severity = "critical"
+        severity = "medium"
 
     strings:
         $target_httpd = "/usr/sbin/httpd"
         $install_path = "/mnt/tm_install"
         $socket_path = "/run/bigtlog.pipe"
+        $rc4_key = "TrswBWIl90Z5e38n"
         $rc_local = "rc.local"
         $selinux = "SELINUX"
         $bigstart = "bigstart"
@@ -520,7 +478,8 @@ rule PoisonedRefresh_Installer
         uint32(0) == 0x464c457f and
         filesize < 5MB and
         $target_httpd and $install_path and
-        2 of ($socket_path, $rc_local, $selinux, $bigstart)
+        ($socket_path or $rc4_key) and
+        1 of ($rc_local, $selinux, $bigstart)
 }
 ```
 
@@ -552,7 +511,7 @@ alert http any any -> any any (msg:"MALWARE PoisonedRefresh POST to BIG-IP APM p
 
 Detects HTTP 201 responses containing the PoisonedRefresh web shell magic prefix bytes in the response body with CSS content type.
 
-**Status**: compiled (suricata -T exit 0) | confidence: critical
+**Status**: compiled (suricata -T exit 0) | confidence: high
 
 ```
 alert http any any -> any any (msg:"MALWARE PoisonedRefresh HTTP 201 CSS response from php3 endpoint (web shell camouflage)"; flow:to_client,established; http.stat_code; content:"201"; http.content_type; content:"text/css"; http.response_body; content:"|42 53 4f 48 41 7a 50 42|"; classtype:web-application-attack; sid:2026091102; rev:1; metadata:created_at 2026_09_11, updated_at 2026_09_11;)
