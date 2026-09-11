@@ -1,0 +1,26 @@
+title: Cisco FMC CVE-2026-20079 Post-Exploitation - JSP Web Shell Deployment
+id: 3a8c7e1d-5f2b-4d96-ae3c-b1f0d9c8e7a4
+status: experimental
+description: >
+    Detects deployment of a JSP-based web shell (home.jsp) to the Cisco FMC
+    Tomcat webroot following exploitation of CVE-2026-20079 on Cisco FMC, as observed
+    in UAT-12197 crimeware cluster activity documented by Cisco Talos.
+references:
+    - https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+    - https://www.bleepingcomputer.com/news/security/cisco-fmc-flaws-exploited-by-ransomware-gang-state-sponsored-hackers/
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1190
+    - attack.t1505.003
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection_webshell:
+        TargetFilename|endswith: '/home.jsp'
+        TargetFilename|contains: '/opt/CSCOpx/MDC/tomcat/'
+    condition: selection_webshell
+falsepositives:
+    - Legitimate deployment of JSP files named home.jsp in Cisco FMC Tomcat directories (unlikely in production)
+level: medium

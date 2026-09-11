@@ -1,0 +1,28 @@
+title: Svchost.exe Execution from User Documents Folder
+id: a1c9e3b2-5d6f-4a8b-c7e0-2f1d3a4b5c6e
+status: experimental
+description: >
+    Detects execution of svchost.exe from user Documents folders, a masquerading
+    technique observed in CVE-2026-86218 N-central post-exploitation. Attackers
+    deploy Cloudflare tunnel binaries disguised as svchost.exe in user Documents
+    directories to evade detection while maintaining persistent C2 access.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://thehackernews.com/2026/09/n-able-n-central-pre-auth-rce-flaw.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1036.005
+    - cve.2026.86218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains|all:
+            - '\Documents\'
+            - '\svchost.exe'
+    condition: selection
+falsepositives:
+    - Highly unlikely in legitimate environments; svchost.exe should only run from System32
+level: high

@@ -1,0 +1,26 @@
+title: PoisonedRefresh - HTTP 201 Response with CSS Content-Type from PHP Endpoint
+id: 3a6d9e2f-1b7c-4e8a-9f0d-5c4b2a1e7d3f
+status: experimental
+description: Detects HTTP 201 responses with text/css content-type from .php3 endpoints, a distinctive web shell response pattern used by PoisonedRefresh to camouflage command output as stylesheet requests.
+references:
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1505.003
+    - attack.t1036.005
+logsource:
+    category: webserver
+    product: apache
+detection:
+    selection:
+        sc-status: 201
+        cs-uri|endswith:
+            - 'apm_css.php3'
+            - 'full_wt.php3'
+            - 'webtop_popup_css.php3'
+    condition: selection
+falsepositives:
+    - Legitimate BIG-IP APM webtop operations returning 201 status codes are not expected for these endpoints
+level: high
