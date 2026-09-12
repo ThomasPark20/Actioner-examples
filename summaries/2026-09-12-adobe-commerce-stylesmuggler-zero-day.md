@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-12
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
+<!-- revision: v2.0 — removed behavioral catch-all from webshell Sigma rule (downgraded to medium); replaced |re: modifier in Rust backdoor Sigma rule with portable |contains selections; tightened YARA Rust backdoor $dl* condition to gate compromised-site IOC behind C2 co-occurrence; removed bare-word "cdnflare" from PHP webshell YARA; added Suricata DNS rules for ntp.synctime.to and ntp.syncstime.to; expanded truncated SHA-256 hashes in variant table -->
 
 ## Executive Summary
 
@@ -76,9 +77,9 @@ The primary implant is a statically-linked Rust binary (~1.9 MB), compiled for x
 
 | Variant | Process Name | Version | First Seen | SHA-256 |
 |---------|-------------|---------|------------|---------|
-| Initial | `[kworker/u:8:0]` | — | Sep 4 | `e315687a...a26a7` |
-| fc-cache | `fc-cache` | 2.1.4 | Sep 6 | `4352caba...ae8e` |
-| chronyd | `chronyd` | 2.1.5 | Sep 7 | `1a3374ff...75d` |
+| Initial | `[kworker/u:8:0]` | — | Sep 4 | `e315687a1dfe61ef4a5a5642214db6d3b2b05d81391285eebc2af664641a26a7` |
+| fc-cache | `fc-cache` | 2.1.4 | Sep 6 | `4352cabaa451e5a894535fbcc4d46628701303322a13745cb5479d7d0534ae8e` |
+| chronyd | `chronyd` | 2.1.5 | Sep 7 | `1a3374ffac5b0a62467612f264c49792d206304d4514409c982325c91231375d` |
 
 **Execution and persistence**:
 - Runs as the unprivileged web application user (not root)
@@ -333,16 +334,13 @@ detection:
     selection_path:
         TargetFilename|contains: 'pub/media/catalog/product/cache/ss_'
         TargetFilename|endswith: '.php'
-    selection_media_php:
-        TargetFilename|contains: 'pub/media/'
-        TargetFilename|endswith: '.php'
-    condition: selection_path or selection_media_php
+    condition: selection_path
 falsepositives:
-    - Custom Magento modules that intentionally place PHP files in media directories (very rare)
-level: critical
+    - Custom Magento modules that place PHP files in the media product cache directory (very rare)
+level: medium
 ```
 
-<!-- audit: Validated via sigma convert --without-pipeline -t splunk (exit 0). UUID fixed from invalid hex 'g' to 'a'. selection_path is highly specific to the ss_<hex>/sync_<hex>.php pattern; selection_media_php is a broader catch-all since PHP files in pub/media/ are almost always malicious. Requires file_event logging (auditd, inotify, or EDR on Linux). -->
+<!-- audit: Validated via sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). UUID fixed from invalid hex 'g' to 'a'. selection_path targets the artifact-specific ss_<hex>/sync_<hex>.php pattern. Broader catch-all for any .php in pub/media/ removed per review — it is a behavioral detection that belongs in a separate, lower-confidence rule. Requires file_event logging (auditd, inotify, or EDR on Linux). -->
 
 ### Sigma: Rust Backdoor File Creation / Process Masquerading
 
@@ -373,8 +371,18 @@ detection:
         TargetFilename|contains: '.local/share/.gvfsd/gvfsd-user'
     selection_fc_cache_hidden:
         TargetFilename|contains: '.cache/fontconfig/fc-cache'
-    selection_tmp_patterns:
-        TargetFilename|re: '/tmp/\.(kw_|cache_|fc-|fc_|chrony-|gvfsd)'
+    selection_tmp_kw:
+        TargetFilename|contains: '/tmp/.kw_'
+    selection_tmp_cache:
+        TargetFilename|contains: '/tmp/.cache_'
+    selection_tmp_fc_dash:
+        TargetFilename|contains: '/tmp/.fc-'
+    selection_tmp_fc_underscore:
+        TargetFilename|contains: '/tmp/.fc_'
+    selection_tmp_chrony:
+        TargetFilename|contains: '/tmp/.chrony-'
+    selection_tmp_gvfsd:
+        TargetFilename|contains: '/tmp/.gvfsd'
     condition: 1 of selection*
 falsepositives:
     - Legitimate GNOME gvfsd processes (verify the binary is from a system package)
@@ -382,7 +390,7 @@ falsepositives:
 level: high
 ```
 
-<!-- audit: Validated via sigma convert --without-pipeline -t splunk (exit 0). UUID fixed from invalid hex 'h' to 'a'. The regex in selection_tmp_patterns targets the /tmp/.<prefix> naming convention across all three known variants. False positives: genuine gvfsd-user binary exists on GNOME desktops but lives in /usr/libexec/; genuine fc-cache lives in /usr/bin/; neither should appear in hidden dotfile directories. -->
+<!-- audit: Validated via sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). UUID fixed from invalid hex 'h' to 'a'. Replaced |re: modifier with individual |contains selections for each /tmp/.<prefix> pattern to ensure portability to backends that do not support regex (e.g., CrowdStrike FQL). False positives: genuine gvfsd-user binary exists on GNOME desktops but lives in /usr/libexec/; genuine fc-cache lives in /usr/bin/; neither should appear in hidden dotfile directories. -->
 
 ### YARA: StyleSmuggler Rust Backdoor Binary
 
@@ -430,12 +438,13 @@ rule Malware_StyleSmuggler_Rust_Backdoor
             1 of ($camp*) or
             (1 of ($proc*) and 1 of ($path*)) or
             (1 of ($c2_*) and 1 of ($path*)) or
-            1 of ($dl*)
+            $dl1 or
+            ($dl2 and 1 of ($c2_*))
         )
 }
 ```
 
-<!-- audit: Compiled cleanly with yarac (exit 0). ELF magic header check (0x464C457F) restricts to Linux binaries. Size cap 5MB accommodates the ~1.9MB observed samples with margin. The C2 domains are highly distinctive (typosquats of Microsoft/NTP names); requiring 2-of-7 reduces FP risk while catching variants that rotate subsets. Campaign markers ss5_/ss6_ are unique identifiers from this operation. The $dl* strings (cdnflare.xyz, incofar.it) are highly specific hosting infrastructure. -->
+<!-- audit: Compiled cleanly with yarac (exit 0). ELF magic header check (0x464C457F) restricts to Linux binaries. Size cap 5MB accommodates the ~1.9MB observed samples with margin. The C2 domains are highly distinctive (typosquats of Microsoft/NTP names); requiring 2-of-7 reduces FP risk while catching variants that rotate subsets. Campaign markers ss5_/ss6_ are unique identifiers from this operation. $dl1 (247.cdnflare.xyz) is attacker-controlled infrastructure and fires standalone. $dl2 (incofar.it) is a compromised legitimate site, so it is gated behind co-occurrence with at least one C2 domain to avoid false positives on unrelated references to the Italian company's domain. -->
 
 ### YARA: StyleSmuggler PHP Dropper / Web Shell
 
@@ -463,7 +472,6 @@ rule Malware_StyleSmuggler_PHP_Dropper_WebShell
         $exec5 = "popen(" ascii
         $exec6 = "exec(" ascii
         $dl1 = "247.cdnflare.xyz" ascii
-        $dl2 = "cdnflare" ascii
         $tmpl1 = "x_trace_" ascii
         $tmpl2 = "var/report/" ascii
         $tmpl3 = "setup/src/Magento/Setup/Module/Di" ascii
@@ -477,18 +485,18 @@ rule Malware_StyleSmuggler_PHP_Dropper_WebShell
         filesize < 100KB and
         (
             ($auth1 and $auth2) or
-            ($auth1 and 2 of ($exec*) and 1 of ($dl*)) or
+            ($auth1 and 2 of ($exec*) and $dl1) or
             1 of ($camp*) or
-            (2 of ($exec*) and 1 of ($dl*) and 1 of ($tmpl*)) or
+            (2 of ($exec*) and $dl1 and 1 of ($tmpl*)) or
             ($auth2 and 1 of ($exec*)) or
-            (1 of ($dl*) and 1 of ($recon*) and 1 of ($exec*))
+            ($dl1 and 1 of ($recon*) and 1 of ($exec*))
         )
 }
 ```
 
-<!-- audit: Compiled cleanly with yarac (exit 0) after adding $recon* to condition (initially unreferenced). The auth token MD5 fced27f6d57702565353ecc11722533b is the primary high-confidence indicator — unique to this campaign. The campaign markers are equally specific. The exec function strings are common in PHP files, so they're always gated behind at least one campaign-specific indicator. Size cap 100KB fits the 485-byte dropper and small web shell. -->
+<!-- audit: Compiled cleanly with yarac (exit 0). The bare-word "cdnflare" string was removed — too generic as a fragment; only the full domain 247.cdnflare.xyz is retained as $dl1. The auth token MD5 fced27f6d57702565353ecc11722533b is the primary high-confidence indicator — unique to this campaign. The campaign markers are equally specific. The exec function strings are common in PHP files, so they're always gated behind at least one campaign-specific indicator. Size cap 100KB fits the 485-byte dropper and small web shell. -->
 
-### Suricata: StyleSmuggler C2 and Exploitation (9 rules)
+### Suricata: StyleSmuggler C2 and Exploitation (11 rules)
 
 compile: not validated (suricata binary not available) | confidence: high
 
@@ -507,12 +515,16 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler Malware Downlo
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler Exfiltration Domain (checkout-cdn.com)"; flow:to_server; dns.query; content:"checkout-cdn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750007; rev:1;)
 
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (synctime.to)"; flow:to_server; dns.query; content:"ntp.synctime.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (syncstime.to)"; flow:to_server; dns.query; content:"ntp.syncstime.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750011; rev:1;)
+
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler GraphQL Exploitation Attempt with styles Parameter"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/graphql"; fast_pattern; http.uri.raw; content:"styles%5B"; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750008; rev:1;)
 
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Web Shell Access via X-Cache-Token Header"; flow:established,to_server; http.method; content:"POST"; http.request_header; content:"X-Cache-Token"; content:"fced27f6d57702565353ecc11722533b"; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750009; rev:1;)
 ```
 
-<!-- audit: Suricata binary not available in environment for compile validation; rules follow Suricata 7.x dot-notation syntax per reference doc. DNS rules use dns.query sticky buffer with exact domain content matches — high confidence, zero FP expected for these typosquat domains. HTTP rules use http.method, http.uri, http.uri.raw, and http.request_header buffers. SID range 2026750001-2026750009 chosen to avoid conflicts. The styles%5B content match targets URL-encoded styles[ in the raw URI. The X-Cache-Token rule matches the specific MD5 authentication token used by the web shell. -->
+<!-- audit: Suricata binary not available in environment for compile validation; rules follow Suricata 7.x dot-notation syntax per reference doc. DNS rules use dns.query sticky buffer with exact domain content matches — high confidence, zero FP expected for these typosquat domains. SIDs 2026750010-2026750011 added in v2.0 to close a coverage gap for ntp.synctime.to and ntp.syncstime.to (present in IOC table and YARA, previously missing from network rules). HTTP rules use http.method, http.uri, http.uri.raw, and http.request_header buffers. SID range 2026750001-2026750011 chosen to avoid conflicts. The styles%5B content match targets URL-encoded styles[ in the raw URI. The X-Cache-Token rule matches the specific MD5 authentication token used by the web shell. -->
 
 ### Snort 3: StyleSmuggler Exploitation and Web Shell Access (2 rules)
 
