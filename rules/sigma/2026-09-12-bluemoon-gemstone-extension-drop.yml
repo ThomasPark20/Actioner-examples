@@ -1,0 +1,26 @@
+title: BlueMoon GemStone Extension Installation Directory Creation
+id: a1d4e7f2-9b3c-4a5d-8e6f-2c1b0d8e7a3f
+status: experimental
+description: >
+    Detects file creation activity in the C:\Users\Public\stomp_ext directory
+    used by the GemStone malicious Chrome extension deployed by BlueMoon
+    exploit kit. GemStone masquerades as a Google Gemini browser extension
+    and provides surveillance, credential theft, and C2 capabilities.
+references:
+    - https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+    - https://thehackernews.com/2026/09/four-spy-groups-used-same-chrome-and.html
+author: Actioner
+date: 2026-09-12
+tags:
+    - attack.t1176
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Users\Public\stomp_ext'
+    condition: selection
+falsepositives:
+    - Unknown legitimate software using the stomp_ext directory name (very unlikely)
+level: high

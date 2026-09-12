@@ -1,0 +1,23 @@
+title: BlueMoon UNK_DoubleCheck CLSID Registry Persistence
+id: c6f9a2b4-8d3e-4c7f-0b2a-5e4d1f9a8c3b
+status: experimental
+description: >
+    Detects registry modification to the specific CLSID InprocServer32
+    key used by the UNK_DoubleCheck threat actor for COM hijacking
+    persistence as part of BlueMoon exploit kit post-exploitation activity.
+references:
+    - https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: Actioner
+date: 2026-09-12
+tags:
+    - attack.t1546.015
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '{5D4CFCB7-222C-4CA3-96B6-1F8195FBBB4B}'
+    condition: selection
+falsepositives:
+    - Unknown legitimate application registering this specific CLSID (very unlikely)
+level: high

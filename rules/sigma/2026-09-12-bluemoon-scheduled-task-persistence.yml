@@ -1,0 +1,36 @@
+title: BlueMoon Campaign Scheduled Task Persistence
+id: b5e8f1a3-7c2d-4b6e-9a1f-4d3c0e8f7b2a
+status: experimental
+description: >
+    Detects creation of scheduled tasks with names used by BlueMoon exploit
+    kit threat actors for persistence. Task names mimic legitimate software
+    update services. EdgeCore_AutoUpdate used by UNK_LateNight,
+    MicrosoftEdgeUpdatesTaskMachine and Avpcheckup by UNK_DoubleCheck,
+    GeForceService by UNK_QuietRacket.
+references:
+    - https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: Actioner
+date: 2026-09-12
+tags:
+    - attack.t1053.005
+    - attack.t1036.004
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith:
+            - '\schtasks.exe'
+    selection_create:
+        CommandLine|contains: '/create'
+    selection_tasknames:
+        CommandLine|contains:
+            - 'EdgeCore_AutoUpdate'
+            - 'MicrosoftEdgeUpdatesTaskMachine'
+            - 'Avpcheckup'
+            - 'GeForceService'
+    condition: selection_binary and selection_create and selection_tasknames
+falsepositives:
+    - Legitimate NVIDIA GeForce Experience service tasks (GeForceService)
+    - Legitimate Kaspersky antivirus tasks (Avpcheckup)
+level: medium

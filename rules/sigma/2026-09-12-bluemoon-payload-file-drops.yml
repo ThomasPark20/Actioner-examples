@@ -1,0 +1,32 @@
+title: BlueMoon Exploit Kit Payload File Drops
+id: d7a0b3c5-9e4f-4d8a-1c3b-6f5e2a0b9d4c
+status: experimental
+description: >
+    Detects file creation of known BlueMoon exploit kit payload filenames
+    in characteristic locations. Includes ChromeUpdate.exe dropped to TEMP
+    (TA412), wint.exe and calibre-launcher.dll in AppData (UNK_DoubleCheck),
+    and GfExperienceService64.exe in ProgramData (UNK_QuietRacket).
+references:
+    - https://www.proofpoint.com/us/blog/threat-insight/once-bluemoon-multiple-state-aligned-threat-actors-rapidly-adopt-novel-exploit
+author: Actioner
+date: 2026-09-12
+tags:
+    - attack.t1105
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_temp:
+        TargetFilename|endswith:
+            - '\Temp\ChromeUpdate.exe'
+    selection_appdata:
+        TargetFilename|endswith:
+            - '\Microsoft\Windows\wint.exe'
+            - '\Microsoft\Windows\calibre-launcher.dll'
+    selection_programdata:
+        TargetFilename|contains: '\ProgramData\GfExperienceService64.exe'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate NVIDIA GeForce Experience installer using GfExperienceService64.exe naming
+level: medium
