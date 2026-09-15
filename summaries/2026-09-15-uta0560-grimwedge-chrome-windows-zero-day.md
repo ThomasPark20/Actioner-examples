@@ -188,7 +188,7 @@ A second China-nexus actor (JungleBamboo/APT31/Violet Typhoon/TA412) used the id
 | T1189 | Drive-by Compromise | XSS redirect to attacker-controlled exploit page |
 | T1203 | Exploitation for Client Execution | CVE-2026-85046 (V8 type confusion) and CVE-2026-87491 (sandbox escape) |
 | T1068 | Exploitation for Privilege Escalation | CVE-2026-85880 (Windows kernel RtlpCreateServerAcl) |
-| T1055 | Process Injection | Shellcode injection into Chrome browser process via CreateProcessA |
+| T1106 | Native API | Shellcode uses CreateProcessA to spawn cmd.exe for payload delivery |
 | T1574.002 | DLL Side-Loading | msgbox.exe extracts legitimate EXE + malicious wsc.dll |
 | T1218.007 | Msiexec | GRIMWEDGE delivered via msiexec /i Temp.txt |
 | T1059.007 | JavaScript | GRIMWEDGE JScript backdoor executed in-memory via eval() |
@@ -216,7 +216,7 @@ A second China-nexus actor (JungleBamboo/APT31/Violet Typhoon/TA412) used the id
 
 1. **Search for scheduled task:** `schtasks /query /tn "Windows Scheduled System"` -- presence indicates GRIMWEDGE persistence
 2. **Search for Chrome extension:** Check `chrome://extensions` for ID `ckiknalbeplpcpofpnabcnhjcegckfei` (LONGTALE)
-3. **Search DNS logs** for queries to `opusaccel.top` or `shinewrist.net`
+3. **Search DNS logs** for queries to `opusaccel[.]top` or `shinewrist[.]net`
 4. **Search proxy/firewall logs** for connections to `206[.]166[.]251[.]164`
 5. **Search for file hashes** listed in the IOC table above across endpoint telemetry
 6. **Search for `msgbox.exe`** in `%TEMP%` directories across the enterprise
@@ -412,8 +412,9 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0560 Ex
 ### YARA: UTA0560 GRIMWEDGE JavaScript Backdoor
 
 Detects the GRIMWEDGE JScript backdoor via its distinctive C2 domain and command handler function names.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive sample (constructed from published command names + C2 domain) matched UTA0560_GRIMWEDGE_Backdoor_Strings. Negative sample (benign WScript usage) did not match. C2 domain "opusaccel.top" is unique; command set pattern (Info/Dir/Mkdir/Tasklist/Taskkill/Type/Run/Upload + WScript.Shell + eval) is distinctive at 4-of threshold. -->
+**Status:** compile ✅ compiles · confidence: medium · sample: synthetic test only
+<!-- audit: yarac exit 0. Positive sample was synthetic (constructed from published command names + C2 domain), not a real source-published sample. Negative sample (benign WScript usage) did not match. C2 domain "opusaccel.top" is unique; however, behavioral branch (4 of $cmd_* + 1 of $loader*) has FP risk because strings "Info", "Dir", "Type", "Run" are common English words and benign JScript with WScript.Shell could match. Downgraded from high to medium. -->
+<!-- revision: confidence high→medium; sample note corrected to synthetic test only; FP risk on behavioral branch documented -->
 
 ```yara
 rule UTA0560_GRIMWEDGE_Backdoor_Strings
@@ -449,36 +450,7 @@ rule UTA0560_GRIMWEDGE_Backdoor_Strings
 }
 ```
 
-### YARA: UTA0560 GRIMWEDGE MSI Dropper
-
-Detects the GRIMWEDGE MSI dropper built with Advanced Installer containing obfuscated JScript custom actions.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. Compound condition: MSI magic + "Advanced Installer" + 2 of JScript indicators. Medium confidence because Advanced Installer is a legitimate packaging tool; the combination with eval/WScript/XMLHTTP in an MSI narrows it but is not unique to this sample without the hash. -->
-
-```yara
-rule UTA0560_GRIMWEDGE_MSI_Dropper
-{
-    meta:
-        description = "Detects GRIMWEDGE MSI dropper with obfuscated JScript custom action payload"
-        author = "Actioner"
-        date = "2026-09-15"
-        reference = "https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/"
-        hash = "56eda0ac82e06ee609b034306025e67df161c5877399c305c8eaea136e80c951"
-        severity = "high"
-
-    strings:
-        $msi_magic = { D0 CF 11 E0 A1 B1 1A E1 }
-        $js1 = "eval(" ascii wide
-        $js2 = "WScript" ascii wide
-        $js3 = "XMLHTTP" ascii wide
-        $adv_installer = "Advanced Installer" ascii wide
-
-    condition:
-        $msi_magic at 0 and
-        $adv_installer and
-        2 of ($js*)
-}
-```
+<!-- revision: DROPPED YARA rule UTA0560_GRIMWEDGE_MSI_Dropper — fires on any MSI built with Advanced Installer containing eval/WScript/XMLHTTP; no campaign-specific string in condition; high FP rate against legitimate MSIs. -->
 
 ### YARA: UTA0560 Msgbox Loader (DLL Sideloading)
 
