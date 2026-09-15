@@ -1,0 +1,130 @@
+title: UTA0560 GRIMWEDGE Scheduled Task Persistence
+id: 8c7e1a3f-2d4b-4e9a-b6c5-1f0d8e7a3b2c
+status: experimental
+description: >
+    Detects creation of the "Windows Scheduled System" scheduled task used by the
+    GRIMWEDGE backdoor for persistence with a 5-minute execution interval.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'Windows Scheduled System'
+    condition: selection_schtasks
+falsepositives:
+    - Unlikely - distinctive task name specific to this campaign
+level: high
+---
+title: UTA0560 GRIMWEDGE Known C2 Domain DNS Query
+id: 4f2e8b1c-7a3d-4c6e-9d5f-0b1a2c3d4e5f
+status: experimental
+description: >
+    Detects DNS queries to known UTA0560 and GRIMWEDGE command-and-control domains
+    including ocr.opusaccel.top and cloud.shinewrist.net.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'opusaccel.top'
+            - 'shinewrist.net'
+    condition: selection
+falsepositives:
+    - Unlikely - domains are specific to this campaign infrastructure
+level: critical
+---
+title: UTA0560 Exploit Chain Curl Payload Download to TEMP
+id: 6a9c3e2d-5b4f-4d7e-8c1a-3f0e9d2b6c5a
+status: experimental
+description: >
+    Detects the cmd.exe spawning curl to download msgbox.exe to the user TEMP directory,
+    consistent with the UTA0560 browser exploit chain payload delivery stage.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\cmd.exe'
+        Image|endswith: '\curl.exe'
+        CommandLine|contains|all:
+            - 'msgbox.exe'
+            - 'shinewrist'
+    condition: selection
+falsepositives:
+    - Unlikely - combination of msgbox.exe filename and shinewrist domain is highly specific
+level: critical
+---
+title: UTA0560 GRIMWEDGE MSI Sideload Execution
+id: 2b8d4f1e-9c3a-4e7d-b5f6-7a0c1d2e3f4a
+status: experimental
+description: >
+    Detects msiexec.exe executing a suspicious MSI file named Temp.txt, consistent with
+    GRIMWEDGE backdoor delivery via DLL sideloading and MSI custom action execution.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1218.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\msiexec.exe'
+        CommandLine|contains|all:
+            - '/i'
+            - 'Temp.txt'
+    condition: selection
+falsepositives:
+    - Legitimate MSI files named Temp.txt are extremely rare
+level: high
+---
+title: JungleBamboo APT31 Known C2 Domain DNS Query
+id: 7d3f9e2a-1b5c-4a8d-9e6f-2c0d3b4a5e7f
+status: experimental
+description: >
+    Detects DNS queries to known JungleBamboo/APT31 campaign domains including
+    msbenefit.com and gitprogram.com used for phishing and C2 in the parallel
+    Chrome-Windows zero-day campaign.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'msbenefit.com'
+            - 'gitprogram.com'
+    condition: selection
+falsepositives:
+    - Unlikely - domains are specific to JungleBamboo/APT31 campaign infrastructure
+level: critical
