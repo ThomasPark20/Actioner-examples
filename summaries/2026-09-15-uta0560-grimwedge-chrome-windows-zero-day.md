@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-15
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -409,6 +409,71 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0560 GR
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0560 Exploit Hosting Domain in TLS ClientHello"; flow:established,to_server; content:"shinewrist"; fast_pattern; content:".net"; distance:0; within:5; sid:2100002; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/;)
 ```
 
+### Sigma: JungleBamboo APT31 Known C2 Domain DNS Query
+
+Detects DNS queries to known JungleBamboo/APT31 campaign domains `msbenefit[.]com` and `gitprogram[.]com`.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert splunk exit 0; sigma convert log_scale exit 0. Domains are campaign-specific APT31 infrastructure documented by Volexity. No benign use known. -->
+<!-- revision: added to close JungleBamboo IOC coverage gap identified by critic -->
+
+```yaml
+title: JungleBamboo APT31 Known C2 Domain DNS Query
+id: 7d3f9e2a-1b5c-4a8d-9e6f-2c0d3b4a5e7f
+status: experimental
+description: >
+    Detects DNS queries to known JungleBamboo/APT31 campaign domains including
+    msbenefit.com and gitprogram.com used for phishing and C2 in the parallel
+    Chrome-Windows zero-day campaign.
+references:
+    - https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/
+    - https://thehackernews.com/2026/09/china-linked-hackers-exploit-chrome.html
+author: Actioner
+date: 2026/09/15
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'msbenefit.com'
+            - 'gitprogram.com'
+    condition: selection
+falsepositives:
+    - Unlikely - domains are specific to JungleBamboo/APT31 campaign infrastructure
+level: critical
+```
+
+### Suricata: JungleBamboo APT31 C2 and Phishing Infrastructure
+
+Detects TLS connections and DNS queries to known JungleBamboo/APT31 campaign domains `msbenefit[.]com` and `gitprogram[.]com`.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T exit 0. Campaign-specific APT31 infrastructure. No benign overlap known. -->
+<!-- revision: added to close JungleBamboo IOC coverage gap identified by critic -->
+
+```suricata
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to JungleBamboo APT31 Phishing Domain msbenefit.com"; flow:established,to_server; tls.sni; content:"msbenefit.com"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/; metadata:author Actioner, created_at 2026-09-15; sid:2200005; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to JungleBamboo APT31 C2 Domain gitprogram.com"; flow:established,to_server; tls.sni; content:"gitprogram.com"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/; metadata:author Actioner, created_at 2026-09-15; sid:2200006; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to JungleBamboo APT31 Phishing Domain msbenefit.com"; flow:to_server; dns.query; content:"msbenefit.com"; nocase; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/; metadata:author Actioner, created_at 2026-09-15; sid:2200007; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to JungleBamboo APT31 C2 Domain gitprogram.com"; flow:to_server; dns.query; content:"gitprogram.com"; nocase; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/; metadata:author Actioner, created_at 2026-09-15; sid:2200008; rev:1;)
+```
+
+### Snort: JungleBamboo APT31 C2 Domain Detection
+
+Detects TLS ClientHello traffic containing JungleBamboo/APT31 domain strings `msbenefit[.]com` and `gitprogram[.]com`.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort -c /etc/snort/snort.conf -T exit 0. Campaign-specific APT31 domains. -->
+<!-- revision: added to close JungleBamboo IOC coverage gap identified by critic -->
+
+```snort
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - JungleBamboo APT31 Phishing Domain in TLS ClientHello"; flow:established,to_server; content:"msbenefit"; fast_pattern; content:".com"; distance:0; within:5; sid:2100003; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - JungleBamboo APT31 C2 Domain in TLS ClientHello"; flow:established,to_server; content:"gitprogram"; fast_pattern; content:".com"; distance:0; within:5; sid:2100004; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/;)
+```
+
 ### YARA: UTA0560 GRIMWEDGE JavaScript Backdoor
 
 Detects the GRIMWEDGE JScript backdoor via its distinctive C2 domain and command handler function names.
@@ -452,36 +517,7 @@ rule UTA0560_GRIMWEDGE_Backdoor_Strings
 
 <!-- revision: DROPPED YARA rule UTA0560_GRIMWEDGE_MSI_Dropper — fires on any MSI built with Advanced Installer containing eval/WScript/XMLHTTP; no campaign-specific string in condition; high FP rate against legitimate MSIs. -->
 
-### YARA: UTA0560 Msgbox Loader (DLL Sideloading)
-
-Detects the msgbox.exe loader used for GRIMWEDGE DLL sideloading via co-occurrence of sideloading artifact strings.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: yarac exit 0. Medium confidence because individual strings (wsc.dll, msgbox, Temp.txt, msiexec) are short and could appear in benign PE files; the 3-of-4 threshold mitigates but does not eliminate FP risk on large file stores. -->
-
-```yara
-rule UTA0560_Msgbox_Loader
-{
-    meta:
-        description = "Detects UTA0560 msgbox.exe loader used for GRIMWEDGE DLL sideloading"
-        author = "Actioner"
-        date = "2026-09-15"
-        reference = "https://www.volexity.com/blog/2026/09/09/mind-the-patch-gap-multiple-chinese-threat-actors-chain-0-day-exploits-in-chrome-windows/"
-        hash = "69c1603f3f9015beb0097d0a3bb0f17400c314e2eae65a7eceacd3b93ea570dc"
-        severity = "high"
-
-    strings:
-        $pe_magic = { 4D 5A }
-        $s1 = "wsc.dll" ascii wide
-        $s2 = "msgbox" ascii wide
-        $s3 = "Temp.txt" ascii wide
-        $s4 = "msiexec" ascii wide
-
-    condition:
-        $pe_magic at 0 and
-        filesize < 5MB and
-        3 of ($s*)
-}
-```
+<!-- revision: DROPPED YARA rule UTA0560_Msgbox_Loader — individual strings (wsc.dll, msgbox, Temp.txt, msiexec) too short/generic; 3-of-4 threshold matches ordinary installer binaries; high FP rate. -->
 
 ### YARA: LONGTALE Chrome Extension (JungleBamboo/APT31)
 
@@ -540,4 +576,5 @@ rule UTA0560_LONGTALE_Chrome_Extension
 - [PrivacyNeedle - Chinese Hackers Exploit Chrome and Windows Zero-Days](https://privacyneedle.com/cybersecurity/chrome-windows-zero-day-grimwedge-malware/) — supplementary coverage with CVE details
 
 ---
-*Report generated by Actioner (DRAFT)*
+*Report generated by Actioner (REVISED v1.1)*
+<!-- revision: v1.0→v1.1: defanged domains line 219; T1055→T1106; GRIMWEDGE YARA confidence high→medium, sample note corrected; dropped YARA MSI_Dropper (high FP); dropped YARA Msgbox_Loader (high FP); added Sigma/Suricata/Snort rules for JungleBamboo domains msbenefit.com and gitprogram.com -->
