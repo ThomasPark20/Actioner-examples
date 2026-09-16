@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-16
-Version: 1.0
+Version: 1.1
+<!-- revision: v1.1 – applied critic NEEDS-REVISION fixes: renamed Sigma #4 to generic TTP title; fixed Sigma #5 ATT&CK tag T1059→T1036.005; scoped Sigma #7 to advisory-specific hostnames; dropped Sigma #8 (generic proxy DNS); tightened YARA MsCache condition; added per-rule confidence labels; added Snort http_header/threshold notes; fixed Sigma #2 duplicate YAML key (CommandLine|contains) to use |contains|all -->
 
 ---
 
@@ -406,7 +407,7 @@ The malware has not been observed spreading laterally to other machines, indicat
 
 #### 1. CHOSEN BRICK Registry Run Key Persistence
 
-Detects the four specific Run key value names used by CHOSEN BRICK variants for persistence at user logon.
+Detects the four specific Run key value names used by CHOSEN BRICK variants for persistence at user logon. **Confidence: high.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_registry_persistence.yml -->
 
@@ -442,7 +443,7 @@ level: high
 
 #### 2. CHOSEN BRICK Defender Exclusion Paths
 
-Detects PowerShell commands adding Microsoft Defender exclusions for CHOSEN BRICK staging directories.
+Detects PowerShell commands adding Microsoft Defender exclusions for CHOSEN BRICK staging directories. **Confidence: high.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_defender_exclusion.yml -->
 
@@ -463,8 +464,9 @@ logsource:
     product: windows
 detection:
     selection_cmd:
-        CommandLine|contains: 'Add-MpPreference'
-        CommandLine|contains: '-ExclusionPath'
+        CommandLine|contains|all:
+            - 'Add-MpPreference'
+            - '-ExclusionPath'
     selection_paths:
         CommandLine|contains:
             - 'SMQDServicePackages'
@@ -478,7 +480,7 @@ level: critical
 
 #### 3. CHOSEN BRICK Staging Directory File Creation
 
-Detects file creation in the unique staging directories used by CHOSEN BRICK for exfiltration data accumulation.
+Detects file creation in the unique staging directories used by CHOSEN BRICK for exfiltration data accumulation. **Confidence: high.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_file_creation.yml -->
 
@@ -512,17 +514,17 @@ falsepositives:
 level: critical
 ```
 
-#### 4. CHOSEN BRICK Telegram Bot C2 Communication
+#### 4. Suspicious Non-Browser Telegram Bot API DNS Query
 
-Detects non-Telegram processes querying `api.telegram.org`, the C2 channel for CHOSEN BRICK.
+Detects non-Telegram processes querying `api.telegram.org`. This is a generic TTP-level detector -- any non-Telegram process resolving the Bot API domain is suspicious but not CHOSEN-BRICK-specific. **Confidence: medium.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_telegram_c2.yml -->
 
 ```yaml
-title: CHOSEN BRICK Telegram Bot C2 Communication
+title: Suspicious Non-Browser Telegram Bot API DNS Query
 id: 4f7b0e2d-9c5a-43f8-b6e4-8d1f3a7c2b06
 status: experimental
-description: Detects process-level network connections to the Telegram Bot API, which CHOSEN BRICK uses for command and control. Each victim is assigned a unique Telegram bot.
+description: Detects non-Telegram processes resolving api.telegram.org via DNS. Multiple malware families including CHOSEN BRICK/HEAVYGRAM abuse the Telegram Bot API for C2.
 references:
     - https://www.ic3.gov/CSA/2026/260915.pdf
     - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
@@ -548,7 +550,7 @@ level: medium
 
 #### 5. CHOSEN BRICK Malicious Process Execution
 
-Detects execution of CHOSEN BRICK binaries from their characteristic installation paths.
+Detects execution of CHOSEN BRICK binaries from their characteristic installation paths. The binaries masquerade as legitimate Windows service names in crafted directory structures. **Confidence: high.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_suspicious_process.yml -->
 
@@ -563,7 +565,7 @@ references:
 author: Actioner
 date: 2026-09-16
 tags:
-    - attack.t1059
+    - attack.t1036.005
 logsource:
     category: process_creation
     product: windows
@@ -583,7 +585,7 @@ level: critical
 
 #### 6. CHOSEN BRICK Spoofed Windows Directory
 
-Detects file activity in a spoofed `"C:\Windows \"` directory with a trailing space, used for DLL staging.
+Detects file activity in a spoofed `"C:\Windows \"` directory with a trailing space, used for DLL staging. **Confidence: high.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_spoofed_sysdir.yml -->
 
@@ -613,15 +615,15 @@ level: critical
 
 #### 7. CHOSEN BRICK Cloud Storage Exfiltration
 
-Detects non-browser DNS queries to cloud storage services used by CHOSEN BRICK for data exfiltration.
+Detects DNS queries to the specific VultrObjects hostnames observed in the CHOSEN BRICK advisory. Scoped to advisory IOCs rather than generic cloud-storage domains to reduce false positives. **Confidence: medium.**
 
 <!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_cloud_exfil.yml -->
 
 ```yaml
-title: CHOSEN BRICK Cloud Storage Exfiltration
+title: CHOSEN BRICK Cloud Storage Exfiltration via VultrObjects
 id: 7c0e3b5a-2f8d-46c1-e9b7-1a4c6d0f5e30
 status: experimental
-description: Detects DNS queries to cloud object storage services used by CHOSEN BRICK for data exfiltration, including VultrObjects, StorjShare, and Backblaze B2.
+description: Detects DNS queries to specific VultrObjects hostnames used by CHOSEN BRICK for malware hosting and data exfiltration. Scoped to advisory IOCs (sgp1, ams1, micbucket subdomains).
 references:
     - https://www.ic3.gov/CSA/2026/260915.pdf
     - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
@@ -634,52 +636,19 @@ logsource:
     product: windows
 detection:
     selection:
-        QueryName|endswith:
-            - '.vultrobjects.com'
-            - '.storjshare.io'
-            - '.backblazeb2.com'
-    filter_known:
-        Image|endswith:
-            - '\chrome.exe'
-            - '\firefox.exe'
-            - '\msedge.exe'
-    condition: selection and not filter_known
-falsepositives:
-    - Legitimate use of Vultr Object Storage, Storj, or Backblaze B2 by non-browser applications
-level: medium
-```
-
-#### 8. CHOSEN BRICK Residential Proxy Service Connection
-
-Detects DNS queries to residential proxy services used by newer CHOSEN BRICK variants to obfuscate C2 traffic.
-
-<!-- audit: sigma check 0 errors, 0 issues; sigma convert splunk OK; file: chosen_brick_proxy_services.yml -->
-
-```yaml
-title: CHOSEN BRICK Residential Proxy Service Connection
-id: 8d1f4c6b-3a9e-47d2-f0c8-2b5d7e1a6f41
-status: experimental
-description: Detects DNS queries to residential proxy services (IPRoyal, LightningProxies) used by newer CHOSEN BRICK variants to obfuscate Telegram C2 traffic.
-references:
-    - https://www.ic3.gov/CSA/2026/260915.pdf
-    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
-author: Actioner
-date: 2026-09-16
-tags:
-    - attack.t1090.002
-logsource:
-    category: dns_query
-    product: windows
-detection:
-    selection:
-        QueryName|endswith:
-            - '.iproyal.com'
-            - '.lightningproxies.net'
+        QueryName:
+            - 'sgp1.vultrobjects.com'
+            - 'ams1.vultrobjects.com'
+            - 'micbucket.ams1.vultrobjects.com'
     condition: selection
 falsepositives:
-    - Legitimate use of commercial proxy services
+    - Legitimate use of these specific Vultr Object Storage regions (sgp1, ams1) by applications
 level: medium
 ```
+
+### Sigma: Residential Proxy Connection -- Dropped
+
+Generic commercial proxy DNS detection with no CHOSEN BRICK discriminator; high FP in environments using proxy services for QA/monitoring. IPRoyal and LightningProxies are legitimate services. Retained as a contextual IOC in the network indicators table above.
 
 ### YARA Rules
 
@@ -819,13 +788,19 @@ rule CHOSEN_BRICK_MsCache_Gmail
 
     condition:
         uint16(0) == 0x5A4D and
-        3 of them
+        (1 of ($path1, $path2, $err)) and
+        2 of them
 }
 ```
 
 ### Suricata Rules
 
 Seven rules detecting CHOSEN BRICK Telegram C2 and cloud exfiltration traffic patterns.
+
+- **SID 2200001-2200003** (Telegram TTP rules): **Confidence: medium.** These fire on Telegram Bot API usage patterns that are not CHOSEN-BRICK-specific; useful as behavioral correlators.
+- **SID 2200004-2200005** (VultrObjects bucket rules): **Confidence: high.** Match advisory-specific bucket name substrings and hostnames.
+- **SID 2200006** (getFile): **Confidence: medium.** Generic Telegram Bot API file download detection.
+- **SID 2200007** (Chrome passwords via Telegram): **Confidence: high.** Matches `chrome_passwords` in Telegram POST body -- a strong CHOSEN BRICK indicator.
 
 <!-- audit: suricata -T compiled successfully; file: chosen_brick.suricata.rules -->
 
@@ -854,7 +829,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Chrome Password
 
 ### Snort Rules
 
-Five rules covering the primary CHOSEN BRICK network behaviors.
+Five rules covering the primary CHOSEN BRICK network behaviors. **Confidence: medium-high** (structural check only; no Snort3 compiler available).
+
+> **Note:** SID 2100001-2100005 use `http_header` which matches against the full header block, not just the Host header. This is less precise than the Suricata equivalents that use `http.host`. In high-traffic environments, consider supplementing with Suricata rules for tighter matching. SID 2100003 (getUpdates polling) lacks a threshold, unlike its Suricata counterpart SID 2200003 which applies `count 5, seconds 60`; deployers should add a detection_filter or threshold to avoid alert floods.
 
 <!-- audit: snort3 not available for compilation; structural check only -->
 
