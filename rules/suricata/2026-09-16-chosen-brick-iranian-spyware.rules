@@ -1,0 +1,25 @@
+# CHOSEN BRICK / HEAVYGRAM Iranian Spyware - Suricata Rules
+# Reference: https://www.ic3.gov/CSA/2026/260915.pdf
+# Date: 2026-09-16
+# Author: Actioner
+
+# SID 2200001 - Telegram Bot API sendDocument exfiltration (confidence: medium)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Telegram Bot API sendDocument Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; content:"/sendDocument"; sid:2200001; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200002 - Telegram Bot API sendPhoto screenshot exfiltration (confidence: medium)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Telegram Bot API sendPhoto Screenshot Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; content:"/sendPhoto"; sid:2200002; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200003 - Telegram Bot API C2 polling (threshold: 5 in 60s) (confidence: medium)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Telegram Bot API C2 Polling getUpdates"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; content:"/getUpdates"; threshold:type both, track by_src, count 5, seconds 60; sid:2200003; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200004 - VultrObjects S3 bucket exfiltration with known substring (confidence: high)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK VultrObjects S3 Exfiltration"; flow:established,to_server; http.host; content:"vultrobjects.com"; http.uri; content:"-ppmppnf12uyt4r5tifjdfh"; sid:2200004; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200005 - MicDriver download from VultrObjects micbucket (confidence: high)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK MicDriver Download from VultrObjects"; flow:established,to_server; http.host; content:"micbucket.ams1.vultrobjects.com"; sid:2200005; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200006 - Telegram Bot API file download (getFile) (confidence: medium)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Telegram Bot API File Download getFile"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.uri; content:"/bot"; content:"/getFile"; sid:2200006; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2200007 - Chrome passwords exfiltration via Telegram (confidence: high)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CHOSEN BRICK Chrome Passwords Exfiltration via Telegram"; flow:established,to_server; http.method; content:"POST"; http.host; content:"api.telegram.org"; http.request_body; content:"chrome_passwords"; sid:2200007; rev:1; metadata:created_at 2026_09_16, updated_at 2026_09_16; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
