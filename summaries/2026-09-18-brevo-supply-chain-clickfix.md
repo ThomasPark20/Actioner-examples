@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-18
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -163,10 +163,12 @@ Non-WordPress sites (or non-admin visitors) received the ClickFix overlay, which
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Attacker injected malicious code into Brevo's JavaScript CDN files via stolen Cloudflare API key |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Injected JavaScript loader and f.js payload execute in victim browsers |
-| T1204.001 | User Execution: Malicious Link | ClickFix overlay tricks users into copying and executing malicious commands |
+<!-- revision: changed T1204.001 (Malicious Link) to T1204.002 (Malicious File) — ClickFix tricks users into executing a command/file, not clicking a link -->
+| T1204.002 | User Execution: Malicious File | ClickFix overlay tricks users into copying and executing malicious commands via their system terminal |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication via HTTP API endpoints on sendibt1[.]com |
 | T1082 | System Discovery | Browser fingerprinting via /api/v1/0044d4a endpoint |
-| T1505.004 | Server Software Component: IIS Components / Web Shell | WordPress backdoor plugin installed via wm.zip upload |
+<!-- revision: changed T1505.004 (IIS Components) to T1505.003 (Web Shell) — WordPress/PHP backdoor plugin, not IIS -->
+| T1505.003 | Server Software Component: Web Shell | WordPress backdoor plugin installed via wm.zip upload |
 | T1584.006 | Compromise Infrastructure: Web Services | Abuse of Cloudflare Workers to inject malicious content |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | sendibt1.com typosquat of sendinblue (Brevo's former brand) |
 
@@ -217,7 +219,8 @@ find /var/www/html/wp-content/plugins/ -newer /var/www/html/wp-content/plugins/i
 
 ## Detection Rules
 
-Five Sigma rules, six Suricata rules, five Snort rules, and four YARA rules cover the known sendibt1[.]com IOC surface -- domains, payload URLs, C2 API paths, WordPress backdoor delivery, and file-level indicators in compromised Brevo JavaScript. The primary caveat is that all network rules are IOC-specific to the sendibt1[.]com domain family and will not detect future supply chain attacks using different infrastructure.
+<!-- revision: updated rule counts after dropping subset rules (3 Sigma -> 2, 6 Suricata -> 4, 4 YARA -> 3; Snort unchanged at 5) -->
+Two Sigma rules, four Suricata rules, five Snort rules, and three YARA rules cover the known sendibt1[.]com IOC surface -- domains, payload URLs, WordPress backdoor delivery, and file-level indicators in compromised Brevo JavaScript. The primary caveat is that all network rules are IOC-specific to the sendibt1[.]com domain family and will not detect future supply chain attacks using different infrastructure.
 
 ### Sigma Rules
 
@@ -288,54 +291,25 @@ falsepositives:
 level: critical
 ```
 
-#### Brevo Supply Chain - Malicious f.js Script Reference in Web Logs
-Detects requests for the f.js payload on sendibt1[.]com.
-**compile**: Splunk exit 0, LogScale exit 0 | `sigma check` blocked by proxy | **confidence: high**
-<!-- Validation: sigma convert --without-pipeline -t splunk -> '"c-uri"="*sendibt1.com*" "c-uri"="*/f.js"' exit 0. Dual selection AND condition. -->
+<!-- revision: dropped Sigma Rule 3 "Malicious f.js Script Reference in Web Logs" (id d4b7e293-8f1a-4c5e-9d60-3a2b1e7f8c46) — strict subset of Sigma Rule 1; the domain-level proxy rule already catches any request to sendibt1.com including /f.js -->
 
-```yaml
-title: Brevo Supply Chain - Malicious f.js Script Reference in Web Logs
-id: d4b7e293-8f1a-4c5e-9d60-3a2b1e7f8c46
-status: experimental
-description: >
-    Detects HTTP requests to the malicious f.js script hosted on
-    cdn*.sendibt1.com subdomains, which delivered the ClickFix overlay
-    and WordPress backdoor installer in the Brevo supply chain attack.
-references:
-    - https://sansec.io/research/brevo-supply-chain-attack
-    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
-author: Actioner
-date: 2026-09-18
-tags:
-    - attack.t1195.002
-    - attack.t1059.007
-logsource:
-    category: proxy
-detection:
-    selection_domain:
-        c-uri|contains: 'sendibt1.com'
-    selection_path:
-        c-uri|endswith: '/f.js'
-    condition: selection_domain and selection_path
-falsepositives:
-    - None expected; this is a specific attack payload URL
-level: critical
-```
-
+<!-- revision: fixed Sigma Rule 4 — removed selection_referer block (browser Referer header reflects the victim page, not the script source domain); downgraded confidence from high to medium; changed T1505.004 to T1505.003; added false-positive note -->
 #### Brevo Supply Chain - WordPress Backdoor Plugin Installation
-Detects WordPress plugin upload triggered by the injected script with a sendibt1[.]com referer.
-**compile**: Splunk exit 0, LogScale exit 0 | `sigma check` blocked by proxy | **confidence: high**
-<!-- Validation: sigma convert --without-pipeline -t splunk -> '"cs-uri-stem"="*/wp-admin/update.php*" "cs-uri-query"="*action=upload-plugin*" "cs-referer"="*sendibt1.com*"' exit 0. Uses webserver logsource. -->
+Detects WordPress plugin upload via the admin upload endpoint. Broader than the original IOC-anchored version; correlate hits with sendibt1[.]com DNS/proxy indicators.
+**compile**: Splunk `sigma convert` exit 0, LogScale exit 0 | `sigma check` exit 0 | **confidence: medium**
+<!-- Validation: sigma check -x attacktag -x d3_fendtag exit 0. sigma convert --without-pipeline -t splunk -> '"cs-uri-stem"="*/wp-admin/update.php*" "cs-uri-query"="*action=upload-plugin*"' exit 0. sigma convert --without-pipeline -t log_scale exit 0. Referer block removed (browser sends victim-page origin, not script-source domain). Level downgraded from critical to medium to reflect broader match surface. -->
 
 ```yaml
 title: Brevo Supply Chain - WordPress Backdoor Plugin Installation
 id: e5c9f384-2d7b-4e6a-af81-4b3c2d1e9f57
 status: experimental
 description: >
-    Detects the WordPress plugin upload and activation pattern used by the
-    Brevo supply chain attack. The injected JavaScript attempted to install
-    a backdoor plugin (wm.zip) via the WordPress admin panel when an
-    administrator was logged in.
+    Detects the WordPress plugin upload pattern associated with the Brevo
+    supply chain attack. The injected JavaScript attempted to install a
+    backdoor plugin (wm.zip) via the WordPress admin plugin upload endpoint
+    when an administrator was logged in. This rule broadly detects plugin
+    upload requests; correlate hits with sendibt1.com DNS or proxy indicators
+    to confirm malicious activity.
 references:
     - https://sansec.io/research/brevo-supply-chain-attack
     - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
@@ -343,74 +317,33 @@ author: Actioner
 date: 2026-09-18
 tags:
     - attack.t1195.002
-    - attack.t1505.004
+    - attack.t1505.003
 logsource:
     category: webserver
 detection:
     selection_upload:
         cs-uri-stem|contains: '/wp-admin/update.php'
         cs-uri-query|contains: 'action=upload-plugin'
-    selection_referer:
-        cs-referer|contains: 'sendibt1.com'
-    condition: selection_upload and selection_referer
+    condition: selection_upload
 falsepositives:
-    - Legitimate WordPress plugin installations do not reference sendibt1.com
-level: critical
+    - Legitimate WordPress plugin installations via the admin panel will also match; correlate with sendibt1.com DNS/proxy hits
+level: medium
 ```
 
-#### Brevo Supply Chain - C2 API Endpoint Communication
-Detects HTTP requests to the specific C2 API path hashes used by the ClickFix malware.
-**compile**: Splunk exit 0, LogScale exit 0 | `sigma check` blocked by proxy | **confidence: high**
-<!-- Validation: sigma convert --without-pipeline -t splunk -> '"c-uri"="*sendibt1.com*" "c-uri" IN ("*/api/v1/0044d4a*", ...)' exit 0. API path hashes are unique to this campaign. -->
-
-```yaml
-title: Brevo Supply Chain - C2 API Endpoint Communication
-id: f6d0a495-3e8c-4f7b-b092-5c4d3e2f0a68
-status: experimental
-description: >
-    Detects HTTP communication with the specific C2 API endpoints used by
-    the Brevo supply chain ClickFix malware for fingerprinting, proof-of-work
-    token exchange, clipboard command delivery, and event beacons.
-references:
-    - https://sansec.io/research/brevo-supply-chain-attack
-    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
-author: Actioner
-date: 2026-09-18
-tags:
-    - attack.t1071.001
-    - attack.t1082
-logsource:
-    category: proxy
-detection:
-    selection_domain:
-        c-uri|contains: 'sendibt1.com'
-    selection_api:
-        c-uri|contains:
-            - '/api/v1/0044d4a'
-            - '/api/v1/e08a3c4'
-            - '/api/v1/4aff112'
-            - '/api/v1/b832c14'
-    condition: selection_domain and selection_api
-falsepositives:
-    - None expected; these are attacker-specific API path hashes
-level: critical
-```
+<!-- revision: dropped Sigma Rule 5 "C2 API Endpoint Communication" (id f6d0a495-3e8c-4f7b-b092-5c4d3e2f0a68) — strict subset of Sigma Rule 1; the domain-level proxy rule already catches any request with sendibt1.com in the URL including API paths -->
 
 ### Suricata Rules
 
-Six rules covering DNS queries, HTTP host matching, specific payload URLs, WordPress plugin delivery, C2 API beacons, and TLS SNI detection for sendibt1[.]com. All six compile successfully with `suricata -T` (exit 0).
-<!-- Validation: suricata -T -S suricata-brevo-sendibt1.rules -l /tmp/actioner -> "Configuration provided was successfully loaded. Exiting." exit 0. Removed nocase from http.host (already normalized to lowercase by Suricata). -->
+<!-- revision: dropped SID 2100103 (f.js payload) and SID 2100105 (C2 API beacon) — both subsets of SID 2100102 (HTTP host sendibt1.com). Fixed SID 2100104 ATT&CK tag T1505.004 -> T1505.003, bumped rev to 2. -->
+Four rules covering DNS queries, HTTP host matching, WordPress plugin delivery, and TLS SNI detection for sendibt1[.]com. All four compile successfully with `suricata -T` (exit 0).
+<!-- Validation: suricata -T -S suricata-fixed.rules -l /tmp/actioner -> "Configuration provided was successfully loaded. Exiting." exit 0. -->
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - Brevo Supply Chain - DNS Query to sendibt1.com C2 Domain"; flow:to_server; dns.query; content:"sendibt1.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100101; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - HTTP Request to sendibt1.com Malicious CDN"; flow:established,to_server; http.host; content:"sendibt1.com"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100102; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - Malicious f.js Payload Delivery from sendibt1"; flow:established,to_server; http.host; content:"sendibt1.com"; http.uri; content:"/f.js"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1059.007; sid:2100103; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - WordPress Backdoor Plugin Download (wm.zip)"; flow:established,to_server; http.host; content:"sendibt1.com"; http.uri; content:"/p/wm.zip"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1505.004; sid:2100104; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - C2 API Fingerprint Beacon"; flow:established,to_server; http.host; content:"sendibt1.com"; http.uri; content:"/api/v1/"; fast_pattern; http.method; content:"POST"; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1071.001; sid:2100105; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - WordPress Backdoor Plugin Download (wm.zip)"; flow:established,to_server; http.host; content:"sendibt1.com"; http.uri; content:"/p/wm.zip"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1505.003; sid:2100104; rev:2;)
 
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - TLS SNI to sendibt1.com Malicious Domain"; flow:established,to_server; tls.sni; content:"sendibt1.com"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100106; rev:1;)
 ```
@@ -418,25 +351,27 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain
 
 ### Snort 3 Rules
 
+<!-- revision: fixed all 5 Snort rules — replaced invalid `http_header; field host;` with correct Snort 3 `http_host;` sticky buffer; removed `, nocase` from host content (HTTP host is case-insensitive per RFC); fixed DNS rule SID 2100205 label length byte from |09| to |08| ("sendibt1" = 8 chars); bumped all rev from 1 to 2 -->
 Five rules for HTTP host detection, payload URL matching, WordPress backdoor download, C2 API beacon, and DNS query detection. Snort is not installed in this environment.
-<!-- Structural check: all rules use http service with http_header/http_uri sticky buffers, correct Snort 3 comma-separated modifier syntax, unique SIDs in 2100200 range, msg/sid/rev present, flow:established set for TCP rules. DNS rule uses udp port 53 with DNS wire-format label encoding. -->
+<!-- Structural check: all rules use http service with http_host/http_uri sticky buffers (correct Snort 3 syntax), unique SIDs in 2100200 range, msg/sid/rev present, flow:established set for TCP rules. DNS rule uses udp port 53 with DNS wire-format label encoding (|08|sendibt1|03|com|00|). -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - HTTP Request to sendibt1.com Malicious CDN"; flow:established, to_server; http_header; field host; content:"sendibt1.com", nocase, fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - HTTP Request to sendibt1.com Malicious CDN"; flow:established, to_server; http_host; content:"sendibt1.com", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100201; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - Malicious f.js Payload Delivery"; flow:established, to_server; http_header; field host; content:"sendibt1.com", nocase; http_uri; content:"/f.js", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100202; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - Malicious f.js Payload Delivery"; flow:established, to_server; http_host; content:"sendibt1.com"; http_uri; content:"/f.js", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100202; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - WordPress Backdoor Plugin Download (wm.zip)"; flow:established, to_server; http_header; field host; content:"sendibt1.com", nocase; http_uri; content:"/p/wm.zip", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100203; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - WordPress Backdoor Plugin Download (wm.zip)"; flow:established, to_server; http_host; content:"sendibt1.com"; http_uri; content:"/p/wm.zip", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100203; rev:2;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - C2 API Beacon POST to sendibt1.com"; flow:established, to_server; http_method; content:"POST"; http_header; field host; content:"sendibt1.com", nocase; http_uri; content:"/api/v1/", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100204; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - C2 API Beacon POST to sendibt1.com"; flow:established, to_server; http_method; content:"POST"; http_host; content:"sendibt1.com"; http_uri; content:"/api/v1/", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100204; rev:2;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - Brevo Supply Chain - DNS Query to sendibt1.com C2 Domain"; flow:to_server; content:"|09|sendibt1|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100205; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - Brevo Supply Chain - DNS Query to sendibt1.com C2 Domain"; flow:to_server; content:"|08|sendibt1|03|com|00|", fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created 2026-09-18; sid:2100205; rev:2;)
 ```
 **compile**: uncompiled (structural check only) | **confidence: high**
 
 ### YARA Rules
 
-Four rules detecting injected script loader patterns, sendibt1[.]com domain references, C2 API path hashes, and compromised Brevo SDK file signatures. All four compile with `yarac` (exit 0).
+<!-- revision: dropped YARA Rule 4 "Brevo_Supply_Chain_Compromised_SDK_Loader" — overlaps heavily with Rule 1 (Injected_Script_Loader); Rule 4 adds only "sdk-loader"/"brevo-conversations" strings that appear in legitimate clean files, making it weaker. Downgraded Rule 2 severity from high to medium (bare domain match is too broad without corroborating strings). -->
+Three rules detecting injected script loader patterns, sendibt1[.]com domain references, and C2 API path hashes. All three compile with `yarac` (exit 0).
 <!-- Validation: yarac yara-brevo-supply-chain.yar /dev/null -> exit 0. Rules use ascii/wide/nocase modifiers appropriately. filesize constraints prevent scan performance issues. -->
 
 ```yara
@@ -474,7 +409,7 @@ rule Brevo_Supply_Chain_Sendibt1_Domain_Reference
         author = "Actioner"
         date = "2026-09-18"
         reference = "https://sansec.io/research/brevo-supply-chain-attack"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $domain = "sendibt1.com" ascii wide nocase
@@ -504,35 +439,8 @@ rule Brevo_Supply_Chain_ClickFix_C2_API_Paths
         $domain and
         2 of ($api*)
 }
-
-rule Brevo_Supply_Chain_Compromised_SDK_Loader
-{
-    meta:
-        description = "Detects the known-bad SHA256 hashes of compromised Brevo JavaScript files by matching characteristic file content patterns"
-        author = "Actioner"
-        date = "2026-09-18"
-        reference = "https://sansec.io/research/brevo-supply-chain-attack"
-        severity = "critical"
-        hash1 = "58a5c601c9df7ca2120435588fc39f97712d9b878795f6ee500590099a432308"
-        hash2 = "f67d572d2d30407b3f470904326411450763108980cdad89550fbb221fb06782"
-        hash3 = "9b62c12bc5c7feb9802f58e6cf75a368690df3c754e37cc64483a92acacf87a5"
-
-    strings:
-        $brevo_sdk = "sdk-loader" ascii
-        $brevo_conv = "brevo-conversations" ascii
-        $inject = "sendibt1.com" ascii
-        $script_create = "createElement" ascii
-        $async_flag = "s.async" ascii
-
-    condition:
-        filesize < 2MB and
-        ($brevo_sdk or $brevo_conv) and
-        $inject and
-        $script_create and
-        $async_flag
-}
 ```
-**compile**: `yarac` exit 0 | **confidence: high**
+**compile**: `yarac` exit 0 | **confidence: high** (Rule 1), **medium** (Rule 2), **high** (Rule 3)
 
 ## Lessons Learned
 

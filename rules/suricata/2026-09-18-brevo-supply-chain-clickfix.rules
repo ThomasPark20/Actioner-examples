@@ -1,0 +1,7 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - Brevo Supply Chain - DNS Query to sendibt1.com C2 Domain"; flow:to_server; dns.query; content:"sendibt1.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - HTTP Request to sendibt1.com Malicious CDN"; flow:established,to_server; http.host; content:"sendibt1.com"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - WordPress Backdoor Plugin Download (wm.zip)"; flow:established,to_server; http.host; content:"sendibt1.com"; http.uri; content:"/p/wm.zip"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1505.003; sid:2100104; rev:2;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - TLS SNI to sendibt1.com Malicious Domain"; flow:established,to_server; tls.sni; content:"sendibt1.com"; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-18, attack_id T1195.002; sid:2100106; rev:1;)
