@@ -1,0 +1,81 @@
+title: Brevo Supply Chain - Connection to Sendibt1 Malicious Domain
+id: 7c3a1e48-d9f2-4b87-a6e1-8f4d2c5b9a03
+status: experimental
+description: >
+    Detects web proxy connections to cdn*.sendibt1.com domains used in the
+    Brevo supply chain attack to deliver ClickFix scripts and WordPress
+    backdoor plugins. Active September 14, 2026.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026-09-18
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains:
+            - 'sendibt1.com'
+    condition: selection
+falsepositives:
+    - None expected; sendibt1.com is a typosquat of sendinblue and has no legitimate use
+level: critical
+---
+title: Brevo Supply Chain - DNS Query to Sendibt1 C2 Domain
+id: a2e8f147-3c6d-4a9b-b5d8-1e7f0c3a2d94
+status: experimental
+description: >
+    Detects DNS queries to sendibt1.com and its cdn subdomains used in the
+    Brevo supply chain attack for ClickFix script delivery and WordPress
+    plugin backdoor staging. Active September 14, 2026.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026-09-18
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.sendibt1.com'
+            - 'sendibt1.com'
+    condition: selection
+falsepositives:
+    - None expected; sendibt1.com is a typosquat domain registered by the attackers
+level: critical
+---
+title: Brevo Supply Chain - WordPress Backdoor Plugin Installation
+id: e5c9f384-2d7b-4e6a-af81-4b3c2d1e9f57
+status: experimental
+description: >
+    Detects the WordPress plugin upload pattern associated with the Brevo
+    supply chain attack. The injected JavaScript attempted to install a
+    backdoor plugin (wm.zip) via the WordPress admin plugin upload endpoint
+    when an administrator was logged in. This rule broadly detects plugin
+    upload requests; correlate hits with sendibt1.com DNS or proxy indicators
+    to confirm malicious activity.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026-09-18
+tags:
+    - attack.t1195.002
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection_upload:
+        cs-uri-stem|contains: '/wp-admin/update.php'
+        cs-uri-query|contains: 'action=upload-plugin'
+    condition: selection_upload
+falsepositives:
+    - Legitimate WordPress plugin installations via the admin panel will also match; correlate with sendibt1.com DNS/proxy hits
+level: medium
