@@ -1,0 +1,34 @@
+title: DNS Query to Brevo Supply Chain ClickFix Domains
+id: 7c3a1f9e-4b2d-4e8a-b6c5-1d9f3e7a2b4c
+status: experimental
+description: >
+    Detects DNS queries to domains used in the September 2026 Brevo supply chain
+    attack that injected ClickFix malware via compromised Cloudflare Workers.
+    Includes attacker-controlled CDN subdomains and C2 infrastructure.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/19
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.sendibt1.com'
+            - '.glegchner.com'
+            - '.yelahaye.surf'
+            - '.boiseno.club'
+    selection_apex:
+        QueryName:
+            - 'sendibt1.com'
+            - 'glegchner.com'
+            - 'yelahaye.surf'
+            - 'boiseno.club'
+    condition: selection or selection_apex
+falsepositives:
+    - Unlikely - these domains are attacker-controlled infrastructure
+level: high
