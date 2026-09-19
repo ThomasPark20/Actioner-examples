@@ -1,0 +1,27 @@
+title: WordPress Plugin Upload via Brevo Supply Chain Attack
+id: 8d4b2e0f-5c3e-4f9b-a7d6-2e004f8b3c5d
+status: experimental
+description: >
+    Detects WordPress plugin upload requests characteristic of the Brevo supply
+    chain attack, where injected scripts silently installed the malicious Web
+    Media Optimizer plugin on sites with logged-in administrators. Low confidence
+    as a standalone rule — correlate with DNS/HTTP IOC detections for the
+    sendibt1.com infrastructure to raise confidence.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/19
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: webserver
+detection:
+    selection_upload:
+        cs-uri-stem|contains: '/wp-admin/update.php'
+        cs-uri-query|contains: 'action=upload-plugin'
+    condition: selection_upload
+falsepositives:
+    - Legitimate WordPress plugin installations by administrators
+level: low

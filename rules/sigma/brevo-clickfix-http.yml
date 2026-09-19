@@ -1,0 +1,31 @@
+title: HTTP Request to Brevo ClickFix Malware Infrastructure
+id: 9e5c3f1a-6d4f-4a0c-b8e7-3f105a9c4d6e
+status: experimental
+description: >
+    Detects HTTP requests to attacker-controlled infrastructure used in the Brevo
+    supply chain ClickFix attack, including malware loader scripts and WordPress
+    backdoor plugin downloads.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/19
+tags:
+    - attack.t1195.002
+    - attack.t1105
+logsource:
+    category: proxy
+detection:
+    selection_subdomain:
+        cs-host|endswith:
+            - '.sendibt1.com'
+    selection_exact:
+        cs-host:
+            - 'sendibt1.com'
+            - 'glegchner.com'
+            - 'yelahaye.surf'
+            - 'boiseno.club'
+    condition: selection_subdomain or selection_exact
+falsepositives:
+    - Unlikely - these domains are attacker-controlled infrastructure
+level: high
