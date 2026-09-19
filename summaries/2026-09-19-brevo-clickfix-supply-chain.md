@@ -348,15 +348,16 @@ tags:
 logsource:
     category: proxy
 detection:
-    selection_domain:
+    selection_subdomain:
         cs-host|endswith:
             - '.sendibt1.com'
+    selection_exact:
         cs-host:
             - 'sendibt1.com'
             - 'glegchner.com'
             - 'yelahaye.surf'
             - 'boiseno.club'
-    condition: selection_domain
+    condition: selection_subdomain or selection_exact
 falsepositives:
     - Unlikely - these domains are attacker-controlled infrastructure
 level: high
