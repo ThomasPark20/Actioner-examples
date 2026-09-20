@@ -1,0 +1,37 @@
+title: Brevo Supply Chain Attack - Malicious Domain Access
+id: 7a3b1e4f-2c5d-4a8e-9f1b-6d3c7e8a9b0c
+status: experimental
+description: Detects HTTP requests to attacker-controlled CDN subdomains of sendibt1.com and associated C2 infrastructure used in the Brevo supply chain ClickFix attack of September 2026.
+references:
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_sendibt1:
+        c-uri|contains:
+            - 'cdn.sendibt1.com'
+            - 'cdn2.sendibt1.com'
+            - 'cdn3.sendibt1.com'
+            - 'cdn4.sendibt1.com'
+            - 'cdn9.sendibt1.com'
+            - 'cdn10.sendibt1.com'
+            - 'cdn11.sendibt1.com'
+    selection_c2:
+        c-uri|contains:
+            - 'glegchner.com'
+            - 'corralos.beer'
+            - 'yelahaye.surf'
+            - 'boiseno.club'
+    condition: selection_sendibt1 or selection_c2
+# audit: IOC-anchored detection narrowed to attacker-created CDN subdomains (cdn, cdn2-4, cdn9-11) to avoid matching legitimate Brevo email tracking on bare sendibt1.com. C2 domains from BleepingComputer and Sansec.
+# revision: converted HTML comment to YAML; narrowed sendibt1 selection to CDN subdomains only; replaced T1059.007+T1204.001 with T1071.001 (web protocols C2).
+falsepositives:
+    - Unlikely - these CDN subdomains were created by the attacker
+level: high

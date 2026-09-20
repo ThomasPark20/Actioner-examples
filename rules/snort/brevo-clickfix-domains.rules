@@ -1,0 +1,17 @@
+# Snort rules for Brevo Supply Chain Attack - Malicious Domain Detection
+# References: https://sansec.io/research/brevo-supply-chain-attack
+#             https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - sendibt1.com CDN subdomains"; flow:established,to_server; content:"cdn"; http_header; content:"sendibt1.com"; http_header; classtype:trojan-activity; sid:1000001; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - glegchner.com C2 domain"; flow:established,to_server; content:"glegchner.com"; http_header; classtype:trojan-activity; sid:1000002; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - corralos.beer ClickFix domain"; flow:established,to_server; content:"corralos.beer"; http_header; classtype:trojan-activity; sid:1000003; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - yelahaye.surf malware distribution"; flow:established,to_server; content:"yelahaye.surf"; http_header; classtype:trojan-activity; sid:1000004; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - boiseno.club malware distribution"; flow:established,to_server; content:"boiseno.club"; http_header; classtype:trojan-activity; sid:1000005; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - f.js malicious loader request"; flow:established,to_server; content:"sendibt1.com"; http_header; content:"/f.js"; http_uri; classtype:trojan-activity; sid:1000006; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - wm.zip backdoor plugin download"; flow:established,to_server; content:"sendibt1.com"; http_header; content:"/p/wm.zip"; http_uri; classtype:trojan-activity; sid:1000007; rev:1;)

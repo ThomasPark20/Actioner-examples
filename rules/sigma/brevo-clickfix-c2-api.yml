@@ -1,0 +1,33 @@
+title: Brevo Supply Chain Attack - C2 API Endpoint Access
+id: 9c5d3a6b-4e7f-4c0a-b13d-8f5e9a0b2c3e
+status: experimental
+description: Detects HTTP requests to C2 API endpoints used by the Brevo supply chain ClickFix malware for fingerprinting, proof-of-work tokens, and clipboard command delivery.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains:
+            - 'sendibt1.com'
+    selection_api:
+        c-uri|contains:
+            - '/api/v1/0044d4a'
+            - '/api/v1/e08a3c4'
+            - '/api/v1/8e4c615'
+            - '/api/v1/f659473'
+            - '/api/v1/4aff112'
+            - '/api/v1/b832c14'
+            - '/api/v1/4ead0ff'
+    condition: selection_domain and selection_api
+# audit: Specific API paths from Sansec technical analysis; high confidence when combined with domain. Domain+path AND logic prevents FP.
+# revision: converted HTML comment to YAML comment.
+falsepositives:
+    - Unlikely
+level: high

