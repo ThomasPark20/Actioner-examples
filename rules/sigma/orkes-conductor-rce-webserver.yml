@@ -1,0 +1,36 @@
+title: Orkes Conductor Workflow API RCE Attempt in Web Server Logs (CVE-2026-58138)
+id: b2e5f8a1-6c4d-43b7-9e1a-3d2c7f5b8a4e
+status: experimental
+description: >
+  Detects POST requests to Conductor workflow API endpoints containing
+  Java reflection keywords in web server access or application logs,
+  indicating attempted exploitation of CVE-2026-58138.
+references:
+  - https://thehackernews.com/2026/09/critical-pre-auth-rce-in-orkes.html
+  - https://nvd.nist.gov/vuln/detail/CVE-2026-58138
+  - https://opentaint.org/blog/conductor-rce-cve-2026-58138/
+author: Actioner
+date: 2026/09/20
+tags:
+  - attack.t1190
+  - attack.t1059
+logsource:
+  category: webserver
+detection:
+  selection_uri:
+    cs-uri-stem|contains:
+      - '/api/workflow'
+      - '/api/metadata/workflow'
+  selection_body:
+    cs-body|contains:
+      - 'java.lang.Runtime'
+      - 'getRuntime'
+      - 'ProcessBuilder'
+      - 'forName'
+      - 'HostAccess'
+  condition: selection_uri and selection_body
+falsepositives:
+  - Legitimate debug or diagnostic workflow definitions
+level: high
+# audit: Requires web server logs with request body logging enabled (not default). Covers both direct API access and reverse-proxied deployments.
+# revision: changed cs-uri-query to cs-uri-stem (URI path is a stem, not a query parameter). Converted HTML comment to YAML comment.

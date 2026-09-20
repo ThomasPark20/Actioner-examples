@@ -1,0 +1,43 @@
+title: Orkes Conductor Malicious Workflow Submission via API (CVE-2026-58138)
+id: 7a3e8b1c-4d2f-4a9e-b5c6-1f8d7e3a9b2c
+status: experimental
+description: >
+  Detects HTTP POST requests to Orkes Conductor workflow API endpoints
+  (/api/workflow or /api/metadata/workflow) containing INLINE task types
+  with suspicious evaluator expressions, indicative of CVE-2026-58138
+  unauthenticated RCE exploitation via GraalVM evaluator abuse.
+references:
+  - https://thehackernews.com/2026/09/critical-pre-auth-rce-in-orkes.html
+  - https://nvd.nist.gov/vuln/detail/CVE-2026-58138
+  - https://opentaint.org/blog/conductor-rce-cve-2026-58138/
+author: Actioner
+date: 2026/09/20
+tags:
+  - attack.t1190
+  - attack.t1059
+logsource:
+  category: proxy
+  product: null
+detection:
+  selection_uri:
+    c-uri|contains:
+      - '/api/workflow'
+      - '/api/metadata/workflow'
+  selection_method:
+    cs-method: 'POST'
+  selection_payload:
+    cs-body|contains:
+      - 'INLINE'
+  selection_keywords:
+    cs-body|contains:
+      - 'getRuntime'
+      - 'ProcessBuilder'
+      - 'forName'
+      - 'getClass'
+      - 'java.lang.Runtime'
+  condition: selection_uri and selection_method and selection_payload and selection_keywords
+falsepositives:
+  - Legitimate workflow definitions that reference Java class names in documentation strings
+level: high
+# audit: PoC-specific. Requires proxy/WAF logs with request body inspection. Patterns drawn from OpenTaint and Empirical Security technical write-ups of the GraalVM reflection chain.
+# revision: removed c-uri|contains INLINE from selection_payload (INLINE appears in body, not URI). Converted HTML comment to YAML comment.
