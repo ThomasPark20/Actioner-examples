@@ -1,9 +1,11 @@
 # Technical Analysis Report: WeaselBiscuit npm Supply-Chain Attack (2026-09-20)
 
+<!-- revision: v1.1 — applied critic NEEDS-REVISION verdict: dropped Sigma npoint_c2 rule (npoint.io FP), dropped Suricata SID 2026091808 (same), scoped SID 2026091801 to C2 IP, capped chrome_ext_access level to medium, fixed T1056.004→T1056.001, fixed remediation guidance on Npoint and .pid files, fixed Snort claim, removed all HTML audit comments from YAML, converted to YAML # audit comments, documented telemetry requirements -->
+
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-20
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -160,7 +162,7 @@ All packages should be considered malicious and removed immediately if found in 
 | T1005 | Data from Local System | Harvests Chrome extension LevelDB storage files |
 | T1217 | Browser Information Discovery | Enumerates Chrome extension Local Extension Settings directories |
 | T1115 | Clipboard Data | Clipboard monitoring and exfiltration (Windows) |
-| T1056.004 | Input Capture: Credential API Hooking | PowerShell-based keystroke logging (Windows) |
+| T1056.001 | Input Capture: Keylogging | PowerShell-based keystroke logging (Windows) |
 | T1041 | Exfiltration Over C2 Channel | All stolen data exfiltrated via HTTP to C2 server |
 | T1082 | System Information Discovery | Collects hostname, OS, CPU, memory, network interfaces |
 | T1016 | System Network Configuration Discovery | Harvests local interface IPs and MAC addresses |
@@ -173,85 +175,79 @@ All packages should be considered malicious and removed immediately if found in 
 1. **Audit `package.json` and lockfiles** for any of the 17 malicious package names listed above.
 2. **Search `node_modules`** directories for `@biz44/`, `@railone/`, `@vibecheck-polid/` scopes and the standalone packages.
 3. **Block C2 IP** `103[.]170[.]217[.]184` at perimeter firewalls.
-4. **Block Npoint URLs** or monitor for the specific dead-drop path identifiers listed above.
-5. **Search for `.pid` files** in npm package directories that should not contain them.
+4. **Block or monitor the specific Npoint dead-drop paths listed** in the IOC section; blocking all npoint.io may disrupt legitimate development.
+5. **Search for `.pid` files** in the 17 named malicious package directories specifically.
 6. **Check `%TEMP%\kb-monitor\`** on Windows systems for PowerShell keystroke monitor scripts.
 
 ### Longer-Term Measures
 
 - Implement npm package allowlisting or use Socket.dev / Snyk to detect malicious packages before installation.
 - Monitor for `node.exe`/`node` processes accessing Chrome extension storage directories.
-- Enable DNS logging and alert on Node.js processes resolving `api[.]npoint[.]io`.
+- Enable DNS logging and alert on Node.js processes resolving `api[.]npoint[.]io` in conjunction with other WeaselBiscuit indicators (Npoint alone is insufficient for detection due to legitimate use).
 - Rotate any credentials or tokens stored in Chrome extensions on affected systems, particularly cryptocurrency wallet extensions.
 
 ## Detection Rules
 
-### Sigma Rules
+### Sigma Rules (2 rules)
 
 #### 1. WeaselBiscuit Malicious npm Package Installation
-<!-- audit: advisory-specific rule keyed on exact malicious package names; high confidence for direct package installs -->
 
-Detects npm install commands targeting known WeaselBiscuit malicious packages.
+Detects npm install commands targeting known WeaselBiscuit malicious packages. Windows-only (process_creation); requires command-line logging (Sysmon EventID 1 or equivalent).
 
-- **File:** `/tmp/actioner/weaselbiscuit_npm_install.yml`
+- **File:** `rules/sigma/2026-09-20-weaselbiscuit-npm-supply-chain.yml` (rule 1)
 - **Compile status:** Compiled (sigma convert to Splunk and LogScale exit 0)
 - **Confidence:** High — advisory-specific package names with no legitimate use
 
 #### 2. WeaselBiscuit Chrome Extension Storage Access by Node.js
-<!-- audit: TTP/behavioral rule — node accessing Chrome extension LevelDB is suspicious but not unique to WeaselBiscuit; medium confidence -->
 
-Detects Node.js processes accessing Chrome Local Extension Settings directories.
+Detects Node.js processes accessing Chrome Local Extension Settings directories. Requires Sysmon file access auditing (EventID 11) or equivalent EDR telemetry.
 
-- **File:** `/tmp/actioner/weaselbiscuit_chrome_ext_access.yml`
-- **Compile status:** Compiled (sigma convert to Splunk exit 0)
+- **File:** `rules/sigma/2026-09-20-weaselbiscuit-npm-supply-chain.yml` (rule 2)
+- **Compile status:** Compiled (sigma convert to Splunk and LogScale exit 0)
 - **Confidence:** Medium — behavioral pattern also possible from legitimate browser extension development tools
 
-#### 3. WeaselBiscuit Npoint Dead-Drop Resolver Communication
-<!-- audit: TTP/behavioral — npoint.io is a legitimate service used by many developers; low-medium confidence without additional context -->
+#### Dropped: WeaselBiscuit Npoint Dead-Drop Resolver Communication
 
-Detects Node.js DNS queries to api.npoint.io used as dead-drop resolver.
+This rule was removed during review. Npoint.io is a legitimate, widely-used JSON storage service; alerting on DNS queries to it produces unacceptable false positives in any environment with active JavaScript developers.
 
-- **File:** `/tmp/actioner/weaselbiscuit_npoint_c2.yml`
-- **Compile status:** Compiled (sigma convert to Splunk exit 0)
-- **Confidence:** Low — npoint.io is a legitimate service; requires correlation with other indicators
+### YARA Rules (2 rules)
 
-### YARA Rules
-
-#### 4. WeaselBiscuit_JS_Stealer
-<!-- audit: targets C2 API endpoint strings, Npoint URLs, and stealer function patterns; high confidence when C2 IP or specific Npoint paths match -->
+#### 3. WeaselBiscuit_JS_Stealer
 
 Detects WeaselBiscuit JavaScript stealer payload by C2 API endpoint strings, Npoint dead-drop identifiers, and Chrome extension targeting patterns.
 
-- **File:** `/tmp/actioner/weaselbiscuit_stealer.yar`
+- **File:** `rules/yara/2026-09-20-weaselbiscuit-npm-supply-chain.yar`
 - **Compile status:** Compiled (yarac exit 0)
 - **Confidence:** High — combines advisory-specific C2 endpoints and Npoint path identifiers
 
-#### 5. WeaselBiscuit_Loader
-<!-- audit: targets the npm package loader component's code patterns; medium confidence due to generic string overlap with legitimate Node.js patterns -->
+#### 4. WeaselBiscuit_Loader
 
 Detects the WeaselBiscuit loader component by its Npoint retrieval, dynamic execution, and detached process patterns.
 
-- **File:** `/tmp/actioner/weaselbiscuit_stealer.yar` (second rule)
+- **File:** `rules/yara/2026-09-20-weaselbiscuit-npm-supply-chain.yar` (second rule)
 - **Compile status:** Compiled (yarac exit 0)
 - **Confidence:** Medium — some strings individually common in Node.js; condition requires convergence
 
-### Suricata Rules
+### Suricata Rules (7 rules)
 
-#### 6-13. WeaselBiscuit C2 Communication Rules (8 rules)
-<!-- audit: HTTP URI content matches on specific C2 API paths and known C2 IP; high confidence for endpoint-specific rules, medium for Npoint DNS -->
+#### 5-11. WeaselBiscuit C2 Communication Rules (SIDs 2026091801-2026091807)
 
-Eight Suricata rules detecting WeaselBiscuit C2 API endpoint communications, known C2 IP traffic, and Npoint dead-drop DNS resolution.
+Seven Suricata rules detecting WeaselBiscuit C2 API endpoint communications and known C2 IP traffic. SID 2026091801 (`/api/system-info`) is scoped to the known C2 IP `103[.]170[.]217[.]184` to prevent false positives on the generic URI path.
 
-- **File:** `/tmp/actioner/weaselbiscuit_c2.rules`
+- **File:** `rules/suricata/2026-09-20-weaselbiscuit-npm-supply-chain.rules`
 - **Compile status:** Compiled (suricata -T exit 0)
-- **Confidence:** High (SIDs 2026091801-2026091807 — specific C2 API paths and known IP); Low (SID 2026091808 — generic Npoint DNS, legitimate service)
+- **Confidence:** High — specific C2 API paths and/or known C2 IP
+
+#### Dropped: SID 2026091808 — Npoint Dead-Drop DNS Lookup
+
+This rule was removed during review. Alerting on `api.npoint.io` DNS queries produces unacceptable false positives; npoint.io is a legitimate developer service.
 
 ### Snort Rules
 
-The same rule file was tested with Snort but validation failed due to a Snort environment pidfile configuration issue unrelated to rule syntax. The rules use Suricata-compatible syntax.
+The same Suricata rule file is provided for Snort environments. Snort environment error prevented validation; rule syntax not independently verified for Snort compatibility.
 
-- **File:** `/tmp/actioner/weaselbiscuit_c2.rules`
-- **Compile status:** Uncompiled (Snort environment error, not rule syntax)
+- **File:** `rules/snort/2026-09-20-weaselbiscuit-npm-supply-chain.rules`
+- **Compile status:** Not validated (Snort environment error; syntax not independently verified)
 
 ## Sources
 

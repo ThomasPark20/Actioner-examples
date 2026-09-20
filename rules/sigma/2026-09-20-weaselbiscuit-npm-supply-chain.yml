@@ -1,0 +1,83 @@
+title: WeaselBiscuit Malicious npm Package Installation
+id: 8c3e7a1d-4b2f-4e9a-b6c1-3d5f8a2e7b90
+# audit: advisory-specific rule keyed on exact malicious package names; high-confidence for direct package installs. Windows-only (process_creation/windows).
+status: experimental
+description: >
+  Detects npm install of packages associated with the WeaselBiscuit supply-chain campaign
+  that delivers a JavaScript stealer targeting Chrome extension storage.
+references:
+  - https://thehackernews.com/2026/09/weaselbiscuit-stealer-spreads-via-13.html
+  - https://opensourcemalware.com/blog/introducing-weaselbiscuit
+  - https://github.com/OpenSourceMalware/WeaselBiscuit
+author: Actioner
+date: 2026/09/20
+tags:
+  - attack.t1195.002
+  - attack.t1059.007
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_npm:
+    Image|endswith:
+      - '\npm.cmd'
+      - '\npm.exe'
+    CommandLine|contains:
+      - 'install'
+      - 'i '
+      - 'add'
+  selection_packages:
+    CommandLine|contains:
+      - '@biz44/id10-client'
+      - '@biz44/id12-client'
+      - '@biz44/id44-client'
+      - '@biz44/id79-client'
+      - '@biz44/id95-client'
+      - '@biz44/id99-client'
+      - '@biz44/process-runtime-utils'
+      - '@biz44/runtime-utils'
+      - '@railone/image-utils'
+      - '@vibecheck-polid/process-runtime-utils'
+      - 'engin1'
+      - 'id79-client'
+      - 'process-lhpm'
+      - 'process-mite'
+      - 'process-tailwind'
+      - 'swnwall'
+      - 'laycot'
+  condition: selection_npm and selection_packages
+falsepositives:
+  - Unlikely; these are known-malicious packages with no legitimate use
+level: critical
+---
+title: WeaselBiscuit Chrome Extension Storage Access by Node.js
+id: 2f7d9e4a-6c31-48b5-a0e2-9d8f3b5c1a47
+# audit: TTP/behavioral rule — node accessing Chrome extension LevelDB is suspicious but not unique to WeaselBiscuit; medium confidence.
+# audit: Requires Sysmon (EventID 11 or file access auditing) or equivalent EDR telemetry with file_access logging on Windows.
+status: experimental
+description: >
+  Detects Node.js processes accessing Chrome Local Extension Settings LevelDB
+  directories, a behavior associated with the WeaselBiscuit stealer that harvests
+  extension storage data across Windows, macOS, and Linux.
+references:
+  - https://thehackernews.com/2026/09/weaselbiscuit-stealer-spreads-via-13.html
+  - https://opensourcemalware.com/blog/introducing-weaselbiscuit
+author: Actioner
+date: 2026/09/20
+tags:
+  - attack.t1005
+  - attack.t1217
+logsource:
+  category: file_access
+  product: windows
+detection:
+  selection_process:
+    Image|endswith:
+      - '\node.exe'
+      - '\node'
+  selection_path:
+    TargetFilename|contains: '\Local Extension Settings\'
+  condition: selection_process and selection_path
+falsepositives:
+  - Legitimate browser extension development tools or testing frameworks that read LevelDB stores
+level: medium

@@ -1,0 +1,17 @@
+# WeaselBiscuit C2 Communication Rules
+# SID 2026091801 scoped to known C2 IP to reduce FP on generic /api/system-info path
+# SID 2026091808 (Npoint DNS) dropped — npoint.io is legitimate; fires on developer activity
+
+alert http $HOME_NET any -> [103.170.217.184] any (msg:"MALWARE WeaselBiscuit C2 Beacon - System Info Upload"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/system-info"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091801; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE WeaselBiscuit C2 - Chrome Extension Storage Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/upload-local-extension-settings"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091802; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE WeaselBiscuit C2 - Clipboard Data Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/clipboard-data"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091803; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE WeaselBiscuit C2 - Keystroke Data Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/keyboard-mouse-data"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091804; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE WeaselBiscuit C2 - Clipboard Monitoring Check"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/api/clipboard-status/"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091805; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE WeaselBiscuit C2 - Keylogger Monitoring Check"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/api/keyboard-mouse-status/"; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091806; rev:1;)
+
+alert http $HOME_NET any -> [103.170.217.184] any (msg:"MALWARE WeaselBiscuit Known C2 Server Communication"; flow:established,to_server; reference:url,opensourcemalware.com/blog/introducing-weaselbiscuit; classtype:trojan-activity; sid:2026091807; rev:1;)
