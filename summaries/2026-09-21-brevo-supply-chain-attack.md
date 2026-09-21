@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-21
-Version: DRAFT
+Version: FINAL
+<!-- revision: applied critic verdict NEEDS-REVISION; see per-section revision comments -->
 
 ## Executive Summary
 
@@ -24,14 +25,14 @@ Brevo is a major email marketing and CRM platform serving hundreds of thousands 
 | 2026-09-14 16:04:23 | Last clean `sdk-loader.js` observed |
 | 2026-09-14 16:05:18 | Malware injection began via Cloudflare Worker deployment |
 | 2026-09-14 20:12:53 | Malware injection ceased |
-| 2026-09-15 | All malicious `cdn*.sendibt1.com` hosts stopped resolving (NXDOMAIN) |
+| 2026-09-15 | All malicious `cdn*[.]sendibt1[.]com` hosts stopped resolving (NXDOMAIN) |
 | 2026-09-15 11:41 | Maltrail added `cdn9`, `cdn10`, `cdn11` to blocklist |
 | 2026-09-15 17:45 | Final CSP violation report from cached copy |
 | 2026-09-16 | Sansec published technical analysis |
 
 ## Root Cause: Cloudflare Account Compromise via Hardcoded API Key
 
-The attacker gained access to Brevo's Cloudflare account through a long-lived API key that was hardcoded in Brevo's source code. This single key provided DNS write access and content rewriting capability across five Brevo apex domains. Evidence includes: (1) all five domains used a single Cloudflare DNS account, (2) the modified assets at `cdn.brevo.com` continued serving the same `Last-Modified` headers before, during, and after the incident — consistent with Cloudflare Worker content rewriting rather than origin file modification, and (3) the attacker registered `sendibt1.com` through the same Cloudflare account, with only attacker-created `cdn*` subdomains being Cloudflare-proxied while the apex resolved to a non-Cloudflare IP (`172.246.243.65`, AS200484).
+The attacker gained access to Brevo's Cloudflare account through a long-lived API key that was hardcoded in Brevo's source code. This single key provided DNS write access and content rewriting capability across five Brevo apex domains. Evidence includes: (1) all five domains used a single Cloudflare DNS account, (2) the modified assets at `cdn.brevo.com` continued serving the same `Last-Modified` headers before, during, and after the incident — consistent with Cloudflare Worker content rewriting rather than origin file modification, and (3) the attacker registered `sendibt1.com` through the same Cloudflare account, with only attacker-created `cdn*` subdomains being Cloudflare-proxied while the apex resolved to a non-Cloudflare IP (`172.246.243[.]65`, AS200484).
 
 ## Technical Analysis of the Malicious Payload
 
@@ -145,7 +146,7 @@ The C2 used a cloaking mechanism returning a specific response (SHA256: `4af488d
 
 ### Behavioral
 
-- JavaScript dynamically creates `<script>` elements loading from `cdn*.sendibt1.com` subdomains
+- JavaScript dynamically creates `<script>` elements loading from `cdn*[.]sendibt1[.]com` subdomains
 - WordPress plugin upload and activation via POST to `/wp-admin/update.php?action=upload-plugin` followed by GET to `/wp-admin/plugins.php?action=activate` — without user interaction
 - Self-location detection via `script[src*="file.js"]` and `script[data-c]` CSS selectors
 - Proof-of-work challenge/response pattern via sequential API calls to `/api/v1/` endpoints
@@ -161,7 +162,8 @@ The C2 used a cloaking mechanism returning a specific response (SHA256: `4af488d
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication via HTTPS API endpoints on sendibt1.com subdomains |
 | T1105 | Ingress Tool Transfer | Backdoor WordPress plugin (wm.zip) downloaded from cdn10[.]sendibt1[.]com |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Plugin named "Web Media Optimizer" to appear legitimate |
-| T1564.001 | Hide Artifacts: Hidden Files and Directories | WordPress plugin hid itself from the admin plugins listing |
+<!-- revision: T1564.001 → T1564; WP plugin hides via application UI cloaking, not OS-level hidden files -->
+| T1564 | Hide Artifacts | WordPress plugin hid itself from the admin plugins listing via application-level UI cloaking |
 | T1115 | Clipboard Data | ClickFix overlay manipulated clipboard to deliver malicious commands |
 | T1204.001 | User Execution: Malicious Link | Social engineering overlay tricked users into pasting and executing commands |
 | T1592.004 | Gather Victim Host Information: Client Configurations | Fingerprinting via POST to C2 API endpoints |
@@ -217,7 +219,7 @@ status: experimental
 description: >
     Detects HTTP requests to sendibt1.com subdomains used as C2 infrastructure
     in the Brevo supply chain attack (Sep 2026). The attacker deployed a
-    Cloudflare Worker injecting scripts from cdn*.sendibt1.com into customer
+    Cloudflare Worker injecting scripts from cdn*[.]sendibt1[.]com into customer
     websites, serving a WordPress backdoor and ClickFix social engineering overlay.
 references:
     - https://sansec.io/research/brevo-supply-chain-attack
@@ -271,41 +273,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: WordPress Plugin Upload via Brevo Supply Chain Injection
-
-Detects WordPress plugin upload with `sendibt1.com` referer, matching the automated backdoor installation pattern.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by MITRE data fetch 403; splunk convert exit 0; log_scale convert exit 0. Requires webserver logs with referer field. The sendibt1.com referer anchor makes this high-confidence. -->
-```yaml
-title: WordPress Plugin Upload via Brevo Supply Chain Injection
-id: a8d4f2e1-6b3c-4a9e-8d7f-1c5e0b2a3d6f
-status: experimental
-description: >
-    Detects WordPress plugin upload requests with a referer containing
-    sendibt1.com, consistent with the Brevo supply chain attack where
-    injected JavaScript automatically installed a backdoor plugin on
-    sites where the visitor had WordPress administrator privileges.
-references:
-    - https://sansec.io/research/brevo-supply-chain-attack
-    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
-author: Actioner
-date: 2026/09/21
-tags:
-    - attack.t1195.002
-    - attack.t1059.007
-logsource:
-    category: webserver
-detection:
-    selection:
-        cs-method: 'POST'
-        cs-uri-stem|contains: '/wp-admin/update.php'
-        cs-uri-query|contains: 'action=upload-plugin'
-        cs-referer|contains: 'sendibt1.com'
-    condition: selection
-falsepositives:
-    - Legitimate WordPress plugin installation from admin UI will not have sendibt1.com in the referer
-level: critical
-```
+<!-- revision: DROPPED "Sigma: WordPress Plugin Upload via Brevo Supply Chain Injection" — the cs-referer|contains:'sendibt1.com' condition is incorrect (injected JS executes in the victim page context, so the Referer is the victim site URL, not sendibt1.com); removing the referer makes the rule too broad (any WP plugin upload). Network-level detection of the wm.zip download is covered by Snort sid:2100103 and Suricata sid:2200105. -->
 
 ### Snort: HTTP C2 Request to sendibt1.com API Path
 
@@ -354,8 +322,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Download of 
 ### YARA: Brevo Supply Chain Injected JavaScript Detection
 
 Detects JavaScript files containing `sendibt1.com` domain references combined with injection patterns or C2 paths characteristic of the Brevo supply chain attack payloads.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test (cdn2.sendibt1.com + createElement) fired both rules; negative test (clean brevo cdn URL) silent. Condition requires domain + injection/C2 pattern co-occurrence for the first rule; the second rule is a broad domain-only sweep. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- revision: removed "sample: fired ✓" — test used a fabricated file, not a real captured artifact -->
+<!-- audit: yarac exit 0. Condition requires domain + injection/C2 pattern co-occurrence. -->
 ```yara
 rule Supply_Chain_Brevo_Injected_JS
 {
@@ -401,25 +370,9 @@ rule Supply_Chain_Brevo_Injected_JS
         )
 }
 
-rule Supply_Chain_Brevo_Sendibt1_Reference
-{
-    meta:
-        description = "Detects files referencing the attacker-controlled sendibt1.com domain used in the Brevo supply chain attack"
-        author = "Actioner"
-        date = "2026-09-21"
-        reference = "https://sansec.io/research/brevo-supply-chain-attack"
-        hash1 = "58a5c601c9df7ca2120435588fc39f97712d9b878795f6ee500590099a432308"
-        hash2 = "f67d572d2d30407b3f470904326411450763108980cdad89550fbb221fb06782"
-        hash3 = "9b62c12bc5c7feb9802f58e6cf75a368690df3c754e37cc64483a92acacf87a5"
-        hash4 = "4af488d79aef7daa12b1c18f0cce28b7edadccb8b6b0fb8d50d1d53a9a7c2df7"
-        severity = "high"
-
-    strings:
-        $sendibt1 = "sendibt1.com" ascii wide nocase
-
-    condition:
-        filesize < 5MB and $sendibt1
-}
+/* revision: DROPPED "Supply_Chain_Brevo_Sendibt1_Reference" — single-string domain-only rule
+   fires on threat intel reports, blog posts, and IOC feeds; pure noise. The
+   Supply_Chain_Brevo_Injected_JS rule above covers actual malicious files. */
 ```
 
 ## Lessons Learned
