@@ -1,0 +1,24 @@
+title: PoisonedRefresh - Apache Worker Reading /proc/self/maps
+id: 8a3c7e1d-4f2b-4d9a-b6e8-1c5a0f3d7e2b
+status: experimental
+description: Detects Apache httpd worker processes reading /proc/self/maps, a behavior observed in PoisonedRefresh rootkit memory injection targeting F5 BIG-IP APM servers. The rootkit parses this file to locate libphp memory ranges before patching relocations.
+references:
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1055
+    - attack.t1106
+logsource:
+    product: linux
+    category: file_access
+detection:
+    selection:
+        Image|endswith: '/httpd'
+        FileName: '/proc/self/maps'
+    condition: selection
+falsepositives:
+    - Legitimate Apache debugging or performance monitoring tools
+    - Custom Apache modules that inspect process memory maps
+level: high

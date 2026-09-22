@@ -1,0 +1,31 @@
+title: Cloudflared Service Installation - N-central Post-Exploitation Persistence
+id: b3e8d2a1-7c4f-4b9e-a5d6-1e0f2c3d4a5b
+status: experimental
+description: >
+    Detects installation of a Windows service named Cloudflared with the specific
+    Cloudflare tunnel account tag observed in post-exploitation activity following
+    CVE-2026-86218 N-central compromise. Attackers deploy Cloudflare tunnel binaries
+    as persistent Windows services to maintain outbound-only encrypted C2 channels
+    that survive reboots and bypass inbound firewall rules.
+references:
+    - https://www.huntress.com/blog/n-able-vulnerability-exploitation
+    - https://thehackernews.com/2026/09/n-able-n-central-pre-auth-rce-flaw.html
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1543.003
+    - cve.2026.86218
+logsource:
+    product: windows
+    service: system
+detection:
+    selection_service:
+        EventID: 7045
+        ServiceName|contains: 'Cloudflared'
+    selection_tag:
+        EventID: 7045
+        ImagePath|contains: '5568cd69c754b392121f1dbb8f900fda'
+    condition: selection_service or selection_tag
+falsepositives:
+    - Legitimate Cloudflare Tunnel deployments using this specific account tag (unlikely)
+level: medium

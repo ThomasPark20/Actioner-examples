@@ -1,0 +1,29 @@
+title: Cisco FMC CVE-2026-20079 Post-Exploitation - OmniQuery Credential Extraction
+id: 9b4d2f8e-6a3c-41e7-b5d9-c0e1f7a2d8b3
+status: experimental
+description: >
+    Detects abuse of the legitimate OmniQuery.pl utility on Cisco FMC to extract
+    user credentials from the internal mdb database. This command was observed in
+    UAT-12197 cluster activity following CVE-2026-20079 exploitation as documented
+    by Cisco Talos.
+references:
+    - https://blog.talosintelligence.com/fmc-ongoing-exploitation/
+author: Actioner
+date: 2026/09/11
+tags:
+    - attack.t1555
+    - attack.t1059.004
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_omniquery:
+        CommandLine|contains|all:
+            - 'OmniQuery.pl'
+            - 'SELECT'
+            - 'auth_data'
+            - 'users'
+    condition: selection_omniquery
+falsepositives:
+    - Authorized FMC database administration querying the users table (rare in normal operations)
+level: critical
