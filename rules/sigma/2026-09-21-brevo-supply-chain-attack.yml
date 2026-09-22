@@ -1,0 +1,51 @@
+title: HTTP Request to Brevo Supply Chain C2 Domain sendibt1.com
+id: 3c7e8a4b-f1d2-4e5a-9b6c-2d8f0a1e3c7b
+status: experimental
+description: >
+    Detects HTTP requests to sendibt1.com subdomains used as C2 infrastructure
+    in the Brevo supply chain attack (Sep 2026). The attacker deployed a
+    Cloudflare Worker injecting scripts from cdn*[.]sendibt1[.]com into customer
+    websites, serving a WordPress backdoor and ClickFix social engineering overlay.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/21
+tags:
+    - attack.t1195.002
+    - attack.t1189
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-host|endswith: '.sendibt1.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of sendibt1.com is unlikely; domain was registered by the attacker
+level: high
+---
+title: DNS Query to Brevo Supply Chain C2 Domain sendibt1.com
+id: b5e6c7d8-2a3f-4b1e-9c8d-3f7a0e1b4d5c
+status: experimental
+description: >
+    Detects DNS resolution attempts for sendibt1.com subdomains used as
+    C2 infrastructure in the Brevo supply chain attack. The attacker used
+    cdn, cdn2-cdn4, cdn9-cdn11 subdomains for script delivery, plugin
+    download, and C2 beacon communication.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.securityweek.com/brevo-supply-chain-attack-injects-malware-into-100000-websites/
+author: Actioner
+date: 2026/09/21
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: '.sendibt1.com'
+    condition: selection
+falsepositives:
+    - None expected; sendibt1.com was attacker-controlled infrastructure
+level: high

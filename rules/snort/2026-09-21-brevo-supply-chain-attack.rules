@@ -1,0 +1,5 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Brevo Supply Chain C2 HTTP Request to sendibt1.com API Path"; flow:established,to_server; content:"/api/v1/"; http_uri; content:"sendibt1.com"; http_header; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; sid:2100101; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Brevo Supply Chain Malicious JS Loader f.js Download"; flow:established,to_server; content:"/f.js"; http_uri; content:"sendibt1.com"; http_header; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; sid:2100102; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Brevo Supply Chain WordPress Backdoor Plugin Download wm.zip"; flow:established,to_server; content:"/p/wm.zip"; http_uri; content:"sendibt1.com"; http_header; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; sid:2100103; rev:1;)
