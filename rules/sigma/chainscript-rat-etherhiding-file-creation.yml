@@ -1,0 +1,30 @@
+title: ChainScript RAT - Characteristic File Artifacts Created
+id: ce5b7a6c-9cbf-8ed1-fcab-5d6c7a8e9fab
+status: experimental
+description: Detects creation of distinctive ChainScript RAT file artifacts including the dot-prefixed VBScript launcher, scatter installer, XOR-encoded configuration, or persistence helper scripts in Microsoft-themed directories.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://github.com/Justice-Hammer/threat-hunting-detections/blob/main/30-research/RES-0007%20-%20ComponentTask33%20MSI%20Loader%20with%20On-Chain%20C2%20Discovery.md
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.defense_evasion
+    - attack.t1564.001
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_filenames:
+        TargetFilename|endswith:
+            - '\._agent.vbs'
+            - '\._scatter.ps1'
+            - '\HiddenVirtualSilentLoader.dat'
+            - '\StreamServiceSharedBridge.ps1'
+            - '\ManagerPrivateLoader.cmd'
+            - '\connect-delay-state.json'
+            - '\WorkerLocalSnap.vbs'
+    condition: selection_filenames
+falsepositives:
+    - Unlikely in legitimate environments
+level: high

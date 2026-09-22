@@ -1,0 +1,30 @@
+title: ChainScript RAT - Node.js Runtime in Scattered Microsoft Directories
+id: df6c8b7d-adca-9fe2-adbc-6e7d8b9faabc
+status: experimental
+description: Detects node.exe execution from Microsoft-themed user profile directories where ChainScript RAT scatters its Node.js runtime to evade detection.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://securityaffairs.com/199471/malware/chainscript-the-rat-that-hides-its-command-server-inside-a-blockchain-contract.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.defense_evasion
+    - attack.t1036.005
+    - attack.execution
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\node.exe'
+    selection_paths:
+        Image|contains:
+            - '\Microsoft\Windows\Libraries\'
+            - '\Microsoft\Windows\Themes\'
+            - '\Microsoft\Windows\INetCache\'
+            - '\Microsoft\Windows\Shell\'
+    condition: selection and selection_paths
+falsepositives:
+    - Very unlikely; node.exe should not run from these OS cache/theme directories
+level: high

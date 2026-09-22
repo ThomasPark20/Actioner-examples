@@ -1,0 +1,30 @@
+title: Chrome App-Bound Encryption Bypass via Elevation Service
+id: f11abd63-87d8-4486-a886-e2d61a9bac32
+status: experimental
+description: Detects suspicious non-browser process accessing Chrome Elevation Service for DecryptData, a technique used by multiple infostealers (Rapuncel, Lumma, Vidar) to bypass app-bound encryption and harvest browser credentials.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.credential_access
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: 'elevation_service'
+    filter_chrome:
+        Image|contains:
+            - '\Google\Chrome\'
+            - '\Microsoft\Edge\'
+    filter_parent:
+        ParentImage|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+    condition: selection and not (filter_chrome or filter_parent)
+falsepositives:
+    - Third-party browser management tools
+    - Enterprise browser management solutions
+level: medium

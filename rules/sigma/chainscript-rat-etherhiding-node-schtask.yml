@@ -1,0 +1,28 @@
+title: ChainScript RAT - Node.js Registers Scheduled Task Persistence
+id: ac3f5e4a-7a9d-6cbf-daf8-3b4a5e6c7d8f
+status: experimental
+description: Detects node.exe spawning PowerShell to register a scheduled task containing ComponentTask33, the time-decoupled persistence mechanism used by ChainScript RAT after initial infection completes.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://github.com/Justice-Hammer/threat-hunting-detections/blob/main/30-research/RES-0007%20-%20ComponentTask33%20MSI%20Loader%20with%20On-Chain%20C2%20Discovery.md
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.persistence
+    - attack.t1053.005
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\node.exe'
+    selection_child:
+        Image|endswith: '\powershell.exe'
+        CommandLine|contains|all:
+            - 'Register-ScheduledTask'
+            - 'ComponentTask33'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Node.js automation tools that register scheduled tasks (unlikely with ComponentTask33 anchor)
+level: medium

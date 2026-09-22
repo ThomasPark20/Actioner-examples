@@ -1,0 +1,28 @@
+title: ChainScript RAT - MSIExec Spawns Scatter PowerShell Script
+id: 8a1f3c2d-5e7b-4a9c-b8d6-1f2e3c4a5b6d
+status: experimental
+description: Detects msiexec.exe spawning PowerShell to execute the ChainScript scatter installer script (._scatter.ps1) which distributes RAT components across Microsoft-themed directories.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://thehackernews.com/2026/09/clickfix-lures-deploy-chainscript-rat.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.t1218.007
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\msiexec.exe'
+    selection_child:
+        Image|endswith: '\powershell.exe'
+        CommandLine|contains|all:
+            - '-File'
+            - '._scatter.ps1'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Unlikely in legitimate environments
+level: high

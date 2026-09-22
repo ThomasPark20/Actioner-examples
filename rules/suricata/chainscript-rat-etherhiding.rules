@@ -1,0 +1,24 @@
+# ChainScript RAT (EtherHiding / ComponentTask33) - Suricata Rules
+# Reference: https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+# Generated: 2026-09-22 by Actioner
+# Note: SIDs 9100001-9100003 intentionally mirror Snort SIDs (separate namespaces; not co-deployed).
+
+alert http $HOME_NET any -> $EXTERNAL_NET [3847,3851,3854] (msg:"MALWARE ChainScript RAT - WebSocket C2 Handshake with X-Agent-Token"; flow:established,to_server; http.method; content:"GET"; http.header_names; content:"X-Agent-Token"; http.header; content:"Upgrade|3a 20|websocket"; nocase; classtype:trojan-activity; sid:9100001; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE ChainScript EtherHiding - eth_call to Polygon Contract 0xf9099d0d7473"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"eth_call"; content:"0x4ab7874e"; distance:0; content:"0xf9099d0d747368cce8C10226CC9AF2bFD4DDbCF4"; nocase; distance:0; classtype:trojan-activity; sid:9100002; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE ChainScript RAT - MSI Delivery Gate capher.php"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/capher.php?token="; classtype:trojan-activity; sid:9100003; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET [3847,3851,3854] (msg:"MALWARE ChainScript RAT - Remote Script Pull /api/agent/script"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/api/agent/script"; http.header_names; content:"X-Agent-Token"; classtype:trojan-activity; sid:9100004; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain shift-api-control.com"; dns.query; content:"shift-api-control.com"; nocase; classtype:trojan-activity; sid:9100005; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain bedotiq.net"; dns.query; content:"bedotiq.net"; nocase; classtype:trojan-activity; sid:9100006; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain api-configuard.com"; dns.query; content:"api-configuard.com"; nocase; classtype:trojan-activity; sid:9100007; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain kerosand.net"; dns.query; content:"kerosand.net"; nocase; classtype:trojan-activity; sid:9100008; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain moweros.net"; dns.query; content:"moweros.net"; nocase; classtype:trojan-activity; sid:9100009; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE ChainScript RAT - Known C2 Domain giperon.net"; dns.query; content:"giperon.net"; nocase; classtype:trojan-activity; sid:9100010; rev:1;)
