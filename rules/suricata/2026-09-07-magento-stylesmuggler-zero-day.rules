@@ -1,0 +1,15 @@
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Magento GraphQL Exploit Attempt"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/graphql"; fast_pattern; content:"styles%5B"; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200101; rev:2;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to windwsecurity.run"; flow:to_server; dns.query; content:"windwsecurity.run"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to timesysnc.net"; flow:to_server; dns.query; content:"timesysnc.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to microsft.run"; flow:to_server; dns.query; content:"microsft.run"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler Malware Download Host cdnflare.xyz"; flow:to_server; dns.query; content:"cdnflare.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200105; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to timesync.to"; flow:to_server; dns.query; content:"timesync.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to synctime.to"; flow:to_server; dns.query; content:"synctime.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200107; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to microsft.studio"; flow:to_server; dns.query; content:"microsft.studio"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler; metadata:author Actioner, created_at 2026-09-07; sid:2200108; rev:1;)

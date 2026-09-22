@@ -1,0 +1,26 @@
+title: StyleSmuggler Kernel Thread Masquerading Process
+id: c9e3f6b2-4d8a-5c0e-b7a9-3f2d1e0a9b5c
+status: experimental
+description: >
+    Detects process execution from hidden-directory paths characteristic of the StyleSmuggler
+    Rust backdoor implant, which masquerades as a Linux kernel thread post-execution.
+references:
+    - https://sansec.io/research/stylesmuggler
+    - https://thehackernews.com/2026/09/unpatched-magento-and-adobe-commerce.html
+author: Actioner
+date: 2026/09/07
+tags:
+    - attack.t1036.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_gvfsd:
+        Image|contains: '/.local/share/.gvfsd/gvfsd-user'
+    selection_fc_cache:
+        Image|contains: '/.cache/fontconfig/fc-cache'
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate GNOME GVFS daemon activity on desktop Linux systems (unlikely on headless e-commerce servers)
+    - Legitimate fontconfig cache rebuilds at the standard path (verify binary hash)
+level: medium

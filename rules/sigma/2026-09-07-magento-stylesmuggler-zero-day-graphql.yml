@@ -1,0 +1,27 @@
+title: StyleSmuggler GraphQL Exploitation Attempt on Magento
+id: 7a3c1e4b-9f2d-4a6e-8b7c-1d5e8f0a3c2b
+status: experimental
+description: >
+    Detects HTTP POST requests to Magento GraphQL endpoint with styles[] parameter injection,
+    characteristic of the StyleSmuggler zero-day exploitation chain (September 2026).
+references:
+    - https://sansec.io/research/stylesmuggler
+    - https://thehackernews.com/2026/09/unpatched-magento-and-adobe-commerce.html
+author: Actioner
+date: 2026/09/07
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_path:
+        cs-uri-stem|contains: '/graphql'
+    selection_param:
+        cs-uri-query|contains: 'styles%5B'
+    condition: selection_method and selection_path and selection_param
+falsepositives:
+    - Legitimate Magento frontend GraphQL requests are unlikely to contain styles[] query parameters
+level: high

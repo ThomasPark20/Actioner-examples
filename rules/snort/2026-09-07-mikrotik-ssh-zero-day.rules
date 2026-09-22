@@ -1,0 +1,1 @@
+alert tcp [82.192.72.4,103.102.31.18] any -> $HOME_NET 22 (msg:"Actioner - Inbound SSH from Known MikroTrick Attacker IP"; flow:to_server,established; content:"SSH-"; depth:4; sid:2100101; rev:1; classtype:trojan-activity; reference:url,cert.pl/en/posts/2026/09/mikrotik-routeros-cve/; reference:cve,2026-67276; reference:cve,2026-86060;)
