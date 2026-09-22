@@ -1,0 +1,28 @@
+title: Brevo Supply Chain Attack - Malicious JavaScript Loader Pattern
+id: 8b4c2f5a-3d6e-4b9f-a02c-7e4d8f9a1b2d
+status: experimental
+description: Detects web proxy logs showing requests for the malicious f.js loader script from sendibt1.com CDN subdomains used in the Brevo supply chain attack.
+references:
+    - https://sansec.io/research/brevo-supply-chain-attack
+    - https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+author: Actioner
+date: 2026/09/20
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains:
+            - 'cdn2.sendibt1.com/f.js'
+            - 'cdn9.sendibt1.com/f.js'
+            - 'cdn11.sendibt1.com/f.js'
+            - 'cdn.sendibt1.com/f.js'
+            - 'cdn10.sendibt1.com/p/wm.zip'
+    condition: selection
+# audit: Specific malware delivery URLs from Sansec research; high confidence IOC-based detection. Exact paths eliminate FP.
+# revision: converted HTML comment to YAML comment.
+falsepositives:
+    - Unlikely
+level: critical

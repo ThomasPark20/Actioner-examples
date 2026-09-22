@@ -1,0 +1,48 @@
+title: Suspicious Child Process Spawned by Conductor JVM (CVE-2026-58138 Post-Exploitation)
+id: 9c4d2e7f-5b3a-41c8-a6d9-2e1f8c4b7a3d
+status: experimental
+description: >
+  Detects shell or command interpreter processes spawned as children of a Java
+  process associated with Conductor, indicating successful exploitation of
+  CVE-2026-58138. After RCE via GraalVM evaluator abuse, attackers invoke
+  Runtime.exec() or ProcessBuilder to spawn OS commands.
+references:
+  - https://thehackernews.com/2026/09/critical-pre-auth-rce-in-orkes.html
+  - https://nvd.nist.gov/vuln/detail/CVE-2026-58138
+  - https://research.empiricalsecurity.com/research/september-2026-cve-of-the-month
+author: Actioner
+date: 2026/09/20
+tags:
+  - attack.t1190
+  - attack.t1059.004
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_parent:
+    ParentImage|endswith: '/java'
+    ParentCommandLine|contains:
+      - 'conductor'
+      - 'orkes'
+  selection_child:
+    Image|endswith:
+      - '/sh'
+      - '/bash'
+      - '/dash'
+      - '/python'
+      - '/python3'
+      - '/curl'
+      - '/wget'
+      - '/whoami'
+      - '/id'
+      - '/uname'
+      - '/cat'
+      - '/nc'
+      - '/ncat'
+  condition: selection_parent and selection_child
+falsepositives:
+  - Legitimate Conductor workflows that invoke shell commands by design
+  - System health check scripts invoked by Conductor
+level: medium
+# audit: TTP/behavioral rule. Requires EDR/auditd process creation logs with parent-child lineage. Confidence is medium due to potential legitimate shell invocations from workflow engines.
+# revision: capped level from high to medium (behavioral/TTP rule per altitude policy). Converted HTML comment to YAML comment.

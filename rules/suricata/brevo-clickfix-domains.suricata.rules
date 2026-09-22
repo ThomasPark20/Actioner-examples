@@ -1,0 +1,21 @@
+# Suricata rules for Brevo Supply Chain Attack - Malicious Domain Detection
+# References: https://sansec.io/research/brevo-supply-chain-attack
+#             https://www.bleepingcomputer.com/news/security/brevo-supply-chain-attack-injected-clickfix-scripts-on-customer-sites/
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - cdn.sendibt1.com malicious CDN"; flow:established,to_server; http.host; content:"cdn.sendibt1.com"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - glegchner.com C2 callback"; flow:established,to_server; http.host; content:"glegchner.com"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - corralos.beer ClickFix"; flow:established,to_server; http.host; content:"corralos.beer"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000103; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - yelahaye.surf malware dist"; flow:established,to_server; http.host; content:"yelahaye.surf"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000104; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - boiseno.club malware dist"; flow:established,to_server; http.host; content:"boiseno.club"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000105; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - f.js malicious loader"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/f.js"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000106; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - wm.zip backdoor download"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/p/wm.zip"; endswith; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000107; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - C2 API hex endpoint"; flow:established,to_server; http.host; content:".sendibt1.com"; endswith; http.uri; content:"/api/v1/0044d4a"; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000108; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Brevo Supply Chain - glegchner.com ads.php C2"; flow:established,to_server; http.host; content:"glegchner.com"; endswith; http.uri; content:"/ads.php"; classtype:trojan-activity; reference:url,sansec.io/research/brevo-supply-chain-attack; metadata:author Actioner, created_at 2026-09-20; sid:1000109; rev:1;)
