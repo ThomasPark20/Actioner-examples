@@ -1,0 +1,32 @@
+title: Rapuncel Campaign - Alinubx.sys BYOVD Driver Load
+id: 19f3e831-f269-4baa-ae73-236445634f80
+status: experimental
+description: Detects loading of the Alinubx.sys kernel driver (renamed CcProtect.sys from CnCrypt) used in the Rapuncel stealer campaign to kill EDR/AV processes via BYOVD.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+    - https://www.loldrivers.io/drivers/84a3007a-de5e-4622-bfc5-f05d927c3618/
+    - https://thehackernews.com/2026/09/fake-lastpass-authenticator-installer.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.defense_evasion
+    - attack.t1562.001
+    - attack.t1068
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains:
+            - '611b3ba687b7f46319a19609605ddfe5225e6d85277d8e923eea3fdb6f7b5b61'
+            - '5f0cfe8357bb52b45068ddbac053e32bc38e6cb5e086746f5402657b0a5cfb1c'
+            - '10b3049f4a954665512eca5d24728c89'
+            - 'e74d70c851e0c39cdb19af3bd2920efd'
+    selection_name:
+        ImageLoaded|endswith:
+            - '\Alinubx.sys'
+            - '\nvfsflt64.sys'
+    condition: selection_hash or selection_name
+falsepositives:
+    - Legitimate CnCrypt/CcProtect.sys usage (rare outside China)
+level: critical

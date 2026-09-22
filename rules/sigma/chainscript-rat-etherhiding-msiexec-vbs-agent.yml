@@ -1,0 +1,28 @@
+title: ChainScript RAT - MSIExec Spawns WScript Agent Launcher
+id: 9b2e4d3f-6f8c-5bae-c9e7-2a3f4d5b6c7e
+status: experimental
+description: Detects msiexec.exe spawning wscript.exe to execute the hidden ChainScript VBScript agent launcher (._agent.vbs), the second custom action in the MSI infection chain.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://thehackernews.com/2026/09/clickfix-lures-deploy-chainscript-rat.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.t1218.007
+    - attack.t1059.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\msiexec.exe'
+    selection_child:
+        Image|endswith: '\wscript.exe'
+        CommandLine|contains|all:
+            - '//B'
+            - '._agent.vbs'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Unlikely in legitimate environments
+level: high

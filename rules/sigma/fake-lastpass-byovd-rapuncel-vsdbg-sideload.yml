@@ -1,0 +1,29 @@
+title: vsdbg.exe DLL Side-Loading Outside Visual Studio Directories
+id: 92651a82-a1f6-4eae-aaf3-831d56cccf36
+status: experimental
+description: Detects execution of vsdbg.exe outside its normal Visual Studio installation paths, which may indicate DLL side-loading. Observed in the Rapuncel stealer campaign (Cruciferra loader) but applicable to any abuse of vsdbg.exe for side-loading.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+    - https://thehackernews.com/2026/09/fake-lastpass-authenticator-installer.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.defense_evasion
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\vsdbg.exe'
+    filter_legitimate:
+        Image|contains:
+            - '\Microsoft Visual Studio\'
+            - '\.vscode\'
+            - '\.vs\extensions\'
+            - '\dotnet\shared\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Portable or custom Visual Studio debugging setups
+level: medium

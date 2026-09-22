@@ -1,0 +1,24 @@
+title: Rapuncel Campaign - Stealer EXE by Hash
+id: 1d564361-011e-458c-b6ba-094cdd838daf
+status: experimental
+description: Detects execution of the known Rapuncel stealer EXE payload by its SHA256 hash.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+    - https://thehackernews.com/2026/09/fake-lastpass-authenticator-installer.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.credential_access
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - 'aefbc6e04320e9a0e80f2323f8a897c4fdb222a37b0b87d76e850109decbfadd'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

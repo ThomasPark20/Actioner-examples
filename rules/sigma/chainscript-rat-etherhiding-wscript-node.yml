@@ -1,0 +1,26 @@
+title: ChainScript RAT - WScript Launches Node.js Agent (Steady State)
+id: bd4a6f5b-8bae-7dc0-ebfa-4c5b6f7d8e9a
+status: experimental
+description: Detects wscript.exe launching node.exe with the ChainScript agent entry point (app\src\index.js), the steady-state execution chain following persistence trigger.
+references:
+    - https://blackpointcyber.com/blog/chainscript-tracing-a-nodejs-rat-across-the-blockchain/
+    - https://hackread.com/clickfix-chainscript-rat-fake-spotify-teams-installers/
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.t1059.007
+    - attack.t1059.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\wscript.exe'
+    selection_child:
+        Image|endswith: '\node.exe'
+        CommandLine|contains: 'app\src\index.js'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate VBScript-based Node.js launchers using an identical app\src\index.js path convention
+level: medium

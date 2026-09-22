@@ -1,0 +1,17 @@
+# Rapuncel Campaign - Network Detection Rules (Snort)
+# Reference: https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+
+# Detect C2 exfiltration to known IP
+alert tcp $HOME_NET any -> 2.26.126.50 any (msg:"MALWARE Rapuncel Stealer - Exfiltration to Known C2 IP"; flow:to_server,established; content:"POST"; http_method; content:"/upload"; http_uri; classtype:trojan-activity; sid:2026001; rev:1;)
+
+# Detect known payload domains in DNS
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE Rapuncel Campaign - DNS Query for albinofennel.com"; content:"|0c|albinofennel|03|com|00|"; nocase; classtype:trojan-activity; sid:2026002; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE Rapuncel Campaign - DNS Query for hanselarinmusky.com"; content:"|0f|hanselarinmusky|03|com|00|"; nocase; classtype:trojan-activity; sid:2026003; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE Rapuncel Campaign - DNS Query for icansamyope.com"; content:"|0b|icansamyope|03|com|00|"; nocase; classtype:trojan-activity; sid:2026004; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE Rapuncel Campaign - DNS Query for istatlmenus.com"; content:"|0b|istatlmenus|03|com|00|"; nocase; classtype:trojan-activity; sid:2026005; rev:1;)
+
+# Detect traffic director endpoint
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"MALWARE Rapuncel Campaign - Traffic Director Endpoint Access"; flow:to_server,established; content:"GET"; http_method; content:"/mandua.wonted"; http_uri; classtype:trojan-activity; sid:2026006; rev:1;)

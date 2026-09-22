@@ -1,0 +1,27 @@
+title: Rapuncel Campaign - Malicious DLLs by Hash
+id: 7a2e9c45-83b1-4d6f-a5e2-1f8b3c094d7e
+status: experimental
+description: Detects loading of known Rapuncel campaign DLLs (Cruciferra loader vsdbg.dll, browser injection DLL, ProtectR3.dll) by their SHA256 hashes via Sysmon image_load events.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+    - https://thehackernews.com/2026/09/fake-lastpass-authenticator-installer.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.execution
+    - attack.t1574.002
+    - attack.credential_access
+    - attack.t1555.003
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - 'ea8c31a86fa785ab514022c278a2f6e571c86aac9283745a96605c44d88382d6'
+            - '75018b06c7105a1dca391805d17b402aed35ebd515b92d461236eafbd606cb40'
+            - '26db14b956e33f69b3397a36387d32e01eb63613acff91069dc76b6ed7de45a8'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

@@ -1,0 +1,26 @@
+title: Rapuncel Campaign - NvFsFilter Fake NVIDIA Service Installation
+id: adebb372-e43d-4085-b14c-71aa79c338d2
+status: experimental
+description: Detects creation of the NvFsFilter service used by the Rapuncel campaign to load its BYOVD kernel driver disguised as an NVIDIA File System Filter Driver.
+references:
+    - https://blog.lastpass.com/posts/lastpass-delphos-report-rapuncel-infostealer
+    - https://thehackernews.com/2026/09/fake-lastpass-authenticator-installer.html
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.persistence
+    - attack.t1543.003
+    - attack.defense_evasion
+    - attack.t1562.001
+logsource:
+    product: windows
+    category: registry_set
+detection:
+    selection_service:
+        TargetObject|contains: '\Services\NvFsFilter'
+    selection_driver_path:
+        Details|contains: 'nvfsflt64.sys'
+    condition: selection_service or selection_driver_path
+falsepositives:
+    - Legitimate NVIDIA file system filter drivers use different service names (NVDisplay, nvlddmkm)
+level: critical
