@@ -1,0 +1,7 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake WebDAV Delivery Domain DNS Query (leaguejazire.com)"; flow:to_server; content:"|0c|leaguejazire|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100201; rev:2;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake Go Reverse Proxy C2 Domain DNS Query (dubbedmuch.cc)"; flow:to_server; content:"|0a|dubbedmuch|02|cc|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100202; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake NetSupport Gateway Domain DNS Query (paternal-angrily.com)"; flow:to_server; content:"|08|paternal|07|angrily|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100203; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - ClearFake Amatera Payload Domain DNS Query (cedar2glanz.ru)"; flow:to_server; content:"|0b|cedar2glanz|02|ru|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created 2026-09-10; sid:2100204; rev:1;)

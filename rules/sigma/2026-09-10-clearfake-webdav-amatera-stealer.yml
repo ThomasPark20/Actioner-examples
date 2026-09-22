@@ -1,0 +1,190 @@
+title: ClearFake WebDAV Execution via Pushd and Rundll32
+id: 0b11cc62-e4cd-403b-aa9b-85bf5bed7a32
+status: experimental
+description: >
+    Detects the ClearFake ClickFix infection chain where a victim is tricked into
+    executing a pushd command to mount a remote WebDAV share followed by rundll32
+    executing a DLL by ordinal number. Requires both pushd UNC mount and rundll32
+    ordinal execution in the same command line to reduce false positives.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1204.001
+    - attack.t1218.011
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_pushd:
+        CommandLine|contains|all:
+            - 'pushd'
+            - '\\\\'
+    selection_rundll32:
+        CommandLine|contains|all:
+            - 'rundll32'
+            - ',#1'
+    condition: selection_pushd and selection_rundll32
+falsepositives:
+    - Legitimate scripts combining pushd UNC mount with rundll32 ordinal execution — uncommon but possible in software deployment
+level: medium
+---
+title: Chrome Component DLL Side-Loading of Secur32
+id: cf7478b2-9a73-44da-9e30-efe07aa9fc87
+status: experimental
+description: >
+    Detects a legitimate Google Chrome helper binary (platform_experience_helper.exe)
+    loading a suspicious secur32.dll from a non-system directory, indicating DLL
+    side-loading as used in the ClearFake campaign to deliver ZigCryptoStealer
+    and an EDR termination driver.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1574.002
+    - attack.t1105
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\platform_experience_helper.exe'
+        ImageLoaded|endswith: '\secur32.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection and not filter_system
+falsepositives:
+    - Highly unlikely in legitimate environments as secur32.dll should only load from system directories
+level: high
+---
+title: Renamed NetSupport Manager Client Execution as Hypersnap
+id: e826726b-7ded-4b56-a08f-2e307bd28ad2
+status: experimental
+description: >
+    Detects execution of NetSupport Manager client32.exe renamed to hypersnap.exe,
+    a technique used in the ClearFake verification.google branch for deploying
+    a remote access tool with hidden UI and silent operation mode.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1036.005
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        OriginalFileName: 'client32.exe'
+        Image|endswith: '\hypersnap.exe'
+    condition: selection
+falsepositives:
+    - Extremely unlikely — the original HyperSnap software is not based on client32.exe
+level: high
+---
+title: ClearFake Campaign C2 Domain DNS Lookup
+id: 174effa1-c180-43cb-a9d5-8912356678d4
+status: experimental
+description: >
+    Detects DNS queries to known C2 domains associated with the ClearFake WebDAV
+    infection chain, including Amatera Stealer dead-drop resolver, ZigCryptoStealer
+    C2 domains, NetSupport Manager gateway, and Go reverse proxy endpoints.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1071.001
+    - attack.t1102.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.leaguejazire.com'
+            - '.riyazinikokar.xyz'
+            - '.propertyfind.cc'
+            - '.quorashift.cc'
+            - '.vexlatech.cc'
+            - '.vogueatelier.cc'
+            - '.gstats-api-contact.cc'
+            - '.dubbedmuch.cc'
+            - '.stunned-amniotic.com'
+            - '.cedar2glanz.ru'
+            - '.paternal-angrily.com'
+    selection_exact:
+        QueryName:
+            - 'leaguejazire.com'
+            - 'riyazinikokar.xyz'
+            - 'propertyfind.cc'
+            - 'quorashift.cc'
+            - 'vexlatech.cc'
+            - 'vogueatelier.cc'
+            - 'gstats-api-contact.cc'
+            - 'dubbedmuch.cc'
+            - 'stunned-amniotic.com'
+            - 'cedar2glanz.ru'
+            - 'paternal-angrily.com'
+    condition: selection or selection_exact
+falsepositives:
+    - Unlikely — these domains are purpose-registered for this campaign
+level: critical
+---
+title: ClearFake BYOVD EDR Termination via DCRCVDrv Driver
+id: 2d85f0ee-968c-4ea1-9c67-86208cbfc5be
+status: experimental
+description: >
+    Detects loading of the vulnerable DCRCVDrv.sys driver used in the ClearFake
+    campaign for Bring Your Own Vulnerable Driver (BYOVD) attacks to terminate
+    EDR processes via kernel-mode ZwTerminateProcess calls.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\DCRCVDrv.sys'
+    condition: selection
+falsepositives:
+    - Legitimate MOCOMSYS DCRC software using this driver — verify with the vendor
+level: high
+---
+title: ClearFake NetSupport Installer Sandbox Evasion Checks
+id: 2d90acbf-950a-47bd-9862-ca047d24ba83
+status: experimental
+description: >
+    Detects PowerShell script blocks performing the specific anti-sandbox checks
+    used in the ClearFake NetSupport installer, including volume serial comparison
+    to the hardcoded value 4E014A2F and NtDelayExecution timing checks.
+references:
+    - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1497.001
+    - attack.t1059.001
+logsource:
+    category: ps_script
+    product: windows
+detection:
+    selection_serial:
+        ScriptBlockText|contains: '4E014A2F'
+    selection_timing:
+        ScriptBlockText|contains|all:
+            - 'NtDelayExecution'
+            - 'LastBootUpTime'
+    condition: selection_serial or selection_timing
+falsepositives:
+    - Security testing scripts that check system hardware configuration
+    - VM detection utilities
+level: medium

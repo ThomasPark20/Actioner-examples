@@ -1,0 +1,26 @@
+title: PoisonedRefresh UNIX Socket Creation at bigtlog.pipe
+id: 7a3e2c91-4b8d-4f6e-a1d5-9c0b3e7f2a84
+status: experimental
+description: >
+    Detects creation of the UNIX domain socket /run/bigtlog.pipe, used by the
+    PoisonedRefresh rootkit (Linux/Agnt-IC) as a local backdoor channel on
+    compromised F5 BIG-IP APM systems (CVE-2025-53521).
+references:
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1559
+    - attack.t1059.004
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: SOCKADDR
+        saddr|contains: '2f72756e2f626967746c6f672e70697065'
+    condition: selection
+falsepositives:
+    - Legitimate F5 BIG-IP logging infrastructure using a similarly named socket (unlikely)
+level: critical

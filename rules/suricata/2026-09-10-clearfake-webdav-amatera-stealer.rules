@@ -1,0 +1,11 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake WebDAV Delivery Domain DNS Query (leaguejazire.com)"; flow:to_server; dns.query; content:"leaguejazire.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake ZigCryptoStealer C2 Domain DNS Query (propertyfind.cc)"; flow:to_server; dns.query; content:"propertyfind.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake Go Reverse Proxy C2 Domain DNS Query (dubbedmuch.cc)"; flow:to_server; dns.query; content:"dubbedmuch.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake NetSupport Gateway Domain DNS Query (paternal-angrily.com)"; flow:to_server; dns.query; content:"paternal-angrily.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake NetSupport Payload Domain DNS Query (stunned-amniotic.com)"; flow:to_server; dns.query; content:"stunned-amniotic.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - ClearFake Amatera Payload Domain DNS Query (cedar2glanz.ru)"; flow:to_server; dns.query; content:"cedar2glanz.ru"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; metadata:author Actioner, created_at 2026-09-10; sid:2100105; rev:1;)

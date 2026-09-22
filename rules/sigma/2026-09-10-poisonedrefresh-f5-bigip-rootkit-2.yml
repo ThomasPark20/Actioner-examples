@@ -1,0 +1,27 @@
+title: Apache httpd Process Spawning Bash Shell
+id: 8b4f3d02-5c9e-4a7f-b2e6-0d1c4f8a3b95
+status: experimental
+description: >
+    Detects Apache httpd spawning an interactive bash shell, a behavior
+    consistent with the PoisonedRefresh rootkit backdoor which redirects
+    shell I/O through a UNIX socket after exploitation of CVE-2025-53521.
+references:
+    - https://securityaffairs.com/198746/malware/poisonedrefresh-a-fileless-linux-rootkit-that-injects-php-web-shells-into-f5-big-ip-apm-server-memory.html
+    - https://www.sophos.com/en-us/blog/dissecting-a-php-web-server-rootkit/
+author: Actioner
+date: 2026-09-10
+tags:
+    - attack.t1059.004
+    - attack.t1505.003
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        ParentImage|endswith: '/httpd'
+        Image|endswith: '/bash'
+    condition: selection
+falsepositives:
+    - CGI scripts or legitimate server-side applications that invoke bash from Apache
+    - Operations automation or monitoring tools executed from Apache context
+level: medium
