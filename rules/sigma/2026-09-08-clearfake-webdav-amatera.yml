@@ -1,0 +1,146 @@
+title: Rundll32 Execution of DLL from WebDAV UNC Path via DavWWWRoot
+id: c17762cc-1809-4225-a87d-6972191b3393
+status: experimental
+description: >-
+  Detects rundll32.exe launching a DLL hosted on a remote WebDAV share
+  (identified by the DavWWWRoot marker in the UNC path) using an ordinal
+  export, consistent with the ClearFake ClickFix chain that reconstructs a
+  pushd/rundll32/popd command via clipboard paste to execute the "pf.ch" or
+  "verification.google" Amatera stealer loader DLLs (Cisco Talos, 2026-09-08).
+references:
+  - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026/09/08
+tags:
+  - attack.t1218.011
+  - attack.t1105
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_image:
+    Image|endswith: '\rundll32.exe'
+  selection_webdav:
+    CommandLine|contains: 'DavWWWRoot'
+  selection_ordinal:
+    CommandLine|contains:
+      - ',#1'
+      - ',moor'
+      - ',CfgInspectModuleData'
+  condition: selection_image and selection_webdav and selection_ordinal
+falsepositives:
+  - Legitimate administrative use of WebDAV-hosted DLLs (rare in most environments)
+level: high
+---
+title: PowerShell Download and Execute of ClearFake NetSupport Manager Stager
+id: f28e3d84-93d0-496c-aeaa-9bc2f9f09251
+status: experimental
+description: >-
+  Detects PowerShell fetching and invoking the ClearFake "verification.google"
+  branch second-stage script (jewel.js) via DownloadString/IEX, which performs
+  extensive VM/sandbox checks before installing NetSupport Manager RAT
+  disguised as hypersnap.exe (Cisco Talos, 2026-09-08).
+references:
+  - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026/09/08
+tags:
+  - attack.t1059.001
+  - attack.t1105
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_ps:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_pattern:
+    CommandLine|contains|all:
+      - 'DownloadString'
+  selection_domain_stager:
+    CommandLine|contains|all:
+      - 'cedar2glanz.ru'
+      - 'jewel.js'
+  selection_domain_zip:
+    CommandLine|contains|all:
+      - 'stunned-amniotic.com'
+      - 'hub.log'
+  condition: selection_ps and selection_pattern and (selection_domain_stager or selection_domain_zip)
+falsepositives:
+  - None expected; matches campaign-specific hostname/filename pairs
+level: high
+---
+title: NetSupport Manager client32.exe Masquerading Under Alternate Name
+id: f70bd317-cd3c-4ea1-8e82-7980e83e9176
+status: experimental
+description: >-
+  Detects execution of the NetSupport Manager remote-control client
+  (client32.exe, per PE OriginalFileName) renamed to an unrelated file name
+  such as hypersnap.exe, as observed in the ClearFake "verification.google"
+  branch delivering NetSupport Manager RAT configured with a silent,
+  hidden-tray HTTP gateway (Cisco Talos, 2026-09-08).
+references:
+  - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+author: Actioner
+date: 2026/09/08
+tags:
+  - attack.t1036.005
+  - attack.t1219
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_original:
+    OriginalFileName: 'client32.exe'
+  filter_expected_name:
+    Image|endswith: '\client32.exe'
+  condition: selection_original and not filter_expected_name
+falsepositives:
+  - Legitimate NetSupport Manager deployments that rename client32.exe for branding purposes
+level: high
+---
+title: DNS Query to ClearFake WebDAV/Amatera/NetSupport Infrastructure
+id: 150c05a4-3d76-4756-a934-d260c2e6b368
+status: experimental
+description: >-
+  Detects DNS resolution of domains used as WebDAV DLL-hosting, ZigCryptoStealer
+  EtherHiding C2, Go reverse-proxy C2, or NetSupport Manager delivery/gateway
+  infrastructure in the ClearFake campaign delivering Amatera stealer,
+  ZigCryptoStealer, and NetSupport Manager (Cisco Talos, 2026-09-08).
+references:
+  - https://blog.talosintelligence.com/clearfake-webdav-infection-chain/
+  - https://raw.githubusercontent.com/Cisco-Talos/IOCs/refs/heads/main/2026/09/clearfake-webdav-infection-chain.txt
+author: Actioner
+date: 2026/09/08
+tags:
+  - attack.t1071.004
+  - attack.t1568
+logsource:
+  category: dns_query
+  product: windows
+detection:
+  selection:
+    QueryName|endswith:
+      - 'leaguejazire.com'
+      - 'gstats-api-contact.cc'
+      - 'gstats-api-contd.cc'
+      - 'gstats-api-cont.co'
+      - 'gstats-api-coni.co'
+      - 'vogueatelier.cc'
+      - 'vexlatech.cc'
+      - 'quorashift.cc'
+      - 'propertyfind.cc'
+      - 'velqo7.co'
+      - 'unguidedfreewill.co'
+      - 'hugo-mapp.co'
+      - 'hugo-lapp.co'
+      - 'estimator-undermostshelving.in.net'
+      - 'dubbedmuch.cc'
+      - 'cedar2glanz.ru'
+      - 'stunned-amniotic.com'
+      - 'paternal-angrily.com'
+  condition: selection
+falsepositives:
+  - None expected; all values are campaign-specific attacker-registered domains
+level: high

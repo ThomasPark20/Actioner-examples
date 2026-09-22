@@ -1,0 +1,326 @@
+title: StyleSmuggler Magento Object-Injection Gadget Parameters in Web Request
+id: 2b149fef-5966-4b7a-9e9d-6f76b2ecfac8
+status: experimental
+description: >
+    Detects HTTP requests carrying the query-string parameters observed in
+    active StyleSmuggler (CVE-2026-75650) exploitation against Adobe Commerce
+    and Magento Open Source: the "styles[" object-injection gadget parameter,
+    the "generatorClass"/"with_resolved" driver parameters used to walk the
+    dependency-injection compiler, raw {{block/config/trans/var/depend}}
+    template directives smuggled through the URI, and raw PHP open tags.
+    Matches both literal and URL-encoded forms, since observed payloads
+    arrived percent-encoded (e.g. styles%5Bfirst%5D).
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation
+    - https://thehackernews.com/2026/09/unpatched-magento-and-adobe-commerce.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_gadget:
+        cs-uri-query|contains:
+            - 'styles['
+            - 'styles%5B'
+    selection_driver:
+        cs-uri-query|contains:
+            - 'generatorClass'
+            - 'with_resolved'
+    selection_template:
+        cs-uri-query|re: '(\{\{|%7B%7B)\s*(block|config|trans|var|depend)'
+    selection_phptag:
+        cs-uri-query|contains:
+            - '<?'
+            - '%3C%3F'
+    condition: 1 of selection_*
+falsepositives:
+    - A storefront search for the literal text "styles[" or "{{block" is theoretically
+      possible but was not observed by any source and is extremely unlikely on a
+      real Magento/Commerce storefront.
+level: critical
+---
+title: PHP Open Tag Smuggled in User-Agent Header (StyleSmuggler Variant)
+id: 1d101841-6040-4ef2-82f7-9730cdd96057
+status: experimental
+description: >
+    Detects a raw PHP open tag inside the HTTP User-Agent header. One observed
+    StyleSmuggler (CVE-2026-75650) variant carried its entire exploitation
+    payload in the User-Agent rather than the URI, aimed at a Magento log file
+    the attacker had poisoned moments earlier — a technique that leaves the
+    request line itself looking completely ordinary (e.g. a routine
+    /customer/section/load call).
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1190
+    - attack.t1140
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-user-agent|contains:
+            - '<?php'
+            - '<?='
+    condition: selection
+falsepositives:
+    - Extremely rare; no legitimate browser or API client places a PHP open tag
+      in its User-Agent string.
+level: high
+---
+title: StyleSmuggler Secondary PHP Web Shell Path Accessed
+id: baff9bac-6b13-4415-bfcf-6b14a13d8451
+status: experimental
+description: >
+    Detects requests to the hash-named PHP web shell dropped into the product-image
+    cache directory by a second, apparently independent threat actor riding the
+    StyleSmuggler (CVE-2026-75650) entry point. The shell lives under
+    pub/media/catalog/product/cache/ss_<10 hex>/sync_<10 hex>.php, returns a
+    plain 404 unless the correct X-Cache-Token header is supplied, and executes
+    PHP supplied in a POST "task" parameter once activated.
+references:
+    - https://securityaffairs.com/198603/uncategorized/stylesmuggler-the-magento-zero-day-behind-new-store-attacks.html
+    - https://sansec.io/research/stylesmuggler-0day
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-method: 'POST'
+        cs-uri-stem|re: 'pub/media/catalog/product/cache/ss_[0-9a-f]{10}/sync_[0-9a-f]{10}\.php'
+    condition: selection
+falsepositives:
+    - None expected; this exact hash-named path pattern under the product-image
+      cache directory is not part of stock Magento/Adobe Commerce.
+level: critical
+---
+title: StyleSmuggler Rust Implant Persistence File Written
+id: 377cbeeb-c3e0-4872-8b9a-0c0e091f2c7f
+status: experimental
+description: >
+    Detects file creation at the on-disk paths used by the StyleSmuggler
+    (CVE-2026-75650) Rust backdoor across its observed builds — the original
+    "gvfsd-user" drop under ~/.local/share/.gvfsd/, the 6 September "fc-cache"
+    variant under ~/.cache/fontconfig/ and /tmp/.fc-*/, the 7 September
+    "chronyd" variant under /tmp/.chrony-*/, and associated PID lock files
+    and /tmp staging paths. None of these paths are used by the legitimate
+    GVFS, fontconfig, or chrony packages, which install to system locations,
+    not per-user cache directories or /tmp.
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/IOC.md
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1036.005
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - '.local/share/.gvfsd/gvfsd-user'
+            - '.local/share/.gvfsd/.gvfsd_'
+            - '.cache/fontconfig/fc-cache'
+            - '/tmp/.kw_'
+            - '/tmp/.fc-'
+            - '/tmp/.fc_'
+            - '/tmp/.chrony-'
+            - '/tmp/.cache_'
+            - '/tmp/.gvfsd_'
+    condition: selection
+falsepositives:
+    - None expected. A legitimate ".gvfsd" directory under a desktop user's
+      ~/.local/share can exist on GNOME desktops, but never contains a binary
+      named gvfsd-user with executable persistence via cron; verify context
+      before dismissing.
+level: critical
+---
+title: StyleSmuggler Implant Masquerading as Kernel Worker or System Utility
+id: 8186ed57-2fcb-466f-83c7-3b4af1733c38
+status: experimental
+description: >
+    Detects execution of the StyleSmuggler (CVE-2026-75650) Rust implant, which
+    sets its process command line to the literal string "[kworker/u:8:0]" to
+    impersonate a genuine kernel worker thread (which is always root-owned with
+    an empty cmdline — a non-root process with this exact bracketed cmdline is
+    never legitimate), or executes from the non-standard implant paths used by
+    the fc-cache and chronyd masquerading variants instead of their real system
+    locations (/usr/bin/fc-cache, /usr/sbin/chronyd).
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/HOW-IT-WORKS.md
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_cmdline:
+        CommandLine|contains: '[kworker/u:8:0]'
+    selection_path:
+        Image|contains:
+            - '/.local/share/.gvfsd/gvfsd-user'
+            - '/.cache/fontconfig/fc-cache'
+            - '/tmp/.fc-'
+            - '/tmp/.chrony-'
+            - '/tmp/.kw_'
+    condition: selection_cmdline or selection_path
+falsepositives:
+    - None expected for selection_cmdline; a genuine kernel thread never has a
+      non-empty cmdline. selection_path may need tuning if a site legitimately
+      runs isolated fontconfig/chrony builds from /tmp for containerized testing.
+level: critical
+---
+title: Cron Spool File Modified by Web Server Process (StyleSmuggler Persistence)
+id: c1bd931d-8b61-48ea-97c4-981820c10904
+status: experimental
+description: >
+    Detects a PHP-FPM, PHP-CGI, Apache, or nginx worker process writing directly
+    to a user's crontab spool file. The StyleSmuggler (CVE-2026-75650) implant
+    installs its "*/5 * * * *" (or "13,43 * * * *" / "57,27 * * * *") persistence
+    entry by writing straight to /var/spool/cron/crontabs/<user> instead of
+    invoking the crontab binary, so the change never generates a syslog REPLACE
+    entry. A web-server process touching this path is never legitimate — no
+    stock Magento/Adobe Commerce code path writes to the cron spool.
+references:
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/IOC.md
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/HOW-IT-WORKS.md
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1053.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/var/spool/cron/crontabs/'
+        Image|contains:
+            - 'php-fpm'
+            - 'php-cgi'
+            - 'apache2'
+            - 'httpd'
+            - 'nginx'
+            - '/php'
+    condition: selection
+falsepositives:
+    - None expected on a properly isolated web tier; if a control panel
+      intentionally lets PHP write crontabs (e.g. some shared-hosting cron-job
+      UIs), scope this rule to exclude that specific Image path.
+level: high
+---
+title: DNS Query to StyleSmuggler Fake-NTP or Download C2 Infrastructure
+id: 8e73f1f1-abbb-4de0-a9ea-3ac4b89588bf
+status: experimental
+description: >
+    Detects DNS resolution of domains used as StyleSmuggler (CVE-2026-75650)
+    command-and-control or malware-download infrastructure: the fake-NTP C2
+    hosts used by the fc-cache/chronyd implant variants (which beacon 48-byte
+    MessagePack-in-UDP/123 traffic disguised as NTP), the WebSocket-over-TLS
+    remote-shell host windwsecurity.run, and the cdnflare.xyz malware-download
+    host. Several of the C2 names are deliberate typosquats of legitimate
+    services (windwsecurity, microsft, timesysnc).
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/IOC.md
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1001.003
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection_exact:
+        QueryName:
+            - 'ntp.timesync.to'
+            - 'ntp.timesysnc.net'
+            - 'time.microsft.run'
+            - 'pool.microsft.studio'
+            - 'ntp.synctime.to'
+            - 'ntp.syncstime.to'
+            - 'windwsecurity.run'
+    selection_cdnflare:
+        QueryName|endswith: 'cdnflare.xyz'
+    condition: selection_exact or selection_cdnflare
+falsepositives:
+    - None expected; all listed domains are attacker-registered typosquats or
+      dedicated malware infrastructure with no legitimate use.
+level: critical
+---
+title: Outbound Connection to StyleSmuggler C2 or Malware-Download IP
+id: d80cde76-656a-4be1-b741-42ef96de0f0c
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses confirmed as
+    StyleSmuggler (CVE-2026-75650) command-and-control or implant-download
+    infrastructure: 185.157.160.251 (fake-NTP C2, resolved for
+    ntp.timesync.to/ntp.timesysnc.net as of 7 September 2026) and
+    209.141.43.95 (fc-cache variant implant download host). NOTE:
+    99.84.67.186 (WebSocket-over-TLS C2 per Sansec advisory) is excluded
+    because it falls within the AWS CloudFront anycast range
+    (99.84.0.0/16) and will match legitimate CDN-fronted traffic; treat
+    that IP as an audit-only indicator, not a blocking rule.
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://github.com/disrex-group/stylesmuggler-mitigation/blob/main/IOC.md
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '185.157.160.251'
+            - '209.141.43.95'
+    condition: selection
+falsepositives:
+    - 185.157.160.251 may be reassigned after the campaign ends — monitor
+      the source advisory for IP churn and rotate this list accordingly.
+      99.84.67.186 was deliberately excluded (AWS CloudFront anycast).
+level: medium
+---
+title: DNS Exfiltration to StyleSmuggler Reconnaissance OAST Callback Domain
+id: 46ddd399-4ac4-474f-87c7-6b2c7065fa68
+status: experimental
+description: >
+    Detects DNS queries to the out-of-band application security testing (OAST)
+    domain used by the StyleSmuggler (CVE-2026-75650) secondary web-shell actor
+    to exfiltrate reconnaissance data (kernel/OS string, PHP process user,
+    working directory, pub/media writability) chunked as 50-character hostname
+    labels, and by the dropper itself as a deployment callback. Campaign ID
+    markers observed in the labels are ss5_457cfa2fb7 (dropper) and
+    ss6_457cfa2fb7_ (recon probe).
+references:
+    - https://securityaffairs.com/198603/uncategorized/stylesmuggler-the-magento-zero-day-behind-new-store-attacks.html
+    - https://sansec.io/research/stylesmuggler-0day
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1048.003
+    - attack.t1082
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'daf892t5qau4og8pi4cghbc6fhm1dim3u.oast.site'
+    condition: selection
+falsepositives:
+    - None expected; this is a dedicated attacker-registered OAST subdomain
+      with no legitimate purpose. Note the domain is single-campaign and will
+      rotate — treat as a snapshot indicator, not a durable signature.
+level: high

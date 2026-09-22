@@ -1,0 +1,241 @@
+title: ScreenConnect Client Spawns Windows Script Host
+id: ad08c954-2171-4873-a24f-fb7312e5c25b
+status: experimental
+description: >
+    Detects ScreenConnect client processes spawning wscript.exe or cscript.exe,
+    a behavior observed in the September 2026 worm-like campaign where rogue
+    ScreenConnect clients delivered multi-stage VBScript payloads.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1059.005
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\ScreenConnect.ClientService.exe'
+            - '\ScreenConnect.WindowsClient.exe'
+    selection_child:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate ScreenConnect automation scripts deployed by IT administrators
+level: medium
+---
+title: VBScript Execution From ScreenConnect Temporary Directory
+id: 8d3d9df8-c7da-4405-95c6-06b0313281ce
+status: experimental
+description: >
+    Detects wscript.exe or cscript.exe executing VBS files from ScreenConnect
+    file staging directories, consistent with the multi-stage VBScript payload
+    chain observed in the September 2026 rogue ScreenConnect worm campaign.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1059.005
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_path:
+        CommandLine|contains:
+            - '\ScreenConnect\Files\'
+            - '\ScreenConnect Client\'
+    selection_ext:
+        CommandLine|endswith:
+            - '.vbs'
+            - '.vbe'
+    condition: selection_process and selection_path and selection_ext
+falsepositives:
+    - Legitimate ScreenConnect file transfer of VBScript automation scripts
+level: high
+---
+title: WindowsServiceHost VBScript Persistence Via Run Key
+id: e406c654-b5d8-4529-befc-46246ac02076
+status: experimental
+description: >
+    Detects creation of a Registry Run key value named WindowsServiceHost
+    pointing to a VBScript file, matching the persistence mechanism used
+    by the September 2026 ScreenConnect worm campaign.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|endswith: '\Software\Microsoft\Windows\CurrentVersion\Run\WindowsServiceHost'
+    selection_value:
+        Details|endswith: 'WindowsServiceHost.vbs'
+    condition: selection_key and selection_value
+falsepositives:
+    - Unknown
+level: critical
+---
+title: ScreenConnect Worm Staging File Creation
+id: 8937b675-1df3-43f8-8b40-7d7254b99460
+status: experimental
+description: >
+    Detects creation of staging files (value.txt, map.txt, out.enc, runner.ps1)
+    in the user TEMP directory by wscript.exe or cscript.exe, consistent with
+    the multi-stage payload delivery observed in the September 2026
+    ScreenConnect worm campaign.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1059.005
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_files:
+        TargetFilename|endswith:
+            - '\value.txt'
+            - '\map.txt'
+            - '\out.enc'
+            - '\runner.ps1'
+        TargetFilename|contains: '\Temp\'
+    condition: selection_process and selection_files
+falsepositives:
+    - Generic filenames (value.txt, map.txt) may appear in unrelated VBScript automation
+level: low
+---
+title: PyTorchFix PowerShell Payload Execution
+id: bb3631ea-3113-4e76-b3ac-5400992e6af8
+status: experimental
+description: >
+    Detects execution of PyTorchFix.ps1, the second-stage PowerShell payload
+    used in the September 2026 ScreenConnect worm campaign to perform UAC
+    bypass, AMSI bypass, and install concealed ScreenConnect backdoors.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1059.001
+    - attack.t1548.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: 'PyTorchFix.ps1'
+    condition: selection
+falsepositives:
+    - Unlikely - PyTorchFix.ps1 is a distinctive payload filename
+level: critical
+---
+title: DNS Query to ScreenConnect Worm C2 Infrastructure
+id: 65b09020-d603-4210-ae04-c1d46a4de419
+status: experimental
+description: >
+    Detects DNS queries to domains associated with the September 2026
+    ScreenConnect worm campaign C2 infrastructure, including tele-sync.opik.net,
+    borertors92.anondns.net, and homehub.opik.net.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'tele-sync.opik.net'
+            - 'borertors92.anondns.net'
+            - 'homehub.opik.net'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical
+---
+title: Network Connection to ScreenConnect Worm C2 IP Addresses
+id: 03cfcd5f-af7e-4d31-a863-7267539b2a31
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses associated with the
+    September 2026 ScreenConnect worm campaign C2 infrastructure.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '45.13.237.190'
+            - '131.123.40.98'
+            - '146.59.55.107'
+            - '45.32.192.150'
+            - '15.204.185.204'
+    condition: selection
+falsepositives:
+    - Shared hosting may lead to false positives for some IPs
+level: high
+---
+title: Masqueraded Binaries in ScreenConnect Worm Campaign
+id: 8bf9ff6f-1acd-4784-a2cb-ac6be18d38c5
+status: experimental
+description: >
+    Detects execution of masqueraded binaries (Themes.exe as wstunnel,
+    SearchIndex.exe as XMRig miner) from the staging path used by the
+    September 2026 ScreenConnect worm campaign.
+references:
+    - https://www.huntress.com/blog/rogue-screenconnect-installations
+    - https://thehackernews.com/2026/09/rogue-screenconnect-clients-spread-four.html
+author: Actioner
+date: 2026/09/08
+tags:
+    - attack.t1036.005
+    - attack.t1496
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_staging_path:
+        Image|contains: '\Users\Public\Libraries\Default\Lib\'
+    selection_binaries:
+        Image|endswith:
+            - '\Themes.exe'
+            - '\SearchIndex.exe'
+    condition: selection_staging_path and selection_binaries
+falsepositives:
+    - Legitimate software named Themes.exe or SearchIndex.exe deployed to Public Libraries path
+level: high

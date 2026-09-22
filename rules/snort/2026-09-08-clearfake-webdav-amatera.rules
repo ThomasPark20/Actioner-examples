@@ -1,0 +1,5 @@
+alert ip $HOME_NET any -> [145.249.109.147,45.150.34.2,212.118.56.166,150.241.94.112] any (msg:"Actioner - Outbound Contact to ClearFake/Amatera/NetSupport C2 IP"; flow:to_server; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; classtype:trojan-activity; metadata:author Actioner, created 2026-09-08; sid:2100901; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query for ClearFake NetSupport Manager Gateway Domain paternal-angrily.com"; content:"|10|paternal-angrily|03|com|00|", nocase, fast_pattern; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; classtype:trojan-activity; metadata:author Actioner, created 2026-09-08; sid:2100902; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP Request to Amatera Stealer Dead-Drop Resolver on telegra.ph"; flow:established,to_server; content:"GET", nocase; http_method; content:"telegra.ph"; http_header; content:"/Functions-04-03", fast_pattern; http_uri; reference:url,blog.talosintelligence.com/clearfake-webdav-infection-chain/; classtype:trojan-activity; metadata:author Actioner, created 2026-09-08; sid:2100903; rev:1;)
