@@ -1,0 +1,184 @@
+title: CHOSEN BRICK Registry Run Key Persistence
+id: 7a3c1e8b-4d2f-4a91-b6e3-9c8d7f2a1b05
+status: experimental
+description: Detects CHOSEN BRICK/HEAVYGRAM malware persistence via specific Run key value names used by Iranian MOIS actors.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run\'
+    selection_values:
+        TargetObject|endswith:
+            - '\SMQDService'
+            - '\winappx'
+            - '\Default_SSH'
+            - '\MicDriver'
+    condition: selection_key and selection_values
+falsepositives:
+    - Legitimate software using identical value names is unlikely but possible
+level: high
+---
+title: CHOSEN BRICK Defender Exclusion Paths
+id: 2b4f8c9e-1a3d-4e7b-8f6c-5d2e9a0b3c17
+status: experimental
+description: Detects PowerShell commands adding Microsoft Defender exclusions for paths associated with CHOSEN BRICK/HEAVYGRAM malware staging directories.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'Add-MpPreference'
+            - '-ExclusionPath'
+    selection_paths:
+        CommandLine|contains:
+            - 'SMQDServicePackages'
+            - 'MicrosoftDistribution\sysmain'
+            - 'ZlibDate'
+    condition: selection_cmd and selection_paths
+falsepositives:
+    - Legitimate administrator adding exclusions for identically named directories
+level: critical
+---
+title: CHOSEN BRICK Staging Directory File Creation
+id: 3e6a9d1c-8b4f-42e7-a5d3-7c0f2e8b1a94
+status: experimental
+description: Detects file creation in staging directories characteristic of CHOSEN BRICK/HEAVYGRAM malware, including ZlibDate exfiltration folders and MicDriver cache.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains:
+            - '\ZlibDate\Z84A847FEEB1FC2s\'
+            - '\ZlibDate\CachedFiles\'
+            - '\ZlibDate\Settings\'
+            - '\Drivers\MicDriver\Cache\'
+            - '\SMQDServicePackages\488ht1-8ww648q\'
+            - '\ssh-cache-default\{8bda3848-495e-43f4-8d10-7d37a67f1604}\'
+    condition: selection
+falsepositives:
+    - Very unlikely given the unique directory names
+level: critical
+---
+title: Suspicious Non-Browser Telegram Bot API DNS Query
+id: 4f7b0e2d-9c5a-43f8-b6e4-8d1f3a7c2b06
+status: experimental
+description: Detects non-Telegram processes resolving api.telegram.org via DNS. Multiple malware families including CHOSEN BRICK/HEAVYGRAM abuse the Telegram Bot API for C2.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1102.002
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection_dns:
+        QueryName: 'api.telegram.org'
+    filter_telegram:
+        Image|endswith:
+            - '\Telegram.exe'
+            - '\Telegram Desktop\Telegram.exe'
+    condition: selection_dns and not filter_telegram
+falsepositives:
+    - Custom scripts or bots legitimately using the Telegram Bot API
+level: medium
+---
+title: CHOSEN BRICK Malicious Process Execution
+id: 5a8c1f3e-0d6b-44a9-c7f5-9e2a4b8d3c18
+status: experimental
+description: Detects execution of known CHOSEN BRICK/HEAVYGRAM malware binaries from characteristic file paths used by Iranian MOIS actors.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_paths:
+        Image|contains:
+            - '\SMQDServicePackages\488ht1-8ww648q\smqdservice.exe'
+            - '\MicrosoftDistribution\sysmain\winappx.exe'
+            - '\ssh-cache-default\{8bda3848-495e-43f4-8d10-7d37a67f1604}\RuntimeSSH.exe'
+            - '\Drivers\MicDriver\MicDriver.exe'
+            - '\Drivers\Whatsapp\WhatssApp.exe'
+    condition: selection_paths
+falsepositives:
+    - Extremely unlikely given the highly specific paths
+level: critical
+---
+title: CHOSEN BRICK Spoofed Windows Directory with Trailing Space
+id: 6b9d2a4f-1e7c-45b0-d8a6-0f3b5c9e4d29
+status: experimental
+description: Detects file activity in a spoofed Windows directory containing a trailing space ("C:\Windows \SysWOW64"), a known CHOSEN BRICK technique for DLL staging.
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: 'C:\Windows \SysWOW64'
+    condition: selection
+falsepositives:
+    - None known; a space after Windows in the path is inherently suspicious
+level: critical
+---
+title: CHOSEN BRICK Cloud Storage Exfiltration via VultrObjects
+id: 7c0e3b5a-2f8d-46c1-e9b7-1a4c6d0f5e30
+status: experimental
+description: Detects DNS queries to specific VultrObjects hostnames used by CHOSEN BRICK for malware hosting and data exfiltration. Scoped to advisory IOCs (sgp1, ams1, micbucket subdomains).
+references:
+    - https://www.ic3.gov/CSA/2026/260915.pdf
+    - https://www.ncsc.gov.uk/news/iranian-cyber-targeting-of-dissidents-activists-and-journalists
+author: Actioner
+date: 2026-09-16
+tags:
+    - attack.t1567.002
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName:
+            - 'sgp1.vultrobjects.com'
+            - 'ams1.vultrobjects.com'
+            - 'micbucket.ams1.vultrobjects.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of these specific Vultr Object Storage regions (sgp1, ams1) by applications
+level: medium

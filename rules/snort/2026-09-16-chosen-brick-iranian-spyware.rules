@@ -1,0 +1,25 @@
+# CHOSEN BRICK / HEAVYGRAM Iranian Spyware - Snort Rules
+# Reference: https://www.ic3.gov/CSA/2026/260915.pdf
+# Date: 2026-09-16
+# Author: Actioner
+#
+# NOTE: These rules use http_header which matches the full header block,
+# not just the Host header. This is less precise than the Suricata equivalents
+# that use http.host. In high-traffic environments, supplement with Suricata rules.
+# SID 2100003 lacks a threshold unlike Suricata SID 2200003 (count 5, seconds 60);
+# deployers should add a detection_filter or threshold to avoid alert floods.
+
+# SID 2100001 - Telegram Bot API sendDocument exfiltration [structural check only]
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CHOSEN BRICK Telegram Bot API sendDocument Exfiltration"; flow:established,to_server; content:"POST"; http_method; content:"api.telegram.org"; http_header; content:"/sendDocument"; http_uri; sid:2100001; rev:1; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2100002 - Telegram Bot API sendPhoto screenshot exfiltration [structural check only]
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CHOSEN BRICK Telegram Bot API sendPhoto Screenshot Exfiltration"; flow:established,to_server; content:"POST"; http_method; content:"api.telegram.org"; http_header; content:"/sendPhoto"; http_uri; sid:2100002; rev:1; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2100003 - Telegram Bot API C2 polling [structural check only; no threshold - see note above]
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CHOSEN BRICK Telegram Bot API C2 Polling"; flow:established,to_server; content:"POST"; http_method; content:"api.telegram.org"; http_header; content:"/getUpdates"; http_uri; sid:2100003; rev:1; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2100004 - VultrObjects S3 bucket exfiltration [structural check only]
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CHOSEN BRICK VultrObjects S3 Exfiltration Bucket"; flow:established,to_server; content:"vultrobjects.com"; http_header; content:"-ppmppnf12uyt4r5tifjdfh"; http_uri; sid:2100004; rev:1; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
+
+# SID 2100005 - MicDriver download from micbucket [structural check only]
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CHOSEN BRICK MicDriver Download from micbucket"; flow:established,to_server; content:"micbucket.ams1.vultrobjects.com"; http_header; sid:2100005; rev:1; reference:url,www.ic3.gov/CSA/2026/260915.pdf; classtype:trojan-activity;)
