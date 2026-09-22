@@ -1,0 +1,41 @@
+title: StyleSmuggler Rust Backdoor File Creation or Process Execution
+id: d6a9e3cb-5f8a-6a04-bc7d-ae3f2a9b4c5d
+status: experimental
+description: >
+    Detects file creation or process execution patterns associated with the
+    StyleSmuggler Rust-based backdoor. The implant masquerades as legitimate
+    system processes (kworker, fc-cache, chronyd) and drops files in hidden
+    directories under the user's home or /tmp.
+references:
+    - https://sansec.io/research/stylesmuggler-0day
+    - https://thehackernews.com/2026/09/unpatched-magento-and-adobe-commerce.html
+author: Actioner
+date: 2026-09-12
+tags:
+    - attack.t1036.004
+    - attack.t1053.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_gvfsd:
+        TargetFilename|contains: '.local/share/.gvfsd/gvfsd-user'
+    selection_fc_cache_hidden:
+        TargetFilename|contains: '.cache/fontconfig/fc-cache'
+    selection_tmp_kw:
+        TargetFilename|contains: '/tmp/.kw_'
+    selection_tmp_cache:
+        TargetFilename|contains: '/tmp/.cache_'
+    selection_tmp_fc_dash:
+        TargetFilename|contains: '/tmp/.fc-'
+    selection_tmp_fc_underscore:
+        TargetFilename|contains: '/tmp/.fc_'
+    selection_tmp_chrony:
+        TargetFilename|contains: '/tmp/.chrony-'
+    selection_tmp_gvfsd:
+        TargetFilename|contains: '/tmp/.gvfsd'
+    condition: 1 of selection*
+falsepositives:
+    - Legitimate GNOME gvfsd processes (verify the binary is from a system package)
+    - System fontconfig cache updates (fc-cache in standard paths, not hidden directories)
+level: high

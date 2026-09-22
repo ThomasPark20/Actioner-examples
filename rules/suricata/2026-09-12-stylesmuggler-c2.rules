@@ -1,0 +1,21 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (timesync.to)"; flow:to_server; dns.query; content:"ntp.timesync.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750001; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (timesysnc.net)"; flow:to_server; dns.query; content:"ntp.timesysnc.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750002; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to Typosquat Domain (microsft.run)"; flow:to_server; dns.query; content:"microsft.run"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750003; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to Typosquat Domain (microsft.studio)"; flow:to_server; dns.query; content:"microsft.studio"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750004; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to windwsecurity.run"; flow:to_server; dns.query; content:"windwsecurity.run"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750005; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler Malware Download Domain (cdnflare.xyz)"; flow:to_server; dns.query; content:"cdnflare.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750006; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler Exfiltration Domain (checkout-cdn.com)"; flow:to_server; dns.query; content:"checkout-cdn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750007; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (synctime.to)"; flow:to_server; dns.query; content:"ntp.synctime.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - StyleSmuggler C2 DNS Query to NTP Typosquat Domain (syncstime.to)"; flow:to_server; dns.query; content:"ntp.syncstime.to"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750011; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler GraphQL Exploitation Attempt with styles Parameter"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/graphql"; fast_pattern; http.uri.raw; content:"styles%5B"; classtype:web-application-attack; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750008; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - StyleSmuggler Web Shell Access via X-Cache-Token Header"; flow:established,to_server; http.method; content:"POST"; http.request_header; content:"X-Cache-Token"; content:"fced27f6d57702565353ecc11722533b"; classtype:trojan-activity; reference:url,sansec.io/research/stylesmuggler-0day; reference:cve,2026-75650; metadata:author Actioner, created_at 2026-09-12; sid:2026750009; rev:1;)
