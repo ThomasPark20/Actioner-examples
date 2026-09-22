@@ -1,0 +1,28 @@
+title: Process Tampering Detection (Supplementary - CLOSEDQUORUM Context)
+id: f6a7b8c9-d0e1-2345-fabc-456789012345
+status: experimental
+description: >
+  Detects process image tampering (Sysmon EID 25). Generic detection —
+  correlate with other CLOSEDQUORUM indicators for attribution.
+references:
+    - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.defense_evasion
+    - attack.t1685
+logsource:
+    category: process_tampering
+    product: windows
+detection:
+    selection:
+        Type: 'Image is tampered'
+    filter_known:
+        Image|endswith:
+            - '\MsMpEng.exe'
+            - '\MsSense.exe'
+    condition: selection and not filter_known
+falsepositives:
+    - Endpoint protection products performing memory patching
+    - .NET JIT compilation and AV engines
+level: medium

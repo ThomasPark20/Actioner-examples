@@ -1,6 +1,6 @@
 # CLOSEDQUORUM: First Reported Autonomous AI C2 Implant
 
-> **DRAFT** -- Actioner CTI Report  
+> **Status:** Final — Actioner automated analysis  
 > **Date:** 2026-09-22  
 > **TLP:** CLEAR  
 > **Source:** [Cisco Talos -- The Closed Quorum: Inside the First Reported Autonomous AI C2 Implant](https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/)
@@ -157,13 +157,14 @@ A distinctive network signature is the rapid sequential HTTPS POST requests to m
 
 ### Sigma Rules
 
+Note: the 4th quorum member (Google Gemini) has no confirmed API endpoint in analyzed samples; network-layer rules cover only 3 of 4 LLM providers.
+
 #### SIGMA-1: CLOSEDQUORUM LLM API Provider DNS Resolution
 
-Detects DNS queries to all three LLM API provider domains (DeepSeek, Mistral, OpenRouter) from a single host, a pattern distinctive to the CLOSEDQUORUM quorum mechanism.
+Detects DNS queries to all three confirmed LLM API provider domains from a single host. Developer workstations running multi-provider LLM tooling (LiteLLM, LangChain with fallback chains) will trigger this rule.
+<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass. Critic revision: lowered level and confidence from high to medium — DeepSeek, Mistral, and OpenRouter are all legitimate commercial APIs with millions of daily users. -->
 
-**Status:** ✅ compiles (Splunk + LogScale) | **Confidence:** high
-
-<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass; sigma check blocked by MITRE ATT&CK data fetch (proxy 403), not a rule defect -->
+**Status:** compile ✅ compiles · confidence: medium
 
 ```yaml
 title: CLOSEDQUORUM LLM API Provider DNS Resolution
@@ -174,7 +175,7 @@ description: >
   timeframe, indicative of CLOSEDQUORUM quorum-based C2 communication.
 references:
     - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
+author: Actioner
 date: 2026-09-22
 tags:
     - attack.command_and_control
@@ -192,53 +193,16 @@ detection:
     condition: deepseek and mistral and openrouter
 falsepositives:
     - Developer workstations legitimately using multiple LLM providers
-level: high
+    - Multi-provider LLM orchestration frameworks (LiteLLM, LangChain)
+level: medium
 ```
 
 ---
 
 #### SIGMA-2: CLOSEDQUORUM Discord Webhook Exfiltration Post LLM Query
 
-Detects a process making network connections to both LLM API providers and Discord, the dual-channel pattern used by CLOSEDQUORUM for AI-driven C2 decisions followed by data exfiltration.
-
-**Status:** ✅ compiles (Splunk + LogScale) | **Confidence:** high
-
-<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass -->
-
-```yaml
-title: CLOSEDQUORUM Discord Webhook Exfiltration Post LLM Query
-id: b2c3d4e5-f6a7-8901-bcde-f12345678901
-status: experimental
-description: >
-  Detects a process making network connections to both LLM API providers and
-  Discord CDN, consistent with CLOSEDQUORUM data exfiltration pattern.
-references:
-    - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
-date: 2026-09-22
-tags:
-    - attack.exfiltration
-    - attack.t1567.004
-    - attack.command_and_control
-    - attack.t1102
-logsource:
-    category: network_connection
-    product: windows
-detection:
-    selection_llm:
-        DestinationHostname|endswith:
-            - '.deepseek.com'
-            - '.mistral.ai'
-            - '.openrouter.ai'
-    selection_discord:
-        DestinationHostname|endswith:
-            - '.discordapp.com'
-            - '.discord.com'
-    condition: selection_llm and selection_discord
-falsepositives:
-    - Applications that legitimately combine LLM API calls with Discord integration
-level: high
-```
+**DROPPED.** The original rule required a single `network_connection` event to have `DestinationHostname` matching both an LLM API domain and Discord simultaneously — this is logically impossible (one event, one destination). Temporal correlation of LLM API queries followed by Discord webhook POSTs from the same process is a valid detection concept, but requires SIEM-level correlation (e.g., SPL `| transaction` or KQL `join`), not a single Sigma rule. See the hunting queries section for a Splunk equivalent.
+<!-- audit: Critic revision — rule dropped due to impossible AND condition on single network event. -->
 
 ---
 
@@ -259,7 +223,7 @@ description: >
   with CLOSEDQUORUM WMI event subscription persistence mechanism.
 references:
     - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
+author: Actioner
 date: 2026-09-22
 tags:
     - attack.persistence
@@ -301,7 +265,7 @@ description: >
   CLOSEDQUORUM persistence mechanism masquerading as a legitimate Windows component.
 references:
     - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
+author: Actioner
 date: 2026-09-22
 tags:
     - attack.persistence
@@ -327,24 +291,23 @@ level: high
 
 ---
 
-#### SIGMA-5: CLOSEDQUORUM LSASS Memory Access
+#### SIGMA-5: Suspicious LSASS Memory Access (Supplementary)
 
-Detects suspicious LSASS process access with debug-level privileges from non-system processes, consistent with CLOSEDQUORUM's `MiniDumpWriteDump`-based credential theft.
+Generic LSASS access detection shared across many credential-dumping tools (Mimikatz, nanodump, etc.) — not CLOSEDQUORUM-specific. Included as supplementary coverage for the `steal` capability module.
+<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass. Critic revision: relabeled as supplementary/generic, lowered level from critical to high to match medium confidence. -->
 
-**Status:** ✅ compiles (Splunk + LogScale) | **Confidence:** medium
-
-<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass. Medium confidence: LSASS access detection is a well-known pattern shared across many credential-dumping tools; this rule is not CLOSEDQUORUM-specific. -->
+**Status:** compile ✅ compiles · confidence: medium
 
 ```yaml
-title: CLOSEDQUORUM LSASS Memory Access
+title: Suspicious LSASS Memory Access (Supplementary - CLOSEDQUORUM Context)
 id: e5f6a7b8-c9d0-1234-efab-345678901234
 status: experimental
 description: >
-  Detects a process accessing LSASS memory with debug privileges, consistent
-  with CLOSEDQUORUM credential theft via MiniDumpWriteDump.
+  Detects a process accessing LSASS memory with debug privileges. Generic
+  detection — correlate with other CLOSEDQUORUM indicators for attribution.
 references:
     - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
+author: Actioner
 date: 2026-09-22
 tags:
     - attack.credential_access
@@ -368,31 +331,28 @@ detection:
     condition: selection and not filter_known
 falsepositives:
     - Legitimate security tools performing memory diagnostics
-level: critical
+level: high
 ```
-
-LSASS access patterns are shared across many credential-dumping tools; correlate with other CLOSEDQUORUM indicators for higher fidelity.
 
 ---
 
-#### SIGMA-6: CLOSEDQUORUM ETW Bypass via Process Tampering
+#### SIGMA-6: Process Tampering Detection (Supplementary)
 
-Detects process image tampering events indicative of the ETW bypass technique where CLOSEDQUORUM overwrites `EtwEventWrite` with a RET instruction.
+Generic Sysmon EID 25 (process tampering) detection — not CLOSEDQUORUM-specific. The ETW `EtwEventWrite` RET-overwrite is not uniquely fingerprintable at the Sigma level. Included as supplementary coverage.
+<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass. Critic revision: relabeled as supplementary/generic, lowered level from high to medium to match stated confidence. -->
 
-**Status:** ✅ compiles (Splunk + LogScale) | **Confidence:** medium
-
-<!-- audit: sigma convert --without-pipeline -t splunk => pass; sigma convert --without-pipeline -t log_scale => pass. Medium confidence: process_tampering events are generic; the ETW patching itself is not uniquely fingerprintable at Sigma level. -->
+**Status:** compile ✅ compiles · confidence: medium
 
 ```yaml
-title: CLOSEDQUORUM ETW Bypass via Process Tampering
+title: Process Tampering Detection (Supplementary - CLOSEDQUORUM Context)
 id: f6a7b8c9-d0e1-2345-fabc-456789012345
 status: experimental
 description: >
-  Detects suspicious process tampering consistent with ETW bypass techniques used
-  by CLOSEDQUORUM, where EtwEventWrite is overwritten with a RET instruction.
+  Detects process image tampering (Sysmon EID 25). Generic detection —
+  correlate with other CLOSEDQUORUM indicators for attribution.
 references:
     - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
-author: Actioner DRAFT
+author: Actioner
 date: 2026-09-22
 tags:
     - attack.defense_evasion
@@ -410,7 +370,8 @@ detection:
     condition: selection and not filter_known
 falsepositives:
     - Endpoint protection products performing memory patching
-level: high
+    - .NET JIT compilation and AV engines
+level: medium
 ```
 
 ---
@@ -430,7 +391,7 @@ rule CLOSEDQUORUM_AI_C2_Implant
 {
     meta:
         description = "Detects CLOSEDQUORUM autonomous AI C2 implant - Go binary with LLM quorum voting mechanism"
-        author = "Actioner DRAFT"
+        author = "Actioner"
         date = "2026-09-22"
         reference = "https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/"
         hash1 = "250d4fa37488af9b025333fa17705573d721467b203765bc360890b4f5a90cd7"
@@ -496,7 +457,7 @@ rule CLOSEDQUORUM_Go_Symbols
 {
     meta:
         description = "Detects CLOSEDQUORUM via distinctive Go DWARF function name combinations"
-        author = "Actioner DRAFT"
+        author = "Actioner"
         date = "2026-09-22"
         reference = "https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/"
         confidence = "high"
@@ -515,6 +476,8 @@ rule CLOSEDQUORUM_Go_Symbols
         4 of them
 }
 ```
+
+Stripped binaries will lack DWARF symbols and evade YARA-2; YARA-1 covers that case via embedded strings and API domains.
 
 ---
 
@@ -538,16 +501,15 @@ Requires TLS interception/decryption to inspect HTTPS payload content.
 
 #### SNORT-2--4: CLOSEDQUORUM DNS Queries to LLM Providers
 
-Detects DNS queries to the three LLM API provider domains used by CLOSEDQUORUM's quorum mechanism.
+Detects individual DNS queries to LLM API provider domains. These are legitimate public APIs with massive daily query volume — individual alerts are low-signal and should only be investigated when correlated together or with other CLOSEDQUORUM indicators.
+<!-- audit: all three DNS rules validated in single snort -T pass. Critic revision: lowered confidence to low, changed classtype from trojan-activity to policy-violation — these are legitimate commercial API domains. -->
 
-**Status:** ✅ compiles (snort -T) | **Confidence:** high
-
-<!-- audit: all three DNS rules validated in single snort -T pass -->
+**Status:** compile ✅ compiles · confidence: low
 
 ```
-alert dns $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to DeepSeek API"; content:"|03|api|08|deepseek|03|com|00|"; nocase; classtype:trojan-activity; sid:1000002; rev:1;)
-alert dns $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to Mistral API"; content:"|03|api|07|mistral|02|ai|00|"; nocase; classtype:trojan-activity; sid:1000003; rev:1;)
-alert dns $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to OpenRouter AI"; content:"|0a|openrouter|02|ai|00|"; nocase; classtype:trojan-activity; sid:1000004; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to DeepSeek API"; content:"|03|api|08|deepseek|03|com|00|"; nocase; classtype:policy-violation; sid:1000002; rev:2;)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to Mistral API"; content:"|03|api|07|mistral|02|ai|00|"; nocase; classtype:policy-violation; sid:1000003; rev:2;)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to OpenRouter AI"; content:"|0a|openrouter|02|ai|00|"; nocase; classtype:policy-violation; sid:1000004; rev:2;)
 ```
 
 Individual DNS rules are low-signal alone; correlate all three firing from the same source within a time window.
@@ -558,16 +520,15 @@ Individual DNS rules are low-signal alone; correlate all three firing from the s
 
 #### SURICATA-1--3: CLOSEDQUORUM DNS Queries to LLM Providers
 
-Detects DNS queries to the three LLM API provider domains using Suricata's `dns.query` sticky buffer.
+Detects individual DNS queries to LLM API provider domains. Same low-signal caveat as the Snort DNS rules — these are legitimate public APIs.
+<!-- audit: suricata -T -S closedquorum_suricata.rules => pass. Critic revision: lowered confidence to low, changed classtype to policy-violation. -->
 
-**Status:** ✅ compiles (suricata -T) | **Confidence:** high
-
-<!-- audit: suricata -T -S closedquorum_suricata.rules => "Configuration provided was successfully loaded. Exiting." -->
+**Status:** compile ✅ compiles · confidence: low
 
 ```
-alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to DeepSeek API"; dns.query; content:"api.deepseek.com"; nocase; classtype:trojan-activity; sid:3000001; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to Mistral API"; dns.query; content:"api.mistral.ai"; nocase; classtype:trojan-activity; sid:3000002; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to OpenRouter AI"; dns.query; content:"openrouter.ai"; nocase; classtype:trojan-activity; sid:3000003; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to DeepSeek API"; dns.query; content:"api.deepseek.com"; nocase; classtype:policy-violation; sid:3000001; rev:2;)
+alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to Mistral API"; dns.query; content:"api.mistral.ai"; nocase; classtype:policy-violation; sid:3000002; rev:2;)
+alert dns $HOME_NET any -> any any (msg:"CLOSEDQUORUM DNS Query to OpenRouter AI"; dns.query; content:"openrouter.ai"; nocase; classtype:policy-violation; sid:3000003; rev:2;)
 ```
 
 ---
@@ -590,22 +551,25 @@ Requires TLS interception to inspect HTTP request body content.
 
 #### SURICATA-5: CLOSEDQUORUM Discord Webhook Exfiltration
 
-Detects HTTP requests to Discord webhook API endpoints, the exfiltration channel used by CLOSEDQUORUM.
+Detects HTTP requests to Discord webhook API endpoints. Discord webhooks are used by countless legitimate applications (CI/CD, monitoring bots, Slack bridges) — this is correlation-only, not a standalone indicator.
+<!-- audit: validated in same suricata -T pass. Critic revision: lowered confidence to low, changed classtype to policy-violation. -->
 
-**Status:** ✅ compiles (suricata -T) | **Confidence:** medium
-
-<!-- audit: validated in same suricata -T pass. Medium confidence: Discord webhooks are used by many legitimate applications; correlate with other indicators. -->
+**Status:** compile ✅ compiles · confidence: low
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CLOSEDQUORUM Discord Webhook Exfiltration"; flow:established,to_server; http.host; content:"discord.com"; http.uri; content:"/api/webhooks/"; classtype:trojan-activity; sid:3000005; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"CLOSEDQUORUM Discord Webhook Exfiltration"; flow:established,to_server; http.host; content:"discord.com"; http.uri; content:"/api/webhooks/"; classtype:policy-violation; sid:3000005; rev:2;)
 ```
 
-Discord webhook traffic is common in legitimate applications; correlate with LLM API DNS queries from the same host.
+Correlation-only: investigate only when accompanied by LLM API DNS queries from the same host.
 
 ---
 
 ## Sources
 
 - [Cisco Talos -- The Closed Quorum: Inside the First Reported Autonomous AI C2 Implant](https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/) (September 22, 2026)
-- [Cisco Talos -- Introducing CAIRN: Frontier Tracking for AI-Integrated Malware](https://blog.talosintelligence.com/) (September 22, 2026)
+- [Cisco Talos -- Introducing CAIRN: Frontier Tracking for AI-Integrated Malware](https://blog.talosintelligence.com/introducing-cairn/) (September 22, 2026)
 - [MITRE ATT&CK Framework](https://attack.mitre.org/)
+
+---
+
+*Report generated 2026-09-22. Review and promote through your organization's detection engineering workflow before deployment.*

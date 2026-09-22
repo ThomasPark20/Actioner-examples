@@ -1,0 +1,33 @@
+title: Suspicious LSASS Memory Access (Supplementary - CLOSEDQUORUM Context)
+id: e5f6a7b8-c9d0-1234-efab-345678901234
+status: experimental
+description: >
+  Detects a process accessing LSASS memory with debug privileges. Generic
+  detection — correlate with other CLOSEDQUORUM indicators for attribution.
+references:
+    - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.credential_access
+    - attack.t1003.001
+logsource:
+    category: process_access
+    product: windows
+detection:
+    selection:
+        TargetImage|endswith: '\lsass.exe'
+        GrantedAccess|contains:
+            - '0x1010'
+            - '0x1038'
+            - '0x1fffff'
+    filter_known:
+        SourceImage|endswith:
+            - '\MsMpEng.exe'
+            - '\csrss.exe'
+            - '\lsass.exe'
+            - '\svchost.exe'
+    condition: selection and not filter_known
+falsepositives:
+    - Legitimate security tools performing memory diagnostics
+level: high

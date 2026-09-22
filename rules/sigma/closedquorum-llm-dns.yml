@@ -1,0 +1,28 @@
+title: CLOSEDQUORUM LLM API Provider DNS Resolution
+id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+status: experimental
+description: >
+  Detects DNS resolution to multiple commercial LLM API providers within a short
+  timeframe, indicative of CLOSEDQUORUM quorum-based C2 communication.
+references:
+    - https://blog.talosintelligence.com/the-closed-quorum-inside-the-first-reported-autonomous-ai-c2-implant/
+author: Actioner
+date: 2026-09-22
+tags:
+    - attack.command_and_control
+    - attack.t1102
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    deepseek:
+        QueryName|endswith: '.deepseek.com'
+    mistral:
+        QueryName|endswith: '.mistral.ai'
+    openrouter:
+        QueryName|endswith: '.openrouter.ai'
+    condition: deepseek and mistral and openrouter
+falsepositives:
+    - Developer workstations legitimately using multiple LLM providers
+    - Multi-provider LLM orchestration frameworks (LiteLLM, LangChain)
+level: medium

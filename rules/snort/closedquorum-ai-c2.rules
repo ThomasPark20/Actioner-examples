@@ -1,0 +1,10 @@
+# CLOSEDQUORUM AI C2 Implant - Snort Rules
+# Requires TLS inspection for SNORT-1.
+
+# SNORT-1: LLM C2 System Prompt (requires TLS inspection)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"CLOSEDQUORUM LLM C2 System Prompt in HTTPS Payload"; flow:established,to_server; content:"You are an advanced malware strategist"; nocase; content:"executable decisions"; nocase; distance:0; within:100; classtype:trojan-activity; sid:1000001; rev:1;)
+
+# SNORT-2-4: DNS Queries to LLM Providers (low confidence - legitimate APIs)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to DeepSeek API"; content:"|03|api|08|deepseek|03|com|00|"; nocase; classtype:policy-violation; sid:1000002; rev:2;)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to Mistral API"; content:"|03|api|07|mistral|02|ai|00|"; nocase; classtype:policy-violation; sid:1000003; rev:2;)
+alert udp $HOME_NET any -> any 53 (msg:"CLOSEDQUORUM DNS Query to OpenRouter AI"; content:"|0a|openrouter|02|ai|00|"; nocase; classtype:policy-violation; sid:1000004; rev:2;)
