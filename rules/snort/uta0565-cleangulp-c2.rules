@@ -1,0 +1,11 @@
+# UTA0565 CLEANGULP C2 and Infrastructure Domain Detection
+# Detects TLS ClientHello traffic containing UTA0565 campaign domain strings.
+# NOTE: Content matches on raw TCP payload are fragile across TCP segment boundaries;
+# pair with the Sigma DNS rule for complete coverage.
+# Reference: https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 CLEANGULP C2 Domain in TLS ClientHello"; flow:established,to_server; content:"thecovnresation"; fast_pattern; content:".com"; distance:0; within:5; sid:2100010; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 Spoofed Domain chinadigitaltimes.top in TLS ClientHello"; flow:established,to_server; content:"chinadigitaltimes"; fast_pattern; content:".top"; distance:0; within:5; sid:2100011; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 Spoofed Domain americanprgoress.top in TLS ClientHello"; flow:established,to_server; content:"americanprgoress"; fast_pattern; content:".top"; distance:0; within:5; sid:2100012; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)

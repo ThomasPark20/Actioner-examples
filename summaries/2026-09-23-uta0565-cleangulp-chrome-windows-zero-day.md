@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-23
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
 
 ## Executive Summary
 
@@ -164,9 +164,8 @@ CLEANGULP targets Windows exclusively. The exploit chain requires Chrome on Wind
 | T1105 | Ingress Tool Transfer | Download of chrome_cleanup.exe payload from spoofed domain |
 | T1071.001 | Web Protocols | C2 communication via HTTP POST to /beacon/pre-register |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-256-GCM encryption of C2 traffic |
-| T1027.001 | Obfuscated Files or Information: Binary Padding | Control flow flattening obfuscation of CLEANGULP binary |
+| T1027 | Obfuscated Files or Information | Control flow flattening obfuscation of CLEANGULP binary |
 | T1553.005 | Subvert Trust Controls: Mark-of-the-Web Bypass | MOTW stripped before execution |
-| T1082 | System Information Discovery | Process enumeration via "ps" command |
 | T1057 | Process Discovery | CLEANGULP "ps" command lists running processes |
 | T1041 | Exfiltration Over C2 Channel | CLEANGULP "upload" command exfiltrates files over HTTP C2 |
 
@@ -212,7 +211,7 @@ CLEANGULP targets Windows exclusively. The exploit chain requires Chrome on Wind
 
 ## Detection Rules
 
-These detections target campaign-specific artifacts from the UTA0565 CLEANGULP operation. PoC/advisory-specific altitude (default); Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target campaign-specific artifacts from the UTA0565 CLEANGULP operation. PoC/advisory-specific altitude (default); Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. The Sigma DNS rule provides primary coverage for all 9 campaign domains; Snort/Suricata network rules supplement with TLS SNI and HTTP-layer detection for the three highest-priority domains (C2 + top phishing infrastructure). Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: UTA0565 CLEANGULP Scheduled Task Persistence
 
@@ -266,7 +265,7 @@ references:
 author: Actioner
 date: 2026/09/23
 tags:
-    - attack.t1105
+    - attack.t1036.005
 logsource:
     category: file_event
     product: windows
@@ -321,23 +320,25 @@ level: critical
 
 ### Snort: UTA0565 CLEANGULP C2 and Infrastructure Domain Detection
 
-Detects TLS ClientHello traffic containing UTA0565 campaign domain strings in the payload.
+Detects TLS ClientHello traffic containing UTA0565 campaign domain strings in the payload. Content matches on raw TCP payload are fragile across TCP segment boundaries; pair with the Sigma DNS rule for complete coverage.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -T exit 0. Content match on distinctive domain labels "thecovnresation", "chinadigitaltimes", "americanprgoress" in raw TCP payload for TLS SNI detection. Campaign-specific domains; no benign overlap. -->
+<!-- audit: snort -T exit 0. Content match on distinctive domain labels in raw TCP payload for TLS SNI detection. Campaign-specific domains; no benign overlap. Dest port changed from $HTTP_PORTS to any (TLS on 443 may be excluded from $HTTP_PORTS). TCP segment boundary fragmentation can split the SNI across packets, causing a miss; Sigma DNS rule is primary coverage. -->
+<!-- revision: dest port $HTTP_PORTS → any per critic (TLS typically on 443, may not be in $HTTP_PORTS). Added TCP segmentation caveat. -->
 
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0565 CLEANGULP C2 Domain in TLS ClientHello"; flow:established,to_server; content:"thecovnresation"; fast_pattern; content:".com"; distance:0; within:5; sid:2100010; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 CLEANGULP C2 Domain in TLS ClientHello"; flow:established,to_server; content:"thecovnresation"; fast_pattern; content:".com"; distance:0; within:5; sid:2100010; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0565 Spoofed Domain chinadigitaltimes.top in TLS ClientHello"; flow:established,to_server; content:"chinadigitaltimes"; fast_pattern; content:".top"; distance:0; within:5; sid:2100011; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 Spoofed Domain chinadigitaltimes.top in TLS ClientHello"; flow:established,to_server; content:"chinadigitaltimes"; fast_pattern; content:".top"; distance:0; within:5; sid:2100011; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0565 Spoofed Domain americanprgoress.top in TLS ClientHello"; flow:established,to_server; content:"americanprgoress"; fast_pattern; content:".top"; distance:0; within:5; sid:2100012; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UTA0565 Spoofed Domain americanprgoress.top in TLS ClientHello"; flow:established,to_server; content:"americanprgoress"; fast_pattern; content:".top"; distance:0; within:5; sid:2100012; rev:2; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
 ```
 
 ### Suricata: UTA0565 CLEANGULP C2 and Infrastructure
 
-Detects TLS connections, DNS queries, and HTTP C2 beacons to known UTA0565 campaign domains.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Seven rules covering TLS SNI, DNS, and HTTP C2 beacon URI. Campaign-specific infrastructure; no benign overlap. The HTTP C2 beacon rule on /beacon/pre-register is medium confidence standalone but combined with other indicators is high. -->
+Detects TLS connections, DNS queries, and HTTP C2 beacons to known UTA0565 campaign domains. Sigma DNS rule provides primary coverage for all 9 campaign domains; these Suricata rules supplement with TLS SNI and HTTP-layer detection for the three highest-priority domains.
+**Status:** compile ✅ compiles · confidence: high (TLS/DNS rules) · medium (HTTP C2 beacon)
+<!-- audit: suricata -T exit 0. Seven rules covering TLS SNI, DNS, and HTTP C2 beacon URI. Campaign-specific infrastructure; no benign overlap. HTTP C2 beacon rule (sid:2200016) now bound to C2 domain via http.host, raising from unanchored to medium. TLS SNI and DNS rules on campaign-specific domains remain high. -->
+<!-- revision: added http.host constraint to sid:2200016 per critic (was unanchored POST /beacon/pre-register to any host). Split confidence label: high for TLS/DNS, medium for HTTP beacon. Documented Sigma DNS as primary coverage for all 9 domains. -->
 
 ```suricata
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to CLEANGULP C2 Domain thecovnresation.com"; flow:established,to_server; tls.sni; content:"thecovnresation.com"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-23; sid:2200010; rev:1;)
@@ -352,7 +353,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UTA0565 Spoofed
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to UTA0565 Spoofed Domain americanprgoress.top"; flow:to_server; dns.query; content:"americanprgoress.top"; nocase; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-23; sid:2200015; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CLEANGULP HTTP C2 Beacon to /beacon/pre-register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon/pre-register"; fast_pattern; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-23; sid:2200016; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CLEANGULP HTTP C2 Beacon to /beacon/pre-register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon/pre-register"; fast_pattern; http.host; content:"thecovnresation.com"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-23; sid:2200016; rev:2;)
 ```
 
 ### YARA: UTA0565 CLEANGULP Backdoor
@@ -409,4 +410,4 @@ rule UTA0565_CLEANGULP_Backdoor
 - [CyberScoop - Volexity spots another China-aligned threat group exploiting Chrome and Microsoft defects](https://cyberscoop.com/volexity-uta0565-china-exploit-chain-chrome-microsoft/) — supplementary reporting on UTA0565 campaign and broader threat landscape implications
 
 ---
-*Report generated by Actioner (DRAFT v1.0)*
+*Report generated by Actioner (FINAL v2.0)*

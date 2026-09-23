@@ -1,0 +1,31 @@
+title: UTA0565 CLEANGULP Known Campaign Domain DNS Query
+id: 9e4f2a1b-7c3d-4b8e-a6f5-1d0c3e2b4a7f
+status: experimental
+description: >
+    Detects DNS queries to known UTA0565 campaign infrastructure including the CLEANGULP
+    C2 domain thecovnresation.com and spoofed phishing domains.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/23
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'thecovnresation.com'
+            - 'thecovnresation.net'
+            - 'chinadigitaltimes.top'
+            - 'americanprgoress.top'
+            - 'borneobulletins.top'
+            - 'outsourcingwise.net'
+            - 'halal-navi.net'
+            - 'halaltak.net'
+            - 'personclouds.com'
+    condition: selection
+falsepositives:
+    - Unlikely - domains are typosquats and campaign-specific infrastructure
+level: critical
