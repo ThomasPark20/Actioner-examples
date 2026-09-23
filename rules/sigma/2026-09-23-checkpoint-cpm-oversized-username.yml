@@ -1,0 +1,26 @@
+title: Check Point CPM Oversized Username Exploitation Indicator (CVE-2026-93616)
+id: 7b4d2e8f-1a3c-4f5d-9e6b-2d8a4c7f1e3b
+status: experimental
+description: >
+    Detects indicators of oversized usernames (exceeding 1000 characters) in
+    Check Point management logs (cpm.elg), a vendor-documented indicator of
+    CVE-2026-93616 exploitation attempts against the CPM web service on TCP 19009.
+references:
+    - https://support.checkpoint.com/results/sk/sk1000171
+    - https://blog.checkpoint.com/security/security-advisory-action-required-active-exploitation-of-cve-2026-85102-and-a-management-pre-authentication-vulnerability-cve-2026-93616
+    - https://thehackernews.com/2026/09/check-point-warns-of-management-server.html
+author: Actioner
+date: 2026/09/23
+tags:
+    - attack.t1190
+logsource:
+    product: checkpoint
+    service: smartconsole
+detection:
+    keywords:
+        - 'Username too long'
+    condition: keywords
+falsepositives:
+    - Misconfigured management clients sending overly long credentials (unlikely)
+    - "Overlap with CVE-2026-91843 detection — both CVEs produce 'Username too long' in separate Check Point logs (CPM vs FWM audit); disambiguation requires SIEM pipeline that routes cpm.elg and FWM audit logs to distinct service values"
+level: high

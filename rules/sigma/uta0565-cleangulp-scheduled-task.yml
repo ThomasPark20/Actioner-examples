@@ -1,0 +1,24 @@
+title: UTA0565 CLEANGULP Scheduled Task Persistence
+id: 3a1e7c9d-8f2b-4d6a-b5e4-0c9f1d3a7e2b
+status: experimental
+description: >
+    Detects creation of the "MicrosoftIME" scheduled task used by CLEANGULP malware
+    for persistence, as deployed by Chinese threat actor UTA0565.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/23
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'MicrosoftIME'
+    condition: selection
+falsepositives:
+    - Legitimate Microsoft IME-related scheduled tasks (verify task action path points to %LOCALAPPDATA%\Microsoft\IME\)
+level: high

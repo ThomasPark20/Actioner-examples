@@ -1,0 +1,23 @@
+title: UTA0565 CLEANGULP Installation to IME Directory
+id: 5b2f8d4e-1c3a-4e7b-9a6d-2f0e8c5b7d1a
+status: experimental
+description: >
+    Detects file creation of MicrosoftIME.exe in the user's AppData\Local\Microsoft\IME
+    directory, consistent with CLEANGULP malware installation by UTA0565.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/23
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Microsoft\IME\MicrosoftIME.exe'
+    condition: selection
+falsepositives:
+    - Legitimate Microsoft IME executable updates (rare; verify file hash against known CLEANGULP hash)
+level: high
