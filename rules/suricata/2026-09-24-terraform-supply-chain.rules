@@ -1,0 +1,59 @@
+alert dns $HOME_NET any -> any any (
+    msg:"Actioner - DNS Query to Graphalgo C2 Domain gocommunity.io";
+    flow:to_server;
+    dns.query;
+    content:"gocommunity.io"; nocase; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.aikido.dev/blog/graphalgo-terraform-go-modules;
+    metadata:author Actioner, created_at 2026-09-24;
+    sid:2100101;
+    rev:1;
+)
+
+alert dns $HOME_NET any -> any any (
+    msg:"Actioner - DNS Query to Graphalgo C2 Domain gogets.dev";
+    flow:to_server;
+    dns.query;
+    content:"gogets.dev"; nocase; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.aikido.dev/blog/graphalgo-terraform-go-modules;
+    metadata:author Actioner, created_at 2026-09-24;
+    sid:2100102;
+    rev:1;
+)
+
+alert dns $HOME_NET any -> any any (
+    msg:"Actioner - DNS Query to Graphalgo Slack C2 Workspace portfolio-devs";
+    flow:to_server;
+    dns.query;
+    content:"portfolio-devs.slack.com"; nocase; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.aikido.dev/blog/graphalgo-terraform-go-modules;
+    metadata:author Actioner, created_at 2026-09-24;
+    sid:2100103;
+    rev:1;
+)
+
+alert dns $HOME_NET any -> any any (
+    msg:"Actioner - DNS Query to Graphalgo Slack C2 Workspace portfolio-testers";
+    flow:to_server;
+    dns.query;
+    content:"portfolio-testers.slack.com"; nocase; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.aikido.dev/blog/graphalgo-terraform-go-modules;
+    metadata:author Actioner, created_at 2026-09-24;
+    sid:2100104;
+    rev:1;
+)
+
+alert dns $HOME_NET any -> any any (
+    msg:"Actioner - DNS Query to Graphalgo Slack C2 Workspace mediumstar";
+    flow:to_server;
+    dns.query;
+    content:"mediumstar.slack.com"; nocase; fast_pattern;
+    classtype:trojan-activity;
+    reference:url,www.aikido.dev/blog/graphalgo-terraform-go-modules;
+    metadata:author Actioner, created_at 2026-09-24;
+    sid:2100105;
+    rev:1;
+)
