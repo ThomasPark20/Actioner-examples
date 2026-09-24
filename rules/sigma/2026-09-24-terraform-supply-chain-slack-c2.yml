@@ -1,0 +1,28 @@
+title: DNS Query to Graphalgo Slack C2 Workspaces
+id: 2c8f5d1a-3b7e-4a9c-d6e0-8f1a2b3c4d5e
+status: experimental
+description: >
+    Detects DNS queries to Slack workspaces used as C2 channels in the
+    Graphalgo malicious Terraform provider campaign. The threat actor uses
+    portfolio-devs, portfolio-testers, and mediumstar Slack workspaces for
+    encrypted check-ins and command delivery.
+references:
+    - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+author: Actioner
+date: 2026-09-24
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'portfolio-devs.slack.com'
+            - 'portfolio-testers.slack.com'
+            - 'mediumstar.slack.com'
+    condition: selection
+falsepositives:
+    - Organizations legitimately using Slack workspaces with these exact names
+level: medium

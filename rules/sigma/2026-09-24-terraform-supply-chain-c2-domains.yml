@@ -1,0 +1,26 @@
+title: DNS Query to Graphalgo Terraform Campaign C2 Domains
+id: 7a4e1b3c-9d2f-4e8a-b5c1-6f0d3e2a7b94
+status: experimental
+description: >
+    Detects DNS queries to domains associated with the Graphalgo malicious
+    Terraform provider and Go module supply-chain campaign, including fake
+    ecosystem vanity domains used for malware distribution.
+references:
+    - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+author: Actioner
+date: 2026-09-24
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'gocommunity.io'
+            - 'gogets.dev'
+    condition: selection
+falsepositives:
+    - Unlikely; these are attacker-registered domains with no legitimate use
+level: high

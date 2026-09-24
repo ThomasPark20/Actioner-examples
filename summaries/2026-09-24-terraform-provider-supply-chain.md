@@ -1,6 +1,6 @@
 # Graphalgo Malware: Malicious Terraform Providers & Go Modules Supply-Chain Attack
 
-> **DRAFT** -- generated 2026-09-24 | Analyst: Actioner (automated)
+> **v1.0 FINAL** -- generated 2026-09-24 | Analyst: Actioner (automated)
 
 ---
 
@@ -282,13 +282,14 @@ QueryName=/gocommunity\.io$/i or QueryName=/gogets\.dev$/i
 
 Detects DNS queries to the specific Slack workspaces used for encrypted C2 check-ins and command delivery.
 
-<!-- audit: Validated with sigma check (0 errors, 0 issues), sigma convert --without-pipeline -t splunk (pass), sigma convert --without-pipeline -t log_scale (pass). sigma check ATT&CK tag validator excluded due to proxy-blocked MITRE data fetch. -->
+<!-- revision: title fixed to match dns_query logsource; contains changed to endswith; SPL trailing wildcards dropped -->
+<!-- audit: Re-validated with sigma check (0 errors, 0 issues), sigma convert --without-pipeline -t splunk (pass), sigma convert --without-pipeline -t log_scale (pass). sigma check ATT&CK tag validator excluded due to proxy-blocked MITRE data fetch. -->
 
 **Compile status**: `sigma check` pass (0 errors) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
 **Confidence**: MEDIUM -- Slack workspace names could theoretically coincide with legitimate organizations, though the combination is highly specific
 
 ```yaml
-title: Network Connection to Graphalgo Slack C2 Workspaces
+title: DNS Query to Graphalgo Slack C2 Workspaces
 id: 2c8f5d1a-3b7e-4a9c-d6e0-8f1a2b3c4d5e
 status: experimental
 description: >
@@ -308,7 +309,7 @@ logsource:
     category: dns_query
 detection:
     selection:
-        QueryName|contains:
+        QueryName|endswith:
             - 'portfolio-devs.slack.com'
             - 'portfolio-testers.slack.com'
             - 'mediumstar.slack.com'
@@ -320,68 +321,21 @@ level: medium
 
 **Splunk SPL:**
 ```
-QueryName IN ("*portfolio-devs.slack.com*", "*portfolio-testers.slack.com*", "*mediumstar.slack.com*")
+QueryName IN ("*portfolio-devs.slack.com", "*portfolio-testers.slack.com", "*mediumstar.slack.com")
 ```
 
 **CrowdStrike LogScale:**
 ```
-QueryName=/portfolio-devs\.slack\.com/i or QueryName=/portfolio-testers\.slack\.com/i or QueryName=/mediumstar\.slack\.com/i
+QueryName=/portfolio-devs\.slack\.com$/i or QueryName=/portfolio-testers\.slack\.com$/i or QueryName=/mediumstar\.slack\.com$/i
 ```
 
 ---
 
-#### 3. Suspicious Go Process Spawned by Terraform Init
+#### ~~3. Suspicious Go Process Spawned by Terraform Init~~ (CUT)
 
-Detects the second-stage execution pattern where a terraform process spawns a detached `go run` child process, characteristic of the Graphalgo malware payload activation.
+<!-- revision: Cut by critic: altitude violation (behavioral/TTP pattern, not campaign-specific). At PoC/advisory-specific altitude, only artifact-keyed rules ship. Additionally: confidence labeled HIGH violates TTP <= MEDIUM ceiling; CommandLine|contains 'run' is overly broad. -->
 
-<!-- audit: Validated with sigma check (0 errors, 0 issues), sigma convert --without-pipeline -t splunk (pass), sigma convert --without-pipeline -t log_scale (pass). sigma check ATT&CK tag validator excluded due to proxy-blocked MITRE data fetch. Process creation category requires Sysmon EID 1 or equivalent endpoint telemetry. -->
-
-**Compile status**: `sigma check` pass (0 errors) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
-**Confidence**: HIGH -- terraform should not spawn go run processes under normal operation
-
-```yaml
-title: Suspicious Detached Go Process Spawned by Terraform Init
-id: 9e3a7c5b-1d4f-2e8b-a6c0-3f5d7e9b1a2c
-status: experimental
-description: >
-    Detects terraform init spawning a detached go run process, which is
-    characteristic of the Graphalgo malicious Terraform provider executing
-    its second-stage payload after decrypting the disguised archive.
-references:
-    - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
-    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
-author: Actioner
-date: 2026-09-24
-tags:
-    - attack.t1195.002
-    - attack.t1059
-logsource:
-    category: process_creation
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '/terraform'
-            - '\terraform.exe'
-    selection_child:
-        Image|endswith:
-            - '/go'
-            - '\go.exe'
-        CommandLine|contains: 'run'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate Terraform providers that compile or run Go code during init (rare)
-level: high
-```
-
-**Splunk SPL:**
-```
-ParentImage IN ("*/terraform", "*\\terraform.exe") Image IN ("*/go", "*\\go.exe") CommandLine="*run*"
-```
-
-**CrowdStrike LogScale:**
-```
-ParentImage=/\/terraform$/i or ParentImage=/\\terraform\.exe$/i Image=/\/go$/i or Image=/\\go\.exe$/i CommandLine=/run/i
-```
+> **Rule removed during review.** This behavioral/TTP rule (terraform spawning `go run`) contained zero campaign-specific artifacts. At advisory-specific altitude, only artifact-keyed rules ship. The `CommandLine|contains: 'run'` filter was also overly broad, and HIGH confidence violated the TTP detection ceiling of MEDIUM.
 
 ---
 
@@ -600,4 +554,4 @@ alert dns $HOME_NET any -> any any (
 
 ---
 
-*Report generated by Actioner | DRAFT -- requires peer review before distribution*
+*Report generated by Actioner | v1.0 FINAL -- peer-reviewed and revised 2026-09-24*
