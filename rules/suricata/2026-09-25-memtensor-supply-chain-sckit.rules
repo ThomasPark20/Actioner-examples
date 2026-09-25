@@ -1,0 +1,20 @@
+# Suricata rules for MemTensor sckit supply chain attack C2 detection
+# Reference: https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+
+# Sckit C2 DNS query to skyleen.fr subdomains
+alert dns $HOME_NET any -> any any (msg:"MALWARE-CNC Sckit C2 DNS query to skyleen.fr"; dns.query; content:"skyleen.fr"; nocase; endswith; classtype:trojan-activity; sid:9000201; rev:1;)
+
+# Sckit C2 TLS SNI to skyleen.fr subdomains
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE-CNC Sckit C2 TLS connection to skyleen.fr"; tls.sni; content:"skyleen.fr"; nocase; endswith; classtype:trojan-activity; sid:9000202; rev:1;)
+
+# Sckit C2 connection to known infrastructure IP
+alert ip $HOME_NET any -> 139.84.223.178 any (msg:"MALWARE-CNC Sckit C2 connection to known IP 139.84.223.178"; classtype:trojan-activity; sid:9000203; rev:1;)
+
+# Sckit HTTP POST to /batch endpoint (credential exfiltration)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE-CNC Sckit credential exfiltration via /batch endpoint"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/batch"; http.host; content:"skyleen.fr"; endswith; classtype:trojan-activity; sid:9000204; rev:1;)
+
+# Sckit HTTP GET to /config endpoint (C2 tasking)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE-CNC Sckit C2 config retrieval"; flow:to_server,established; http.method; content:"GET"; http.uri; content:"/config"; http.host; content:"skyleen.fr"; endswith; classtype:trojan-activity; sid:9000205; rev:1;)
+
+# Sckit CI token capture via /initial-ci-v2
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE-CNC Sckit CI token capture via initial-ci-v2"; flow:to_server,established; http.uri; content:"/initial-ci-v2"; http.host; content:"skyleen.fr"; endswith; classtype:trojan-activity; sid:9000206; rev:1;)

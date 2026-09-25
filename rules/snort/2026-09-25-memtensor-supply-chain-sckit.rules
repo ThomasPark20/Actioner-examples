@@ -1,0 +1,17 @@
+# Snort rules for MemTensor sckit supply chain attack C2 detection
+# Reference: https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+
+# Sckit C2 DNS query to skyleen.fr subdomains
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE-CNC Sckit C2 DNS query to skyleen.fr"; content:"|07|skyleen|02|fr|00|"; nocase; classtype:trojan-activity; sid:9000101; rev:1;)
+
+# Sckit C2 HTTPS traffic to known IP
+alert ip $HOME_NET any -> 139.84.223.178 any (msg:"MALWARE-CNC Sckit C2 connection to known infrastructure IP 139.84.223.178"; classtype:trojan-activity; sid:9000102; rev:1;)
+
+# Sckit C2 HTTP POST to /batch endpoint (exfiltration)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE-CNC Sckit credential exfiltration via /batch endpoint"; flow:to_server,established; content:"POST"; http_method; content:"/batch"; http_uri; content:"skyleen.fr"; http_header; classtype:trojan-activity; sid:9000103; rev:1;)
+
+# Sckit C2 HTTP GET to /config endpoint (tasking)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE-CNC Sckit C2 config retrieval via /config endpoint"; flow:to_server,established; content:"GET"; http_method; content:"/config"; http_uri; content:"skyleen.fr"; http_header; classtype:trojan-activity; sid:9000104; rev:1;)
+
+# Sckit CI token capture via /initial-ci-v2
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE-CNC Sckit CI token exfiltration via /initial-ci-v2"; flow:to_server,established; content:"/initial-ci-v2"; http_uri; content:"skyleen.fr"; http_header; classtype:trojan-activity; sid:9000105; rev:1;)

@@ -1,0 +1,29 @@
+title: Sckit Environment Variable Indicators - MemTensor Supply Chain
+id: f0a2b4c6-d8e0-4f2a-8b6c-0d2e4f6a8b0c
+status: experimental
+description: Detects processes spawned with sckit-specific environment variables used by the MemTensor supply chain implant.
+references:
+    - https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+    - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner CTI
+date: 2026-09-25
+tags:
+    - attack.t1059.004
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_env_event:
+        CommandLine|contains:
+            - 'SCKIT_EVENT_TEXT'
+    selection_env_ci:
+        CommandLine|contains:
+            - 'SCKIT_CI_RESULT_V2'
+            - 'SCKIT_CI_OBSERVATION_V2'
+            - 'SCKIT_INITIAL_CI_CHECKOUT_SHA'
+    condition: selection_env_event or selection_env_ci
+falsepositives:
+    - Unlikely - these environment variable names are unique to this malware
+level: critical
+<!-- audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict -->

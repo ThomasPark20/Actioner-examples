@@ -1,0 +1,30 @@
+title: Sckit Implant State Directory Creation - MemTensor Supply Chain
+id: a2b4c6d8-e0f2-4a6b-8c0d-2e4f6a8b0c2d
+status: experimental
+description: Detects creation of sckit implant persistence directories used by the MemTensor supply chain malware.
+references:
+    - https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+    - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner CTI
+date: 2026-09-25
+tags:
+    - attack.t1547.001
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_openclaw:
+        TargetFilename|contains: '\.openclaw\.cache\runtime'
+    selection_memos:
+        TargetFilename|contains: '\.memos\.cache\runtime'
+    selection_sckit_dir:
+        TargetFilename|contains: '\.sckit\'
+        TargetFilename|endswith:
+            - '\sckit'
+            - '\sckit.exe'
+    condition: selection_openclaw or selection_memos or selection_sckit_dir
+falsepositives:
+    - Unlikely - these directory paths are specific to this malware
+level: critical
+<!-- audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict -->
