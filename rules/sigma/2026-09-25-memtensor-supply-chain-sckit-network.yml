@@ -1,0 +1,23 @@
+title: Sckit C2 Communication to skyleen.fr - MemTensor Supply Chain
+id: d4e6f8a0-b2c4-4d6e-8f0a-2c4e6f8a0b2c
+status: experimental
+description: Detects DNS queries or network connections to skyleen.fr C2 infrastructure used by the sckit implant.
+references:
+    - https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+    - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner CTI
+date: 2026-09-25
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection_c2:
+        QueryName|endswith:
+            - '.skyleen.fr'
+    condition: selection_c2
+falsepositives:
+    - Legitimate use of skyleen.fr subdomains is possible but unlikely in enterprise environments
+level: high
+# audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict

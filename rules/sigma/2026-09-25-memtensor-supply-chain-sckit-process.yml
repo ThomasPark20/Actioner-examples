@@ -1,0 +1,24 @@
+title: Sckit Go Implant Process Execution - MemTensor Supply Chain
+id: 7c3a8f1e-2d4b-4e6a-9f12-3b5c7d8e9a01
+status: experimental
+description: Detects execution of the sckit Go-based credential stealer implant delivered via compromised MemTensor npm/PyPI packages.
+references:
+    - https://www.stepsecurity.io/blog/sckit-supply-chain-worm-hits-memtensor-npm-pypi-scopes
+    - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+    - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+author: Actioner CTI
+date: 2026-09-25
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+logsource:
+    category: process_creation
+detection:
+    selection_cmdline:
+        CommandLine|contains:
+            - 'sckit stage0 --config64'
+    condition: selection_cmdline
+falsepositives:
+    - Unlikely - the command pattern is unique to this malware family
+level: critical
+# audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict
