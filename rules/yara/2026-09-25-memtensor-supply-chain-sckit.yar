@@ -24,12 +24,14 @@ rule sckit_go_implant_strings : malware supply_chain
         $stage0_cmd = "sckit stage0 --config64" ascii
 
     condition:
-        uint32(0) == 0x464c457f or  // ELF
-        uint16(0) == 0x5a4d or      // MZ (PE)
-        uint32(0) == 0xfeedface or  // Mach-O 32
-        uint32(0) == 0xfeedfacf or  // Mach-O 64
-        uint32(0) == 0xcefaedfe or  // Mach-O 32 reversed
-        uint32(0) == 0xcffaedfe     // Mach-O 64 reversed
+        (
+            uint32(0) == 0x464c457f or  // ELF
+            uint16(0) == 0x5a4d or      // MZ (PE)
+            uint32(0) == 0xfeedface or  // Mach-O 32
+            uint32(0) == 0xfeedfacf or  // Mach-O 64
+            uint32(0) == 0xcefaedfe or  // Mach-O 32 reversed
+            uint32(0) == 0xcffaedfe     // Mach-O 64 reversed
+        )
         and
         (
             $go_module or

@@ -200,7 +200,7 @@ The CI helper uses Ed25519 key validation for signed index verification and oper
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Compromised legitimate npm/PyPI packages via CI/CD token theft |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Shell-based launcher scripts (_pypi_bridge.sh) |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | lib/sckit.js launcher in npm package |
-| T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys / Startup Folder | Persistence via state directories |
+| T1082 | System Information Discovery | Environment variable enumeration for CI/CD context |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvesting .npmrc, .pypirc, .vault-token, SSH keys |
 | T1555 | Credentials from Password Stores | Scanning for credentials.db, access_tokens.json |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS C2 communication via skyleen[.]fr |
@@ -220,7 +220,7 @@ Detects the unique `sckit stage0 --config64` command-line pattern used when the 
 - **File:** `rules/sigma/2026-09-25-memtensor-supply-chain-sckit-process.yml`
 - **ID:** `7c3a8f1e-2d4b-4e6a-9f12-3b5c7d8e9a01`
 - **Log Source:** `process_creation`
-- **Tags:** `attack.t1059.004`, `attack.t1204.002`
+- **Tags:** `attack.t1195.002`, `attack.t1059.004`
 
 #### 2. Sckit Implant State Directory Creation
 
@@ -230,7 +230,7 @@ Detects file creation events involving the `.openclaw/.cache/runtime`, `.memos/.
 - **File:** `rules/sigma/2026-09-25-memtensor-supply-chain-sckit-file.yml`
 - **ID:** `a2b4c6d8-e0f2-4a6b-8c0d-2e4f6a8b0c2d`
 - **Log Source:** `file_event`
-- **Tags:** `attack.t1547.001`, `attack.t1074.001`
+- **Tags:** `attack.t1074.001`
 
 #### 3. Sckit C2 Communication to skyleen.fr
 
@@ -250,7 +250,7 @@ Detects processes referencing sckit-specific environment variables (`SCKIT_EVENT
 - **File:** `rules/sigma/2026-09-25-memtensor-supply-chain-sckit-env.yml`
 - **ID:** `f0a2b4c6-d8e0-4f2a-8b6c-0d2e4f6a8b0c`
 - **Log Source:** `process_creation`
-- **Tags:** `attack.t1059.004`, `attack.t1036.005`
+- **Tags:** `attack.t1059.004`, `attack.t1082`
 
 ### Snort Rules
 

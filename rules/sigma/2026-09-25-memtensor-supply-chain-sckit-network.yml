@@ -12,7 +12,6 @@ tags:
     - attack.t1041
 logsource:
     category: dns_query
-    product: windows
 detection:
     selection_c2:
         QueryName|endswith:
@@ -21,4 +20,4 @@ detection:
 falsepositives:
     - Legitimate use of skyleen.fr subdomains is possible but unlikely in enterprise environments
 level: high
-<!-- audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict -->
+# audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict

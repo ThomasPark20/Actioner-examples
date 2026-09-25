@@ -9,11 +9,10 @@ references:
 author: Actioner CTI
 date: 2026-09-25
 tags:
+    - attack.t1195.002
     - attack.t1059.004
-    - attack.t1204.002
 logsource:
     category: process_creation
-    product: windows
 detection:
     selection_cmdline:
         CommandLine|contains:
@@ -22,4 +21,4 @@ detection:
 falsepositives:
     - Unlikely - the command pattern is unique to this malware family
 level: critical
-<!-- audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict -->
+# audit: rule_type=sigma compile_status=pending confidence=high altitude=specific leniency=strict
