@@ -1,0 +1,2 @@
+# Carbonato Botnet - Vercel Proxy DNS Query
+alert udp any any -> any 53 (msg:"CARBONATO Vercel Proxy DNS Query"; content:"carbonato-proxy"; nocase; classtype:trojan-activity; sid:1000011; rev:1;)

@@ -1,0 +1,11 @@
+# Carbonato Botnet - C2 IP Addresses
+alert ip any any -> 213.136.83.197 any (msg:"CARBONATO Known LLM Gateway C2 IP"; classtype:trojan-activity; sid:1000004; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic command_and_control, mitre_attack_technique T1071;)
+alert ip any any -> 45.79.183.61 any (msg:"CARBONATO Known C2 Hub IP (Linode)"; classtype:trojan-activity; sid:1000005; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic command_and_control, mitre_attack_technique T1071;)
+alert ip any any -> 190.211.124.187 any (msg:"CARBONATO Reverse Tunnel Sink Costa Rica"; classtype:trojan-activity; sid:1000006; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic command_and_control, mitre_attack_technique T1572;)
+alert ip any any -> 213.136.79.115 any (msg:"CARBONATO Beacon Server IP (Contabo)"; classtype:trojan-activity; sid:1000007; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic command_and_control, mitre_attack_technique T1071;)
+
+# Carbonato Botnet - Vercel Proxy DNS Lookup
+alert dns any any -> any any (msg:"CARBONATO Vercel Proxy Domain DNS Lookup"; dns.query; content:"carbonato-proxy"; nocase; classtype:trojan-activity; sid:1000008; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic command_and_control, mitre_attack_technique T1071;)
+
+# Carbonato Botnet - Privileged Container with Host Bind Mount
+alert http any any -> any 2375 (msg:"CARBONATO Privileged Container with Host Bind Mount"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"netns-probe"; content:"Privileged"; content:"Binds"; content:"/host"; classtype:attempted-admin; sid:1000009; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic privilege_escalation, mitre_attack_technique T1611;)
