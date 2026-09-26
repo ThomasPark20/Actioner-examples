@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-09-26
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -204,7 +204,7 @@ Remove affected packages; purge Terraform provider cache (`~/.terraform.d/plugin
 
 ## Detection Rules
 
-These detections cover the campaign's durable artifacts: malicious domain names, Slack C2 workspaces, Go binary indicators, file-level payload signatures, and behavioral process-creation heuristics. All rules validated in this environment (details in audit comments per rule).
+Six detection rules (3 Sigma, 1 Snort, 1 Suricata, 2 YARA) covering the campaign's durable artifacts: malicious domain names, Slack C2 workspaces, Go binary indicators, file-level payload signatures, and network C2 indicators. All rules validated in this environment (details in audit comments per rule).
 
 ### Sigma 1: Graphalgo encrypted payload file creation
 Detects creation of the SQLite-disguised encrypted payload file `import-resource.sqlite3` in a Terraform provider context.

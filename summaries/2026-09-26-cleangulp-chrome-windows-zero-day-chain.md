@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-26
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -150,7 +150,6 @@ The pp payload downloads `chrome_cleanup.exe` to the victim system, diverging fr
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1189 | Drive-by Compromise | Fake news websites serving BlueMoon exploit kit |
-| T1583.001 | Acquire Infrastructure: Domains | Typosquatted domains mimicking news/policy organizations |
 | T1203 | Exploitation for Client Execution | CVE-2026-85046 (V8 type confusion) and CVE-2026-87491 (sandbox escape) |
 | T1068 | Exploitation for Privilege Escalation | CVE-2026-85880 (Windows kernel RtlpCreateServerAcl) |
 | T1105 | Ingress Tool Transfer | Download of chrome_cleanup.exe via browser injection |
@@ -158,7 +157,7 @@ The pp payload downloads `chrome_cleanup.exe` to the victim system, diverging fr
 | T1053.005 | Scheduled Task | "MicrosoftIME" scheduled task for persistence |
 | T1071.001 | Web Protocols | C2 communication via HTTP POST |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-256-GCM encrypted C2 traffic |
-| T1059 | Command and Scripting Interpreter | Shell command execution capability |
+| T1059.003 | Windows Command Shell | Shell command execution capability |
 | T1057 | Process Discovery | Process listing via "ps" command |
 | T1082 | System Information Discovery | Host reconnaissance via p1 shellcode |
 | T1041 | Exfiltration Over C2 Channel | File upload capability over HTTP C2 |
@@ -200,11 +199,11 @@ The pp payload downloads `chrome_cleanup.exe` to the victim system, diverging fr
 1. **Reduce patch gap exposure:** Enable Chrome's automatic update mechanism; consider Chrome Enterprise policies for rapid update enforcement
 2. **DNS-based protection:** Block typosquatted domains via DNS sinkholing and monitor for newly-registered lookalike domains
 3. **Network monitoring:** Alert on HTTP POST requests to `/beacon/pre-register` and TLS connections to known C2 domains
-4. **Endpoint monitoring:** Deploy Sysmon or equivalent to capture process creation, scheduled task events, and file creation in `%LOCALAPPDATA%\Microsoft\IME\`
+4. **Endpoint monitoring:** Deploy Sysmon or equivalent to capture process creation, scheduled task events, and file creation in `%LOCALAPPDATA%\Microsoft\IME\`. **Note:** The Sigma rules in this report consume Sysmon event categories (process_creation, dns_query); Sysmon must be deployed with a configuration that enables these event types (e.g., SwiftOnSecurity or Olaf Hartong configurations) for the rules to produce telemetry.
 
 ## Detection Rules
 
-These detections target campaign-specific artifacts from the UTA0565 CLEANGULP operation. PoC/advisory-specific altitude (default); all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
+These detections target campaign-specific artifacts from the UTA0565 CLEANGULP operation. 4 Sigma rules, 7 Suricata rules, 3 Snort rules, and 2 YARA rules. PoC/advisory-specific altitude (default); all Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: UTA0565 CLEANGULP Scheduled Task Persistence
 
@@ -214,7 +213,7 @@ Detects creation of the "MicrosoftIME" scheduled task used by CLEANGULP for pers
 
 ```yaml
 title: UTA0565 CLEANGULP Scheduled Task Persistence
-id: a1b2c3d4-5e6f-47a8-b9c0-d1e2f3a4b5c6
+id: f529d20c-c210-493d-9109-914d4f52d2d6
 status: experimental
 description: >
     Detects creation of the "MicrosoftIME" scheduled task used by the CLEANGULP
@@ -247,7 +246,7 @@ Detects DNS queries to the known CLEANGULP C2 domains `thecovnresation[.]com` an
 
 ```yaml
 title: UTA0565 CLEANGULP C2 Domain DNS Query
-id: b2c3d4e5-6f7a-48b9-c0d1-e2f3a4b5c6d7
+id: 7f6722aa-0d4d-4681-a159-c7bab5581cbc
 status: experimental
 description: >
     Detects DNS queries to the known CLEANGULP command-and-control domains
@@ -280,7 +279,7 @@ Detects execution of `MicrosoftIME.exe` from the unusual `%LOCALAPPDATA%\Microso
 
 ```yaml
 title: UTA0565 CLEANGULP Installation Path Execution
-id: c3d4e5f6-7a8b-49c0-d1e2-f3a4b5c6d7e8
+id: 65a18a82-93b8-4a42-8548-ca407e333f98
 status: experimental
 description: >
     Detects execution of MicrosoftIME.exe from the unusual path
@@ -311,11 +310,11 @@ level: high
 
 Detects DNS queries to known UTA0565 typosquatted domains used as delivery infrastructure for the Chrome-Windows zero-day exploit chain.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data fetch 403 via proxy); sigma convert splunk exit 0; sigma convert log_scale exit 0. All three domains are confirmed attacker-controlled typosquats. -->
+<!-- audit: sigma check failed (MITRE ATT&CK data fetch 403 via proxy); sigma convert splunk exit 0; sigma convert log_scale exit 0. Both domains are confirmed attacker-controlled typosquats. borneobulletins.top excluded as medium-confidence suspected infrastructure only. -->
 
 ```yaml
 title: UTA0565 Spoofed Website Domain DNS Query
-id: d4e5f6a7-8b9c-40d1-e2f3-a4b5c6d7e8f9
+id: e94e4997-8cf8-4b8e-be3d-44c0f3b9af84
 status: experimental
 description: >
     Detects DNS queries to known UTA0565 spoofed website domains used as
@@ -327,7 +326,7 @@ references:
 author: Actioner
 date: 2026/09/26
 tags:
-    - attack.t1583.001
+    - attack.t1071.001
 logsource:
     category: dns_query
 detection:
@@ -335,44 +334,9 @@ detection:
         QueryName|endswith:
             - 'chinadigitaltimes.top'
             - 'americanprgoress.top'
-            - 'borneobulletins.top'
     condition: selection
 falsepositives:
     - Unlikely - typosquat domains specific to this campaign
-level: critical
-```
-
-### Sigma: UTA0565 CLEANGULP Payload Download via Curl
-
-Detects cmd.exe spawning curl to download `chrome_cleanup.exe`, matching the CLEANGULP delivery stage.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data fetch 403 via proxy); sigma convert splunk exit 0; sigma convert log_scale exit 0. "chrome_cleanup" in a curl download from cmd.exe is distinctive. No known legitimate software uses this pattern. -->
-
-```yaml
-title: UTA0565 CLEANGULP Payload Download via Curl
-id: e5f6a7b8-9c0d-41e2-f3a4-b5c6d7e8f9a0
-status: experimental
-description: >
-    Detects cmd.exe spawning curl to download chrome_cleanup.exe, consistent
-    with the UTA0565 browser exploit chain payload delivery stage for CLEANGULP.
-references:
-    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
-    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
-author: Actioner
-date: 2026/09/26
-tags:
-    - attack.t1105
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        ParentImage|endswith: '\cmd.exe'
-        Image|endswith: '\curl.exe'
-        CommandLine|contains: 'chrome_cleanup'
-    condition: selection
-falsepositives:
-    - Legitimate Chrome cleanup utilities would not be downloaded via curl from cmd.exe
 level: critical
 ```
 
@@ -395,13 +359,14 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to UTA0565
 
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to UTA0565 Spoofed Domain americanprgoress.top"; flow:established,to_server; tls.sni; content:"americanprgoress.top"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200106; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CLEANGULP HTTP POST Beacon URI /beacon/pre-register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon/pre-register"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200107; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CLEANGULP HTTP POST Beacon URI /beacon/pre-register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon/pre-register"; http.host; content:"thecovnresation"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200107; rev:2;)
 ```
 
 ### Snort: UTA0565 CLEANGULP C2 Domain Detection
 
 Detects TLS ClientHello traffic containing the CLEANGULP C2 domain `thecovnresation` and spoofed delivery domains.
 **Status:** ⚠️ uncompiled (structural check only) · confidence: high
+**Caveat:** These rules use `$HTTP_PORTS` which typically defaults to port 80. To detect TLS ClientHello traffic, `$HTTP_PORTS` must include port 443 (e.g., `var HTTP_PORTS [80,443]`), or the variable should be changed to `$HTTPS_PORTS` or `any` as appropriate for your deployment.
 <!-- audit: Snort not installed in this environment. Rules follow standard Snort 2.x/3.x syntax with flow, content, and fast_pattern keywords. Domain strings are unique campaign artifacts. -->
 
 ```snort
@@ -491,4 +456,4 @@ rule UTA0565_CLEANGULP_Dropper
 - [The Hacker News - Chinese Hackers Exploit Chrome-Windows Zero-Day Chain](https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html) -- secondary reporting summarizing the UTA0565 CLEANGULP campaign with key IOCs and capabilities
 
 ---
-*Report generated by Actioner (DRAFT v1.0)*
+*Report generated by Actioner (v1.1 REVISED)*
