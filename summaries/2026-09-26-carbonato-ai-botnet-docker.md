@@ -134,51 +134,12 @@ Three Vercel-hosted proxy domains were identified:
 
 ### Sigma Rules
 
-#### SIGMA-1: Carbonato Docker API Container Creation
-
-Detects HTTP POST requests to Docker daemon API on port 2375 to create containers, consistent with the Carbonato initial access vector targeting unauthenticated Docker daemons.
-<!-- audit: YAML structure validated (python3 yaml.safe_load: pass, all required fields present). sigma check failed due to proxy blocking MITRE ATT&CK data download (HTTP 403) -- not a rule defect. sigma convert -t splunk -p splunk_cim failed: webserver/docker log source not supported by CIM pipeline -- expected for non-Windows log sources. -->
-
-**Status:** compile: YAML-valid, sigma-check: blocked (proxy) | **Confidence:** high
-
-```yaml
-title: Carbonato Botnet - Docker Daemon API Container Creation
-id: 7a3c1e2f-4b5d-4e6a-8f9b-0c1d2e3f4a5b
-status: experimental
-description: Detects HTTP POST requests to Docker daemon API on port 2375 to create privileged containers, consistent with Carbonato botnet initial access vector.
-references:
-    - https://www.threatdown.com/blog/carbonato/
-    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
-    - https://www.bleepingcomputer.com/news/security/new-carbonato-malware-uses-ai-agents-to-hijack-exposed-docker-hosts/
-author: Actioner
-date: 2026/09/26
-tags:
-    - attack.initial_access
-    - attack.t1610
-    - attack.execution
-    - attack.t1059.004
-logsource:
-    category: webserver
-    product: docker
-detection:
-    selection_method:
-        cs-method: POST
-    selection_uri:
-        cs-uri|contains: '/containers/create'
-    selection_port:
-        dst_port: 2375
-    condition: selection_method and selection_uri and selection_port
-falsepositives:
-    - Legitimate Docker API management tools accessing unauthenticated daemons
-    - CI/CD pipelines using Docker remote API
-level: high
-```
-
----
-
 #### SIGMA-2: Carbonato Suspicious Container Names
 
-Detects Docker container creation events with names matching known Carbonato botnet container identifiers (netns-probe, systemd-resolved, net-setup).
+Detects Docker container creation events with names matching known Carbonato botnet container identifiers (netns-probe, systemd-resolved, net-setup). Note: the name `systemd-resolved` may collide with legitimate system containers on hosts running systemd-resolved in a container; tune or exclude where applicable.
+
+> **Portability note:** The `Actor.Attributes.name` field is specific to Docker daemon JSON log events. Deploying this rule in a SIEM requires custom field mapping from your Docker log ingestion pipeline to this field name. The rule will not fire if the field is not mapped.
+
 <!-- audit: YAML structure validated (python3 yaml.safe_load: pass). sigma check blocked by proxy. sigma convert not applicable (docker events log source). -->
 
 **Status:** compile: YAML-valid, sigma-check: blocked (proxy) | **Confidence:** high
@@ -238,8 +199,8 @@ date: 2026/09/26
 tags:
     - attack.execution
     - attack.t1059.004
-    - attack.resource_development
-    - attack.t1588.002
+    - attack.command_and_control
+    - attack.t1105
 logsource:
     category: file_event
     product: linux

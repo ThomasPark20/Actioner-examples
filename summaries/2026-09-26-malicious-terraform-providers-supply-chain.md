@@ -206,48 +206,7 @@ Remove affected packages; purge Terraform provider cache (`~/.terraform.d/plugin
 
 These detections cover the campaign's durable artifacts: malicious domain names, Slack C2 workspaces, Go binary indicators, file-level payload signatures, and behavioral process-creation heuristics. All rules validated in this environment (details in audit comments per rule).
 
-### Sigma 1: Terraform provider executing Go toolchain
-Detects a terraform or terraform-provider-docker process spawning `go run` or `go build`, consistent with the Graphalgo RAT executing its decrypted Go payload.
-**Status:** compile: pass (sigma convert splunk+log_scale exit 0; sigma check blocked by offline D3FEND fetch only, not a rule defect) -- confidence: medium
-<!-- audit: sigma check exits 1 ONLY because pySigma's tag validator tries to fetch MITRE D3FEND data and gets HTTP 403 in this offline sandbox (RuntimeError: Failed to load MITRE ATT&CK data) -- NOT a rule defect; the rule parses fine and converts cleanly. sigma convert --without-pipeline -t splunk exit 0 => ParentImage IN ("*/terraform","*/terraform-provider-docker") Image="*/go" CommandLine IN ("*run*","*build*"); -t log_scale exit 0. Behavioral heuristic: legitimate providers rarely shell out to go; medium confidence because custom providers could do so. tags are technique-only per spec. -->
-```yaml
-title: Terraform provider executing Go code in temp directory
-id: 7a3e2f1b-8c4d-4e9a-b5f6-1d2c3e4a5b6f
-status: experimental
-description: >-
-  Detects terraform process spawning go run or go build in a temporary
-  directory, consistent with the Graphalgo campaign deploying a Go-based
-  RAT via malicious Terraform providers (Aikido Security, September 2026).
-references:
-  - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
-  - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
-author: Actioner
-date: 2026/09/26
-tags:
-  - attack.t1195.002
-  - attack.t1059
-  - attack.t1204.002
-logsource:
-  category: process_creation
-  product: linux
-detection:
-  selection_parent:
-    ParentImage|endswith:
-      - '/terraform'
-      - '/terraform-provider-docker'
-  selection_child:
-    Image|endswith:
-      - '/go'
-    CommandLine|contains:
-      - 'run'
-      - 'build'
-  condition: selection_parent and selection_child
-falsepositives:
-  - Custom Terraform providers that legitimately invoke Go toolchain
-level: high
-```
-
-### Sigma 2: Graphalgo encrypted payload file creation
+### Sigma 1: Graphalgo encrypted payload file creation
 Detects creation of the SQLite-disguised encrypted payload file `import-resource.sqlite3` in a Terraform provider context.
 **Status:** compile: pass (sigma convert splunk+log_scale exit 0) -- confidence: high
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0 => TargetFilename="*/import-resource.sqlite3" TargetFilename IN ("*terraform*","*docker_container*"). The filename+path combination is highly specific to this campaign. -->
@@ -285,8 +244,8 @@ level: high
 
 ### Sigma 3: DNS queries to Graphalgo malicious Go module domains
 Detects DNS resolution of `gocommunity.io` and `gogets.dev`, the attacker-controlled domains hosting malicious Go modules.
-**Status:** compile: pass (sigma convert splunk+log_scale exit 0) -- confidence: critical
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0 => QueryName IN ("*gocommunity.io","*gogets.dev"). These are attacker-registered domains with no known legitimate use. Critical confidence. -->
+**Status:** compile: pass (sigma convert splunk+log_scale exit 0) -- confidence: high
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0 => QueryName IN ("*gocommunity.io","*gogets.dev"). These are attacker-registered domains with no known legitimate use. High confidence. -->
 ```yaml
 title: DNS query to Graphalgo malicious Go module domains
 id: 9c5a4b3d-0e6f-4a1c-d7b8-3f4e5a6b7c8d
@@ -314,7 +273,7 @@ detection:
   condition: selection
 falsepositives:
   - None expected - these domains are associated with malicious activity
-level: critical
+level: high
 ```
 
 ### Sigma 4: Graphalgo Slack C2 workspace DNS resolution
@@ -410,41 +369,16 @@ rule graphalgo_terraform_provider_malware
         $marker = "68656c6c6f6970626f742121" ascii nocase
 
     condition:
-        uint32(0) == 0x464c457f or
+        filesize < 50MB and
+        (uint32(0) == 0x464c457f or
         uint16(0) == 0x5a4d or
         uint32(0) == 0xfeedface or
-        uint32(0) == 0xfeedfacf or
-        (filesize < 50MB and (3 of them))
+        uint32(0) == 0xfeedfacf) and
+        3 of them
 }
 ```
 
-### YARA 2: Graphalgo encrypted payload archive
-Detects the encrypted payload files disguised as SQLite databases by matching the distinctive filenames while excluding files with genuine SQLite headers.
-**Status:** compile: pass (yarac exit 0) -- confidence: high
-<!-- audit: compiled in same yarac invocation. Condition checks for filename match AND absence of SQLite magic bytes, since the files are encrypted archives masquerading as databases. -->
-```yara
-rule graphalgo_encrypted_payload
-{
-    meta:
-        description = "Detects Graphalgo encrypted payload archives disguised as SQLite database files (import-resource.sqlite3 / btreex.sql) used by malicious Terraform providers and Go modules."
-        author = "Actioner"
-        date = "2026-09-26"
-        reference = "https://www.aikido.dev/blog/graphalgo-terraform-go-modules"
-        hash_terraform = "5f892a5424e88a21a3eb3d7f82ebf04d8ac31cdb19ada25153be4165df977d0f"
-        hash_gomod = "ab01686d87565250fc4989faddb877d793667b07ec217a61cbd798f5695d62f5"
-
-    strings:
-        $name1 = "import-resource.sqlite3" ascii
-        $name2 = "btreex.sql" ascii
-
-    condition:
-        filesize < 5MB and
-        any of ($name*) and
-        not uint32(0) == 0x65746C53
-}
-```
-
-### YARA 3: Graphalgo malicious Go module source code
+### YARA 2: Graphalgo malicious Go module source code
 Detects source code of the malicious Go modules by matching module path strings combined with C2 infrastructure indicators.
 **Status:** compile: pass (yarac exit 0) -- confidence: high
 <!-- audit: compiled in same yarac invocation. Requires both a Go module path AND at least one C2 indicator, reducing false positives from unrelated code mentioning these module paths. -->
