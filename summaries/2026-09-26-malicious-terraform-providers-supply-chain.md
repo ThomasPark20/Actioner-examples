@@ -170,7 +170,6 @@ Observed 18 unique hostnames across 725 check-ins: 10 macOS, 5 Linux, 3 Windows 
 | T1105 | Ingress Tool Transfer | Decrypted payload executed via `go run .` |
 | T1480 | Execution Guardrails | Malware activates only on specific hash of Terraform variable values |
 
-
 ## Impact Assessment
 
 **Breadth:** Moderate -- 1,671 total downloads across both Terraform providers; 18 confirmed victims across macOS/Linux/Windows. The typosquat targeted a provider with 56M downloads, so the potential blast radius was significant.

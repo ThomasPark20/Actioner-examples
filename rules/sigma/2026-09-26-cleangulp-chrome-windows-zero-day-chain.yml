@@ -1,0 +1,102 @@
+title: UTA0565 CLEANGULP Scheduled Task Persistence
+id: f529d20c-c210-493d-9109-914d4f52d2d6
+status: experimental
+description: >
+    Detects creation of the "MicrosoftIME" scheduled task used by the CLEANGULP
+    backdoor deployed by Chinese threat actor UTA0565 for persistence.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains: 'MicrosoftIME'
+    condition: selection_schtasks
+falsepositives:
+    - Legitimate Microsoft IME scheduled tasks may exist but would not use schtasks to create them
+level: high
+---
+title: UTA0565 CLEANGULP C2 Domain DNS Query
+id: 7f6722aa-0d4d-4681-a159-c7bab5581cbc
+status: experimental
+description: >
+    Detects DNS queries to the known CLEANGULP command-and-control domains
+    thecovnresation.com and thecovnresation.net used by Chinese threat actor UTA0565.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'thecovnresation.com'
+            - 'thecovnresation.net'
+    condition: selection
+falsepositives:
+    - Unlikely - typosquat domains specific to this campaign
+level: critical
+---
+title: UTA0565 CLEANGULP Installation Path Execution
+id: 65a18a82-93b8-4a42-8548-ca407e333f98
+status: experimental
+description: >
+    Detects execution of MicrosoftIME.exe from the unusual path
+    %LOCALAPPDATA%\Microsoft\IME\, consistent with CLEANGULP backdoor
+    installation by Chinese threat actor UTA0565.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\Microsoft\IME\MicrosoftIME.exe'
+    filter_legit:
+        Image|contains: '\Windows\System32\IME\'
+    condition: selection and not filter_legit
+falsepositives:
+    - Legitimate Microsoft IME executable runs from System32, not LOCALAPPDATA
+level: high
+---
+title: UTA0565 Spoofed Website Domain DNS Query
+id: e94e4997-8cf8-4b8e-be3d-44c0f3b9af84
+status: experimental
+description: >
+    Detects DNS queries to known UTA0565 spoofed website domains used as
+    delivery infrastructure for the Chrome-Windows zero-day exploit chain
+    deploying CLEANGULP malware.
+references:
+    - https://www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/
+    - https://thehackernews.com/2026/09/chinese-hackers-exploit-chrome-windows.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'chinadigitaltimes.top'
+            - 'americanprgoress.top'
+    condition: selection
+falsepositives:
+    - Unlikely - typosquat domains specific to this campaign
+level: critical
