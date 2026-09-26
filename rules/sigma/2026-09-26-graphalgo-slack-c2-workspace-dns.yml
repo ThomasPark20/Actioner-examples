@@ -1,0 +1,28 @@
+title: Graphalgo RAT Slack C2 channel communication
+id: 1d6b5c4e-2f7a-4b3c-e8d9-4a5f6b7c8d9e
+status: experimental
+description: >-
+  Detects DNS resolution of the Slack workspace domains used as C2 channels
+  by the Graphalgo Go RAT deployed via malicious Terraform providers. The RAT
+  polls Slack conversations.history API every 10 seconds for encrypted commands.
+references:
+  - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+  - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+author: Actioner
+date: 2026/09/26
+tags:
+  - attack.t1102.002
+  - attack.t1071.001
+logsource:
+  category: dns_query
+  product: linux
+detection:
+  selection:
+    QueryName:
+      - 'portfolio-devs.slack.com'
+      - 'portfolio-testers.slack.com'
+      - 'mediumstar.slack.com'
+  condition: selection
+falsepositives:
+  - Legitimate Slack workspace access for organizations named portfolio-devs or portfolio-testers
+level: high

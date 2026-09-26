@@ -1,0 +1,24 @@
+title: Carbonato Botnet - CARBONATO_API_KEY Environment Variable
+id: 2f8b6d7e-9a0c-4d1f-3e4a-5b6c7d8e9f0a
+status: experimental
+description: Detects processes or files containing the CARBONATO_API_KEY environment variable, indicating Carbonato botnet C2 communication configuration.
+references:
+    - https://www.threatdown.com/blog/carbonato/
+    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_env:
+        CommandLine|contains: 'CARBONATO_API_KEY'
+    selection_env_var:
+        ParentCommandLine|contains: 'CARBONATO_API_KEY'
+    condition: selection_env or selection_env_var
+falsepositives:
+    - Security researchers testing Carbonato indicators
+level: critical

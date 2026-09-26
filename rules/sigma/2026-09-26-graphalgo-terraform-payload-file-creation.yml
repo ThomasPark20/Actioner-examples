@@ -1,0 +1,29 @@
+title: Graphalgo malicious Terraform provider file creation
+id: 8b4f3a2c-9d5e-4f0b-c6a7-2e3d4f5b6c7a
+status: experimental
+description: >-
+  Detects creation of the SQLite-disguised encrypted payload file used by the
+  Graphalgo Terraform provider malware. The malicious providers embed an
+  encrypted archive as import-resource.sqlite3 in the examples directory.
+references:
+  - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+  - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+author: Actioner
+date: 2026/09/26
+tags:
+  - attack.t1036.008
+  - attack.t1027
+logsource:
+  category: file_event
+  product: linux
+detection:
+  selection:
+    TargetFilename|endswith:
+      - '/import-resource.sqlite3'
+    TargetFilename|contains:
+      - 'terraform'
+      - 'docker_container'
+  condition: selection
+falsepositives:
+  - Legitimate Terraform provider resource import examples using SQLite
+level: high

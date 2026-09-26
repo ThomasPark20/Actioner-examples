@@ -1,0 +1,24 @@
+title: Carbonato Botnet - Process Masquerading as Kernel Worker Thread
+id: 0d6f4b5c-7e8a-4b9d-1c2e-3f4a5b6c7d8e
+status: experimental
+description: Detects processes launched from Carbonato botnet watchdog binary paths used for persistence and masquerading as system services.
+references:
+    - https://www.threatdown.com/blog/carbonato/
+    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.defense_evasion
+    - attack.t1036.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/.docker-network-monitor'
+            - '/systemd-logind'
+    condition: selection
+falsepositives:
+    - Actual kernel worker threads (these would not have a user-space Image path)
+level: high

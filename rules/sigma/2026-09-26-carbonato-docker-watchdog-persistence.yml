@@ -1,0 +1,28 @@
+title: Carbonato Botnet - Watchdog Binary Persistence
+id: 1e7a5c6d-8f9b-4c0e-2d3f-4a5b6c7d8e9f
+status: experimental
+description: Detects the installation of the Carbonato botnet watchdog binary at known file paths used for persistence, or files made immutable after placement in system directories.
+references:
+    - https://www.threatdown.com/blog/carbonato/
+    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.persistence
+    - attack.t1543.002
+    - attack.defense_evasion
+    - attack.t1222.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_watchdog:
+        TargetFilename:
+            - '/usr/local/bin/.docker-network-monitor'
+            - '/usr/sbin/systemd-logind'
+    selection_loot:
+        TargetFilename|contains: '/.hermes/loot/'
+    condition: selection_watchdog or selection_loot
+falsepositives:
+    - Legitimate systemd-logind binary replacement during system updates (verify hash)
+level: critical

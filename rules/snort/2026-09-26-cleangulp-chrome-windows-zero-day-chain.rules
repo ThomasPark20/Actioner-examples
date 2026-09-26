@@ -1,0 +1,10 @@
+# UTA0565 CLEANGULP C2 Domain Detection
+# Caveat: $HTTP_PORTS typically defaults to port 80. To detect TLS ClientHello
+# traffic, $HTTP_PORTS must include port 443 (e.g., var HTTP_PORTS [80,443]),
+# or change the variable to $HTTPS_PORTS or any as appropriate for your deployment.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CLEANGULP C2 Domain thecovnresation in TLS ClientHello"; flow:established,to_server; content:"thecovnresation"; fast_pattern; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0565 Spoofed Domain chinadigitaltimes in TLS ClientHello"; flow:established,to_server; content:"chinadigitaltimes"; fast_pattern; content:".top"; distance:0; within:5; sid:2100102; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UTA0565 Spoofed Domain americanprgoress in TLS ClientHello"; flow:established,to_server; content:"americanprgoress"; fast_pattern; content:".top"; distance:0; within:5; sid:2100103; rev:1; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/;)

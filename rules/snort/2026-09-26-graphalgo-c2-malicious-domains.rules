@@ -1,0 +1,5 @@
+alert ip $HOME_NET any -> 193.247.144.38 any (msg:"Graphalgo C2 host contact"; flow:to_server; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2100901; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Graphalgo malicious domain gocommunity.io DNS lookup"; content:"|0b|gocommunity|02|io|00|"; nocase; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2100902; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Graphalgo malicious domain gogets.dev DNS lookup"; content:"|06|gogets|03|dev|00|"; nocase; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2100903; rev:1;)

@@ -1,0 +1,11 @@
+alert ip $HOME_NET any -> 193.247.144.38 any (msg:"Actioner - Graphalgo C2 host contact (193.247.144.38)"; flow:to_server; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200901; rev:1; metadata:author Actioner, created_at 2026-09-26;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Graphalgo malicious Go module domain gocommunity.io"; dns.query; content:"gocommunity.io"; nocase; endswith; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200902; rev:1; metadata:author Actioner, created_at 2026-09-26;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Graphalgo malicious Go module domain gogets.dev"; dns.query; content:"gogets.dev"; nocase; endswith; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200903; rev:1; metadata:author Actioner, created_at 2026-09-26;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Graphalgo Arbitrum Sepolia C2 contract address in HTTP"; flow:established,to_server; http.request_body; content:"ad02b5cde693529d3bda0266299501ad0193036c"; nocase; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200904; rev:1; metadata:author Actioner, created_at 2026-09-26;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Graphalgo Slack C2 workspace portfolio-devs"; dns.query; content:"portfolio-devs.slack.com"; nocase; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200905; rev:1; metadata:author Actioner, created_at 2026-09-26;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Graphalgo Slack C2 workspace portfolio-testers"; dns.query; content:"portfolio-testers.slack.com"; nocase; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200906; rev:1; metadata:author Actioner, created_at 2026-09-26;)

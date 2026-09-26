@@ -1,0 +1,15 @@
+# UTA0565 CLEANGULP C2 and Delivery Infrastructure
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to CLEANGULP C2 Domain thecovnresation.com"; flow:established,to_server; tls.sni; content:"thecovnresation.com"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200101; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to CLEANGULP C2 Domain thecovnresation.net"; flow:established,to_server; tls.sni; content:"thecovnresation.net"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to CLEANGULP C2 Domain thecovnresation.com"; flow:to_server; dns.query; content:"thecovnresation.com"; nocase; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to CLEANGULP C2 Domain thecovnresation.net"; flow:to_server; dns.query; content:"thecovnresation.net"; nocase; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200104; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to UTA0565 Spoofed Domain chinadigitaltimes.top"; flow:established,to_server; tls.sni; content:"chinadigitaltimes.top"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200105; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to UTA0565 Spoofed Domain americanprgoress.top"; flow:established,to_server; tls.sni; content:"americanprgoress.top"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200106; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CLEANGULP HTTP POST Beacon URI /beacon/pre-register"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon/pre-register"; http.host; content:"thecovnresation"; classtype:trojan-activity; reference:url,www.volexity.com/blog/2026/09/21/mind-the-patch-gap-part-2-fake-websites-used-to-deploy-chrome-windows-0-day-exploits/; metadata:author Actioner, created_at 2026-09-26; sid:2200107; rev:2;)

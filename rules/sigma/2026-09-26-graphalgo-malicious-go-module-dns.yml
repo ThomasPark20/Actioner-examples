@@ -1,0 +1,27 @@
+title: DNS query to Graphalgo malicious Go module domains
+id: 9c5a4b3d-0e6f-4a1c-d7b8-3f4e5a6b7c8d
+status: experimental
+description: >-
+  Detects DNS queries to domains used by the Graphalgo campaign to host
+  malicious Go modules: gocommunity.io and gogets.dev. These domains hosted
+  trojanized Go packages that delivered a DPRK-linked RAT.
+references:
+  - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+  - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+author: Actioner
+date: 2026/09/26
+tags:
+  - attack.t1195.002
+  - attack.t1071.001
+logsource:
+  category: dns_query
+  product: linux
+detection:
+  selection:
+    QueryName|endswith:
+      - 'gocommunity.io'
+      - 'gogets.dev'
+  condition: selection
+falsepositives:
+  - None expected - these domains are associated with malicious activity
+level: high
