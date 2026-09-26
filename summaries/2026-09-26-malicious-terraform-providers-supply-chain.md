@@ -7,7 +7,7 @@ Version: 1.0 (DRAFT)
 
 ## Executive Summary
 
-Aikido Security disclosed on September 22, 2026 the first documented case of malware distribution through the HashiCorp Terraform Registry. Two malicious Terraform providers -- `gocommunity-io/dockerd` (222 downloads) and `kreuzwenker/docker` (1,449 downloads, a single-letter typosquat of the legitimate `kreuzwerker/docker` provider with 56 million downloads) -- delivered a Go-based remote access trojan (RAT) linked to the DPRK-attributed **Graphalgo** campaign. Two companion malicious Go modules (`gocommunity.io/orderedbtree` and `gogets.dev/btreex`) carried functionally identical payloads. The RAT uses a dual C2 architecture: an Ethereum smart contract on the Arbitrum Sepolia testnet for dead-drop command retrieval (polled every 3 seconds) and Slack bot API channels (polled every 10 seconds), with all traffic encrypted using ephemeral X25519 key pairs. The malware activates only when a SHA-256 hash of two Terraform input values (`containerName` and `networkID`) matches a hardcoded trigger value, making dynamic analysis evasion trivial. The encrypted second-stage payload is disguised as a SQLite database file (`import-resource.sqlite3`). A secondary C2 IP (`193.247.144[.]38`) was retrieved via the NullReceiver blockchain technique. The campaign was first documented by ReversingLabs in February 2026 targeting npm/PyPI and has now expanded to infrastructure-as-code ecosystems, representing a significant escalation in supply-chain attack surface for DevOps and cloud engineering teams.
+Aikido Security disclosed on September 22, 2026 the first documented case of malware distribution through the HashiCorp Terraform Registry. Two malicious Terraform providers -- `gocommunity-io/dockerd` (222 downloads) and `kreuzwenker/docker` (1,449 downloads, a single-letter typosquat of the legitimate `kreuzwerker/docker` provider with 56 million downloads) -- delivered a Go-based remote access trojan (RAT) linked to the DPRK-attributed **Graphalgo** campaign. Two companion malicious Go modules (`gocommunity[.]io/orderedbtree` and `gogets[.]dev/btreex`) carried functionally identical payloads. The RAT uses a dual C2 architecture: an Ethereum smart contract on the Arbitrum Sepolia testnet for dead-drop command retrieval (polled every 3 seconds) and Slack bot API channels (polled every 10 seconds), with all traffic encrypted using ephemeral X25519 key pairs. The malware activates only when a SHA-256 hash of two Terraform input values (`containerName` and `networkID`) matches a hardcoded trigger value, making dynamic analysis evasion trivial. The encrypted second-stage payload is disguised as a SQLite database file (`import-resource.sqlite3`). A secondary C2 IP (`193.247.144[.]38`) was retrieved via the NullReceiver blockchain technique. The campaign was first documented by ReversingLabs in February 2026 targeting npm/PyPI and has now expanded to infrastructure-as-code ecosystems, representing a significant escalation in supply-chain attack surface for DevOps and cloud engineering teams.
 
 Concrete, durable artifacts exist (package names, SHA-256 hashes, contract address, Slack workspaces, threat actor public key, C2 IP). **Viability gate: PASS.** Detection rules are emitted.
 
@@ -22,8 +22,8 @@ HashiCorp's Terraform Registry (registry.terraform.io) is the centralized distri
 | 2026-02 (early) | ReversingLabs documents original Graphalgo campaign targeting npm/PyPI |
 | 2026-07-16 | Slack C2 channels show first encrypted command traffic (1,240 messages from this date onward) |
 | 2026-08-06 | Arbitrum Sepolia C2 smart contract shows first transactions (1,402 total recorded) |
-| 2026-08-11 | Go module `gocommunity.io/orderedbtree` published |
-| 2026-09-08 | Go module `gogets.dev/btreex` published; Terraform providers deployed (Git commits forged/backdated to November 2025) |
+| 2026-08-11 | Go module `gocommunity[.]io/orderedbtree` published |
+| 2026-09-08 | Go module `gogets[.]dev/btreex` published; Terraform providers deployed (Git commits forged/backdated to November 2025) |
 | 2026-09-09 | GHAPPIER npm loader observed (35 min 38 sec exposure) |
 | 2026-09-22 | Aikido Security publicly discloses the Terraform/Go expansion |
 | 2026-09-23 | The Hacker News reports; packages removed from registries |
@@ -62,9 +62,9 @@ When the trigger condition is met, the payload is AES-decrypted using the hash v
 - 1,402 transactions recorded since August 6, 2026
 
 **Slack API (secondary):**
-- Initial check-in workspace: `portfolio-devs.slack.com` (channel: `frontend-devs`)
-- Command workspace: `portfolio-testers.slack.com` (channel: `qa-announcements`)
-- Historical indicator: `mediumstar.slack.com`
+- Initial check-in workspace: `portfolio-devs[.]slack[.]com` (channel: `frontend-devs`)
+- Command workspace: `portfolio-testers[.]slack[.]com` (channel: `qa-announcements`)
+- Historical indicator: `mediumstar[.]slack[.]com`
 - Uses Slack bot token; polls `conversations.history` every 10 seconds
 - Trailing marker byte sequence: `68656c6c6f6970626f742121` (decodes to "helloipbot!!")
 - 1,240 encrypted messages documented from July 16 onward
@@ -113,8 +113,8 @@ Observed 18 unique hostnames across 725 check-ins: 10 macOS, 5 Linux, 3 Windows 
 |---------------------|------|-------------|
 | `gocommunity-io/dockerd` | Terraform provider | 222 downloads; malicious Go RAT in provider binary |
 | `kreuzwenker/docker` | Terraform provider | 1,449 downloads; typosquat of `kreuzwerker/docker` |
-| `gocommunity.io/orderedbtree` | Go module | Published 2026-08-11; identical RAT payload |
-| `gogets.dev/btreex` | Go module | Published 2026-09-08; identical RAT payload |
+| `gocommunity[.]io/orderedbtree` | Go module | Published 2026-08-11; identical RAT payload |
+| `gogets[.]dev/btreex` | Go module | Published 2026-09-08; identical RAT payload |
 | `indexed-btree` | npm | Related Graphalgo npm malware |
 | `mathsbase` | npm | Related Graphalgo npm malware |
 | `mathmain` | npm | Related Graphalgo npm malware |
@@ -163,13 +163,13 @@ Observed 18 unique hostnames across 725 check-ins: 10 macOS, 5 Linux, 3 Windows 
 | T1204.002 | User Execution: Malicious File | `terraform init` downloads and executes malicious provider binary |
 | T1059 | Command and Scripting Interpreter | RAT executes Go and JavaScript code on demand |
 | T1102.002 | Web Service: Bidirectional Communication | Slack API used as bidirectional C2 channel |
-| T1102 | Web Service | Ethereum smart contract used as dead-drop C2 resolver |
+| T1102.001 | Web Service: Dead Drop Resolver | Ethereum smart contract used as dead-drop C2 resolver |
 | T1027 | Obfuscated Files or Information | Encrypted payload; hash-gated activation |
 | T1036.008 | Masquerading: Masquerade File Type | Encrypted archives disguised as .sqlite3/.sql files |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 over HTTPS (Slack API, blockchain RPC) |
 | T1105 | Ingress Tool Transfer | Decrypted payload executed via `go run .` |
 | T1480 | Execution Guardrails | Malware activates only on specific hash of Terraform variable values |
-| T1656 | Impersonation | Typosquat of legitimate provider name (kreuzwenker vs kreuzwerker) |
+
 
 ## Impact Assessment
 
@@ -185,9 +185,9 @@ Observed 18 unique hostnames across 725 check-ins: 10 macOS, 5 Linux, 3 Windows 
 
 ### Immediate Detection
 - Audit Terraform lock files (`.terraform.lock.hcl`) and provider cache for `gocommunity-io/dockerd` or `kreuzwenker/docker` (note the 'n')
-- Search Go module caches and `go.sum` for `gocommunity.io/orderedbtree` or `gogets.dev/btreex`
+- Search Go module caches and `go.sum` for `gocommunity[.]io/orderedbtree` or `gogets[.]dev/btreex`
 - Hash-check for `5f892a5424e88a21a3eb3d7f82ebf04d8ac31cdb19ada25153be4165df977d0f` and `ab01686d87565250fc4989faddb877d793667b07ec217a61cbd798f5695d62f5`
-- Hunt network logs for DNS queries to `gocommunity[.]io`, `gogets[.]dev`, `portfolio-devs.slack.com`, `portfolio-testers.slack.com`
+- Hunt network logs for DNS queries to `gocommunity[.]io`, `gogets[.]dev`, `portfolio-devs[.]slack[.]com`, `portfolio-testers[.]slack[.]com`
 - Hunt for outbound traffic to `193.247.144[.]38`
 - Search for RPC calls to Arbitrum Sepolia referencing contract `0xAD02b5cDE693529d3bdA0266299501ad0193036C`
 
@@ -242,8 +242,8 @@ falsepositives:
 level: high
 ```
 
-### Sigma 3: DNS queries to Graphalgo malicious Go module domains
-Detects DNS resolution of `gocommunity.io` and `gogets.dev`, the attacker-controlled domains hosting malicious Go modules.
+### Sigma 2: DNS queries to Graphalgo malicious Go module domains
+Detects DNS resolution of `gocommunity[.]io` and `gogets[.]dev`, the attacker-controlled domains hosting malicious Go modules.
 **Status:** compile: pass (sigma convert splunk+log_scale exit 0) -- confidence: high
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0 => QueryName IN ("*gocommunity.io","*gogets.dev"). These are attacker-registered domains with no known legitimate use. High confidence. -->
 ```yaml
@@ -276,8 +276,8 @@ falsepositives:
 level: high
 ```
 
-### Sigma 4: Graphalgo Slack C2 workspace DNS resolution
-Detects DNS resolution of the three Slack workspace domains used as C2 channels by the Graphalgo RAT.
+### Sigma 3: Graphalgo Slack C2 workspace DNS resolution
+Detects DNS resolution of the three Slack workspace domains used as C2 channels by the Graphalgo RAT. Note: the RAT's live C2 polling resolves `slack.com` / `api.slack.com` via the Slack bot API, not workspace subdomains; this rule catches browser access or reconnaissance of these workspaces, not active C2 polling traffic.
 **Status:** compile: pass (sigma convert splunk+log_scale exit 0) -- confidence: high
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0 => QueryName IN ("portfolio-devs.slack.com","portfolio-testers.slack.com","mediumstar.slack.com"). Workspace names are specific but could theoretically exist for legitimate orgs; high not critical. -->
 ```yaml
@@ -325,7 +325,8 @@ alert udp $HOME_NET any -> any 53 (msg:"Graphalgo malicious domain gogets.dev DN
 
 ### Suricata: Graphalgo network indicators (C2 IP, domains, contract address, Slack workspaces)
 Comprehensive network detection covering the C2 IP, malicious Go module domains, Ethereum contract address in HTTP traffic, and Slack C2 workspace DNS.
-**Status:** compile: pass (suricata -T exit 0, "Configuration provided was successfully loaded. Exiting.") -- confidence: medium-high
+**Status:** compile: pass (suricata -T exit 0, "Configuration provided was successfully loaded. Exiting.") -- confidence: medium
+**Caveat:** The Slack workspace DNS rules (sids 2200905-2200906) match browser or recon access to these workspace subdomains. The RAT's live C2 polling resolves `slack.com` / `api.slack.com` via the Slack bot API, not the workspace subdomain, so these rules catch browsing or enumeration rather than active C2 traffic.
 <!-- audit: suricata -T -S graphalgo_net.rules -l /tmp on Suricata 7.0.3 -> exit 0, clean load, no rule errors. Six rules with unique sids 2200901-2200906. dns.query sticky buffer used for DNS rules; http.request_body for contract address (correct: eth_call carries address in JSON-RPC POST body, not URI). IP rule medium confidence (hosting rotates); domain rules high confidence (attacker-controlled); contract rule medium (address encoding in body varies by client). -->
 ```suricata
 alert ip $HOME_NET any -> 193.247.144.38 any (msg:"Actioner - Graphalgo C2 host contact (193.247.144.38)"; flow:to_server; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; classtype:trojan-activity; sid:2200901; rev:1; metadata:author Actioner, created_at 2026-09-26;)

@@ -1,0 +1,30 @@
+title: Carbonato Botnet - Suspicious Privileged Container with Host Mount
+id: 8b4d2f3a-5c6e-4f7b-9a0c-1d2e3f4a5b6c
+status: experimental
+description: Detects creation of privileged Docker containers with host root filesystem bind mount, PID namespace sharing, and host networking - matching Carbonato botnet deployment pattern using container names netns-probe or systemd-resolved.
+references:
+    - https://www.threatdown.com/blog/carbonato/
+    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.execution
+    - attack.t1610
+    - attack.privilege_escalation
+    - attack.t1611
+logsource:
+    product: docker
+    service: events
+detection:
+    selection_event:
+        action: create
+        Type: container
+    selection_names:
+        Actor.Attributes.name|contains:
+            - 'netns-probe'
+            - 'systemd-resolved'
+            - 'net-setup'
+    condition: selection_event and selection_names
+falsepositives:
+    - Legitimate system containers with these specific names are uncommon
+level: critical

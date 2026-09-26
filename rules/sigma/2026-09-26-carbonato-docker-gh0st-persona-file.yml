@@ -1,0 +1,26 @@
+title: Carbonato Botnet - GH0ST Persona File Creation
+id: 9c5e3a4b-6d7f-4a8c-0b1d-2e3f4a5b6c7d
+status: experimental
+description: Detects creation or modification of the SOUL.md persona file used by the Carbonato botnet Hermes Agent AI framework containing the GH0ST persona directive.
+references:
+    - https://www.threatdown.com/blog/carbonato/
+    - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
+author: Actioner
+date: 2026/09/26
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_path:
+        TargetFilename|endswith: '/.hermes/SOUL.md'
+    selection_path_alt:
+        TargetFilename|contains: '/opt/gh0st/'
+    condition: selection_path or selection_path_alt
+falsepositives:
+    - Legitimate Hermes Agent framework usage (unlikely on production servers)
+level: critical

@@ -120,17 +120,18 @@ Three Vercel-hosted proxy domains were identified:
 | T1036.004 | Masquerading: Masquerade Task or Service | Process disguised as [kworker/u2:0] |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Container named systemd-resolved; binary at /usr/sbin/systemd-logind |
 | T1552.001 | Unsecured Credentials: Credentials in Files | Harvests API keys from .env, config files |
-| T1005 | Data from Local System | Credential collection from 14 LLM providers |
 | T1071.001 | Application Layer Protocol: Web Protocols | Telegram C2, LLM gateway API communication |
+| T1105 | Ingress Tool Transfer | Hermes Agent framework and implant kit pulled from registry |
 | T1572 | Protocol Tunneling | Reverse SSH tunnel to Costa Rican relay |
 | T1046 | Network Service Discovery | Port 2375 scanning every 5 minutes |
 | T1021.004 | Remote Services: SSH | SSH key deployment, reverse tunnel |
 | T1102 | Web Service | Telegram for C2, Vercel proxies |
-| T1588.002 | Obtain Capabilities: Tool | Hermes Agent AI framework (legitimate MIT-licensed tool) |
 
 ---
 
 ## Detection Rules
+
+> **Rule summary:** 13 rules across 4 formats. 5 Sigma rules, 4 YARA rules, 3 Suricata rules (C2 IPs counted as one block, plus Vercel DNS and privileged-container payload), 1 Snort rule. Five generic Docker API rules (SIGMA-1, SURICATA-1--3, SNORT-1) were dropped during review because they lacked campaign-specific indicators.
 
 ### Sigma Rules
 
@@ -219,8 +220,8 @@ level: critical
 
 #### SIGMA-4: Carbonato Process Masquerading as Kernel Worker
 
-Detects user-space processes with known Carbonato watchdog binary paths that masquerade as kernel worker threads using the `[kworker/]` naming convention.
-<!-- audit: YAML structure validated. sigma convert -t splunk -p splunk_cim => pass (Processes.process_path IN ("*/.docker-network-monitor", "*/systemd-logind") Processes.process="*[kworker/*"). sigma convert -t log_scale -p crowdstrike_falcon => pass. -->
+Detects processes launched from known Carbonato watchdog binary paths used for persistence and masquerading. The original botnet also renames these processes to `[kworker/u2:0]` via `prctl(PR_SET_NAME)`, but that renaming occurs post-exec and is not visible in process creation logs, so this rule keys only on the Image path.
+<!-- audit: YAML structure validated. sigma convert -t splunk -p splunk_cim => pass (Processes.process_path IN ("*/.docker-network-monitor", "*/systemd-logind")). sigma convert -t log_scale -p crowdstrike_falcon => pass. -->
 
 **Status:** compile: YAML-valid, convert: Splunk pass, LogScale pass | **Confidence:** high
 
@@ -228,7 +229,7 @@ Detects user-space processes with known Carbonato watchdog binary paths that mas
 title: Carbonato Botnet - Process Masquerading as Kernel Worker Thread
 id: 0d6f4b5c-7e8a-4b9d-1c2e-3f4a5b6c7d8e
 status: experimental
-description: Detects user-space processes masquerading as kernel worker threads using the kworker naming convention, a technique used by the Carbonato botnet to evade detection.
+description: Detects processes launched from Carbonato botnet watchdog binary paths used for persistence and masquerading as system services.
 references:
     - https://www.threatdown.com/blog/carbonato/
     - https://securityaffairs.com/199716/malware/ai-powered-carbonato-botnet-steals-credentials-to-fund-its-own-llm-gateway.html
@@ -245,7 +246,6 @@ detection:
         Image|endswith:
             - '/.docker-network-monitor'
             - '/systemd-logind'
-        CommandLine|contains: '[kworker/'
     condition: selection
 falsepositives:
     - Actual kernel worker threads (these would not have a user-space Image path)
@@ -256,7 +256,7 @@ level: high
 
 #### SIGMA-5: Carbonato Watchdog Binary Persistence
 
-Detects file creation at known Carbonato watchdog binary paths or the credential loot directory used by the Hermes Agent.
+Detects file creation at known Carbonato watchdog binary paths or the credential loot directory used by the Hermes Agent. Note: the `/usr/sbin/systemd-logind` path may fire during legitimate systemd package updates; correlate with file hash and package-manager process trees to reduce false positives.
 <!-- audit: YAML structure validated. sigma convert not applicable (linux file_event not in CIM pipeline). -->
 
 **Status:** compile: YAML-valid, sigma-check: blocked (proxy) | **Confidence:** high
@@ -314,8 +314,6 @@ date: 2026/09/26
 tags:
     - attack.command_and_control
     - attack.t1071.001
-    - attack.collection
-    - attack.t1005
 logsource:
     category: process_creation
     product: linux
@@ -333,44 +331,6 @@ level: critical
 ---
 
 ### Suricata Rules
-
-#### SURICATA-1: Docker API Container Create on Port 2375
-
-Detects HTTP POST requests to `/containers/create` on port 2375, the primary initial access vector for Carbonato.
-
-**Status:** compile: suricata -T pass | **Confidence:** high
-
-<!-- audit: suricata -T -S suricata_carbonato.rules => "Configuration provided was successfully loaded. Exiting." -->
-
-```
-alert http any any -> any 2375 (msg:"CARBONATO Docker API Container Create Request"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/containers/create"; classtype:attempted-admin; sid:1000001; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic initial_access, mitre_attack_technique T1610;)
-```
-
----
-
-#### SURICATA-2: Docker API Exec on Port 2375
-
-Detects exec API calls on exposed Docker daemons, used by Carbonato for nsenter-based host escape.
-
-**Status:** compile: suricata -T pass | **Confidence:** high
-
-```
-alert http any any -> any 2375 (msg:"CARBONATO Docker API Exec via Exposed Daemon"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/exec"; classtype:attempted-admin; sid:1000002; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic execution, mitre_attack_technique T1059;)
-```
-
----
-
-#### SURICATA-3: Docker API Container Start on Port 2375
-
-Detects container start requests on exposed Docker daemons.
-
-**Status:** compile: suricata -T pass | **Confidence:** medium
-
-```
-alert http any any -> any 2375 (msg:"CARBONATO Docker API Container Start Request"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/start"; classtype:attempted-admin; sid:1000003; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic execution, mitre_attack_technique T1610;)
-```
-
----
 
 #### SURICATA-4--7: Known Carbonato C2 IP Addresses
 
@@ -399,14 +359,14 @@ alert dns any any -> any any (msg:"CARBONATO Vercel Proxy Domain DNS Lookup"; dn
 
 ---
 
-#### SURICATA-9: Privileged Container Payload on Port 2375
+#### SURICATA-9: Carbonato Privileged Container Payload on Port 2375
 
-Detects the specific JSON payload pattern of privileged container creation with host bind mount on Docker API port 2375.
+Detects the specific JSON payload pattern of Carbonato's privileged container creation with host bind mount on Docker API port 2375, keyed on the campaign-specific container name `netns-probe`.
 
 **Status:** compile: suricata -T pass | **Confidence:** high
 
 ```
-alert http any any -> any 2375 (msg:"CARBONATO Privileged Container with Host Bind Mount"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"Privileged"; content:"Binds"; content:"/host"; classtype:attempted-admin; sid:1000009; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic privilege_escalation, mitre_attack_technique T1611;)
+alert http any any -> any 2375 (msg:"CARBONATO Privileged Container with Host Bind Mount"; flow:to_server,established; http.method; content:"POST"; http.request_body; content:"netns-probe"; content:"Privileged"; content:"Binds"; content:"/host"; classtype:attempted-admin; sid:1000009; rev:1; metadata:created_at 2026_09_26, updated_at 2026_09_26, mitre_attack_tactic privilege_escalation, mitre_attack_technique T1611;)
 ```
 
 ---
@@ -513,7 +473,7 @@ rule Carbonato_Docker_Implant_Config {
         $net3 = "190.211.124.187" ascii
         $net4 = "carbonato-proxy" ascii
     condition:
-        2 of ($env*) or ($cmd1 and any of ($cmd*)) or (any of ($env*) and any of ($net*))
+        filesize < 50MB and (2 of ($env*) or ($cmd1 and 1 of ($cmd2, $cmd3)) or (any of ($env*) and any of ($net*)))
 }
 ```
 
@@ -549,18 +509,6 @@ rule Carbonato_Watchdog_Binary {
 ---
 
 ### Snort Rules (structural check only -- Snort not installed)
-
-#### SNORT-1: Docker API Container Create
-
-Detects POST requests to Docker daemon API for container creation on port 2375.
-
-**Status:** structural check only (Snort not installed) | **Confidence:** high
-
-```
-alert tcp any any -> any 2375 (msg:"CARBONATO Docker API Container Create"; flow:to_server,established; content:"POST"; content:"/containers/create"; nocase; classtype:attempted-admin; sid:1000010; rev:1;)
-```
-
----
 
 #### SNORT-2: Carbonato Vercel Proxy DNS
 
