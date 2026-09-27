@@ -1,0 +1,33 @@
+title: Oracle PeopleSoft PSEMHUB Web Shell File Creation (CVE-2026-35273)
+id: e8e86e4a-e587-4749-9f96-6ad972d22381
+status: experimental
+description: >
+    Detects creation of known web shell files associated with ShinyHunters/UNC6240
+    exploitation of CVE-2026-35273 in the PeopleSoft PSEMHUB.war directory.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+    - https://www.bleepingcomputer.com/news/security/shinyhunters-uses-waf-bypass-trick-in-oracle-peoplesoft-attacks/
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1505.003
+    - attack.t1190
+    - cve.2026-35273
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: 'PSEMHUB.war'
+    selection_files:
+        TargetFilename|endswith:
+            - '\x.jsp'
+            - '\u.jsp'
+            - '\u2.jsp'
+            - '\tunnel.jsp'
+            - '\tunnel.jspx'
+            - '\Ple64.exe'
+    condition: selection_path and selection_files
+falsepositives:
+    - Legitimate PeopleSoft administration deploying JSP files to PSEMHUB.war (rare)
+level: critical

@@ -1,0 +1,32 @@
+title: Generic Behavioral - WebLogic Java Process Spawning Command Shell (Windows)
+id: 9d6ed783-ea63-4cec-a4b4-3f703b94ef7a
+status: experimental
+description: >
+    Behavioral rule: detects WebLogic Java process spawning cmd.exe or
+    powershell.exe on Windows, indicative of web shell command execution.
+    Not specific to CVE-2026-35273; keys on zero CVE artifacts.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1059.003
+    - attack.t1505.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\java.exe'
+        ParentCommandLine|contains:
+            - 'weblogic'
+            - 'peoplesoft'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate PeopleSoft scheduled processes that invoke command shell
+    - PeopleSoft Process Scheduler tasks
+level: medium

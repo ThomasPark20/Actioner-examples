@@ -1,0 +1,32 @@
+title: Generic Behavioral - WebLogic Java Process Spawning Shell (Linux)
+id: b2a7f3c1-d8e4-4a69-bc15-7e9f08d63a42
+status: experimental
+description: >
+    Behavioral rule: detects Java process under WebLogic paths spawning
+    /bin/sh or /bin/bash on Linux, indicative of web shell command execution.
+    Not specific to CVE-2026-35273; keys on zero CVE artifacts.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1059.004
+    - attack.t1505.003
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith: '/java'
+        ParentCommandLine|contains:
+            - 'weblogic'
+            - 'peoplesoft'
+    selection_child:
+        Image:
+            - '/bin/sh'
+            - '/bin/bash'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate PeopleSoft scheduled processes that invoke shell commands
+    - WebLogic administrative scripts
+level: medium

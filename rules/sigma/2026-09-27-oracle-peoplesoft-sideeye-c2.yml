@@ -1,0 +1,26 @@
+title: SIDEEYE Backdoor C2 Communication (CVE-2026-35273)
+id: cfd02487-976c-49a4-adf4-d0c5623e3cdc
+status: experimental
+description: >
+    Detects network connections to the known SIDEEYE backdoor C2 server used by
+    UNC6240/ShinyHunters on ports 3333 (control) and 3334 (data).
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1095
+    - attack.t1571
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '162.219.30.165'
+        DestinationPort:
+            - 3333
+            - 3334
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

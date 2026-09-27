@@ -1,0 +1,28 @@
+title: DNS Query to UNC6240 Microsoft-Masquerading Domains
+id: 785452f6-974a-4369-a690-14ee82e6ed8e
+status: experimental
+description: >
+    Detects DNS queries to domains used by UNC6240/ShinyHunters that masquerade
+    as Microsoft services, associated with MeshAgent routing and staging
+    infrastructure in CVE-2026-35273 campaigns.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1583.001
+    - attack.t1219
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName:
+            - 'winmanage-me.network'
+            - 'azurenetfiles.net'
+            - 'microsoft-entra.net'
+            - 'enroll.azuredevice.cloud'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

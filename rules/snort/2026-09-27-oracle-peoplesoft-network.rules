@@ -1,0 +1,43 @@
+# Snort/Suricata Rules for Oracle PeopleSoft CVE-2026-35273 Campaign
+# ShinyHunters/UNC6240 - WAF Bypass and C2 Detection
+# Author: Actioner CTI
+# Date: 2026-09-27
+# Status: UNCOMPILED - structural check only
+# References:
+#   - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+
+# Rule 1: WAF Bypass - URL-encoded PSEMHUB access (%50 = P)
+# Detects the primary WAF bypass technique using %50 URL encoding.
+# IMPORTANT: Uses http_raw_uri (Snort 3.x) because http_uri returns the
+# URL-decoded/normalized form where %50 becomes P, so the pattern would
+# never match. For Suricata, use http.uri.raw instead.
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 PeopleSoft PSEMHUB WAF Bypass - URL Encoded Path"; flow:to_server,established; content:"/%50SEMHUB/"; http_raw_uri; nocase; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352701; rev:2; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1190;)
+
+# Rule 2: WAF Bypass - Broader single-character percent-encoding variants for PSEMHUB
+# Catches single-character encoding variants of the PSEMHUB path (e.g. %50SEMHUB, P%53EMHUB).
+# Uses http_raw_uri (Snort 3.x) to match pre-normalization; for Suricata use http.uri.raw.
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 PeopleSoft PSEMHUB Single-Char Percent-Encoded Access Attempt"; flow:to_server,established; content:"%"; http_raw_uri; content:"SEMHUB"; http_raw_uri; distance:1; within:10; nocase; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352702; rev:2; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1190;)
+
+# Rule 3: Web shell access - x.jsp command execution shell
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 UNC6240 x.jsp Web Shell Access"; flow:to_server,established; content:"/x.jsp"; http_uri; nocase; content:"PSEMHUB"; http_uri; nocase; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352703; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1505.003;)
+
+# Rule 4: Web shell access - u.jsp chunked upload shell
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 UNC6240 u.jsp Upload Shell Access"; flow:to_server,established; content:"/u.jsp"; http_uri; nocase; content:"PSEMHUB"; http_uri; nocase; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352704; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1505.003;)
+
+# Rule 5: Web shell access - tunnel.jsp Neo-reGeorg SOCKS proxy
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 UNC6240 tunnel.jsp Neo-reGeorg Proxy Access"; flow:to_server,established; content:"/tunnel.jsp"; http_uri; nocase; content:"PSEMHUB"; http_uri; nocase; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352705; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1090;)
+
+# Rule 6: SIDEEYE C2 - Outbound connection to control port
+alert tcp $HOME_NET any -> 162.219.30.165 3333 (msg:"ACTIONER SIDEEYE Backdoor C2 Control Channel Connection"; flow:to_server,established; reference:cve,2026-35273; classtype:trojan-activity; sid:2026352706; rev:2; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1571;)
+
+# Rule 7: SIDEEYE C2 - Outbound connection to data port
+alert tcp $HOME_NET any -> 162.219.30.165 3334 (msg:"ACTIONER SIDEEYE Backdoor C2 Data Channel Connection"; flow:to_server,established; reference:cve,2026-35273; classtype:trojan-activity; sid:2026352707; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1041;)
+
+# Rule 8: Attacker scanning/callback infrastructure
+alert ip $HOME_NET any -> 5.199.162.157 any (msg:"ACTIONER UNC6240 Attack Controller Communication"; classtype:trojan-activity; sid:2026352708; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27;)
+
+# Rule 9: Exfiltration staging infrastructure
+alert ip $HOME_NET any -> 104.219.234.138 any (msg:"ACTIONER UNC6240 Exfiltration Staging Infrastructure"; classtype:trojan-activity; sid:2026352709; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27;)
+
+# Rule 10: POST to PSEMHUB hub endpoint (deserialization exploitation)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER CVE-2026-35273 PeopleSoft PSEMHUB Hub Servlet POST - Possible Deserialization"; flow:to_server,established; content:"POST"; http_method; content:"/hub"; http_uri; content:"SEMHUB"; http_uri; nocase; content:"application/octet-stream"; http_header; reference:cve,2026-35273; classtype:web-application-attack; sid:2026352710; rev:1; metadata:attack_target Server, deployment Perimeter, signature_severity Critical, created_at 2026_09_27, mitre_attack_id T1190;)
