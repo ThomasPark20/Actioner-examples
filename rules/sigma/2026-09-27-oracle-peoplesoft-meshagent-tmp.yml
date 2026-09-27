@@ -1,0 +1,28 @@
+title: MeshAgent Deployed to Temporary Directory (UNC6240 Persistence)
+id: 53dbce9e-4ff7-4fe9-a5d1-90b36c3b2985
+status: experimental
+description: >
+    Detects MeshAgent remote management binary or configuration files deployed
+    to /tmp, as used by UNC6240/ShinyHunters for Linux persistence following
+    CVE-2026-35273 exploitation.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1219
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/tmp/'
+        TargetFilename|endswith:
+            - '/meshagent'
+            - '/meshagent.msh'
+            - '/meshagent.db'
+    condition: selection
+falsepositives:
+    - Legitimate MeshCentral deployments (should not use /tmp)
+level: high

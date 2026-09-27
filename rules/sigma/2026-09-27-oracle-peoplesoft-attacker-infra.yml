@@ -1,0 +1,27 @@
+title: Network Connection to UNC6240 Attack Infrastructure
+id: c1f4850c-2041-44d5-ab01-daa9679cc48f
+status: experimental
+description: >
+    Detects outbound network connections to known UNC6240/ShinyHunters attack
+    infrastructure IPs used for scanning, staging, and exfiltration in
+    CVE-2026-35273 campaigns.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/shinyhunters-renewed-mass-exploitation-campaign-targeting-oracle-peoplesoft
+author: Actioner CTI
+date: 2026-09-27
+tags:
+    - attack.t1071.001
+    - attack.t1048
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp:
+            - '5.199.162.157'
+            - '104.219.234.138'
+            - '162.219.30.165'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical
