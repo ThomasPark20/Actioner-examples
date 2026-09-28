@@ -1,9 +1,11 @@
 # Technical Analysis Report: TraderTraitor FLATROOF/ROOFDECK Backdoors via Malicious Terraform Providers (2026-09-28)
 
 Prepared by: Actioner
-Classification: TLP:CLEAR (DRAFT)
+Classification: TLP:CLEAR
 Date: 2026-09-28
-Version: 1.0-DRAFT
+Version: 2.0
+
+<!-- revision: v2.0 — applied critic verdict (REVISE). P0: cut Sigma Rule 1 (Terraform Init command-line detection — attacker registry domains never appear in terraform CLI args, they are read from .tf/.terraform.lock.hcl at runtime; DNS/YARA rules cover this vector); fixed T1027.002→T1027 (stripping debug symbols is not software packing). P1: cut Sigma Rule 3 (generic xattr quarantine removal — zero campaign context, wrong altitude for specific/strict; Rule 2 covers payloads); demoted Suricata SID 2026092806 and Snort SID 2026092814 /app_version URI rules to informational (common health-check endpoint, high FP in isolation); added filesize<1MB + Terraform context strings to YARA TraderTraitor_Terraform_LockFile_Poisoned. P2: removed attack.t1543.001 tag from Sigma Rule 2 (file drop, not LaunchAgent creation); renamed Attack Timeline→Attack Sequence (no concrete UTC timestamps). P3: documented FAT Mach-O limitation in YARA rule metadata; added DNS-over-TCP Snort rule variants. Removed tactic-only tags from Sigma per spec. All changed rules re-validated. -->
 
 ## Executive Summary
 
@@ -15,10 +17,10 @@ This campaign represents a significant expansion of TraderTraitor targeting beyo
 
 Terraform by HashiCorp uses a provider registry system to download plugins that manage infrastructure resources. The `.terraform.lock.hcl` file pins provider versions and their cryptographic hashes. When a developer runs `terraform init`, Terraform resolves providers from the registry URLs specified in configuration. By substituting legitimate HashiCorp registry domains with attacker-controlled look-alikes (e.g., `registry.hashicorp-aws[.]com` instead of `registry.terraform.io`), the threat actors caused `terraform init` to fetch and execute malicious provider binaries, bypassing typical code review scrutiny since lock files are often treated as auto-generated artifacts.
 
-## Attack Timeline (All Times UTC)
+## Attack Sequence
 
-| Timestamp | Event |
-|-----------|-------|
+| Phase | Event |
+|-------|-------|
 | Pre-compromise | Threat actors establish fake company profiles with LinkedIn presences for social engineering |
 | Initial contact | Target DevOps engineer approached via fake job interview for coding challenge |
 | Initial access | Victim clones weaponized GitHub repo containing poisoned `.terraform.lock.hcl` |
@@ -198,7 +200,9 @@ Nostr relays used for C2 operator discovery:
 | T1102.001 | Web Service: Dead Drop Resolver | Nostr relay network used for C2 operator discovery |
 | T1005 | Data from Local System | Python module harvests browser data, command histories, keychains, credentials |
 | T1059.006 | Command and Scripting Interpreter: Python | Python-based data harvesting module for credential and browser data exfiltration |
-| T1027.002 | Obfuscated Files or Information: Software Packing | Stripped binary variant of ROOFDECK to hinder analysis |
+| T1027 | Obfuscated Files or Information | Stripped binary variant of ROOFDECK to hinder static analysis |
+
+<!-- revision: P0 #2 — changed T1027.002 (Software Packing) to T1027 (parent). Stripping debug symbols is obfuscation, not packing (packing involves runtime compression/encryption with an unpacker stub). -->
 
 ## Impact Assessment
 
@@ -253,62 +257,19 @@ log show --predicate 'process == "mDNSResponder"' --last 30d | grep -E "technica
 
 ## Detection Rules
 
-These rules target the specific IOCs and behavioral patterns of the TraderTraitor FLATROOF/ROOFDECK campaign, covering the Terraform supply-chain entry vector, macOS backdoor file drops, Gatekeeper bypass activity, C2 network communications, and binary-level signatures. The primary caveat is that Sigma rules require macOS-specific log sources (process creation and file events) which may need pipeline customization for specific SIEM deployments.
+These rules target the specific IOCs and behavioral patterns of the TraderTraitor FLATROOF/ROOFDECK campaign. The Sigma rule covers macOS backdoor file drops; Suricata and Snort rules cover DNS, TLS, and HTTP C2 indicators; YARA rules cover binary-level and Terraform lock file signatures. Compiles do not equal fires -- verify in your pipeline.
 
-### Rule 1: Sigma -- Terraform Init Against Malicious HashiCorp-Impersonating Registry
+<!-- revision: P0 #1 — CUT Sigma Rule 1 (Terraform Init Against Malicious HashiCorp-Impersonating Registry, id 8a3f1d2e-5b7c-4e9a-b1d3-6f8e2a4c7b90). Reason: fundamentally broken detection logic. The three attacker registry domains (registry.hashicorp-aws.com, registry.hashicorp-aws.io, registry.hashicorp-terraform.io) are read from .terraform.lock.hcl and .tf configuration files at runtime; they NEVER appear in the terraform process command line. The CommandLine|contains selection would never fire. The DNS rules (Suricata SIDs 2026092803/2026092804, Snort SIDs 2026092811-2026092813) and YARA rule TraderTraitor_Terraform_LockFile_Poisoned already cover this vector via network and file-level detection respectively. -->
 
-Detects `terraform init` or `terraform providers mirror` commands referencing the three attacker-controlled registries that impersonate HashiCorp infrastructure.
+<!-- revision: P1 #3 — CUT Sigma Rule 3 (macOS Gatekeeper Bypass via xattr Quarantine Removal, id 9e2b5c7d-1a4f-48e3-b6d9-3c8a5e7f1d40). Reason: purely generic TTP detection — fires on ANY xattr -rd com.apple.quarantine invocation with zero campaign-specific context. Wrong altitude for a specific/strict report. Sigma Rule 2 (file drop detection) already catches the actual FLATROOF/ROOFDECK payloads at their distinctive paths. -->
 
-**Compile Status:** PASS | **Confidence:** High
-
-<!-- AUDIT: sigma check failed due to MITRE ATT&CK data endpoint being blocked by proxy (HTTP 403) - not a rule quality issue. sigma convert to splunk succeeded: Image="*/terraform" CommandLine IN ("*init*", "*providers mirror*") CommandLine IN ("*registry.hashicorp-aws.com*", "*registry.hashicorp-aws.io*", "*registry.hashicorp-terraform.io*"). sigma convert to log_scale succeeded. Tags: attack.initial_access, attack.t1195.002, attack.execution, attack.t1204.002. FP risk: very low - these domains have no legitimate use. Detection requires process creation logging on macOS (e.g., via EDR or osquery). -->
-
-```yaml
-title: Terraform Init Against Malicious HashiCorp-Impersonating Registry
-id: 8a3f1d2e-5b7c-4e9a-b1d3-6f8e2a4c7b90
-status: experimental
-description: >
-    Detects terraform init or terraform providers mirror commands communicating
-    with registries that impersonate HashiCorp infrastructure, as observed in
-    TraderTraitor DPRK supply-chain attacks delivering FLATROOF/ROOFDECK
-    backdoors through weaponized .terraform.lock.hcl files.
-references:
-    - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
-    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
-author: Actioner (DRAFT)
-date: 2026-09-28
-tags:
-    - attack.initial_access
-    - attack.t1195.002
-    - attack.execution
-    - attack.t1204.002
-logsource:
-    category: process_creation
-    product: macos
-detection:
-    selection_process:
-        Image|endswith: '/terraform'
-        CommandLine|contains:
-            - 'init'
-            - 'providers mirror'
-    selection_registry:
-        CommandLine|contains:
-            - 'registry.hashicorp-aws.com'
-            - 'registry.hashicorp-aws.io'
-            - 'registry.hashicorp-terraform.io'
-    condition: selection_process and selection_registry
-falsepositives:
-    - Unlikely; these domains impersonate HashiCorp and have no legitimate use
-level: critical
-```
-
-### Rule 2: Sigma -- FLATROOF/ROOFDECK Backdoor File Drop in Apple-Masquerade Directories
+### Sigma: FLATROOF/ROOFDECK Backdoor File Drop in Apple-Masquerade Directories
 
 Detects file creation at the specific paths used by FLATROOF and ROOFDECK backdoor variants, including the IPC pipe and configuration file locations.
 
-**Compile Status:** PASS | **Confidence:** High
+**Status:** compile ✅ compiles · confidence: high
 
-<!-- AUDIT: sigma check failed due to MITRE ATT&CK data endpoint proxy block (HTTP 403) - not a rule defect. sigma convert to splunk succeeded: TargetFilename IN ("*/Library/com.apple.iTunesCloud/SystemUpdate*", "*/Library/com.apple.internal.ck/iSync*", "*/Library/com.apple.appleaccountd/loginwindow*", "*/.config/.repl_history", "*/private/tmp/.pipe-airway*"). sigma convert to log_scale succeeded. Tags: attack.persistence, attack.t1543.001, attack.defense_evasion, attack.t1036.005. FP risk: none expected - these specific path+filename combinations are unique to this malware family. Requires file event logging on macOS endpoints. -->
+<!-- audit: sigma check failed due to MITRE ATT&CK data endpoint proxy block (HTTP 403) — not a rule defect. sigma convert --without-pipeline to splunk: exit 0, output: TargetFilename IN ("*/Library/com.apple.iTunesCloud/SystemUpdate*", "*/Library/com.apple.internal.ck/iSync*", "*/Library/com.apple.appleaccountd/loginwindow*", "*/.config/.repl_history", "*/private/tmp/.pipe-airway*"). sigma convert --without-pipeline to log_scale: exit 0. Tag revision: removed attack.persistence and attack.t1543.001 (rule detects binary file drops, not LaunchAgent plist creation) and tactic-only tags per spec; retained attack.t1036.005 (Masquerading). FP risk: none expected — these specific path+filename combinations are unique to this malware family. Requires file event logging on macOS endpoints (e.g., via EDR or Sysmon for macOS). -->
 
 ```yaml
 title: FLATROOF/ROOFDECK Backdoor File Drop in Apple-Masquerade Directories
@@ -321,12 +282,9 @@ description: >
     TraderTraitor actors.
 references:
     - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
-author: Actioner (DRAFT)
+author: Actioner
 date: 2026-09-28
 tags:
-    - attack.persistence
-    - attack.t1543.001
-    - attack.defense_evasion
     - attack.t1036.005
 logsource:
     category: file_event
@@ -348,51 +306,37 @@ falsepositives:
 level: critical
 ```
 
-### Rule 3: Sigma -- macOS Gatekeeper Bypass via xattr Quarantine Removal
+### Snort: TraderTraitor C2 DNS and HTTP Detection
 
-Detects the `xattr -rd com.apple.quarantine` technique used by TraderTraitor to bypass Gatekeeper on downloaded FLATROOF/ROOFDECK payloads.
+Seven rules for Snort 2.9: DNS lookups for the three primary C2 domains (UDP and TCP variants) and the ROOFDECK `/app_version` HTTP beacon URI (informational -- correlate with DNS IOCs before acting).
 
-**Compile Status:** PASS | **Confidence:** Medium
+**Status:** compile ✅ compiles · confidence: high
 
-<!-- AUDIT: sigma check failed due to MITRE ATT&CK data endpoint proxy block (HTTP 403) - not a rule defect. sigma convert to splunk succeeded: Image="*/xattr" CommandLine="*-rd*" CommandLine="*com.apple.quarantine*". sigma convert to log_scale succeeded. Tags: attack.defense_evasion, attack.t1553.001. FP risk: medium - developers and administrators may legitimately use xattr -rd com.apple.quarantine on downloaded tools and unsigned applications. The rule is intentionally broader to catch the technique generically; filter by parent process or target path in production. This technique is used by multiple macOS malware families beyond TraderTraitor. -->
+<!-- audit: Snort 2.9.20 validated successfully: "Snort successfully validated the configuration!" All 7 SIDs (2026092811-2026092817) loaded. DNS rules use wire-format content matching (length-prefixed labels) for both UDP (SIDs 2026092811-2026092813) and TCP (SIDs 2026092815-2026092817). SID 2026092814 matches /app_version in http_uri — demoted to classtype:bad-unknown / informational per critic (common health-check endpoint, high FP in isolation; anchor on DNS IOC hits first). TCP DNS variants added per P3 recommendation; wire-format label matching works identically in TCP DNS payloads (2-byte length prefix does not interfere with substring content match). -->
 
-```yaml
-title: macOS Gatekeeper Bypass via xattr Quarantine Removal
-id: 9e2b5c7d-1a4f-48e3-b6d9-3c8a5e7f1d40
-status: experimental
-description: >
-    Detects use of xattr to remove the com.apple.quarantine extended attribute,
-    a technique used by TraderTraitor actors to bypass Gatekeeper protections
-    on downloaded FLATROOF/ROOFDECK payloads.
-references:
-    - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
-author: Actioner (DRAFT)
-date: 2026-09-28
-tags:
-    - attack.defense_evasion
-    - attack.t1553.001
-logsource:
-    category: process_creation
-    product: macos
-detection:
-    selection:
-        Image|endswith: '/xattr'
-        CommandLine|contains|all:
-            - '-rd'
-            - 'com.apple.quarantine'
-    condition: selection
-falsepositives:
-    - Developers or administrators legitimately removing quarantine attributes from downloaded tools
-level: medium
+```
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net"; content:"|0a|technicais|05|sytes|03|net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092811; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud"; content:"|07|storage|07|hubpage|05|cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092812; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com"; content:"|08|grenight|03|com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092813; rev:1;)
+
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI - /app_version [Informational]"; content:"/app_version"; http_uri; classtype:bad-unknown; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; sid:2026092814; rev:2;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net [TCP]"; content:"|0a|technicais|05|sytes|03|net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092815; rev:1;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud [TCP]"; content:"|07|storage|07|hubpage|05|cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092816; rev:1;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com [TCP]"; content:"|08|grenight|03|com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092817; rev:1;)
 ```
 
-### Rule 4: Suricata -- TraderTraitor FLATROOF/ROOFDECK C2 Communication
+### Suricata: TraderTraitor FLATROOF/ROOFDECK C2 Communication
 
-Six rules covering DNS lookups for all three C2 domains, DNS queries containing the Terraform registry impersonation pattern, TLS SNI matching for `hubpage[.]cloud`, and the ROOFDECK HTTP beacon URI `/app_version`.
+Six rules covering DNS lookups for all three C2 domains, DNS queries containing the Terraform registry impersonation pattern, TLS SNI matching for `hubpage[.]cloud`, and the ROOFDECK HTTP beacon URI `/app_version` (informational -- correlate with DNS IOCs before acting).
 
-**Compile Status:** PASS | **Confidence:** High
+**Status:** compile ✅ compiles · confidence: high
 
-<!-- AUDIT: suricata -T -S validated successfully: "Configuration provided was successfully loaded. Exiting." All 6 SIDs (2026092801-2026092806) loaded without errors. Rules use Suricata-native keywords (dns.query, tls.sni, http.uri). SID 2026092804 matches "hashicorp-aws" substring in DNS to catch both .com and .io registry variants. SID 2026092806 (/app_version URI) has moderate FP potential in isolation but is high-value when correlated with the DNS indicators. The Nostr relay domains are intentionally excluded from network rules as they are legitimate public infrastructure. -->
+<!-- audit: suricata -T -S validated successfully: "Configuration provided was successfully loaded. Exiting." All 6 SIDs (2026092801-2026092806) loaded. Rules use Suricata-native dot-notation sticky buffers (dns.query, tls.sni, http.uri). SID 2026092804 matches "hashicorp-aws" substring in DNS to catch both .com and .io registry variants. SID 2026092806 (/app_version URI): demoted to classtype:bad-unknown per critic — common health-check/API endpoint, high FP potential in isolation; msg tagged [Informational] to flag as correlation-only. Nostr relay domains intentionally excluded from network rules as they are legitimate public infrastructure. -->
 
 ```
 alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net"; dns.query; content:"technicais.sytes.net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092801; rev:1;)
@@ -405,46 +349,29 @@ alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR Malicious Terraform Regis
 
 alert tls $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 TLS SNI - hubpage.cloud"; tls.sni; content:"hubpage.cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092805; rev:1;)
 
-alert http $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI Pattern - /app_version"; http.uri; content:"/app_version"; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092806; rev:1;)
+alert http $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI Pattern - /app_version [Informational]"; http.uri; content:"/app_version"; classtype:bad-unknown; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; sid:2026092806; rev:2;)
 ```
 
-### Rule 5: Snort -- TraderTraitor C2 DNS and HTTP Detection
+### YARA: FLATROOF/ROOFDECK Backdoor and Poisoned Terraform Lock File Detection
 
-Four rules for Snort 2.9 detecting DNS lookups for the three primary C2 domains (using DNS wire-format content matches) and the ROOFDECK `/app_version` HTTP beacon URI.
+Three YARA rules: (1) FLATROOF_macOS_Backdoor matches ARM64 Mach-O Rust binaries containing FLATROOF-specific strings; (2) ROOFDECK_macOS_Backdoor matches Rust binaries with Nostr relay strings or ROOFDECK-specific paths and C2 indicators; (3) TraderTraitor_Terraform_LockFile_Poisoned matches Terraform-context files (filesize < 1MB, requires `provider` or `h1:` alongside the malicious registry domains).
 
-**Compile Status:** PASS | **Confidence:** High
+**Status:** compile ✅ compiles · confidence: high
 
-<!-- AUDIT: Snort 2.9.20 validated successfully via include directive: "Snort successfully validated the configuration!" All 4 SIDs (2026092811-2026092814) loaded. DNS rules use wire-format content matching (length-prefixed labels). SID 2026092814 matches /app_version in http_uri. Note: Snort 2.9 lacks native dns.query keyword so DNS matching uses raw UDP content - may require tuning for DNS-over-TCP or DNS-over-HTTPS environments. -->
-
-```
-alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net"; content:"|0a|technicais|05|sytes|03|net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092811; rev:1;)
-
-alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud"; content:"|07|storage|07|hubpage|05|cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092812; rev:1;)
-
-alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com"; content:"|08|grenight|03|com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092813; rev:1;)
-
-alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI - /app_version"; content:"/app_version"; http_uri; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092814; rev:1;)
-```
-
-### Rule 6: YARA -- FLATROOF/ROOFDECK Backdoor and Poisoned Terraform Lock File Detection
-
-Three YARA rules: (1) FLATROOF_macOS_Backdoor matches ARM64 Mach-O Rust binaries containing FLATROOF-specific strings (C2 domain, file paths, lock file pattern); (2) ROOFDECK_macOS_Backdoor matches Rust binaries with Nostr relay strings or ROOFDECK-specific file paths and C2 indicators; (3) TraderTraitor_Terraform_LockFile_Poisoned matches any file containing the malicious registry domain strings.
-
-**Compile Status:** PASS | **Confidence:** High
-
-<!-- AUDIT: yarac compiled successfully with no errors or warnings. FLATROOF rule requires Mach-O header (CFFA EDFE at offset 0) + rustc string + 3 of 5 specific strings including C2 domain and file paths. ROOFDECK rule requires Mach-O header + rustc + either 2 of 4 Nostr relay strings OR 3 of 7 ROOFDECK-specific strings. Both rules are deliberately strict to minimize FPs - the Mach-O header check, Rust compiler marker, and multi-string threshold provide high specificity. Terraform lock file rule is broader (any file with registry domain strings) to catch lock files, configs, and documentation referencing the malicious registries. SHA-1 hashes are in metadata only (source did not provide SHA-256); hash-based matching would require SHA-256 values not available in the source material. -->
+<!-- audit: yarac compiled with exit 0, no errors or warnings. FLATROOF rule: Mach-O header (CFFA EDFE at offset 0) + rustc + 3 of 5 specific strings including C2 domain and file paths. ROOFDECK rule: Mach-O header + rustc + either 2 of 4 Nostr relay strings OR 3 of 7 ROOFDECK-specific strings. Both rules are deliberately strict to minimize FPs. FAT/Universal Mach-O limitation documented in macho_caveat metadata field (P3 #8). Terraform lock file rule: revised per P1 #5 — added filesize < 1MB constraint and requires Terraform-contextual string ("provider" or "h1:") alongside the registry domains; prevents matching threat reports, PDFs, emails that mention these domains. SHA-1 hashes are in metadata only (source did not provide SHA-256). -->
 
 ```yara
 rule FLATROOF_macOS_Backdoor
 {
     meta:
         description = "Detects FLATROOF (macOS.Gaslight) ARM64 Rust-based backdoor deployed by TraderTraitor DPRK actors"
-        author = "Actioner (DRAFT)"
+        author = "Actioner"
         date = "2026-09-28"
         reference = "https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/"
         hash_sha1 = "02df07a173ab03b82a4fb6a08973fff8b1467f28"
         threat_actor = "TraderTraitor"
         malware_family = "FLATROOF"
+        macho_caveat = "Mach-O magic at offset 0 matches thin binaries only; FAT/Universal (0xCAFEBABE/0xBEBAFECA) require FAT header parsing to reach embedded slices"
 
     strings:
         $mach_header = { CF FA ED FE }
@@ -465,13 +392,14 @@ rule ROOFDECK_macOS_Backdoor
 {
     meta:
         description = "Detects ROOFDECK ARM64 Rust-based backdoor with Nostr relay C2, deployed by TraderTraitor DPRK actors"
-        author = "Actioner (DRAFT)"
+        author = "Actioner"
         date = "2026-09-28"
         reference = "https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/"
         hash_sha1_isync = "c491d477dbe0ae04e9aed9dbe237144c03f73ec4"
         hash_sha1_loginwindow = "5728b11d30586bbfc1d8bd12df1c722a06e767a2"
         threat_actor = "TraderTraitor"
         malware_family = "ROOFDECK"
+        macho_caveat = "Mach-O magic at offset 0 matches thin binaries only; FAT/Universal (0xCAFEBABE/0xBEBAFECA) require FAT header parsing to reach embedded slices"
 
     strings:
         $mach_header = { CF FA ED FE }
@@ -501,7 +429,7 @@ rule TraderTraitor_Terraform_LockFile_Poisoned
 {
     meta:
         description = "Detects weaponized Terraform lock files referencing malicious HashiCorp-impersonating registries used by TraderTraitor"
-        author = "Actioner (DRAFT)"
+        author = "Actioner"
         date = "2026-09-28"
         reference = "https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/"
         threat_actor = "TraderTraitor"
@@ -510,9 +438,13 @@ rule TraderTraitor_Terraform_LockFile_Poisoned
         $reg1 = "registry.hashicorp-aws.com" ascii nocase
         $reg2 = "registry.hashicorp-aws.io" ascii nocase
         $reg3 = "registry.hashicorp-terraform.io" ascii nocase
+        $tf_ctx1 = "provider" ascii
+        $tf_ctx2 = "h1:" ascii
 
     condition:
-        any of ($reg1, $reg2, $reg3)
+        filesize < 1MB and
+        any of ($reg*) and
+        any of ($tf_ctx*)
 }
 ```
 
