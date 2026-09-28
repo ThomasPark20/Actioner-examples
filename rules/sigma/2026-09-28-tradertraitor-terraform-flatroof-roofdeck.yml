@@ -1,0 +1,32 @@
+title: FLATROOF/ROOFDECK Backdoor File Drop in Apple-Masquerade Directories
+id: 7c4e9a1b-3d8f-42e6-a5c7-1b9d3e6f8a2c
+status: experimental
+description: >
+    Detects creation of executable files in directories that masquerade as
+    Apple system directories under ~/Library, matching paths used by FLATROOF
+    (SystemUpdate) and ROOFDECK (iSync, loginwindow) backdoors deployed by
+    TraderTraitor actors.
+references:
+    - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: Actioner
+date: 2026-09-28
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_flatroof:
+        TargetFilename|contains: '/Library/com.apple.iTunesCloud/SystemUpdate'
+    selection_roofdeck_isync:
+        TargetFilename|contains: '/Library/com.apple.internal.ck/iSync'
+    selection_roofdeck_loginwindow:
+        TargetFilename|contains: '/Library/com.apple.appleaccountd/loginwindow'
+    selection_config:
+        TargetFilename|endswith: '/.config/.repl_history'
+    selection_pipe:
+        TargetFilename|contains: '/private/tmp/.pipe-airway'
+    condition: selection_flatroof or selection_roofdeck_isync or selection_roofdeck_loginwindow or selection_config or selection_pipe
+falsepositives:
+    - None expected; these specific path combinations are unique to this malware
+level: critical

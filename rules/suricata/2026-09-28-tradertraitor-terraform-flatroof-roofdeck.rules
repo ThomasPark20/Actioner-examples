@@ -1,0 +1,11 @@
+alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net"; dns.query; content:"technicais.sytes.net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092801; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud"; dns.query; content:"storage.hubpage.cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092802; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com"; dns.query; content:"grenight.com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092803; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"TRADERTRAITOR Malicious Terraform Registry DNS Lookup"; dns.query; content:"hashicorp-aws"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092804; rev:1;)
+
+alert tls $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 TLS SNI - hubpage.cloud"; tls.sni; content:"hubpage.cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092805; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI Pattern - /app_version [Informational]"; http.uri; content:"/app_version"; classtype:bad-unknown; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; sid:2026092806; rev:2;)

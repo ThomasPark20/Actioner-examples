@@ -1,0 +1,68 @@
+title: sckit Go implant execution via MemTensor supply chain compromise
+id: 8c4e2f1a-3d7b-4a9e-b5c1-6f8d0e2a7b3c
+status: experimental
+description: >-
+  Detects execution of the sckit Go-based credential stealer delivered via
+  compromised MemTensor npm/PyPI packages. The binary is invoked with
+  'stage0 --config64' arguments from npm plugin startup or Python import hooks.
+references:
+  - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+  - https://www.aikido.dev/blog/supplychain-local-memtensor-npm-pypi
+  - https://socket.dev/blog/memtensor-compromise
+author: Actioner
+date: 2026/09/28
+tags:
+  - attack.t1105
+  - attack.t1195.002
+logsource:
+  category: process_creation
+detection:
+  selection_binary:
+    Image|endswith:
+      - '/sckit'
+      - '\sckit.exe'
+    CommandLine|contains:
+      - 'stage0'
+      - '--config64'
+  selection_path:
+    Image|contains:
+      - '.sckit/'
+      - '.sckit\'
+  condition: selection_binary or selection_path
+falsepositives:
+  - Unknown legitimate software named sckit (unlikely)
+level: high
+---
+title: DNS query to sckit C2 subdomains on skyleen.fr
+id: 9d5f3a2b-4e8c-5b0f-c6d2-7a9e1f3b8c4d
+status: experimental
+description: >-
+  Detects DNS resolution of known sckit C2 subdomains under skyleen.fr
+  used by the MemTensor supply chain compromise for command-and-control
+  communication with the Go-based credential stealer implant.
+references:
+  - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+  - https://www.aikido.dev/blog/supplychain-local-memtensor-npm-pypi
+  - https://socket.dev/blog/memtensor-compromise
+author: Actioner
+date: 2026/09/28
+tags:
+  - attack.t1071.001
+  - attack.t1195.002
+logsource:
+  category: dns_query
+detection:
+  selection:
+    QueryName|endswith:
+      - '.skyleen.fr'
+    QueryName|contains:
+      - '8a8acaf167b3'
+      - '0b48fafd6fbe'
+      - '266297c6df27'
+      - 'c747d139e7e9'
+      - '73376a079d87'
+      - 'd4f77a3a8cb0'
+  condition: selection
+falsepositives:
+  - Legitimate use of skyleen.fr hosting with matching subdomain prefixes (very unlikely)
+level: critical

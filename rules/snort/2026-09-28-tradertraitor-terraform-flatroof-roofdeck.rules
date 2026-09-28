@@ -1,0 +1,13 @@
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net"; content:"|0a|technicais|05|sytes|03|net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092811; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud"; content:"|07|storage|07|hubpage|05|cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092812; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com"; content:"|08|grenight|03|com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092813; rev:1;)
+
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"TRADERTRAITOR ROOFDECK C2 Beacon URI - /app_version [Informational]"; content:"/app_version"; http_uri; classtype:bad-unknown; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; sid:2026092814; rev:2;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR FLATROOF C2 DNS Lookup - technicais.sytes.net [TCP]"; content:"|0a|technicais|05|sytes|03|net"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092815; rev:1;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - storage.hubpage.cloud [TCP]"; content:"|07|storage|07|hubpage|05|cloud"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092816; rev:1;)
+
+alert tcp $HOME_NET any -> any 53 (msg:"TRADERTRAITOR ROOFDECK C2 DNS Lookup - grenight.com [TCP]"; content:"|08|grenight|03|com"; nocase; reference:url,www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; classtype:trojan-activity; sid:2026092817; rev:1;)
