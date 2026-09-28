@@ -3,7 +3,9 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-09-28
-Version: 1.0 (DRAFT)
+Version: 1.1
+
+<!-- revision: v1.1 2026-09-28 — applied critic CONDITIONAL PASS fixes (3 blocking, 6 material, 2 advisory). Blocking: removed tactic-only Sigma tags; removed T1552.007 and T1547 from ATT&CK mapping. Material: removed product:linux from both Sigma rules (cross-platform); added Windows patterns to process Sigma rule; expanded Suricata from 3+1 to 6+1 rules covering all C2 subdomains; added HTTPS caveat to Snort; merged T1555 into T1552.001; replaced T1059 with T1105 in Sigma Rule 1 tags; fixed YARA hash attribution with labeled per-platform/per-variant meta keys. Advisory: Windows process_creation addressed via cross-platform selection; all 12 binary hashes present in IOC table and YARA meta. -->
 
 ## Executive Summary
 
@@ -173,14 +175,13 @@ The sckit binary is a statically linked, stripped Go executable compiled for six
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | BASH_ENV hijack to execute sckit-publish-bridge.sh before legitimate CI steps |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | lib/sckit.js loader spawns sckit binary on gateway start and memory-recall events |
 | T1059.006 | Command and Scripting Interpreter: Python | memos/log.py hook triggers sckit on any import of MemoryOS |
-| T1555 | Credentials from Password Stores | Harvests .npmrc, .pypirc, .vault-token, credentials.db, access_tokens.json |
-| T1552.001 | Unsecured Credentials: Credentials In Files | Reads SSH keys (id_ecdsa), .git-credentials, stored_tokens from $HOME |
-| T1552.007 | Unsecured Credentials: Container API | Targets environment variables containing API keys, tokens, session cookies |
+| T1552.001 | Unsecured Credentials: Credentials In Files | Reads SSH keys (id_ecdsa), .git-credentials, .npmrc, .pypirc, .vault-token, credentials.db, access_tokens.json, stored_tokens from $HOME and CI environments |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication via HTTPS to skyleen[.]fr subdomains |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | XChaCha20-Poly1305 encrypted CBOR payloads over HTTPS |
 | T1105 | Ingress Tool Transfer | Go binary embedded in package, dropped to .sckit/ directory |
 | T1078.004 | Valid Accounts: Cloud Accounts | Stolen CI tokens used to publish further malicious packages |
-| T1547 | Boot or Logon Autostart Execution | GitHub Actions runtime-update.yml for persistence across repository pushes |
+
+<!-- revision: v1.1 — removed T1555 (merged credential file harvesting into T1552.001 which better describes unsecured credential files); removed T1552.007 (Container API — no evidence of container orchestration API access; env var harvesting is covered by T1552.001); removed T1547 (Boot or Logon Autostart Execution — runtime-update.yml in GitHub Actions is CI/CD persistence via T1195.002/T1078.004, not OS-level autostart). -->
 
 ## Impact Assessment
 
@@ -238,12 +239,12 @@ ps aux | grep -i sckit
 
 ## Detection Rules
 
-These rules target the sckit implant's specific process execution patterns, C2 domain infrastructure, and binary/loader artifacts across Sigma, Snort, Suricata, and YARA. The Sigma rules use published binary names and command-line arguments (`stage0 --config64`) and known C2 subdomain indicators; the network rules target the skyleen[.]fr C2 infrastructure and resolved IP; YARA rules detect the Go implant binary via embedded module paths and function names, plus the JavaScript and Python loaders via distinctive file references. Primary caveat: the C2 IP (`139.84.223[.]178`) is commodity VPS hosting and may be reassigned; DNS-based rules on the skyleen[.]fr subdomains are more durable.
+These rules target the sckit implant's specific process execution patterns, C2 domain infrastructure, and binary/loader artifacts across Sigma, Snort, Suricata, and YARA. The C2 uses HTTPS with encrypted CBOR payloads, so HTTP-layer Snort rules require TLS inspection to see Host headers and URIs; DNS and IP rules work without it.
 
 ### Sigma: sckit Go implant process execution
-Detects execution of the sckit binary with its characteristic `stage0 --config64` arguments or from the `.sckit/` drop directory.
+Detects execution of the sckit binary with its characteristic `stage0 --config64` arguments or from the `.sckit/` drop directory (cross-platform: Linux, macOS, Windows).
 **Status:** compile ✅ · confidence: high
-<!-- audit: `sigma check` fails ONLY due to offline D3FEND data fetch (HTTP 403 in sandboxed environment, RuntimeError: Failed to load MITRE ATT&CK data) -- NOT a rule defect. Portability validated: `sigma convert --without-pipeline -t splunk` exit 0 => (Image="*/sckit" CommandLine IN ("*stage0*", "*--config64*")) OR Image="*.sckit/*"; `sigma convert --without-pipeline -t log_scale` exit 0 => (Image=/\/sckit$/i CommandLine=/stage0/i or CommandLine=/--config64/i) or Image=/\.sckit\//i. Two selection blocks OR'd: selection_binary matches binary name + args, selection_path matches drop directory. High confidence: both the binary name "sckit" and the "stage0 --config64" argument pattern are specific to this implant and not known in legitimate software. FP risk: unknown legitimate tool named "sckit" (none found). -->
+<!-- audit: `sigma check` fails ONLY due to offline D3FEND data fetch (HTTP 403 in sandboxed environment) — NOT a rule defect. Portability validated: `sigma convert --without-pipeline -t splunk` exit 0 => (Image IN ("*/sckit", "*\sckit.exe") CommandLine IN ("*stage0*", "*--config64*")) OR Image IN ("*.sckit/*", "*.sckit\*"); `sigma convert --without-pipeline -t log_scale` exit 0. Two selection blocks OR'd: selection_binary matches binary name + args (Linux/macOS + Windows paths), selection_path matches drop directory (forward and backslash). High confidence: both the binary name "sckit" and the "stage0 --config64" argument pattern are specific to this implant and not known in legitimate software. FP risk: unknown legitimate tool named "sckit" (none found). revision v1.1: removed tactic-only tags (attack.execution, attack.credential_access); replaced attack.t1059 with attack.t1105 (rule detects transferred tool, not command interpreter); removed attack.t1555 (merged into T1552.001); removed product:linux from logsource (cross-platform package); added Windows Image endswith '\sckit.exe' and path contains '.sckit\'. -->
 ```yaml
 title: sckit Go implant execution via MemTensor supply chain compromise
 id: 8c4e2f1a-3d7b-4a9e-b5c1-6f8d0e2a7b3c
@@ -259,24 +260,22 @@ references:
 author: Actioner
 date: 2026/09/28
 tags:
-  - attack.execution
-  - attack.t1059
-  - attack.credential_access
-  - attack.t1555
+  - attack.t1105
   - attack.t1195.002
 logsource:
   category: process_creation
-  product: linux
 detection:
   selection_binary:
     Image|endswith:
       - '/sckit'
+      - '\sckit.exe'
     CommandLine|contains:
       - 'stage0'
       - '--config64'
   selection_path:
     Image|contains:
       - '.sckit/'
+      - '.sckit\'
   condition: selection_binary or selection_path
 falsepositives:
   - Unknown legitimate software named sckit (unlikely)
@@ -286,7 +285,7 @@ level: high
 ### Sigma: DNS query to sckit C2 subdomains on skyleen[.]fr
 Detects DNS resolution of the six known sckit C2 subdomains, which use 12-character hex prefixes under skyleen[.]fr.
 **Status:** compile ✅ · confidence: high
-<!-- audit: `sigma check` fails only due to offline D3FEND data (same environment issue as above). Portability validated: `sigma convert --without-pipeline -t splunk` exit 0 => QueryName="*.skyleen.fr" QueryName IN ("*8a8acaf167b3*",...); `sigma convert --without-pipeline -t log_scale` exit 0 => QueryName=/\.skyleen\.fr$/i QueryName=/8a8acaf167b3/i or ... . Single selection map with endswith + contains produces AND between the two field conditions. High confidence: the 12-char hex subdomain prefixes are campaign-specific identifiers (8a8acaf167b3, 0b48fafd6fbe, 266297c6df27, c747d139e7e9, 73376a079d87, d4f77a3a8cb0). FP risk: legitimate skyleen.fr subdomains matching these exact hex prefixes (near-zero probability). -->
+<!-- audit: `sigma check` fails only due to offline D3FEND data (same environment issue as above). Portability validated: `sigma convert --without-pipeline -t splunk` exit 0 => QueryName="*.skyleen.fr" QueryName IN ("*8a8acaf167b3*",...); `sigma convert --without-pipeline -t log_scale` exit 0. Single selection map with endswith + contains produces AND between the two field conditions. High confidence: the 12-char hex subdomain prefixes are campaign-specific identifiers (8a8acaf167b3, 0b48fafd6fbe, 266297c6df27, c747d139e7e9, 73376a079d87, d4f77a3a8cb0). FP risk: legitimate skyleen.fr subdomains matching these exact hex prefixes (near-zero probability). revision v1.1: removed tactic-only tag (attack.command_and_control); removed product:linux from logsource (DNS resolution is cross-platform). -->
 ```yaml
 title: DNS query to sckit C2 subdomains on skyleen.fr
 id: 9d5f3a2b-4e8c-5b0f-c6d2-7a9e1f3b8c4d
@@ -302,12 +301,10 @@ references:
 author: Actioner
 date: 2026/09/28
 tags:
-  - attack.command_and_control
   - attack.t1071.001
   - attack.t1195.002
 logsource:
   category: dns_query
-  product: linux
 detection:
   selection:
     QueryName|endswith:
@@ -326,29 +323,32 @@ level: critical
 ```
 
 ### Snort: sckit C2 network indicators
-Alerts on HTTP traffic containing `skyleen.fr` Host header with `/config` URI path (C2 beacon), and on any traffic to the C2 IP `139.84.223.178`.
+Alerts on HTTP traffic containing `skyleen.fr` Host header with `/config` URI path (C2 beacon), and on any traffic to the C2 IP `139.84.223.178`. The C2 uses HTTPS; the HTTP-layer rule (sid:2100901) requires TLS inspection/termination to see cleartext headers and URIs -- without it, only the IP rule (sid:2100902) fires.
 **Status:** compile ✅ · confidence: medium
-<!-- audit: validated via `snort -c /etc/snort/snort.conf -T` with rules placed in /etc/snort/rules/local.rules => "Snort successfully validated the configuration! Snort exiting" exit 0. Two rules: sid:2100901 matches HTTP Host header containing "skyleen.fr" + URI "/config" (C2 beacon pattern); sid:2100902 matches any IP traffic to 139.84.223.178. Medium confidence: the IP is commodity VPS (Vultr) that may be reassigned; the HTTP rule requires both Host and URI match for specificity. The C2 uses encrypted CBOR over HTTPS so deep content inspection of the payload body is not feasible without TLS termination. -->
+<!-- audit: validated via Snort 2.9.20: copied to /etc/snort/rules/local.rules => `snort -c /etc/snort/snort.conf -T` => "Snort successfully validated the configuration! Snort exiting" exit 0. Two rules: sid:2100901 matches HTTP Host header containing "skyleen.fr" + URI "/config" (C2 beacon pattern); sid:2100902 matches any IP traffic to 139.84.223.178. Medium confidence: the IP is commodity VPS (Vultr) that may be reassigned; the HTTP rule requires both Host and URI match for specificity but also requires TLS inspection since the C2 uses HTTPS with encrypted CBOR payloads. revision v1.1: added HTTPS/TLS inspection caveat to prose and audit comment. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - sckit C2 beacon to skyleen.fr subdomain (MemTensor supply chain)"; flow:established,to_server; content:"skyleen.fr"; http_header; content:"/config"; http_uri; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2100901; rev:1;)
 alert ip $HOME_NET any -> 139.84.223.178 any (msg:"Actioner - sckit C2 server IP contact (MemTensor supply chain)"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2100902; rev:1;)
 ```
 
 ### Suricata: sckit C2 DNS queries and IP contact
-Detects DNS queries for the three npm and three PyPI C2 subdomains under skyleen[.]fr, and IP-level contact with the C2 server.
+Detects DNS queries for all six C2 subdomains under skyleen[.]fr (three npm, three PyPI), plus IP-level contact with the C2 server.
 **Status:** compile ✅ · confidence: high
-<!-- audit: validated with `suricata -T -S memtensor_sckit.suricata -l /tmp/actioner` => "Configuration provided was successfully loaded. Exiting." exit 0, Suricata 7.0.3. Four rules with unique SIDs (2200901-2200904). DNS rules use dns.query sticky buffer with content:"skyleen.fr"; endswith; plus specific hex subdomain prefix. Only three of six subdomains have individual rules (one per npm, representative); the fourth rule covers the IP. All C2 subdomains resolve to the same IP so the IP rule provides catch-all coverage. High confidence on DNS rules (campaign-specific hex prefixes); medium on IP rule (VPS may be reassigned). metadata tags present per Suricata best practice. -->
+<!-- audit: validated with `suricata -T -S suricata-memtensor.rules -l /tmp/actioner` => "Configuration provided was successfully loaded. Exiting." exit 0, Suricata 7.0.3. Seven rules with unique SIDs (2200901-2200907). All six C2 subdomains now have individual DNS rules using dns.query sticky buffer with full subdomain content match + endswith + nocase. The seventh rule covers the IP for catch-all. High confidence on DNS rules (campaign-specific hex prefixes matching exact FQDN); medium on IP rule (VPS may be reassigned). revision v1.1: expanded from 3+1 to 6+1 rules covering all six C2 subdomains; changed content match from parent-domain+prefix pair to full subdomain FQDN for precision; bumped rev to 2; renumbered SIDs for the three new rules (2200904-2200906), IP rule now 2200907. -->
 ```suricata
-alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query to skyleen.fr subdomain (MemTensor supply chain)"; dns.query; content:"skyleen.fr"; endswith; content:"8a8acaf167b3"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200901; rev:1; metadata:author Actioner, created_at 2026-09-28;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query to skyleen.fr subdomain 2 (MemTensor supply chain)"; dns.query; content:"skyleen.fr"; endswith; content:"0b48fafd6fbe"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200902; rev:1; metadata:author Actioner, created_at 2026-09-28;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query to skyleen.fr subdomain 3 (MemTensor supply chain)"; dns.query; content:"skyleen.fr"; endswith; content:"c747d139e7e9"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200903; rev:1; metadata:author Actioner, created_at 2026-09-28;)
-alert ip $HOME_NET any -> 139.84.223.178 any (msg:"Actioner - sckit C2 server IP contact (MemTensor supply chain)"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200904; rev:1; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query 8a8acaf167b3.skyleen.fr (MemTensor supply chain)"; dns.query; content:"8a8acaf167b3.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200901; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query 0b48fafd6fbe.skyleen.fr (MemTensor supply chain)"; dns.query; content:"0b48fafd6fbe.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200902; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query 266297c6df27.skyleen.fr (MemTensor supply chain)"; dns.query; content:"266297c6df27.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200903; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query c747d139e7e9.skyleen.fr (MemTensor supply chain)"; dns.query; content:"c747d139e7e9.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200904; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query 73376a079d87.skyleen.fr (MemTensor supply chain)"; dns.query; content:"73376a079d87.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200905; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - sckit C2 DNS query d4f77a3a8cb0.skyleen.fr (MemTensor supply chain)"; dns.query; content:"d4f77a3a8cb0.skyleen.fr"; endswith; nocase; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200906; rev:2; metadata:author Actioner, created_at 2026-09-28;)
+alert ip $HOME_NET any -> 139.84.223.178 any (msg:"Actioner - sckit C2 server IP contact (MemTensor supply chain)"; reference:url,thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html; classtype:trojan-activity; sid:2200907; rev:2; metadata:author Actioner, created_at 2026-09-28;)
 ```
 
 ### YARA: sckit Go implant binary
 Detects the sckit Go binary via its embedded module path (`supplychain.local/campaign/cmd/implant`), configuration schema, campaign ID, and credential-harvesting function names, scoped to executable file headers (ELF, PE, Mach-O).
 **Status:** compile ✅ · confidence: high
-<!-- audit: `yarac memtensor_sckit.yar /dev/null` exit 0. Three rules total. Rule 1 (memtensor_sckit_implant): condition requires executable magic bytes AND (go_module OR config_schema+campaign_id OR 2-of-4 function names OR c2_domain+stage0+config64). Operator precedence fixed: magic-byte disjunction is parenthesized, AND connects to string-match disjunction. The Go module path "supplychain.local/campaign/cmd/implant" is highly specific and unique to this implant. Function names (readCredentialFile, extractJSONCredentials, recursivePublish, prepareRemoteRepository) are embedded in Go binaries even when stripped (in pclntab). 12 SHA256 hashes across npm+PyPI variants documented in meta. Rule 2 (memtensor_sckit_npm_loader): targets lib/sckit.js with .sckit/ path + stage0 + config64 + openclaw/spawn pattern. Rule 3 (memtensor_sckit_python_loader): 3-of-5 distinctive Python loader filenames. No sample testing performed (samples not available in sandbox). -->
+<!-- audit: `yarac yara-memtensor.yar /dev/null` exit 0. Three rules total. Rule 1 (memtensor_sckit_implant): condition requires executable magic bytes AND (go_module OR config_schema+campaign_id OR 2-of-4 function names OR c2_domain+stage0+config64). Go module path "supplychain.local/campaign/cmd/implant" is highly specific. Function names embedded in Go pclntab even when stripped. All 12 binary SHA256 hashes documented in meta with labeled per-platform per-variant keys (npm_hash_<platform>, pypi_hash_<platform>). Rule 2 (memtensor_sckit_npm_loader): targets lib/sckit.js; hash meta now carries all 3 malicious npm package version hashes with version labels. Rule 3 (memtensor_sckit_python_loader): hash meta now carries both wheel and sdist hashes with explicit labels. No sample testing (samples unavailable in sandbox). revision v1.1: expanded implant rule hash meta from 3 unlabeled to 12 labeled per-platform/per-variant hashes; npm loader hash meta expanded from 1 to all 3 package version hashes with version labels; python loader hash meta expanded with explicit wheel/sdist labels. -->
 ```yara
 rule memtensor_sckit_implant
 {
@@ -357,9 +357,18 @@ rule memtensor_sckit_implant
         author = "Actioner"
         date = "2026-09-28"
         reference = "https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html"
-        hash1 = "381ac6dc1715d9298fe81b2a53a11f7b7d78e361ee3a6619ad54f8c4b062cc18"
-        hash2 = "65faf8ccbcf5b34eb4f72c71bf82815fa9c1e2f947b9c898491540e866132c31"
-        hash3 = "c1b0998347b489582bae7b7f4930f9831d9ef4b6bc150cfd488ee1a43272dd36"
+        npm_hash_linux_amd64 = "381ac6dc1715d9298fe81b2a53a11f7b7d78e361ee3a6619ad54f8c4b062cc18"
+        npm_hash_linux_arm64 = "e077c387b223811064b7bbc5a55a0182fca9bf50894f949ff284d4be87d44b26"
+        npm_hash_darwin_amd64 = "65faf8ccbcf5b34eb4f72c71bf82815fa9c1e2f947b9c898491540e866132c31"
+        npm_hash_darwin_arm64 = "f8ccdd1da7dff1aef16377a2842bc7acf7c516e32122dd6e42dc4a4e57653fce"
+        npm_hash_windows_amd64 = "56cd3416d2ec2aa7e7cec2a06010cf0b58eb09c0a5486809df52afeaca8f14be"
+        npm_hash_windows_arm64 = "d6b3e77c36ee8017c9bf30d1da7218ec0ea843768d313eb8e35845c8a9b38a26"
+        pypi_hash_linux_amd64 = "c1b0998347b489582bae7b7f4930f9831d9ef4b6bc150cfd488ee1a43272dd36"
+        pypi_hash_linux_arm64 = "8f647f17a1934679c4095e21bee2b9bd83e28476603758bc91408a0c8443e3b4"
+        pypi_hash_darwin_amd64 = "9de0d5b0ca184f71f630be5781d134998883a02d5d7bc65aeb9559d8f9efb364"
+        pypi_hash_darwin_arm64 = "5405e330507602e803f7dd6f2a9d4555aec8558ab222b51413594a962da6888a"
+        pypi_hash_windows_amd64 = "16de381deb978744535b10f68fe15165251374b86eef18ffc2c47f61ea673047"
+        pypi_hash_windows_arm64 = "f7c4014e284f3d56c452b8b222a287c54f73dc4a40a7e022e765ac8376362947"
 
     strings:
         $go_module = "supplychain.local/campaign/cmd/implant" ascii
@@ -397,7 +406,9 @@ rule memtensor_sckit_npm_loader
         author = "Actioner"
         date = "2026-09-28"
         reference = "https://socket.dev/blog/memtensor-compromise"
-        hash1 = "995a208944176c437a023f4a5c11baad2eb77a91847893c82e5866eaabedb810"
+        npm_pkg_hash_0_1_21 = "995a208944176c437a023f4a5c11baad2eb77a91847893c82e5866eaabedb810"
+        npm_pkg_hash_0_1_23 = "6caf89b059e9b6c82bb4ac4727816d516753c4d26833434dea0ecda44a346eb3"
+        npm_pkg_hash_0_1_25 = "a6870826cd7c7ec8d32af227252efcdcdca03ac956d4702cdc2157ca82641673"
 
     strings:
         $sckit_path = ".sckit/" ascii
@@ -420,7 +431,8 @@ rule memtensor_sckit_python_loader
         author = "Actioner"
         date = "2026-09-28"
         reference = "https://socket.dev/blog/memtensor-compromise"
-        hash1 = "39ee644406829a4b630b31759c20478bc22d576d6a59b253ed86f72c360aa5ef"
+        pypi_wheel_hash = "39ee644406829a4b630b31759c20478bc22d576d6a59b253ed86f72c360aa5ef"
+        pypi_sdist_hash = "92b46d18fc553c494eda714f204459edb74c205bf53b18a9092bcf02c7a6c5be"
 
     strings:
         $stage0_py = "_stage0.py" ascii
