@@ -1,6 +1,6 @@
 title: MemTensor sckit Go Implant Process Execution
 id: 0d5124d7-da7e-4c4d-8d59-f29fef462e31
-# audit: advisory-specific — detects the sckit Go binary execution with its known command-line pattern "sckit stage0 --config64". High confidence.
+# audit: advisory-specific — detects the sckit Go binary execution with its known command-line pattern "sckit stage0 --config64". High confidence. Windows logsource; for Linux/macOS EDR adapt Image|endswith to '/sckit'.
 status: experimental
 description: >
   Detects execution of the sckit Go-based credential stealer delivered via compromised
@@ -24,7 +24,6 @@ detection:
     Image|endswith:
       - '\sckit.exe'
       - '\sckit'
-      - '/sckit'
   selection_cmdline:
     CommandLine|contains|all:
       - 'stage0'
@@ -68,19 +67,20 @@ level: high
 ---
 title: MemTensor sckit Credential File Access
 id: b8ce2803-cd96-44ae-8bfb-72b6876df7e8
-# audit: behavioral — detects access to credential files known to be targeted by sckit. Lower confidence due to potential legitimate access.
+# audit: artifact-keyed — detects the sckit process or a process launched from the .sckit staging directory accessing credential files known to be targeted by sckit. Anchored on sckit artifact, not generic credential access. T1552.001 (Credentials In Files) is correct; T1555 was wrong in draft.
 status: experimental
 description: >
-  Detects access to credential and token files targeted by the MemTensor sckit
-  implant, including .npmrc, .pypirc, .vault-token, and SSH private keys, by
-  processes that are not expected credential consumers.
+  Detects access to credential and token files by the MemTensor sckit implant
+  process or by any process running from the .sckit staging directory. Targets
+  .npmrc, .pypirc, .vault-token, SSH private keys, and other credential stores
+  known to be harvested by the sckit Go binary.
 references:
   - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
   - https://safedep.io/memtensor-sckit-worm-npm-pypi/
 author: Actioner
 date: 2026/09/29
 tags:
-  - attack.t1555
+  - attack.t1552.001
   - attack.t1005
 logsource:
   category: file_access
@@ -100,21 +100,16 @@ detection:
       - '\access_tokens.db'
       - '\credentials.db'
       - '\msal_token_cache'
-  filter_expected:
+  selection_sckit_process:
     Image|endswith:
-      - '\git.exe'
-      - '\ssh.exe'
-      - '\ssh-agent.exe'
-      - '\npm.cmd'
-      - '\npm.exe'
-      - '\pip.exe'
-      - '\vault.exe'
-      - '\code.exe'
-  condition: selection_cred_files and not filter_expected
+      - '\sckit'
+      - '\sckit.exe'
+  selection_sckit_parent:
+    Image|contains: '.sckit\'
+  condition: selection_cred_files and (selection_sckit_process or selection_sckit_parent)
 falsepositives:
-  - Legitimate developer tools or CI/CD agents accessing credential files
-  - Credential management utilities
-level: medium
+  - Unlikely; sckit is a known-malicious binary and the .sckit directory is specific to the implant
+level: high
 ---
 title: MemTensor sckit GitHub Actions CI Poisoning Indicators
 id: c9cdd6c5-bedd-4f60-9117-03a6ddcf00a0
