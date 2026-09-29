@@ -1,0 +1,154 @@
+title: MemTensor sckit Go Implant Process Execution
+id: 0d5124d7-da7e-4c4d-8d59-f29fef462e31
+# audit: advisory-specific — detects the sckit Go binary execution with its known command-line pattern "sckit stage0 --config64". High confidence.
+status: experimental
+description: >
+  Detects execution of the sckit Go-based credential stealer delivered via compromised
+  MemTensor npm and PyPI packages. The implant is invoked with "stage0 --config64" arguments
+  and targets developer credentials, cloud tokens, and SSH keys.
+references:
+  - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+  - https://semgrep.dev/blog/2026/the-ai-ecosystem-has-worms-now-inside-the-memtensor-compromise/
+  - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner
+date: 2026/09/29
+tags:
+  - attack.t1195.002
+  - attack.t1005
+  - attack.t1041
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_name:
+    Image|endswith:
+      - '\sckit.exe'
+      - '\sckit'
+      - '/sckit'
+  selection_cmdline:
+    CommandLine|contains|all:
+      - 'stage0'
+      - '--config64'
+  condition: selection_name or selection_cmdline
+falsepositives:
+  - Unlikely; sckit is a known-malicious implant binary name with a distinctive command-line pattern
+level: critical
+---
+title: MemTensor Malicious Package File Artifacts
+id: c49cc649-40b7-4f46-9d0c-d561f773de42
+# audit: detects file writes to sckit staging directories under .openclaw/.cache/runtime or .memos/.cache/runtime. Medium-high confidence.
+status: experimental
+description: >
+  Detects creation of files in directories used by the MemTensor sckit implant
+  for staging and caching its Go binary payload. The implant writes to
+  .openclaw/.cache/runtime/ and .memos/.cache/runtime/ under the user home directory.
+references:
+  - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+  - https://semgrep.dev/blog/2026/the-ai-ecosystem-has-worms-now-inside-the-memtensor-compromise/
+  - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner
+date: 2026/09/29
+tags:
+  - attack.t1195.002
+  - attack.t1105
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_openclaw:
+    TargetFilename|contains: '.openclaw\.cache\runtime'
+  selection_memos:
+    TargetFilename|contains: '.memos\.cache\runtime'
+  selection_sckit_dir:
+    TargetFilename|contains: '.sckit\'
+  condition: selection_openclaw or selection_memos or selection_sckit_dir
+falsepositives:
+  - Legitimate MemTensor OpenClaw plugin usage may create the .openclaw directory, but .cache/runtime subdirectory is specific to the malicious payload
+level: high
+---
+title: MemTensor sckit Credential File Access
+id: b8ce2803-cd96-44ae-8bfb-72b6876df7e8
+# audit: behavioral — detects access to credential files known to be targeted by sckit. Lower confidence due to potential legitimate access.
+status: experimental
+description: >
+  Detects access to credential and token files targeted by the MemTensor sckit
+  implant, including .npmrc, .pypirc, .vault-token, and SSH private keys, by
+  processes that are not expected credential consumers.
+references:
+  - https://thehackernews.com/2026/09/compromised-memtensor-packages-deliver.html
+  - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+author: Actioner
+date: 2026/09/29
+tags:
+  - attack.t1555
+  - attack.t1005
+logsource:
+  category: file_access
+  product: windows
+detection:
+  selection_cred_files:
+    TargetFilename|endswith:
+      - '\.npmrc'
+      - '\.pypirc'
+      - '\.vault-token'
+      - '\.git-credentials'
+      - '\.netrc'
+      - '\id_ecdsa'
+      - '\id_ed25519'
+      - '\id_rsa'
+      - '\access_tokens.json'
+      - '\access_tokens.db'
+      - '\credentials.db'
+      - '\msal_token_cache'
+  filter_expected:
+    Image|endswith:
+      - '\git.exe'
+      - '\ssh.exe'
+      - '\ssh-agent.exe'
+      - '\npm.cmd'
+      - '\npm.exe'
+      - '\pip.exe'
+      - '\vault.exe'
+      - '\code.exe'
+  condition: selection_cred_files and not filter_expected
+falsepositives:
+  - Legitimate developer tools or CI/CD agents accessing credential files
+  - Credential management utilities
+level: medium
+---
+title: MemTensor sckit GitHub Actions CI Poisoning Indicators
+id: c9cdd6c5-bedd-4f60-9117-03a6ddcf00a0
+# audit: detects sckit-specific log strings and script names in process creation. High confidence — strings are unique to the campaign.
+status: experimental
+description: >
+  Detects command-line indicators of MemTensor sckit worm activity in CI/CD environments,
+  including the malicious publish bridge scripts and CI observation log markers used by
+  the implant to propagate through GitHub Actions workflows.
+references:
+  - https://safedep.io/memtensor-sckit-worm-npm-pypi/
+  - https://semgrep.dev/blog/2026/the-ai-ecosystem-has-worms-now-inside-the-memtensor-compromise/
+author: Actioner
+date: 2026/09/29
+tags:
+  - attack.t1195.002
+  - attack.t1059.004
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_scripts:
+    CommandLine|contains:
+      - 'sckit-publish-bridge.sh'
+      - '_pypi_bridge.sh'
+      - '_initial_ci_delivery.py'
+      - 'sckit_poetry_build.py'
+      - 'runtime-update.yml'
+  selection_log_markers:
+    CommandLine|contains:
+      - 'SCKIT_CI_RESULT_V2'
+      - 'SCKIT_CI_OBSERVATION_V2'
+      - 'SCKit credential receipt acknowledged'
+  condition: selection_scripts or selection_log_markers
+falsepositives:
+  - Unlikely; script names and log strings are unique to the sckit worm campaign
+level: critical

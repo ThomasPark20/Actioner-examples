@@ -1,0 +1,25 @@
+# MemTensor sckit Supply Chain Attack — C2 Communication Rules
+# C2 domain: skyleen[.]fr with hex-prefix subdomains
+# Reference: https://safedep.io/memtensor-sckit-worm-npm-pypi/
+
+alert dns $HOME_NET any -> any any (msg:"MALWARE MemTensor sckit C2 Domain Lookup (skyleen.fr)"; dns.query; content:"skyleen.fr"; nocase; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092901; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit C2 Config Beacon"; flow:established,to_server; http.host; content:"skyleen.fr"; http.uri; content:"/config"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092902; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit C2 Status Preflight"; flow:established,to_server; http.host; content:"skyleen.fr"; http.uri; content:"/status"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092903; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit C2 Batch Exfiltration"; flow:established,to_server; http.host; content:"skyleen.fr"; http.uri; content:"/batch"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092904; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit CI Token Capture Endpoint"; flow:established,to_server; http.host; content:"10729e014d0e.skyleen.fr"; http.uri; content:"/eb57efaa7365698fc1e4decc/initial-ci-v2"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092905; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit npm C2 Subdomain Communication"; flow:established,to_server; http.host; content:"8a8acaf167b3.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092906; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit npm C2 Subdomain 2"; flow:established,to_server; http.host; content:"0b48fafd6fbe.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092907; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit npm C2 Subdomain 3"; flow:established,to_server; http.host; content:"266297c6df27.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092908; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit PyPI C2 Subdomain Communication"; flow:established,to_server; http.host; content:"c747d139e7e9.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092909; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit PyPI C2 Subdomain 2"; flow:established,to_server; http.host; content:"73376a079d87.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092910; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE MemTensor sckit PyPI C2 Subdomain 3"; flow:established,to_server; http.host; content:"d4f77a3a8cb0.skyleen.fr"; reference:url,safedep.io/memtensor-sckit-worm-npm-pypi/; classtype:trojan-activity; sid:2026092911; rev:1;)
