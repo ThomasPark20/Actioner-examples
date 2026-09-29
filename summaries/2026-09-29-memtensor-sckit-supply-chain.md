@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-29
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -188,7 +188,7 @@ The Go binary (built with `go1.27.1`, module path `supplychain.local/campaign/cm
 | Technique ID | Technique Name | Usage |
 |---|---|---|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Hijacked legitimate npm/PyPI packages via stolen CI tokens |
-| T1555 | Credentials from Password Stores | Harvests .npmrc, .pypirc, .vault-token, credential databases |
+| T1552.001 | Unsecured Credentials: Credentials In Files | Harvests .npmrc, .pypirc, .vault-token, SSH keys, and credential files from developer home directories |
 | T1005 | Data from Local System | Scans home directories for SSH keys, tokens, and credential files |
 | T1041 | Exfiltration Over C2 Channel | Stolen credentials sent to skyleen[.]fr subdomains via /batch endpoint |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP-based C2 with /config, /status, /batch URL paths |
@@ -196,7 +196,7 @@ The Go binary (built with `go1.27.1`, module path `supplychain.local/campaign/cm
 | T1036 | Masquerading | Publishes under legitimate package maintainer identities |
 | T1027 | Obfuscated Files or Information | Base64-encoded configuration passed via --config64 flag |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Worm propagation scripts (sckit-publish-bridge.sh, _pypi_bridge.sh) |
-| T1547 | Boot or Logon Autostart Execution | Hooks into agent startup and memory-recall event paths |
+| T1546 | Event Triggered Execution | Hooks into agent startup and memory-recall event paths to trigger implant execution |
 
 ## Detection and Remediation
 
@@ -224,10 +224,10 @@ The Go binary (built with `go1.27.1`, module path `supplychain.local/campaign/cm
 
 #### 1. MemTensor sckit Go Implant Process Execution
 
-Detects execution of the sckit Go binary by process name or command-line pattern (`stage0 --config64`). Cross-platform detection via process_creation; Windows logsource specified, adaptable for Linux/macOS EDR.
+Detects execution of the sckit Go binary by process name or command-line pattern (`stage0 --config64`). Windows logsource specified; for Linux/macOS EDR, adapt `Image|endswith` to use forward-slash path `/sckit`.
 
 - **File:** `rules/sigma/2026-09-29-memtensor-sckit-supply-chain.yml` (rule 1)
-- **Compile status:** Compiled (sigma convert to Splunk and Loki exit 0; sigma check could not reach MITRE ATT&CK API for tag validation but rule structure is valid)
+- **Compile status:** Compiled (sigma check exit 0; sigma convert to Splunk and LogScale exit 0)
 - **Confidence:** High -- advisory-specific binary name and unique command-line pattern
 
 #### 2. MemTensor Malicious Package File Artifacts
@@ -235,23 +235,23 @@ Detects execution of the sckit Go binary by process name or command-line pattern
 Detects file creation in sckit staging directories (.openclaw/.cache/runtime, .memos/.cache/runtime, .sckit/).
 
 - **File:** `rules/sigma/2026-09-29-memtensor-sckit-supply-chain.yml` (rule 2)
-- **Compile status:** Compiled (sigma convert exit 0)
+- **Compile status:** Compiled (sigma check exit 0; sigma convert to Splunk and LogScale exit 0)
 - **Confidence:** High -- directory paths are specific to the malicious payload
 
 #### 3. MemTensor sckit Credential File Access
 
-Detects access to credential files targeted by sckit (.npmrc, .pypirc, SSH keys, etc.) by non-standard processes.
+Detects the sckit process or a process running from the `.sckit/` staging directory accessing credential files (.npmrc, .pypirc, SSH keys, .vault-token, etc.). Artifact-keyed to the sckit implant.
 
 - **File:** `rules/sigma/2026-09-29-memtensor-sckit-supply-chain.yml` (rule 3)
-- **Compile status:** Compiled (sigma convert exit 0)
-- **Confidence:** Medium -- behavioral pattern, requires tuning of filter_expected for environment
+- **Compile status:** Compiled (sigma check exit 0; sigma convert to Splunk and LogScale exit 0)
+- **Confidence:** High -- keyed on sckit process name and staging directory, targeting known credential file list
 
 #### 4. MemTensor sckit GitHub Actions CI Poisoning Indicators
 
 Detects sckit-specific CI/CD script names and log markers in process creation events on Linux (CI runner detection).
 
 - **File:** `rules/sigma/2026-09-29-memtensor-sckit-supply-chain.yml` (rule 4)
-- **Compile status:** Compiled (sigma convert exit 0)
+- **Compile status:** Compiled (sigma check exit 0; sigma convert to Splunk and LogScale exit 0)
 - **Confidence:** High -- script names and log strings are unique to the sckit worm
 
 ### YARA Rules (3 rules)
@@ -284,16 +284,16 @@ Detects malicious Python components in the compromised MemoryOS PyPI package by 
 
 #### 8. MemTensor sckit C2 Domain DNS Lookup (SID 2026092901)
 
-Detects DNS queries for skyleen[.]fr domain.
+Detects DNS queries for skyleen[.]fr domain. Uses `endswith` to anchor the match, preventing false positives on unrelated domains containing the substring.
 
-- **Compile status:** Compiled (suricata -T exit 0)
+- **Compile status:** Compiled (suricata -T exit 0, rev:2)
 - **Confidence:** High -- skyleen[.]fr is a known malicious C2 domain
 
 #### 9-11. MemTensor sckit C2 HTTP Communication (SIDs 2026092902-2026092904)
 
-Detects HTTP requests to skyleen[.]fr with /config, /status, and /batch URI paths.
+Detects HTTP requests to skyleen[.]fr with /config, /status, and /batch URI paths. Host matching uses `endswith` to prevent substring false positives.
 
-- **Compile status:** Compiled (suricata -T exit 0)
+- **Compile status:** Compiled (suricata -T exit 0, rev:2)
 - **Confidence:** High -- C2 domain + URI path combination is campaign-specific
 
 #### 12. MemTensor sckit CI Token Capture (SID 2026092905)
@@ -311,13 +311,14 @@ Detects HTTP traffic to the six known hex-prefixed C2 subdomains used by the npm
 - **Compile status:** Compiled (suricata -T exit 0)
 - **Confidence:** High -- each subdomain is unique to the campaign
 
-### Snort Rules (6 rules)
+### Snort Rules (11 rules, SIDs 2100001-2100011)
 
-Adapted from the Suricata ruleset for Snort environments. Covers C2 config/status/batch endpoints and known C2 subdomains.
+Full port of all 11 Suricata rules for Snort 3 environments. Uses `http_header:field host;` for host matching (Snort 3 has no `http_host` buffer) and DNS wire-format content matching on UDP port 53 (Snort 3 has no `dns.query` buffer). SIDs in the 2100000+ range to avoid collision with Suricata SIDs.
 
 - **File:** `rules/snort/2026-09-29-memtensor-sckit-supply-chain.rules`
-- **Compile status:** Not validated (Snort binary not available; syntax derived from Suricata rules)
+- **Compile status:** UNVALIDATED -- Snort binary not available; adapted from validated Suricata rules using Snort 3 syntax conventions. Deploy with caution; review and test in your Snort deployment before enabling.
 - **Confidence:** High (pending Snort-specific validation)
+- **Known limitation:** Snort lacks `endswith`; bare `skyleen.fr` host matches (SIDs 2100002-2100004) carry a small substring false-positive risk. The DNS rule uses wire-format encoding which provides implicit suffix anchoring.
 
 ## Viability Assessment
 
