@@ -1,0 +1,23 @@
+title: UAT-11587 Antino - File Creation in GatherOSStateKit Staging Directory
+id: d6e8f0a2-4b5c-4d9e-1f3a-6b8c0d2e4f5a
+status: experimental
+description: >
+    Detects file creation in the %LOCALAPPDATA%\Windows GatherOSStateKit\
+    directory, which UAT-11587 uses as the staging directory for the Antino
+    DLL sideloading bundle (GatherOsState.exe, slc.dll, OsGather.dat).
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Windows GatherOSStateKit\'
+    condition: selection
+falsepositives:
+    - Legitimate use of a directory named "Windows GatherOSStateKit" (none known)
+level: critical

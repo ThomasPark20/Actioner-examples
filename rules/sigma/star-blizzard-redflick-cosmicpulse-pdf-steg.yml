@@ -1,0 +1,26 @@
+title: PowerShell PDF Steganography Extraction - RedFlick Payload
+id: 26d43f13-2b87-48b7-88f7-841cb10e0c6f
+status: experimental
+description: >
+    Detects PowerShell commands that search PDF content for the magic header 'cAB'
+    and decode Base64 data, consistent with Star Blizzard's RedFlick technique
+    of embedding payloads within PDF files using steganography.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1027.003
+    - attack.t1059.001
+logsource:
+    category: ps_script
+    product: windows
+detection:
+    selection:
+        ScriptBlockText|contains|all:
+            - 'cAB'
+            - 'FromBase64String'
+    condition: selection
+falsepositives:
+    - Legitimate PowerShell scripts processing Base64-encoded cabinet file data
+level: high

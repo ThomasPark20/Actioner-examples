@@ -1,0 +1,28 @@
+title: Cmd.exe Spawning Curl to Download PDF - RedFlick Delivery
+id: 36b02ecd-006b-4a3a-8950-2dd52b7e69d9
+status: experimental
+description: >
+    Detects cmd.exe spawning curl.exe to download PDF files, a technique
+    observed in Star Blizzard's July 2026 RedFlick campaigns where LNK files
+    trigger cmd.exe to invoke curl for downloading PDFs containing embedded payloads.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1105
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\cmd.exe'
+    selection_curl:
+        Image|endswith: '\curl.exe'
+    selection_pdf:
+        CommandLine|contains: '.pdf'
+    condition: selection_parent and selection_curl and selection_pdf
+falsepositives:
+    - Legitimate scripts using cmd.exe to invoke curl for PDF downloads (uncommon chain)
+level: high

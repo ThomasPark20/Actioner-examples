@@ -1,0 +1,30 @@
+title: SSH PermitLocalCommand Abuse for Payload Delivery
+id: ac6c8839-7796-48b1-9c9d-df1afcd65a8f
+status: experimental
+description: >
+    Detects SSH.exe execution with PermitLocalCommand=yes and LocalCommand=cmd.exe,
+    a technique used by Star Blizzard in RedFlick campaigns to download and execute
+    MSI payloads via SSH tunneling.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1105
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ssh:
+        Image|endswith: '\ssh.exe'
+    selection_permit:
+        CommandLine|contains|all:
+            - 'PermitLocalCommand'
+            - 'yes'
+    selection_localcmd:
+        CommandLine|contains: 'LocalCommand'
+    condition: selection_ssh and selection_permit and selection_localcmd
+falsepositives:
+    - Legitimate SSH automation scripts using PermitLocalCommand (rare on Windows)
+level: high

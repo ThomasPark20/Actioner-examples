@@ -1,0 +1,33 @@
+title: WHIPSHOT PHP Web Shell File Creation on NetScaler
+id: c4b9334b-ac1d-4b27-9e80-4a5751c4b68a
+status: experimental
+description: >
+    Detects creation of WHIPSHOT PHP web shell files disguised as .deb or .sig
+    files in NetScaler VPN scripts directories. These files are mapped to execute
+    as PHP via httpd.conf modifications.
+references:
+    - https://thehackernews.com/2026/09/attackers-exploit-netscaler-flaw-for.html
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-citrix-netscaler-zero-day-to-deploy-web-shells/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1505.003
+    - attack.t1036.008
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_path:
+        TargetFilename|contains:
+            - '/netscaler/gui/vpn/scripts/linux/'
+            - '/var/netscaler/gui/vpn/scripts/linux/'
+            - '/var/netscaler/logon/LogonPoint/custom/'
+    selection_ext:
+        TargetFilename|endswith:
+            - '.deb'
+            - '.sig'
+            - '.ctxs.receiver'
+    condition: selection_path and selection_ext
+falsepositives:
+    - Legitimate Citrix package deployments to VPN scripts directory
+level: critical

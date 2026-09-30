@@ -1,0 +1,26 @@
+title: Terraform Lock File Referencing Typosquatted HashiCorp Registry
+id: 9c5a3b64-1d0e-4f7a-c139-4e8d2a0f5b1c
+status: experimental
+description: >
+    Detects creation or modification of .terraform.lock.hcl files containing
+    references to typosquatted HashiCorp registry domains used by TraderTraitor
+    to deliver FLATROOF and ROOFDECK backdoors via malicious Terraform providers.
+references:
+    - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1195.002
+logsource:
+    category: file_event
+detection:
+    selection_file:
+        TargetFilename|endswith: '.terraform.lock.hcl'
+    selection_content:
+        TargetFilename|contains:
+            - 'hashicorp-aws'
+            - 'hashicorp-terraform'
+    condition: selection_file and selection_content
+falsepositives:
+    - Files named with hashicorp-aws or hashicorp-terraform for legitimate testing purposes
+level: high

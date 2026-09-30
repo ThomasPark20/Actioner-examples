@@ -1,0 +1,24 @@
+title: Network Connection to Known NetScaler Exploitation Source IP
+id: b2dd944b-7045-43f9-bc6d-150ec7d8dc2b
+status: experimental
+description: >
+    Detects network connections involving the IP address 149.104.78.141, identified
+    as the source of active CVE-2026-88771/CVE-2026-88772 exploitation campaigns
+    targeting Citrix NetScaler appliances.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-citrix-netscaler-zero-day-to-deploy-web-shells/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1190
+logsource:
+    category: network_connection
+detection:
+    selection_src:
+        SourceIp: '149.104.78.141'
+    selection_dst:
+        DestinationIp: '149.104.78.141'
+    condition: selection_src or selection_dst
+falsepositives:
+    - IP may be reassigned after campaign concludes; verify current threat intelligence
+level: critical

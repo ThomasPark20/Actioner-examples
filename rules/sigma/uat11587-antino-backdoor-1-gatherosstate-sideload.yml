@@ -1,0 +1,34 @@
+title: UAT-11587 Antino - GatherOsState.exe Sideload from User Directory
+id: f7a2c1e4-8b3d-4e5f-9a6c-2d1b0e8f7a3b
+status: experimental
+description: >
+    Detects GatherOsState.exe executing from a user-writable directory such as
+    AppData\Local, which is consistent with UAT-11587 Antino backdoor DLL
+    sideloading. The legitimate binary normally resides in the Windows ADK
+    installation directory under Program Files.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1574.002
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith: '\GatherOsState.exe'
+    selection_path:
+        Image|contains:
+            - '\AppData\Local\'
+            - '\AppData\Roaming\'
+            - '\Users\'
+    filter_adk:
+        Image|contains:
+            - '\Windows Kits\'
+            - '\Assessment and Deployment Kit\'
+    condition: selection_image and selection_path and not filter_adk
+falsepositives:
+    - Legitimate Windows ADK tools copied to user directories for testing
+level: high

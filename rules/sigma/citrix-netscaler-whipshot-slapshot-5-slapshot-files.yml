@@ -1,0 +1,27 @@
+title: SLAPSHOT Lock and Port File Creation in /tmp
+id: 0a4380c8-d4eb-4796-aa6c-c1d08528b947
+status: experimental
+description: >
+    Detects creation of hidden lock and port files in /tmp used by the SLAPSHOT
+    tunneling tool for operational coordination. SLAPSHOT creates .uxdport and
+    .uxdlock files and deletes them after inactivity periods.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-citrix-netscaler-zero-day-to-deploy-web-shells/
+    - https://securityaffairs.com/200046/security/whipshot-and-slapshot-the-tools-behind-an-active-citrix-netscaler-campaign.html
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1059.006
+    - attack.t1572
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/.uxdport'
+            - '/tmp/.uxdlock'
+    condition: selection
+falsepositives:
+    - None known; these filenames are specific to SLAPSHOT malware
+level: critical

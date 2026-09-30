@@ -1,0 +1,11 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Graphalgo C2 Domain gocommunity.io"; flow:to_server; dns.query; content:"gocommunity.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/attackers-use-malicious-terraform.html; metadata:author Actioner, created_at 2026-09-30; sid:2100101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Graphalgo C2 Domain gogets.dev"; flow:to_server; dns.query; content:"gogets.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; metadata:author Actioner, created_at 2026-09-30; sid:2100102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor FLATROOF C2 technicais.sytes.net"; flow:to_server; dns.query; content:"technicais.sytes.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor ROOFDECK C2 hubpage.cloud"; flow:to_server; dns.query; content:"hubpage.cloud"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor ROOFDECK C2 grenight.com"; flow:to_server; dns.query; content:"grenight.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100105; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor Typosquat Registry hashicorp-aws"; flow:to_server; dns.query; content:"hashicorp-aws"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100106; rev:1;)
