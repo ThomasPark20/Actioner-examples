@@ -1,0 +1,56 @@
+title: Star Blizzard CosmicPulse C2 DNS Query
+id: d8729af2-d8d6-4ea5-b9d2-526e7e3a4b10
+status: experimental
+description: >
+    Detects DNS queries to domains associated with Star Blizzard's RedFlick
+    infrastructure used for MSI installer hosting, CosmicPulse backdoor download,
+    and downloader DLL delivery (January-August 2026 campaigns).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection_subdomain:
+        QueryName|endswith:
+            - '.etia.ca'
+            - '.groy.cc'
+            - '.gliderrompercycl.com'
+            - '.muvb.net'
+            - '.divekickspolic.org'
+            - '.matjk.click'
+            - '.bpdaersa.click'
+            - '.stuseamandesilt.org'
+            - '.itechx.tel'
+            - '.guach.net'
+            - '.ruten.observer'
+            - '.byveo.org'
+            - '.secure-dns-hub.com'
+            - '.qumel.link'
+            - '.cyrna.top'
+            - '.drasw.club'
+    selection_exact:
+        QueryName:
+            - 'etia.ca'
+            - 'groy.cc'
+            - 'gliderrompercycl.com'
+            - 'muvb.net'
+            - 'divekickspolic.org'
+            - 'matjk.click'
+            - 'bpdaersa.click'
+            - 'stuseamandesilt.org'
+            - 'itechx.tel'
+            - 'guach.net'
+            - 'ruten.observer'
+            - 'byveo.org'
+            - 'secure-dns-hub.com'
+            - 'qumel.link'
+            - 'cyrna.top'
+            - 'drasw.club'
+    condition: selection_subdomain or selection_exact
+falsepositives:
+    - Extremely unlikely given the specificity of these domains
+level: critical

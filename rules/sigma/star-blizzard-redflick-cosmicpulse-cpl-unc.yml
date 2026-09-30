@@ -1,0 +1,29 @@
+title: Control Panel Applet Execution via Control.exe - RedFlick CPL Loader
+id: 210f1df2-b2a8-4f7c-bd59-2180faa10c8c
+status: experimental
+description: >
+    Detects control.exe executing a Control Panel applet (CPL) from a remote UNC path
+    or suspicious local path, consistent with Star Blizzard's RedFlick technique
+    where CosmicPulse downloader is compiled as a CPL DLL.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1218.002
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_control:
+        Image|endswith: '\control.exe'
+    selection_remote:
+        CommandLine|contains:
+            - '\\\\'
+            - 'http://'
+            - 'https://'
+    condition: selection_control and selection_remote
+falsepositives:
+    - Legitimate remote Control Panel applet management (very rare)
+level: high

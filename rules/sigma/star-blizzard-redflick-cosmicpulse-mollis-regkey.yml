@@ -1,0 +1,24 @@
+title: CosmicPulse Registry Key Creation - AES Key Storage in .mollis
+id: 2d4b5f57-bb95-409a-8264-36084b2e2535
+status: experimental
+description: >
+    Detects creation or modification of the registry key HKCU\Software\Classes\.mollis,
+    which Star Blizzard's CosmicPulse backdoor uses to store encrypted AES keys for
+    payload decryption.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1112
+    - attack.t1027
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Software\Classes\.mollis'
+    condition: selection
+falsepositives:
+    - Application registering .mollis file extension (extremely unlikely)
+level: critical

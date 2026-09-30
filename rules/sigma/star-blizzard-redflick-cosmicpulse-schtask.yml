@@ -1,0 +1,29 @@
+title: RedFlick Scheduled Task Creation - Star Blizzard
+id: 5a46b0b6-4779-4ffe-bca7-1f2f0094d28c
+status: experimental
+description: >
+    Detects creation of scheduled tasks with names associated with Star Blizzard's
+    RedFlick technique used to deploy the CosmicPulse backdoor. The tasks masquerade
+    as legitimate system utilities (Internet Quality Test Connection, Network Configuration
+    Manager, System Health Monitor).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+    selection_tasknames:
+        CommandLine|contains:
+            - 'Internet Quality Test Connection'
+            - 'Network Configuration Manager'
+            - 'System Health Monitor'
+    condition: selection_schtasks and selection_tasknames
+falsepositives:
+    - Legitimate software using identical task names (unlikely given specificity)
+level: high

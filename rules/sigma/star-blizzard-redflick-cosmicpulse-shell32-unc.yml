@@ -1,0 +1,31 @@
+title: Shell32 Control_RunDLL via WebDAV UNC Path - RedFlick DLL Execution
+id: f3149fcc-3a52-46c4-8559-2ea790bcd0b1
+status: experimental
+description: >
+    Detects rundll32.exe or control.exe invoking Shell32.dll Control_RunDLL with
+    a WebDAV UNC path, consistent with Star Blizzard's RedFlick Task 1 executing
+    remote attacker-controlled DLLs via WebDAV.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1218.011
+    - attack.t1071.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith:
+            - '\rundll32.exe'
+            - '\control.exe'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - 'Shell32.dll'
+            - 'Control_RunDLL'
+            - '\\\\'
+    condition: selection_binary and selection_cmdline
+falsepositives:
+    - Legitimate Control Panel operations using UNC paths (rare in most environments)
+level: high
