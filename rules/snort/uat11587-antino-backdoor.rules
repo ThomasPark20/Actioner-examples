@@ -1,0 +1,8 @@
+# UAT-11587 Antino Backdoor - Snort 3 Rules
+# Reference: https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+# Author: Actioner
+# Date: 2026-09-30
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11587 Antino HTA Tracking Beacon DNS Query"; flow:to_server; content:"|23|oisadjfoinsiduhfnoisdnfosdnoifnsoid|05|pages|03|dev|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created 2026-09-30; sid:2100201; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Standalone Delivery Domain microsoft-flash.com"; flow:established, to_server; http_header; content:"microsoft-flash.com", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created 2026-09-30; sid:2100202; rev:1;)

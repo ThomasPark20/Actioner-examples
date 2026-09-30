@@ -1,0 +1,29 @@
+title: UAT-11587 Antino - Slc.dll Loaded by GatherOsState.exe from Non-System Path
+id: b4c6d8e0-2f3a-4b7c-9d1e-4f6a8b0c2d3e
+status: experimental
+description: >
+    Detects GatherOsState.exe loading slc.dll from outside the Windows System32
+    directory. UAT-11587 places a malicious slc.dll (Antino backdoor) alongside
+    GatherOsState.exe in a user-writable directory for DLL sideloading.
+    Scoped to the specific GatherOsState.exe + slc.dll sideloading pair.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\GatherOsState.exe'
+        ImageLoaded|endswith: '\slc.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection and not filter_system
+falsepositives:
+    - Legitimate Windows ADK GatherOsState.exe loading slc.dll from a non-standard ADK directory (extremely rare)
+level: high

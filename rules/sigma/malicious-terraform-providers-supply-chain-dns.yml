@@ -1,0 +1,32 @@
+title: DNS Query to Graphalgo or TraderTraitor Infrastructure Domains
+id: be7c5d86-3f2a-6b9c-e351-6a0f4c2b7d3e
+status: experimental
+description: >
+    Detects DNS queries to known C2 and infrastructure domains associated
+    with the Graphalgo supply-chain campaign and TraderTraitor DPRK operations
+    targeting DevOps engineers via malicious Terraform providers.
+references:
+    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+    - https://www.sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.gocommunity.io'
+            - '.gogets.dev'
+            - '.technicais.sytes.net'
+            - '.hubpage.cloud'
+            - '.grenight.com'
+            - '.heyhay.online'
+            - '.galaxy-royal.online'
+            - '.mactroubleshoots.pro'
+            - '.tinklify.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these domains are attacker-controlled infrastructure
+level: critical

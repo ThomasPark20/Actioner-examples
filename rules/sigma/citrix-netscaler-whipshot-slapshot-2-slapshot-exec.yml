@@ -1,0 +1,36 @@
+title: SLAPSHOT Python TCP Tunneling Tool Execution
+id: d1c8a265-d4fc-42d5-8d9a-88645b20ec14
+status: experimental
+description: >
+    Detects execution patterns consistent with the SLAPSHOT Python TCP tunneling
+    tool deployed via WHIPSHOT on compromised NetScaler appliances. SLAPSHOT is
+    launched via nohup with Base64-encoded Python payloads and creates .uxdport
+    and .uxdlock operational files.
+references:
+    - https://thehackernews.com/2026/09/attackers-exploit-netscaler-flaw-for.html
+    - https://securityaffairs.com/200046/security/whipshot-and-slapshot-the-tools-behind-an-active-citrix-netscaler-campaign.html
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1059.006
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_nohup_python:
+        ParentImage|endswith: '/nohup'
+        Image|endswith:
+            - '/python'
+            - '/python3'
+    selection_uxd_artifacts:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+        CommandLine|contains:
+            - '.uxdport'
+            - '.uxdlock'
+    condition: selection_nohup_python or selection_uxd_artifacts
+falsepositives:
+    - Legitimate Python automation scripts using nohup on NetScaler appliances
+level: high

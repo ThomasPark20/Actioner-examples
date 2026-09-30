@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-09-30
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
 
 ## Executive Summary
 
@@ -272,7 +272,8 @@ The Go implant is cross-platform. Observed victim distribution: 3 Windows, 5 Lin
 |-----|-----------|-------------------|
 | T1195.002 | Compromise Software Supply Chain | Malicious Terraform providers published to HashiCorp registry; typosquatted Go modules; malicious npm packages |
 | T1204.002 | User Execution: Malicious File | Victims execute `terraform init`/`apply` on weaponized repositories from fake job interviews |
-| T1059 | Command and Scripting Interpreter | Remote Go and JavaScript code execution via C2 commands |
+| T1059.004 | Command and Scripting Interpreter: Unix Shell | Remote Go code execution via `go run .` launched from shell |
+| T1059.007 | Command and Scripting Interpreter: JavaScript | Remote JavaScript code execution via `node` launched from C2 commands |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS-based C2 for FLATROOF/ROOFDECK; Slack API for Graphalgo |
 | T1102.002 | Web Service: Bidirectional Communication | Slack conversations.history API as C2 channel; Nostr relay protocol for dead-drop C2 |
 | T1573.002 | Encrypted Channel: Asymmetric Cryptography | RSA-2048 signed C2 commands; ephemeral key pair generation |
@@ -282,7 +283,7 @@ The Go implant is cross-platform. Observed victim distribution: 3 Windows, 5 Lin
 | T1036.004 | Masquerading: Masquerade Task or Service | loginwindow.plist name and --type=renderer argument mimic system processes |
 | T1140 | Deobfuscate/Decode Files or Information | AES decryption of payload using hash-derived key |
 | T1567 | Exfiltration Over Web Service | FLATROOF exfiltrates via Telegram bot; Coder compromise via X-CLI-Token header |
-| T1568.002 | Dynamic Resolution: Domain Generation Algorithms | Blockchain smart contract and Nostr relay for dynamic C2 resolution |
+| T1102.001 | Web Service: Dead Drop Resolver | Blockchain smart contract (Arbitrum Sepolia) and Nostr relay dead drops for dynamic C2 resolution |
 
 ## Impact Assessment
 
@@ -337,13 +338,15 @@ grep -E "gocommunity\.io|gogets\.dev|technicais\.sytes|hubpage\.cloud|grenight\.
 
 ## Detection Rules
 
-The following rules cover the Graphalgo malicious Terraform provider delivery chain (process creation, DNS, proxy), the TraderTraitor FLATROOF/ROOFDECK binary artifacts (YARA), and known C2 network indicators (Suricata/Snort). The main caveat is that the Sigma process-creation rules require Sysmon or equivalent process telemetry with parent-process context enabled.
+<!-- revision: v1.1 — applied critic verdict NEEDS-REVISION. Dropped: Sigma Slack C2 (generic Slack API FP), Suricata sid:2100107 (same), Snort sid:2100201 (same), Snort sid:2100202 (generic /app_version URI). Fixed: Sigma process-creation confidence high→medium (TTP rules); Linux rule title narrowed to "Linux" only (product: linux excludes macOS); lock file condition OR→AND (was matching any .terraform.lock.hcl event); DNS endswith entries given leading dots; MITRE T1568.002→T1102.001, T1059→T1059.004/T1059.007; ATT&CK tags updated in rules. -->
+
+The following rules cover the Graphalgo malicious Terraform provider delivery chain (process creation, DNS), the TraderTraitor FLATROOF/ROOFDECK binary artifacts (YARA), and known C2 domain IOCs (Suricata). Process-creation rules require Sysmon or equivalent telemetry with parent-process context; compiles does not equal fires -- verify in your pipeline.
 
 ### Sigma: Terraform Binary Spawning Unexpected Go Child (Windows)
 
 Detects terraform or terraform-provider binaries spawning Go or Node.js child processes on Windows, indicative of the Graphalgo malicious provider executing downloaded code.
-
-Compile: ✅ (sigma convert --without-pipeline -t splunk/log_scale passed) | Confidence: **high**
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk/log_scale exit 0. TTP/behavioral rule (parent-child pattern) — confidence capped at medium per strict altitude. Field names (ParentImage, Image) match Sysmon EID 1 schema. Values use real paths, not defanged. Tags updated to T1059.004/T1059.007 subtechniques. -->
 
 ```yaml
 title: Terraform Binary Spawning Unexpected Go Child Process
@@ -360,7 +363,8 @@ author: Actioner
 date: 2026-09-30
 tags:
     - attack.t1195.002
-    - attack.t1059
+    - attack.t1059.004
+    - attack.t1059.007
 logsource:
     category: process_creation
     product: windows
@@ -379,21 +383,19 @@ falsepositives:
 level: high
 ```
 
-<!-- audit: sigma convert --without-pipeline -t splunk => ParentImage IN ("*\\terraform.exe*", "*\\terraform-provider-*") Image IN ("*\\go.exe", "*\\node.exe") | sigma convert --without-pipeline -t log_scale passed | sigma check failed due to network-blocked MITRE ATT&CK data fetch (403), not a rule defect | field names (ParentImage, Image) match Sysmon EID 1 schema | values use real paths, not defanged -->
+### Sigma: Terraform Provider Spawning Unexpected Child on Linux
 
-### Sigma: Terraform Provider Spawning Unexpected Child on Linux/macOS
-
-Detects the same parent-child process pattern on Linux/macOS where Sysmon-for-Linux or auditd with process lineage is deployed.
-
-Compile: ✅ (sigma convert --without-pipeline -t splunk/log_scale passed) | Confidence: **high**
+Detects the same parent-child process pattern on Linux where Sysmon-for-Linux or auditd with process lineage is deployed.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk/log_scale exit 0. TTP/behavioral rule — confidence capped at medium. Title narrowed to "Linux" only; product: linux does not cover macOS. Sysmon-for-Linux field names. Tags updated to T1059.004/T1059.007. -->
 
 ```yaml
-title: Terraform Provider Spawning Unexpected Child on Linux or macOS
+title: Terraform Provider Spawning Unexpected Child on Linux
 id: 8b4f2a53-0c9d-4e6f-b028-3d7c1f9e4a0b
 status: experimental
 description: >
     Detects terraform or terraform-provider processes spawning go or node
-    child processes on Linux/macOS, indicating potential malicious provider
+    child processes on Linux, indicating potential malicious provider
     execution from the Graphalgo campaign targeting DevOps engineers.
 references:
     - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
@@ -402,7 +404,8 @@ author: Actioner
 date: 2026-09-30
 tags:
     - attack.t1195.002
-    - attack.t1059
+    - attack.t1059.004
+    - attack.t1059.007
 logsource:
     category: process_creation
     product: linux
@@ -421,13 +424,11 @@ falsepositives:
 level: high
 ```
 
-<!-- audit: sigma convert --without-pipeline -t splunk => ParentImage IN ("*/terraform*", "*/terraform-provider-*") Image IN ("*/go", "*/node") | log_scale passed | sigma check network-blocked (403) | Sysmon-for-Linux field names -->
-
 ### Sigma: Terraform Lock File Referencing Typosquatted Registry
 
-Detects file events involving `.terraform.lock.hcl` files or files with typosquatted registry domain strings in their path, covering the TraderTraitor lock file weaponization vector.
-
-Compile: ✅ (sigma convert --without-pipeline -t splunk/log_scale passed) | Confidence: **medium**
+Detects file events on `.terraform.lock.hcl` files whose path also contains typosquatted registry domain strings, covering the TraderTraitor lock file weaponization vector.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline -t splunk/log_scale exit 0. Critical fix: condition changed from OR to AND — the OR form matched ANY .terraform.lock.hcl file event regardless of content, producing massive FP volume. The AND requires both the lock file extension AND the typosquatted registry string in the path. file_event category requires Sysmon EID 11 or equivalent. -->
 
 ```yaml
 title: Terraform Lock File Referencing Typosquatted HashiCorp Registry
@@ -452,62 +453,21 @@ detection:
         TargetFilename|contains:
             - 'hashicorp-aws'
             - 'hashicorp-terraform'
-    condition: selection_file or selection_content
+    condition: selection_file and selection_content
 falsepositives:
     - Files named with hashicorp-aws or hashicorp-terraform for legitimate testing purposes
 level: high
 ```
 
-<!-- audit: sigma convert splunk => TargetFilename="*.terraform.lock.hcl" OR TargetFilename IN ("*hashicorp-aws*", "*hashicorp-terraform*") | note: selection_file will generate many events for legitimate lock files — tune with selection_content as AND if noisy | file_event category requires Sysmon EID 11 or equivalent | file content matching not possible in Sigma; the rule detects lock file creation/modification events as a triage pivot, not content-level inspection of registry URLs -->
+### Sigma: Suspicious Slack API C2 Communication from Non-Browser Process -- DROPPED
 
-### Sigma: Suspicious Slack API C2 Communication from Non-Browser Process
-
-Detects non-browser processes making Slack `conversations.history` API calls, the secondary C2 channel used by Graphalgo.
-
-Compile: ✅ (sigma convert --without-pipeline -t splunk/log_scale passed) | Confidence: **medium**
-
-```yaml
-title: Suspicious Slack API C2 Communication from Non-Browser Process
-id: ad6b4c75-2e1f-5a8b-d240-5f9e3b1a6c2d
-status: experimental
-description: >
-    Detects outbound connections to Slack API endpoints from processes other
-    than known browsers or Slack desktop client. The Graphalgo malware uses
-    Slack conversations.history API as a secondary C2 channel.
-references:
-    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
-    - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
-author: Actioner
-date: 2026-09-30
-tags:
-    - attack.t1071.001
-    - attack.t1102.002
-logsource:
-    category: proxy
-detection:
-    selection:
-        c-uri|contains: '/api/conversations.history'
-        cs-host|contains: 'slack.com'
-    filter_browser:
-        cs-useragent|contains:
-            - 'Chrome/'
-            - 'Firefox/'
-            - 'Safari/'
-            - 'Electron/'
-            - 'Slack'
-    condition: selection and not filter_browser
-falsepositives:
-    - Legitimate Slack bot integrations or automation tools
-level: medium
-```
-
-<!-- audit: sigma convert splunk passed | proxy logsource fields (c-uri, cs-host, cs-useragent) match W3C Extended Log Format | FP rate depends on Slack bot density in environment; tune filter_browser with organization-specific UAs -->
+Dropped: at strict altitude, matches ANY Slack API `conversations.history` call from non-browser processes. Legitimate Slack bot integrations produce constant false positives. Campaign-specific workspace names (`portfolio-devs`, `portfolio-testers`, `mediumstar`) are available but insufficient to constrain the proxy-level rule without endpoint correlation.
 
 ### Sigma: DNS Query to Graphalgo/TraderTraitor Infrastructure Domains
 
 Detects DNS queries to known attacker-controlled domains across both campaigns.
-
-Compile: ✅ (sigma convert --without-pipeline -t splunk/log_scale passed) | Confidence: **high**
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline -t splunk/log_scale exit 0. Fixed: all endswith entries now have leading dots to prevent partial-match on longer domain suffixes. dns_query category maps to Sysmon EID 22. Values use real (non-defanged) domains per logsource-encoding.md. IOC-grade — rotate as new infrastructure appears. -->
 
 ```yaml
 title: DNS Query to Graphalgo or TraderTraitor Infrastructure Domains
@@ -531,26 +491,24 @@ detection:
         QueryName|endswith:
             - '.gocommunity.io'
             - '.gogets.dev'
-            - 'technicais.sytes.net'
-            - 'storage.hubpage.cloud'
-            - 'grenight.com'
-            - 'heyhay.online'
-            - 'galaxy-royal.online'
-            - 'mactroubleshoots.pro'
-            - 'tinklify.com'
+            - '.technicais.sytes.net'
+            - '.hubpage.cloud'
+            - '.grenight.com'
+            - '.heyhay.online'
+            - '.galaxy-royal.online'
+            - '.mactroubleshoots.pro'
+            - '.tinklify.com'
     condition: selection
 falsepositives:
     - Unlikely; these domains are attacker-controlled infrastructure
 level: critical
 ```
 
-<!-- audit: sigma convert splunk => QueryName endswith list | dns_query category maps to Sysmon EID 22 | values use real (non-defanged) domains per logsource-encoding.md | domains are IOC-grade — rotate as new infrastructure appears -->
-
 ### YARA: Graphalgo Go Implant Detection
 
 Detects the Go-based Graphalgo malware by characteristic strings including Slack workspace names, blockchain smart contract address, and the "helloipbot!!" marker.
-
-Compile: ✅ (yarac exit 0) | Confidence: **high**
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Strings are campaign-specific (Slack workspace names, contract address, shared public key, "helloipbot!!" marker) with low FP risk. filesize 50MB accommodates Go binaries. Condition OR branches allow detection on partial artifact presence. -->
 
 ```yara
 rule Malware_Graphalgo_Go_Implant : graphalgo dprk supply_chain
@@ -590,13 +548,11 @@ rule Malware_Graphalgo_Go_Implant : graphalgo dprk supply_chain
 }
 ```
 
-<!-- audit: yarac exit 0 | strings are campaign-specific (Slack workspace names, contract address, shared public key, "helloipbot!!" marker) with low FP risk | filesize 50MB accommodates Go binaries which are typically large | condition OR branches allow detection on partial artifact presence -->
-
 ### YARA: TraderTraitor FLATROOF Backdoor
 
 Detects the FLATROOF (macOS.Gaslight) ARM64 Rust backdoor by persistence paths, C2 domain, and data harvesting indicators.
-
-Compile: ✅ (yarac exit 0) | Confidence: **high**
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. $c2_1 alone is high-confidence given dynamic DNS sytes.net. ($path1 and $name1) specific to FLATROOF deployment. $keychain+$tg+$brave/$gatekeeper narrows browser harvesting branch. -->
 
 ```yara
 rule Malware_TraderTraitor_FLATROOF : tradertraitor dprk macos
@@ -630,13 +586,11 @@ rule Malware_TraderTraitor_FLATROOF : tradertraitor dprk macos
 }
 ```
 
-<!-- audit: yarac exit 0 | $c2_1 alone is high-confidence given the dynamic DNS nature of sytes.net | ($path1 and $name1) is specific to FLATROOF deployment path | $keychain+$tg combination with browser strings may hit legitimate tools; the $brave/$gatekeeper requirement narrows this -->
-
 ### YARA: TraderTraitor ROOFDECK Backdoor
 
 Detects the ROOFDECK ARM64 Rust backdoor by persistence paths, C2 domains, Nostr relay strings, and command set.
-
-Compile: ✅ (yarac exit 0) | Confidence: **high**
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Nostr relay strings alone common in legitimate clients; requiring C2 domain OR command set alongside them reduces FP. $path1+$name1 highly specific. $endpoint "/app_version" generic so requires 2+ cmd strings. -->
 
 ```yara
 rule Malware_TraderTraitor_ROOFDECK : tradertraitor dprk macos
@@ -675,15 +629,13 @@ rule Malware_TraderTraitor_ROOFDECK : tradertraitor dprk macos
 }
 ```
 
-<!-- audit: yarac exit 0 | Nostr relay strings alone are common in legitimate Nostr clients; requiring C2 domain OR command set alongside them reduces FP | $path1+$name1 is highly specific to ROOFDECK deployment | $endpoint "/app_version" is generic so requires 2+ cmd strings -->
+### Suricata: Graphalgo/TraderTraitor DNS IOC Detection
 
-### Suricata: Graphalgo/TraderTraitor DNS and HTTP C2 Detection
+Network-level DNS rules for known C2 and typosquatted registry domains.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T -S exit 0. Dot-notation buffers (dns.query) confirmed valid. DNS IOC rules are high-confidence on attacker-controlled domains. Slack HTTP rule (sid:2100107) dropped — generic Slack API FP at strict altitude. -->
 
-Network-level rules for known C2 domains and the Slack API beacon pattern.
-
-Compile: ✅ (suricata -T exit 0, "Configuration provided was successfully loaded") | Confidence: **high** (DNS IOC rules), **medium** (Slack HTTP rule)
-
-```
+```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Graphalgo C2 Domain gocommunity.io"; flow:to_server; dns.query; content:"gocommunity.io"; nocase; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/09/attackers-use-malicious-terraform.html; metadata:author Actioner, created_at 2026-09-30; sid:2100101; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Graphalgo C2 Domain gogets.dev"; flow:to_server; dns.query; content:"gogets.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; metadata:author Actioner, created_at 2026-09-30; sid:2100102; rev:1;)
@@ -695,25 +647,15 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor R
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor ROOFDECK C2 grenight.com"; flow:to_server; dns.query; content:"grenight.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100105; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to TraderTraitor Typosquat Registry hashicorp-aws"; flow:to_server; dns.query; content:"hashicorp-aws"; nocase; fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created_at 2026-09-30; sid:2100106; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Graphalgo Slack C2 Beacon via conversations.history API"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/api/conversations.history"; fast_pattern; http.host; content:"slack.com"; endswith; classtype:trojan-activity; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; metadata:author Actioner, created_at 2026-09-30; sid:2100107; rev:1;)
 ```
 
-<!-- audit: suricata -T -S exit 0 | dot-notation buffers (dns.query, http.method, http.uri, http.host) confirmed valid | DNS IOC rules are high-confidence on attacker-controlled domains | Slack HTTP rule will FP on legitimate Slack integrations; tune with src IP allowlist | endswith on http.host prevents partial hostname matches -->
+### Suricata: Graphalgo Slack C2 HTTP Beacon (sid:2100107) -- DROPPED
 
-### Snort 3: Graphalgo Slack C2 and ROOFDECK Tasking Endpoint
+Dropped: generic Slack API `conversations.history` match produces constant false positives from legitimate Slack integrations at strict altitude. Campaign-specific workspace names not constrainable at the HTTP layer without endpoint correlation.
 
-HTTP-layer rules for the Slack C2 beacon and ROOFDECK tasking URI.
+### Snort: N/A
 
-Compile: ✅ (snort -T exit 0, "Snort successfully validated the configuration!") | Confidence: **medium**
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Graphalgo Slack C2 Beacon via conversations.history API"; flow:established, to_server; http_method; content:"GET"; http_uri; content:"/api/conversations.history", fast_pattern; http_header; content:"slack.com"; classtype:trojan-activity; reference:url,aikido.dev/blog/graphalgo-terraform-go-modules; metadata:author Actioner, created 2026-09-30; sid:2100201; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TraderTraitor ROOFDECK C2 Tasking Endpoint /app_version"; flow:established, to_server; http_uri; content:"/app_version", fast_pattern; classtype:trojan-activity; reference:url,sentinelone.com/labs/dont-call-us-well-call-your-apis-tradertraitor-backdoors-resurface-on-victim-with-no-crypto-ties/; metadata:author Actioner, created 2026-09-30; sid:2100202; rev:1;)
-```
-
-<!-- audit: snort -c /etc/snort/snort.conf -R test.rules -T exit 0 | http_method/http_uri/http_header are valid Snort 3 sticky buffers (underscore form) | /app_version is a generic URI; expect FP from health-check endpoints — deploy with context-specific src/dst filtering | Slack rule matches any conversations.history call to slack.com which may include legitimate integrations -->
+Both Snort rules dropped at strict altitude: sid:2100201 (Slack C2 beacon) matched any `conversations.history` call to `slack.com` via `http_header` content match, widening FP surface beyond the Suricata equivalent; sid:2100202 (`/app_version` tasking endpoint) matched a common URI pattern with no destination IP/domain constraint, producing massive FP volume.
 
 ## Lessons Learned
 

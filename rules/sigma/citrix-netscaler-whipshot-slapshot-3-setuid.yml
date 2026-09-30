@@ -1,0 +1,32 @@
+title: NetScaler Setuid Bit Set on /bin/sh for Persistent Root Access
+id: 65bcde89-7661-4cc7-97be-c04264547ee0
+status: experimental
+description: >
+    Detects chmod commands setting the setuid bit on /bin/sh, a persistence
+    technique used by attackers exploiting CVE-2026-88771/CVE-2026-88772 to
+    maintain root-level access on compromised NetScaler appliances.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-citrix-netscaler-zero-day-to-deploy-web-shells/
+    - https://securityaffairs.com/200046/security/whipshot-and-slapshot-the-tools-behind-an-active-citrix-netscaler-campaign.html
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1548.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_chmod:
+        Image|endswith: '/chmod'
+        CommandLine|contains|all:
+            - '+s'
+            - '/bin/sh'
+    selection_alt:
+        Image|endswith: '/chmod'
+        CommandLine|contains|all:
+            - '4755'
+            - '/bin/sh'
+    condition: selection_chmod or selection_alt
+falsepositives:
+    - Extremely unlikely in production — setuid on /bin/sh is not a legitimate operation
+level: critical

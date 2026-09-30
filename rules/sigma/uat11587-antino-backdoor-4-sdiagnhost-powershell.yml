@@ -1,0 +1,31 @@
+title: UAT-11587 Antino - Sdiagnhost Spawning PowerShell from SDIAG Directory
+id: c5d7e9f1-3a4b-4c8d-0e2f-5a7b9c1d3e4f
+status: experimental
+description: >
+    Detects sdiagnhost.exe (Scripted Diagnostics Native Host) spawning
+    PowerShell with a command line referencing the SDIAG_ temporary directory.
+    UAT-11587 Antino abuses the Windows Scripted Diagnostics framework by
+    writing malicious PowerShell scripts into C:\Windows\Temp\SDIAG_<GUID>\
+    and triggering execution via sdiagnhost.exe.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1059.001
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\sdiagnhost.exe'
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+        CommandLine|contains: 'SDIAG_'
+    condition: selection
+falsepositives:
+    - Legitimate Windows troubleshooting packages that run PowerShell remediation scripts from SDIAG temp directories (e.g., Windows Update Troubleshooter, Network Diagnostics)
+    - SCCM/Intune remediation scripts invoked through the diagnostics framework
+level: medium

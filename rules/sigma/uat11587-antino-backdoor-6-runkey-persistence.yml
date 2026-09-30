@@ -1,0 +1,25 @@
+title: UAT-11587 Antino - Registry Run Key Persistence via GatherOSStateKit
+id: e7f9a1b3-5c6d-4e0f-2a4b-7c9d1e3f5a6b
+status: experimental
+description: >
+    Detects registry Run key entries referencing the Windows GatherOSStateKit
+    directory. UAT-11587 Antino's add_to_run command creates HKCU Run key
+    entries pointing to the sideloaded payload in this staging directory
+    for persistence across user logons.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026/09/30
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run\'
+        Details|contains: 'GatherOSStateKit'
+    condition: selection
+falsepositives:
+    - None known
+level: critical

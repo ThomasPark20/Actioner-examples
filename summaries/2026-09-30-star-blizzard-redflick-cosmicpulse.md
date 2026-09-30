@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-09-30
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -164,7 +164,6 @@ Communication protocols include HTTP/HTTPS via WebDAV for payload delivery, SSH 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1566.001 | Phishing: Spearphishing Attachment | Password-protected archives with malicious LNK/VHDX payloads |
-| T1566.002 | Phishing: Spearphishing Link | Initial contact emails building rapport for follow-up delivery |
 | T1204.002 | User Execution: Malicious File | Victim opens archive, triggering LNK execution |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Three scheduled tasks created by MSI for persistence and execution |
 | T1218.002 | System Binary Proxy Execution: Control Panel | CosmicPulse downloader compiled as CPL, executed via control.exe |
@@ -238,7 +237,8 @@ Detects schtasks.exe creating tasks with the three distinctive names used by Red
 
 compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **high**
 
-<!-- Audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale on 2026-09-30. sigma check blocked by proxy (MITRE ATT&CK data fetch 403) — syntax verified via successful backend conversion. Tags: attack.t1053.005, attack.t1547.001. Logsource: process_creation/windows. Fields: Image (endswith), CommandLine (contains OR list). No defanged values in detection — task names are plaintext strings. FP note: task names are specific enough to yield near-zero false positives in production. -->
+<!-- Audit: Validated via sigma convert --without-pipeline -t splunk and -t log_scale on 2026-09-30. sigma check blocked by proxy (MITRE ATT&CK data fetch 403) — syntax verified via successful backend conversion. Tags: attack.t1053.005 only (removed erroneous attack.t1547.001 — no registry run key persistence in this campaign). Logsource: process_creation/windows. Fields: Image (endswith), CommandLine (contains OR list). No defanged values in detection — task names are plaintext strings. FP note: task names are specific enough to yield near-zero false positives in production. -->
+<!-- revision: removed attack.t1547.001 tag per critic — campaign uses scheduled tasks (T1053.005) not registry run keys (T1547.001). -->
 
 ```yaml
 title: RedFlick Scheduled Task Creation - Star Blizzard
@@ -255,7 +255,6 @@ author: Actioner
 date: 2026-09-30
 tags:
     - attack.t1053.005
-    - attack.t1547.001
 logsource:
     category: process_creation
     product: windows
@@ -277,9 +276,10 @@ level: high
 
 Detects SSH.exe with PermitLocalCommand=yes used to launch cmd.exe, an uncommon pattern on Windows exploited by RedFlick for initial payload staging.
 
-compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **high**
+compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **medium**
 
-<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1218, attack.t1059.003. Logsource: process_creation/windows. Uses contains|all for PermitLocalCommand + yes (AND), plus LocalCommand. PermitLocalCommand on Windows SSH is genuinely rare. No defanged values. -->
+<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1105, attack.t1059.003 (corrected from attack.t1218 — SSH abuse for payload delivery, not system binary proxy execution). Logsource: process_creation/windows. Uses contains|all for PermitLocalCommand + yes (AND), plus LocalCommand. PermitLocalCommand on Windows SSH is genuinely rare. No defanged values. -->
+<!-- revision: downgraded confidence high->medium (TTP-level behavioral rule per strict altitude gate); replaced attack.t1218 with attack.t1105 per critic. -->
 
 ```yaml
 title: SSH PermitLocalCommand Abuse for Payload Delivery
@@ -294,7 +294,7 @@ references:
 author: Actioner
 date: 2026-09-30
 tags:
-    - attack.t1218
+    - attack.t1105
     - attack.t1059.003
 logsource:
     category: process_creation
@@ -318,9 +318,10 @@ level: high
 
 Detects control.exe accessing remote UNC or HTTP paths, consistent with RedFlick CPL-based CosmicPulse deployment via WebDAV.
 
-compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **high**
+compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **medium**
 
 <!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1218.002, attack.t1105. Remote control.exe execution is inherently suspicious. Backslash escaping in YAML: '\\\\' matches literal \\. No defanged values — real paths used in detection. -->
+<!-- revision: downgraded confidence high->medium (TTP-level behavioral rule — control.exe+UNC is behavioral, not IOC-anchored). -->
 
 ```yaml
 title: Control Panel Applet Execution via Control.exe - RedFlick CPL Loader
@@ -389,22 +390,23 @@ falsepositives:
 level: critical
 ```
 
-#### 5. Conhost Spawning Curl for PDF Download
+#### 5. Cmd.exe Spawning Curl for PDF Download
 
-Detects the process chain conhost.exe -> curl.exe downloading PDF files, matching the July 2026 RedFlick delivery variant.
+Detects cmd.exe spawning curl.exe to download PDF files, matching the July 2026 RedFlick delivery variant where LNK files trigger cmd.exe to invoke curl.
 
 compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **medium**
 
-<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1105, attack.t1059.003. The conhost->curl->PDF chain is unusual but could arise in edge-case automation. Medium confidence due to non-zero FP surface. No defanged values. -->
+<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1105, attack.t1059.003. The cmd.exe->curl.exe->PDF chain is unusual but could arise in edge-case automation. Medium confidence due to non-zero FP surface. No defanged values. -->
+<!-- revision: fixed ParentImage from conhost.exe to cmd.exe — conhost.exe is the console host, not the parent process; cmd.exe spawns curl.exe in the attack chain. -->
 
 ```yaml
-title: Conhost Spawning Curl to Download PDF - RedFlick Delivery
+title: Cmd.exe Spawning Curl to Download PDF - RedFlick Delivery
 id: 36b02ecd-006b-4a3a-8950-2dd52b7e69d9
 status: experimental
 description: >
-    Detects conhost.exe spawning curl.exe to download PDF files, a technique
+    Detects cmd.exe spawning curl.exe to download PDF files, a technique
     observed in Star Blizzard's July 2026 RedFlick campaigns where LNK files
-    use conhost to invoke curl for downloading PDFs containing embedded payloads.
+    trigger cmd.exe to invoke curl for downloading PDFs containing embedded payloads.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/
 author: Actioner
@@ -417,14 +419,14 @@ logsource:
     product: windows
 detection:
     selection_parent:
-        ParentImage|endswith: '\conhost.exe'
+        ParentImage|endswith: '\cmd.exe'
     selection_curl:
         Image|endswith: '\curl.exe'
     selection_pdf:
         CommandLine|contains: '.pdf'
     condition: selection_parent and selection_curl and selection_pdf
 falsepositives:
-    - Legitimate scripts using conhost to invoke curl for PDF downloads (unlikely chain)
+    - Legitimate scripts using cmd.exe to invoke curl for PDF downloads (uncommon chain)
 level: high
 ```
 
@@ -469,9 +471,10 @@ level: high
 
 Detects Shell32.dll Control_RunDLL invocation with a UNC path, matching RedFlick Task 1's remote DLL execution via WebDAV.
 
-compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **high**
+compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **medium**
 
 <!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1218.011, attack.t1071.001. Uses contains|all for Shell32.dll + Control_RunDLL + \\\\ (UNC). Control_RunDLL over UNC is not expected in normal operations. No defanged values. -->
+<!-- revision: downgraded confidence high->medium (TTP-level behavioral rule — Shell32+UNC pattern is behavioral, not IOC-anchored). -->
 
 ```yaml
 title: Shell32 Control_RunDLL via WebDAV UNC Path - RedFlick DLL Execution
@@ -513,7 +516,8 @@ Detects DNS queries to known Star Blizzard domains used for MSI delivery, Cosmic
 
 compile: **Splunk** ✅ | **LogScale** ✅ -- confidence: **high**
 
-<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1071.001, attack.t1568. Logsource: dns_query (no product — cross-platform). Uses endswith for domain matching to capture subdomains. 16 domains from Microsoft blog IOC table (Jan-Aug 2026). Values are NOT defanged per logsource-encoding rules. IOC shelf-life: actor rotates monthly. -->
+<!-- Audit: Validated via sigma convert --without-pipeline. Tags: attack.t1071.001 (removed erroneous attack.t1568 — actor uses static domains, not dynamic resolution). Logsource: dns_query (no product — cross-platform). Uses endswith with leading dot for subdomain matching + separate exact-match selection for bare domains to prevent FP on short domains like etia.ca/groy.cc/muvb.net. 16 domains from Microsoft blog IOC table (Jan-Aug 2026). Values are NOT defanged per logsource-encoding rules. IOC shelf-life: actor rotates monthly. -->
+<!-- revision: removed attack.t1568 tag; restructured detection to use leading-dot endswith + exact match to prevent substring FP on short domains. -->
 
 ```yaml
 title: Star Blizzard CosmicPulse C2 DNS Query
@@ -529,12 +533,29 @@ author: Actioner
 date: 2026-09-30
 tags:
     - attack.t1071.001
-    - attack.t1568
 logsource:
     category: dns_query
 detection:
-    selection:
+    selection_subdomain:
         QueryName|endswith:
+            - '.etia.ca'
+            - '.groy.cc'
+            - '.gliderrompercycl.com'
+            - '.muvb.net'
+            - '.divekickspolic.org'
+            - '.matjk.click'
+            - '.bpdaersa.click'
+            - '.stuseamandesilt.org'
+            - '.itechx.tel'
+            - '.guach.net'
+            - '.ruten.observer'
+            - '.byveo.org'
+            - '.secure-dns-hub.com'
+            - '.qumel.link'
+            - '.cyrna.top'
+            - '.drasw.club'
+    selection_exact:
+        QueryName:
             - 'etia.ca'
             - 'groy.cc'
             - 'gliderrompercycl.com'
@@ -551,7 +572,7 @@ detection:
             - 'qumel.link'
             - 'cyrna.top'
             - 'drasw.club'
-    condition: selection
+    condition: selection_subdomain or selection_exact
 falsepositives:
     - Extremely unlikely given the specificity of these domains
 level: critical
@@ -643,36 +664,38 @@ Detect DNS queries to five key CosmicPulse infrastructure domains active during 
 
 compile: ✅ (`suricata -T` exit 0) -- confidence: **high**
 
-<!-- Audit: All 5 rules validated with suricata -T -S on 2026-09-30, Suricata 7.0.3. Protocol: dns. Uses dns.query sticky buffer with content match + nocase. Domains NOT defanged per logsource-encoding.md. SIDs 2100010-2100014. IOC shelf-life limited by actor infrastructure rotation. -->
+<!-- Audit: All 5 rules validated with suricata -T -S on 2026-09-30, Suricata 7.0.3. Protocol: dns. Uses dns.query sticky buffer with content match + nocase + endswith (prevents substring FP). Domains NOT defanged per logsource-encoding.md. SIDs 2200010-2200014. IOC shelf-life limited by actor infrastructure rotation. -->
+<!-- revision: added endswith; modifier to all dns.query content matches to prevent substring matching against unrelated domains; fixed SID range to 2200000+ per Suricata convention. -->
 
 ```
-alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain secure-dns-hub.com"; flow:to_server; dns.query; content:"secure-dns-hub.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2100010; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain secure-dns-hub.com"; flow:to_server; dns.query; content:"secure-dns-hub.com"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2200010; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain gliderrompercycl.com"; flow:to_server; dns.query; content:"gliderrompercycl.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2100011; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain gliderrompercycl.com"; flow:to_server; dns.query; content:"gliderrompercycl.com"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2200011; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain divekickspolic.org"; flow:to_server; dns.query; content:"divekickspolic.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2100012; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain divekickspolic.org"; flow:to_server; dns.query; content:"divekickspolic.org"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2200012; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain stuseamandesilt.org"; flow:to_server; dns.query; content:"stuseamandesilt.org"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2100013; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain stuseamandesilt.org"; flow:to_server; dns.query; content:"stuseamandesilt.org"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2200013; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain ruten.observer"; flow:to_server; dns.query; content:"ruten.observer"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2100014; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - Star Blizzard RedFlick C2 Domain ruten.observer"; flow:to_server; dns.query; content:"ruten.observer"; endswith; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created_at 2026-09-30; sid:2200014; rev:1;)
 ```
 
-### Snort 3 Rules
+### Snort 2.9 Rules
 
 #### 16-18. DNS Queries to Star Blizzard C2 Domains (Label-Encoded)
 
-Detect DNS queries to three key domains using label-length encoding in the UDP payload, as Snort 3 has no DNS-specific sticky buffer.
+Detect DNS queries to three key domains using label-length encoding in the UDP payload.
 
 compile: ✅ (`snort -T` exit 0) -- confidence: **high**
 
-<!-- Audit: All 3 rules validated with snort -T on 2026-09-30, Snort 2.9.20. Protocol: udp, port 53. Uses label-length-encoded domain names in content match (e.g., |0e| = 14 bytes for "secure-dns-hub"). Domains NOT defanged. SIDs 2100020-2100022. -->
+<!-- Audit: All 3 rules validated with snort -c /etc/snort/snort.conf -T on 2026-09-30, Snort 2.9.20. Protocol: udp, port 53. Uses label-length-encoded domain names in content match (e.g., |0e| = 14 bytes for "secure-dns-hub"). Domains NOT defanged. SIDs 2100020-2100022. -->
+<!-- revision: fixed header from "Snort 3" to "Snort 2.9" to match actual validation toolchain; corrected label-length bytes for gliderrompercycl (|12|->|10|, 16 chars=0x10) and divekickspolic (|10|->|0e|, 14 chars=0x0e). -->
 
 ```
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - Star Blizzard RedFlick DNS Query secure-dns-hub.com"; flow:to_server; content:"|0e|secure-dns-hub|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created 2026-09-30; sid:2100020; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - Star Blizzard RedFlick DNS Query gliderrompercycl.com"; flow:to_server; content:"|12|gliderrompercycl|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created 2026-09-30; sid:2100021; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - Star Blizzard RedFlick DNS Query gliderrompercycl.com"; flow:to_server; content:"|10|gliderrompercycl|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created 2026-09-30; sid:2100021; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - Star Blizzard RedFlick DNS Query divekickspolic.org"; flow:to_server; content:"|10|divekickspolic|03|org|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created 2026-09-30; sid:2100022; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - Star Blizzard RedFlick DNS Query divekickspolic.org"; flow:to_server; content:"|0e|divekickspolic|03|org|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/09/29/star-blizzard-refines-phishing-and-malware-delivery-with-the-redflick-technique/; metadata:author Actioner, created 2026-09-30; sid:2100022; rev:1;)
 ```
 
 ## Lessons Learned

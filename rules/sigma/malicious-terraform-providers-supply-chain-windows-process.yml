@@ -1,0 +1,32 @@
+title: Terraform Binary Spawning Unexpected Go Child Process
+id: 7a3e1f42-9b8c-4d5e-af17-2c6b0e8d3f9a
+status: experimental
+description: >
+    Detects terraform or terraform-provider binaries spawning Go compilation
+    or execution processes, which may indicate a malicious Terraform provider
+    delivering Go malware as seen in the Graphalgo supply-chain campaign.
+references:
+    - https://thehackernews.com/2026/09/attackers-use-malicious-terraform.html
+    - https://www.aikido.dev/blog/graphalgo-terraform-go-modules
+author: Actioner
+date: 2026-09-30
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|contains:
+            - '\terraform.exe'
+            - '\terraform-provider-'
+    selection_child:
+        Image|endswith:
+            - '\go.exe'
+            - '\node.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Terraform providers that compile Go code at runtime (unlikely in production)
+level: high
