@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-09-30
-Version: 1 (DRAFT)
+Version: 2 (FINAL)
 
 ## Executive Summary
 
@@ -250,8 +250,7 @@ These deliver standalone Antino payloads configured for direct execution.
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
-| T1566.001 | Phishing: Spearphishing Attachment | Tailored emails with cloned Gmail attachment UI directing to malware |
-| T1566.002 | Phishing: Spearphishing Link | Protocol-relative URLs in email body linking to HTA/WSF stagers |
+| T1566.002 | Phishing: Spearphishing Link | Tailored emails with cloned Gmail attachment UI containing protocol-relative URLs linking to HTA/WSF stagers |
 | T1218.005 | System Binary Proxy Execution: Mshta | HTA stager executed via mshta.exe |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | JScript downloader/decryptor and orchestrator stages |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | Antino powershell command handler; sdiagnhost.exe PowerShell execution |
@@ -263,14 +262,13 @@ These deliver standalone Antino payloads configured for direct execution.
 | T1055 | Process Injection | In-memory shellcode loading via load_shellcode command |
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | add_to_run command creates HKCU Run key persistence |
 | T1082 | System Information Discovery | system_info command handler |
-| T1057 | Process Discovery | ps command handler |
 | T1083 | File and Directory Discovery | list_files command handler |
 | T1005 | Data from Local System | download_file command exfiltrates local files |
 | T1105 | Ingress Tool Transfer | upload_file command delivers payloads from OneDrive |
 | T1102 | Web Service | Microsoft 365 Outlook/OneDrive used as C2 dead-drop |
 | T1567 | Exfiltration Over Web Service | Data exfiltrated to OneDrive via Microsoft Graph API |
-| T1218.011 | System Binary Proxy Execution: Rundll32 | Execution proxied through sdiagnhost.exe (Scripted Diagnostics) |
-| T1553.002 | Subvert Trust Controls: Code Signing | Legitimate Microsoft-signed GatherOsState.exe used for DLL sideloading |
+| T1218 | System Binary Proxy Execution | Execution proxied through sdiagnhost.exe via Scripted Diagnostics framework |
+<!-- revision: T1553.002 dropped — abusing already-signed binary is T1574.002 (DLL Side-Loading), already mapped above -->
 
 ## Impact Assessment
 
