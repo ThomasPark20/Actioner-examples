@@ -310,12 +310,12 @@ As of July 2026, UAT-11587 has compromised approximately 350 endpoints across 16
 The rules below target Antino-specific artifacts: the DLL sideloading pattern, HTA stager beacon behavior, Antino binary strings, staging directory creation, and Scripted Diagnostics abuse. All rules are advisory-specific (strict) and keyed on artifacts unique to this campaign. Network rules target the hardcoded tracking beacon domain and known C2-adjacent patterns. YARA rules detect Antino binary artifacts including PDB paths, configuration section, and Rust source path strings.
 
 <!-- VALIDATION LOG
-sigma check: all Sigma rules passed syntax validation
-sigma convert --without-pipeline -t splunk: all Sigma rules converted successfully
-sigma convert --without-pipeline -t log_scale: all Sigma rules converted successfully (where applicable)
-yarac: all YARA rules compiled successfully
-suricata -T: all Suricata rules passed syntax validation
-snort -c /etc/snort/snort.conf -R: Snort validation performed (see per-rule notes)
+sigma check: blocked by proxy (MITRE ATT&CK data fetch 403); fallback to sigma convert
+sigma convert --without-pipeline -t splunk: all 6 Sigma rules converted successfully
+sigma convert --without-pipeline -t log_scale: all 6 Sigma rules converted successfully
+yarac: all 3 YARA rules compiled successfully (rule 1 required removing unreferenced $cfg_section string, fixed and re-validated)
+suricata -T -S: all 5 Suricata rules passed syntax validation (Suricata 7.0.3)
+snort -c /etc/snort/snort.conf -R: both Snort rules passed validation ("Snort successfully validated the configuration!")
 -->
 
 ### Sigma Rules
@@ -324,7 +324,7 @@ snort -c /etc/snort/snort.conf -R: Snort validation performed (see per-rule note
 
 Detects execution of the legitimate Microsoft ADK binary GatherOsState.exe from a user-writable staging directory, consistent with UAT-11587 Antino DLL sideloading.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: high
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: high
 
 ```yaml
 title: UAT-11587 Antino - GatherOsState.exe Sideload from User Directory
@@ -367,7 +367,7 @@ level: high
 
 Detects mshta.exe initiating network connections to Cloudflare Pages domains, consistent with UAT-11587 HTA stager behavior.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: high
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: high
 
 ```yaml
 title: UAT-11587 Antino - Mshta Connecting to Cloudflare Pages
@@ -402,7 +402,7 @@ level: critical
 
 Detects loading of slc.dll from a non-standard path, consistent with UAT-11587 Antino backdoor sideloading.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: high
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: high
 
 ```yaml
 title: UAT-11587 Antino - Suspicious slc.dll Load from Non-System Path
@@ -439,7 +439,7 @@ level: high
 
 Detects sdiagnhost.exe launching PowerShell, consistent with UAT-11587 Antino's abuse of the Windows Scripted Diagnostics framework for proxied execution.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: medium
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: medium
 
 ```yaml
 title: UAT-11587 Antino - Sdiagnhost Spawning PowerShell via Diagnostics Abuse
@@ -477,7 +477,7 @@ level: high
 
 Detects file creation under the Antino staging directory path.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: high
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: high
 
 ```yaml
 title: UAT-11587 Antino - File Creation in GatherOSStateKit Staging Directory
@@ -509,7 +509,7 @@ level: critical
 
 Detects creation of a Run key entry pointing to the Antino staging directory.
 
-compile-status: SIGMA_CHECK_PLACEHOLDER | confidence: high
+compile-status: ✅ (sigma convert --without-pipeline -t splunk, -t log_scale) | confidence: high
 
 ```yaml
 title: UAT-11587 Antino - Registry Run Key Persistence via GatherOSStateKit
@@ -545,7 +545,7 @@ level: critical
 
 Detects the Antino backdoor via PDB paths, PE export name, manifest ID, and Rust source path artifacts compiled into the binary.
 
-compile-status: YARAC_PLACEHOLDER | confidence: high
+compile-status: ✅ (yarac) | confidence: high
 
 ```yara
 import "pe"
@@ -575,8 +575,6 @@ rule APT_UAT11587_Antino_Backdoor
 
         $manifest = "AntinoApp" ascii wide
 
-        $cfg_section = ".cfg" ascii
-
         $cmd1 = "command_req_" ascii wide
         $cmd2 = "command_res_" ascii wide
         $cmd3 = "antino_downloads" ascii wide
@@ -600,7 +598,7 @@ rule APT_UAT11587_Antino_Backdoor
 
 Detects the TestAssembly.dll .NET downloader component via its invariant AssemblyAttribute GUID present across all observed variants.
 
-compile-status: YARAC_PLACEHOLDER | confidence: high
+compile-status: ✅ (yarac) | confidence: high
 
 ```yara
 rule APT_UAT11587_TestAssembly_Downloader
@@ -631,7 +629,7 @@ rule APT_UAT11587_TestAssembly_Downloader
 
 Detects HTA files containing the UAT-11587 tracking beacon domain and Cloudflare R2 payload sourcing patterns.
 
-compile-status: YARAC_PLACEHOLDER | confidence: high
+compile-status: ✅ (yarac) | confidence: high
 
 ```yara
 rule APT_UAT11587_HTA_Stager
@@ -667,7 +665,7 @@ rule APT_UAT11587_HTA_Stager
 
 Detects DNS queries to the hardcoded Antino HTA execution-tracking beacon domain.
 
-compile-status: SURICATA_PLACEHOLDER | confidence: high
+compile-status: ✅ (suricata -T) | confidence: high
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino HTA Tracking Beacon DNS Query"; flow:to_server; dns.query; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-09-30; sid:2100101; rev:1;)
@@ -677,7 +675,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino HTA Trackin
 
 Detects DNS queries to the attacker-registered standalone backdoor delivery domains.
 
-compile-status: SURICATA_PLACEHOLDER | confidence: high
+compile-status: ✅ (suricata -T) | confidence: high
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino Standalone Delivery Domain DNS Query"; flow:to_server; dns.query; content:"microsoft-flash.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-09-30; sid:2100102; rev:1;)
@@ -687,7 +685,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino Standalone 
 
 Detects DNS queries to the attacker-controlled SMTP envelope sender domain.
 
-compile-status: SURICATA_PLACEHOLDER | confidence: high
+compile-status: ✅ (suricata -T) | confidence: high
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino SMTP Sender Domain osc-cdn.com DNS Query"; flow:to_server; dns.query; content:"osc-cdn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-09-30; sid:2100103; rev:1;)
@@ -697,7 +695,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino SMTP Sender
 
 Detects HTTP requests to known UAT-11587 Cloudflare R2 payload staging buckets.
 
-compile-status: SURICATA_PLACEHOLDER | confidence: high
+compile-status: ✅ (suricata -T) | confidence: high
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Cloudflare R2 Payload Staging Bucket"; flow:established,to_server; http.host; content:"pub-abfa7742e315485a98a5fafd6dbfb68e.r2.dev"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-09-30; sid:2100104; rev:1;)
@@ -707,7 +705,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino 
 
 Detects HTTP requests to the second known UAT-11587 Cloudflare R2 payload staging bucket.
 
-compile-status: SURICATA_PLACEHOLDER | confidence: high
+compile-status: ✅ (suricata -T) | confidence: high
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Cloudflare R2 Payload Staging Bucket 2"; flow:established,to_server; http.host; content:"pub-0173d1566dcd4fd49fa25f11f14bfe4c.r2.dev"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-09-30; sid:2100105; rev:1;)
@@ -719,7 +717,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino 
 
 Detects DNS queries to the hardcoded UAT-11587 HTA tracking beacon domain via DNS payload inspection.
 
-compile-status: SNORT_PLACEHOLDER | confidence: high
+compile-status: ✅ (snort -T) | confidence: high
 
 ```
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11587 Antino HTA Tracking Beacon DNS Query"; flow:to_server; content:"|24|oisadjfoinsiduhfnoisdnfosdnoifnsoid|05|pages|03|dev|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created 2026-09-30; sid:2100201; rev:1;)
@@ -729,7 +727,7 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - UAT-11587 Antino HTA Tracking
 
 Detects HTTP traffic to the attacker-registered microsoft-flash[.]com domain.
 
-compile-status: SNORT_PLACEHOLDER | confidence: high
+compile-status: ✅ (snort -T) | confidence: high
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Standalone Delivery Domain microsoft-flash.com"; flow:established, to_server; http_header; content:"microsoft-flash.com", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created 2026-09-30; sid:2100202; rev:1;)
