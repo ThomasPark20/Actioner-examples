@@ -1,0 +1,112 @@
+title: UAT-11587 Antino Backdoor - GatherOsState DLL Sideloading from AppData
+id: 7c4e1a2b-3d5f-4e8a-9b6c-0d1e2f3a4b5c
+status: experimental
+description: >
+    Detects GatherOsState.exe executing from the user's AppData directory, consistent with
+    UAT-11587 Antino backdoor deployment via DLL sideloading. Legitimate GatherOsState.exe
+    resides in Windows ADK installation paths, not user-writable AppData directories.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/09/uat-11587-targets-gov.txt
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1574.002
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\GatherOsState.exe'
+        Image|contains: '\AppData\Local\'
+    condition: selection
+falsepositives:
+    - Legitimate Windows ADK tools relocated to AppData by administrators (unlikely)
+level: high
+---
+title: UAT-11587 Antino Backdoor - Sdiagnhost Spawning PowerShell with Antino Artifacts
+id: 8d5f2b3c-4e6a-5f9b-0c7d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects sdiagnhost.exe spawning powershell.exe where the command line references
+    SDIAG_ temporary directories or GatherOsState artifacts, consistent with UAT-11587
+    Antino backdoor using Windows Scripted Diagnostics as a process execution proxy.
+    Antino writes attacker scripts to C:\Windows\Temp\SDIAG_<GUID>\ and delegates
+    execution through sdiagnhost.exe to complicate behavioral attribution.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1059.001
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\sdiagnhost.exe'
+        Image|endswith: '\powershell.exe'
+    selection_antino_artifact:
+        CommandLine|contains:
+            - 'SDIAG_'
+            - 'GatherOsState'
+            - 'GatherOSStateKit'
+    condition: selection_parent and selection_antino_artifact
+falsepositives:
+    - Legitimate Windows troubleshooting packs referencing SDIAG_ paths (unlikely to also reference GatherOsState)
+level: medium
+---
+title: UAT-11587 Antino Backdoor - Mshta Loading HTA from Cloudflare Pages
+id: 9e6a3c4d-5f7b-6a0c-1d8e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects mshta.exe executing an HTA file downloaded from a Cloudflare Pages domain
+    (*.pages.dev), consistent with UAT-11587 initial access via spear-phishing links
+    delivering HTA stagers from attacker-controlled Cloudflare Pages projects. Note:
+    this matches any *.pages.dev domain, not only known UAT-11587 subdomains, to cover
+    infrastructure rotation at the cost of reduced specificity.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1218.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains: '.pages.dev'
+    condition: selection
+falsepositives:
+    - Legitimate HTA applications hosted on Cloudflare Pages (rare in enterprise environments)
+    - Other threat actors abusing Cloudflare Pages for HTA delivery (not UAT-11587 specific)
+level: medium
+---
+title: UAT-11587 Antino Backdoor - Registry Run Key Persistence for GatherOsState
+id: 0f7b4d5e-6a8c-7b1d-2e9f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects creation of a Registry Run key entry containing GatherOsState, consistent with
+    UAT-11587 Antino backdoor add_to_run persistence command that creates an HKCU Run value
+    to launch the sideloading host on user sign-in.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run\'
+        Details|contains: 'GatherOsState'
+    condition: selection
+falsepositives:
+    - Legitimate Windows ADK tools configured to start at logon (unlikely via Run key)
+level: high

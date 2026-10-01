@@ -1,0 +1,9 @@
+# UAT-11587 Antino Backdoor - Snort Rules
+# Author: Actioner | Date: 2026-10-01
+# Reference: https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+# TLS CAVEAT: Both rules target HTTPS-only endpoints. They require inline TLS decryption
+# (SSL/TLS termination proxy or MITM appliance) upstream of the Snort sensor to fire.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Tracking Beacon to Cloudflare Pages"; flow:established,to_server; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid"; nocase; content:".pages.dev"; nocase; distance:0; within:15; content:"?track"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download"; flow:established,to_server; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; sid:2100102; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)

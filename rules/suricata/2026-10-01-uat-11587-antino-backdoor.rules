@@ -1,0 +1,15 @@
+# UAT-11587 Antino Backdoor - Suricata Rules
+# Author: Actioner | Date: 2026-10-01
+# Reference: https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+# DNS rules (sid:2200101-2200103) work without TLS inspection.
+# TLS CAVEAT: HTTP URI rule (sid:2200104) targets an HTTPS-only endpoint and requires
+# inline TLS decryption for Suricata to inspect the URI.
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino Tracking Beacon DNS Query"; flow:to_server; dns.query; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain microsoft-flash"; flow:to_server; dns.query; content:"microsoft-flash.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain wps-cn"; flow:to_server; dns.query; content:"wps-cn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200103; rev:1;)
+
+# NOTE: This rule requires inline TLS decryption. Target endpoint is HTTPS-only.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download URI"; flow:established,to_server; http.uri; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200104; rev:1;)

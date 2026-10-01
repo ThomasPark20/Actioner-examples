@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-01
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -186,7 +186,7 @@ Antino's `add_to_run` command creates persistence through a process proxy chain:
 | T1547.001 | Boot or Logon Autostart Execution: Registry Run Keys | HKCU Run key persistence via add_to_run command |
 | T1027 | Obfuscated Files or Information | RC4-encrypted payloads, custom Base64, XOR-encrypted .cfg PE section |
 | T1140 | Deobfuscate/Decode Files or Information | Custom Base64 + RC4 decryption of staged payloads; XOR decryption of configuration |
-| T1055 | Process Injection | .NET BinaryFormatter deserialization chain loads PE into mshta.exe memory |
+| T1620 | Reflective Code Loading | .NET BinaryFormatter deserialization chain loads PE into mshta.exe memory (same-process reflective load, not cross-process injection) |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 via Microsoft Graph API (HTTPS to graph.microsoft.com) |
 | T1102.002 | Web Service: Bidirectional Communication | OneDrive and Outlook used as bidirectional C2 channels |
 | T1567.002 | Exfiltration Over Web Service: Exfiltration to Cloud Storage | Files exfiltrated to operator-controlled OneDrive under /antino_downloads/ |
@@ -236,7 +236,8 @@ dir "%LOCALAPPDATA%\Windows GatherOSStateKit\slc.dll" 2>nul
 
 ## Detection Rules
 
-These detections target the UAT-11587 Antino backdoor campaign at the PoC/advisory-specific altitude, keying on distinctive artifacts from the infection chain: the GatherOsState.exe sideloading path, Antino-specific strings, known staging domains, and the sdiagnhost.exe process proxy. Compiles does not equal fires --- verify each rule against your telemetry pipeline before promoting to production.
+These detections target the UAT-11587 Antino backdoor campaign at the PoC/advisory-specific altitude, keying on distinctive artifacts from the infection chain: the GatherOsState.exe sideloading path, Antino-specific strings, known staging domains, and the sdiagnhost.exe process proxy. Network rules targeting HTTPS endpoints (Cloudflare Pages, microsoft-flash[.]com, wps-cn[.]com) require inline TLS decryption to inspect payload content; DNS-based rules remain effective without TLS inspection. Compiles does not equal fires --- verify each rule against your telemetry pipeline before promoting to production.
+<!-- revision: added TLS decryption caveat to detection intro per critic finding -->
 
 ### Sigma: GatherOsState DLL Sideloading from AppData
 
@@ -272,19 +273,22 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Sdiagnhost Spawning PowerShell (Antino Process Proxy)
+### Sigma: Sdiagnhost Spawning PowerShell with Antino Artifacts (Antino Process Proxy)
 
-Detects sdiagnhost.exe spawning powershell.exe, consistent with Antino's use of Windows Scripted Diagnostics as a process execution proxy. Legitimate troubleshooting packs may trigger this; scope to endpoints of interest.
+Detects sdiagnhost.exe spawning powershell.exe where the command line references SDIAG_ temporary directories or GatherOsState artifacts, consistent with Antino's use of Windows Scripted Diagnostics as a process execution proxy. Narrowed to Antino-specific artifacts to reduce false positives from legitimate troubleshooting packs.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Behavioral overlap: legitimate Windows troubleshooting packs can invoke PowerShell, but this is uncommon in enterprise environments. Medium confidence due to benign-overlap risk. -->
+<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Narrowed from generic sdiagnhost→powershell to require Antino-specific CommandLine artifacts (SDIAG_ temp path or GatherOsState reference). Medium confidence: SDIAG_ paths appear in legitimate troubleshooting but combined with sdiagnhost→powershell ancestry is distinctive. -->
+<!-- revision: added Antino-specific narrowing (SDIAG_ path or GatherOsState in CommandLine) per critic altitude-mismatch finding -->
 ```yaml
-title: UAT-11587 Antino Backdoor - Sdiagnhost Spawning PowerShell
+title: UAT-11587 Antino Backdoor - Sdiagnhost Spawning PowerShell with Antino Artifacts
 id: 8d5f2b3c-4e6a-5f9b-0c7d-1e2f3a4b5c6d
 status: experimental
 description: >
-    Detects sdiagnhost.exe spawning powershell.exe, consistent with UAT-11587 Antino backdoor
-    using Windows Scripted Diagnostics as a process execution proxy to complicate behavioral
-    attribution. Antino proxies PowerShell commands and persistence through this framework.
+    Detects sdiagnhost.exe spawning powershell.exe where the command line references
+    SDIAG_ temporary directories or GatherOsState artifacts, consistent with UAT-11587
+    Antino backdoor using Windows Scripted Diagnostics as a process execution proxy.
+    Antino writes attacker scripts to C:\Windows\Temp\SDIAG_<GUID>\ and delegates
+    execution through sdiagnhost.exe to complicate behavioral attribution.
 references:
     - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
 author: Actioner
@@ -296,20 +300,26 @@ logsource:
     category: process_creation
     product: windows
 detection:
-    selection:
+    selection_parent:
         ParentImage|endswith: '\sdiagnhost.exe'
         Image|endswith: '\powershell.exe'
-    condition: selection
+    selection_antino_artifact:
+        CommandLine|contains:
+            - 'SDIAG_'
+            - 'GatherOsState'
+            - 'GatherOSStateKit'
+    condition: selection_parent and selection_antino_artifact
 falsepositives:
-    - Legitimate Windows troubleshooting packs executing PowerShell remediation scripts
+    - Legitimate Windows troubleshooting packs referencing SDIAG_ paths (unlikely to also reference GatherOsState)
 level: medium
 ```
 
 ### Sigma: Mshta Loading HTA from Cloudflare Pages
 
-Detects mshta.exe executing content from a Cloudflare Pages domain (*.pages.dev), consistent with UAT-11587's initial HTA stager delivery mechanism.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Highly distinctive: mshta.exe loading from .pages.dev is not a legitimate enterprise pattern. Low FP risk in corporate environments. -->
+Detects mshta.exe executing content from any Cloudflare Pages domain (*.pages.dev), consistent with UAT-11587's initial HTA stager delivery mechanism. This rule uses a broad *.pages.dev pattern rather than specific UAT-11587 project subdomains (my-662ylt3w, my-3lyt6wcp, etc.) to catch infrastructure rotation, but may match unrelated Cloudflare Pages abuse; confidence is medium accordingly.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Broad pattern: matches ANY mshta.exe from ANY *.pages.dev domain, not specific to UAT-11587 project subdomains. Downgraded from high to medium confidence per critic review. mshta.exe + .pages.dev is still unusual in enterprise but not UAT-11587-exclusive. -->
+<!-- revision: downgraded confidence from high to medium; added caveat about non-specificity to UAT-11587 domains per critic finding -->
 ```yaml
 title: UAT-11587 Antino Backdoor - Mshta Loading HTA from Cloudflare Pages
 id: 9e6a3c4d-5f7b-6a0c-1d8e-2f3a4b5c6d7e
@@ -317,7 +327,9 @@ status: experimental
 description: >
     Detects mshta.exe executing an HTA file downloaded from a Cloudflare Pages domain
     (*.pages.dev), consistent with UAT-11587 initial access via spear-phishing links
-    delivering HTA stagers from attacker-controlled Cloudflare Pages projects.
+    delivering HTA stagers from attacker-controlled Cloudflare Pages projects. Note:
+    this matches any *.pages.dev domain, not only known UAT-11587 subdomains, to cover
+    infrastructure rotation at the cost of reduced specificity.
 references:
     - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
 author: Actioner
@@ -334,7 +346,8 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate HTA applications hosted on Cloudflare Pages (rare in enterprise environments)
-level: high
+    - Other threat actors abusing Cloudflare Pages for HTA delivery (not UAT-11587 specific)
+level: medium
 ```
 
 ### Sigma: Registry Run Key Persistence for GatherOsState
@@ -371,10 +384,12 @@ level: high
 
 ### Snort: UAT-11587 Antino Tracking Beacon and Fake Installer Download
 
-Detects outbound HTTP traffic containing the Antino tracking beacon hostname or the known fake Flash installer download URI.
+Detects outbound HTTP traffic containing the Antino tracking beacon hostname or the known fake Flash installer download URI. **TLS caveat:** Both target endpoints are HTTPS-only (Cloudflare Pages, microsoft-flash[.]com). These rules inspect raw TCP on $HTTP_PORTS and will only fire if inline TLS decryption (SSL/TLS termination proxy or MITM appliance) is deployed upstream of the Snort sensor. Without TLS inspection, use the DNS-based Suricata rules instead.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R exit 0 (pidfile suffix warning is cosmetic, not a rule error). Two rules: (1) tracking beacon hostname oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev; (2) fake installer URI path. Both are IOC-specific, low FP. -->
+<!-- audit: snort -c /etc/snort/snort.conf -R exit 0 (pidfile suffix warning is cosmetic, not a rule error). Two rules: (1) tracking beacon hostname oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev; (2) fake installer URI path. Both are IOC-specific, low FP. TLS CAVEAT: targets are HTTPS-only; rules require inline TLS decryption to fire. -->
+<!-- revision: added TLS decryption requirement caveat per critic finding -->
 ```snort
+# NOTE: These rules require inline TLS decryption. Target endpoints are HTTPS-only.
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Tracking Beacon to Cloudflare Pages"; flow:established,to_server; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid"; nocase; content:".pages.dev"; nocase; distance:0; within:15; content:"?track"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download"; flow:established,to_server; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; sid:2100102; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)
@@ -382,9 +397,10 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 
 
 ### Suricata: UAT-11587 Antino DNS and HTTP IOCs
 
-Detects DNS queries for the Antino tracking beacon domain, known C2 delivery domains (microsoft-flash[.]com, wps-cn[.]com), and the fake installer download URI.
+Detects DNS queries for the Antino tracking beacon domain, known C2 delivery domains (microsoft-flash[.]com, wps-cn[.]com), and the fake installer download URI. DNS rules (sid:2200101--2200103) work without TLS inspection. **TLS caveat:** The HTTP URI rule (sid:2200104) targets an HTTPS-only endpoint and requires inline TLS decryption for Suricata to inspect the URI.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T -S exit 0. Four rules targeting distinct IOCs: tracking beacon DNS, two delivery domain DNS queries, and the fake installer HTTP URI. All IOC-specific, high precision. -->
+<!-- audit: suricata -T -S exit 0. Four rules targeting distinct IOCs: tracking beacon DNS, two delivery domain DNS queries, and the fake installer HTTP URI. All IOC-specific, high precision. TLS CAVEAT on sid:2200104: target is HTTPS-only; rule requires inline TLS decryption to fire. DNS rules (sid:2200101-2200103) work without TLS inspection. -->
+<!-- revision: added TLS decryption requirement caveat for HTTP URI rule (sid:2200104) per critic finding -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino Tracking Beacon DNS Query"; flow:to_server; dns.query; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200101; rev:1;)
 
@@ -392,14 +408,16 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain m
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain wps-cn"; flow:to_server; dns.query; content:"wps-cn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200103; rev:1;)
 
+# NOTE: This rule requires inline TLS decryption. Target endpoint is HTTPS-only.
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download URI"; flow:established,to_server; http.uri; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200104; rev:1;)
 ```
 
 ### YARA: Antino Rust Backdoor and TestAssembly Downloader
 
 Detects the Antino Rust backdoor via distinctive PDB paths (`\antino\antino\target\`), application manifest string ("AntinoApp"), C2 path strings (`/antino/heartbeats/`), and the TestAssembly.dll GUID.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara positive test fired on constructed sample containing published PDB path + C2 path strings; negative (benign MZ with unrelated content) silent. Two rules: APT_UAT11587_Antino_Backdoor (keys on PDB paths, manifest + C2 paths, source paths + .cfg section, or TestAssembly GUID), APT_UAT11587_TestAssembly_Downloader (keys on GUID + file names). Strings sourced from Talos-published PDB paths and C2 folder names. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Positive compile test passed. No real malware sample available for live-fire validation. Two rules: APT_UAT11587_Antino_Backdoor (keys on PDB paths, manifest + C2 paths, source paths + .cfg section, or TestAssembly GUID), APT_UAT11587_TestAssembly_Downloader (keys on GUID + file names). Strings sourced from Talos-published PDB paths and C2 folder names. -->
+<!-- revision: removed dishonest "sample: fired" label; positive test used a constructed sample, not real malware. Status now reflects compile-only validation. -->
 ```yara
 rule APT_UAT11587_Antino_Backdoor
 {
