@@ -238,7 +238,236 @@ dir "%LOCALAPPDATA%\Windows GatherOSStateKit\slc.dll" 2>nul
 
 These detections target the UAT-11587 Antino backdoor campaign at the PoC/advisory-specific altitude, keying on distinctive artifacts from the infection chain: the GatherOsState.exe sideloading path, Antino-specific strings, known staging domains, and the sdiagnhost.exe process proxy. Compiles does not equal fires --- verify each rule against your telemetry pipeline before promoting to production.
 
-<!-- PLACEHOLDER: the Rule Generator replaces this line with Sigma/YARA/Snort/Suricata detection rules. -->
+### Sigma: GatherOsState DLL Sideloading from AppData
+
+Detects GatherOsState.exe executing from the user's AppData directory, outside its legitimate Windows ADK installation path --- the distinctive sideloading vector used by Antino.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check failed (MITRE ATT&CK data fetch blocked by proxy, not a rule issue). sigma convert --without-pipeline splunk exit 0; log_scale exit 0. Distinctive: GatherOsState.exe in AppData is not a legitimate deployment pattern. No known FP. -->
+```yaml
+title: UAT-11587 Antino Backdoor - GatherOsState DLL Sideloading from AppData
+id: 7c4e1a2b-3d5f-4e8a-9b6c-0d1e2f3a4b5c
+status: experimental
+description: >
+    Detects GatherOsState.exe executing from the user's AppData directory, consistent with
+    UAT-11587 Antino backdoor deployment via DLL sideloading. Legitimate GatherOsState.exe
+    resides in Windows ADK installation paths, not user-writable AppData directories.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+    - https://github.com/Cisco-Talos/IOCs/blob/main/2026/09/uat-11587-targets-gov.txt
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1574.002
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\GatherOsState.exe'
+        Image|contains: '\AppData\Local\'
+    condition: selection
+falsepositives:
+    - Legitimate Windows ADK tools relocated to AppData by administrators (unlikely)
+level: high
+```
+
+### Sigma: Sdiagnhost Spawning PowerShell (Antino Process Proxy)
+
+Detects sdiagnhost.exe spawning powershell.exe, consistent with Antino's use of Windows Scripted Diagnostics as a process execution proxy. Legitimate troubleshooting packs may trigger this; scope to endpoints of interest.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Behavioral overlap: legitimate Windows troubleshooting packs can invoke PowerShell, but this is uncommon in enterprise environments. Medium confidence due to benign-overlap risk. -->
+```yaml
+title: UAT-11587 Antino Backdoor - Sdiagnhost Spawning PowerShell
+id: 8d5f2b3c-4e6a-5f9b-0c7d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects sdiagnhost.exe spawning powershell.exe, consistent with UAT-11587 Antino backdoor
+    using Windows Scripted Diagnostics as a process execution proxy to complicate behavioral
+    attribution. Antino proxies PowerShell commands and persistence through this framework.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1059.001
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\sdiagnhost.exe'
+        Image|endswith: '\powershell.exe'
+    condition: selection
+falsepositives:
+    - Legitimate Windows troubleshooting packs executing PowerShell remediation scripts
+level: medium
+```
+
+### Sigma: Mshta Loading HTA from Cloudflare Pages
+
+Detects mshta.exe executing content from a Cloudflare Pages domain (*.pages.dev), consistent with UAT-11587's initial HTA stager delivery mechanism.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Highly distinctive: mshta.exe loading from .pages.dev is not a legitimate enterprise pattern. Low FP risk in corporate environments. -->
+```yaml
+title: UAT-11587 Antino Backdoor - Mshta Loading HTA from Cloudflare Pages
+id: 9e6a3c4d-5f7b-6a0c-1d8e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects mshta.exe executing an HTA file downloaded from a Cloudflare Pages domain
+    (*.pages.dev), consistent with UAT-11587 initial access via spear-phishing links
+    delivering HTA stagers from attacker-controlled Cloudflare Pages projects.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1218.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains: '.pages.dev'
+    condition: selection
+falsepositives:
+    - Legitimate HTA applications hosted on Cloudflare Pages (rare in enterprise environments)
+level: high
+```
+
+### Sigma: Registry Run Key Persistence for GatherOsState
+
+Detects creation of an HKCU Run key entry containing "GatherOsState", consistent with Antino's `add_to_run` persistence command.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert splunk exit 0; log_scale exit 0. Distinctive: GatherOsState is a Windows ADK binary that has no legitimate reason to be in a Run key. No known FP. -->
+```yaml
+title: UAT-11587 Antino Backdoor - Registry Run Key Persistence for GatherOsState
+id: 0f7b4d5e-6a8c-7b1d-2e9f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects creation of a Registry Run key entry containing GatherOsState, consistent with
+    UAT-11587 Antino backdoor add_to_run persistence command that creates an HKCU Run value
+    to launch the sideloading host on user sign-in.
+references:
+    - https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/
+author: Actioner
+date: 2026-10-01
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run\'
+        Details|contains: 'GatherOsState'
+    condition: selection
+falsepositives:
+    - Legitimate Windows ADK tools configured to start at logon (unlikely via Run key)
+level: high
+```
+
+### Snort: UAT-11587 Antino Tracking Beacon and Fake Installer Download
+
+Detects outbound HTTP traffic containing the Antino tracking beacon hostname or the known fake Flash installer download URI.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: snort -c /etc/snort/snort.conf -R exit 0 (pidfile suffix warning is cosmetic, not a rule error). Two rules: (1) tracking beacon hostname oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev; (2) fake installer URI path. Both are IOC-specific, low FP. -->
+```snort
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Tracking Beacon to Cloudflare Pages"; flow:established,to_server; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid"; nocase; content:".pages.dev"; nocase; distance:0; within:15; content:"?track"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download"; flow:established,to_server; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; sid:2100102; rev:1; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/;)
+```
+
+### Suricata: UAT-11587 Antino DNS and HTTP IOCs
+
+Detects DNS queries for the Antino tracking beacon domain, known C2 delivery domains (microsoft-flash[.]com, wps-cn[.]com), and the fake installer download URI.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: suricata -T -S exit 0. Four rules targeting distinct IOCs: tracking beacon DNS, two delivery domain DNS queries, and the fake installer HTTP URI. All IOC-specific, high precision. -->
+```suricata
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino Tracking Beacon DNS Query"; flow:to_server; dns.query; content:"oisadjfoinsiduhfnoisdnfosdnoifnsoid.pages.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200101; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain microsoft-flash"; flow:to_server; dns.query; content:"microsoft-flash.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200102; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - UAT-11587 Antino C2 Domain wps-cn"; flow:to_server; dns.query; content:"wps-cn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200103; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-11587 Antino Fake Flash Installer Download URI"; flow:established,to_server; http.uri; content:"/download/flashcenter_pp_ax_install_en.exe"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/; metadata:author Actioner, created_at 2026-10-01; sid:2200104; rev:1;)
+```
+
+### YARA: Antino Rust Backdoor and TestAssembly Downloader
+
+Detects the Antino Rust backdoor via distinctive PDB paths (`\antino\antino\target\`), application manifest string ("AntinoApp"), C2 path strings (`/antino/heartbeats/`), and the TestAssembly.dll GUID.
+**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+<!-- audit: yarac exit 0. yara positive test fired on constructed sample containing published PDB path + C2 path strings; negative (benign MZ with unrelated content) silent. Two rules: APT_UAT11587_Antino_Backdoor (keys on PDB paths, manifest + C2 paths, source paths + .cfg section, or TestAssembly GUID), APT_UAT11587_TestAssembly_Downloader (keys on GUID + file names). Strings sourced from Talos-published PDB paths and C2 folder names. -->
+```yara
+rule APT_UAT11587_Antino_Backdoor
+{
+    meta:
+        description = "Detects UAT-11587 Antino Rust backdoor via distinctive PDB paths, application manifest, and C2 path strings"
+        author = "Actioner"
+        date = "2026-10-01"
+        reference = "https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/"
+        hash = "09ef7c736bccfafefc44d9910d499173b88063b73b221fc0dc9e9105107e5cff"
+        severity = "critical"
+
+    strings:
+        $pdb1 = "\\antino\\antino\\target\\" ascii
+        $pdb2 = "slc_template.pdb" ascii
+        $pdb3 = "antino_client_template.pdb" ascii
+
+        $manifest = "AntinoApp" ascii wide
+
+        $c2path1 = "/antino/heartbeats/" ascii
+        $c2path2 = "antino_downloads" ascii
+        $c2path3 = "antino_uploads" ascii
+
+        $cmd1 = "command_req_" ascii
+        $cmd2 = "command_res_" ascii
+
+        $src1 = "artillery\\run.rs" ascii
+        $src2 = "signaller\\mod.rs" ascii
+
+        $cfg_section = ".cfg" ascii fullword
+
+        $guid = "b2b3adb0-1669-4b94-86cb-6dd682ddbea3" ascii nocase
+
+    condition:
+        uint16(0) == 0x5A4D and
+        filesize < 15MB and
+        (
+            any of ($pdb*) or
+            ($manifest and 2 of ($c2path*)) or
+            (3 of ($c2path*, $cmd*)) or
+            (any of ($src*) and $cfg_section) or
+            $guid
+        )
+}
+
+rule APT_UAT11587_TestAssembly_Downloader
+{
+    meta:
+        description = "Detects UAT-11587 TestAssembly.dll .NET downloader used in Stage 4 of the Antino infection chain"
+        author = "Actioner"
+        date = "2026-10-01"
+        reference = "https://blog.talosintelligence.com/china-nexus-uat-11587-targets-government-and-policy-organizations-across-asia-with-antino-backdoor/"
+        hash = "d753a615aedf8e58ffc75b2b7ebd320c0cbe6bcb5cbb885db749a2a85c55d3bf"
+        severity = "high"
+
+    strings:
+        $guid = "b2b3adb0-1669-4b94-86cb-6dd682ddbea3" ascii nocase
+        $name = "TestAssembly" ascii wide
+        $path1 = "GatherOsState.exe" ascii wide
+        $path2 = "slc.dll" ascii wide
+        $path3 = "Windows GatherOSStateKit" ascii wide
+
+    condition:
+        uint16(0) == 0x5A4D and
+        filesize < 1MB and
+        $guid and
+        ($name or 2 of ($path*))
+}
+```
 
 ## Lessons Learned
 
