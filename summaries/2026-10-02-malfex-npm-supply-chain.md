@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-02
-Version: DRAFT 0.1
+Version: 1.0
 
 ## Executive Summary
 
@@ -26,7 +26,7 @@ npm (Node Package Manager) is the world's largest software registry, serving ove
 
 ## Root Cause: Malicious npm postinstall Scripts
 
-Initial access occurs when a developer installs one of the seven MALFEX packages. The `postinstall` lifecycle script in each package executes immediately after installation, requiring no user interaction beyond `npm install`. The packages use dependency chains (e.g., `function-color` pulls `function-flag` as a dependency) to extend reach. Once the postinstall hook fires, it downloads a PNG polyglot file from GitHub (`raw.githubusercontent.com/cavecrew/proj`) or `api.imghippo.com`, extracts an encrypted payload appended after the PNG IEND marker, decrypts it, and executes the resulting Windows binary.
+Initial access occurs when a developer installs one of the seven MALFEX packages. The `postinstall` lifecycle script in each package executes immediately after installation, requiring no user interaction beyond `npm install`. The packages use dependency chains (e.g., `function-color` pulls `function-flag` as a dependency) to extend reach. Once the postinstall hook fires, it downloads a PNG polyglot file from GitHub (`raw.githubusercontent[.]com/cavecrew/proj`) or `api.imghippo[.]com`, extracts an encrypted payload appended after the PNG IEND marker, decrypts it, and executes the resulting Windows binary.
 
 ## Technical Analysis of the Malicious Payload
 
@@ -46,7 +46,7 @@ Seven malicious packages have been identified across multiple npm publisher acco
 
 The postinstall scripts use two distinct decryption approaches:
 - **Arm A (Overlord RAT):** Downloads a Windows PE disguised as PNG from `api.imghippo.com`, then uses an IExpress cabinet containing a signed AutoIt3 interpreter that loads EA06-encrypted `.a3x` scripts. String obfuscation uses cycled-XOR; RC4 key `8448433`; LZNT1 compression.
-- **Arm B (movinlike stealer):** Dependencies fetch a PNG polyglot from `raw.githubusercontent.com/cavecrew/proj`, decrypt the payload using AES-256-CBC with key derived from `nif-runtime-2027` (img-to-native) or `malfexteam2027` (other packages), then fetch a 64 MB Node.js bundle from `104.234.65[.]75:700`.
+- **Arm B (movinlike stealer):** Dependencies fetch a PNG polyglot from `raw.githubusercontent[.]com/cavecrew/proj`, decrypt the payload using AES-256-CBC with key derived from `nif-runtime-2027` (img-to-native) or `malfexteam2027` (other packages), then fetch a 64 MB Node.js bundle from `104.234.65[.]75:700`.
 
 ### 2. Overlord RAT (Arm A)
 
@@ -65,7 +65,7 @@ The loader chain for Overlord is: `postinstall script` -> `PNG polyglot download
 
 | Component | Infrastructure | Purpose |
 |-----------|---------------|---------|
-| Payload hosting | `raw.githubusercontent.com/cavecrew/proj` | PNG polyglot delivery |
+| Payload hosting | `raw.githubusercontent[.]com/cavecrew/proj` | PNG polyglot delivery |
 | Payload hosting | `api.imghippo[.]com` | PE disguised as image/png |
 | Stealer bundle | `104.234.65[.]75:700` | 64 MB movinlike Node.js bundle |
 | Exfiltration | Discord webhook (live, URL undisclosed) | Stolen credential exfiltration |
@@ -154,7 +154,7 @@ The movinlike stealer is a large Node.js bundle (~64 MB) that performs:
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Maiden scheduled task for persistence |
 | T1608.001 | Stage Capabilities: Upload Malware | Payloads hosted on GitHub and imghippo |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP/HTTPS used for C2 and exfiltration |
-| T1567.004 | Exfiltration Over Web Service: Exfiltration to Code Repository | Discord webhook used for data exfiltration |
+| T1567 | Exfiltration Over Web Service | Discord webhook used for data exfiltration |
 | T1539 | Steal Web Session Cookie | Browser cookie and session token theft |
 | T1528 | Steal Application Access Token | Discord authentication token theft |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Chromium Login Data, Cookies, Web Data extraction |
@@ -187,10 +187,11 @@ dir /s /b "%TEMP%\gldriver_pre_core.exe" "%TEMP%\gldriver_pre_asset.exe" 2>nul
 ### Remediation
 
 1. **Containment:** Immediately isolate any system that has installed one of the seven MALFEX packages. Disconnect from network.
-2. **Eradication:** Remove the scheduled task `\Maiden`. Delete `%LOCALAPPDATA%\ScopeSmart Technologies Inc\` and `%LOCALAPPDATA%\Programs\NodeRuntime\` directories. Remove the malicious npm packages.
-3. **Credential Rotation:** Rotate ALL credentials and tokens accessible from the compromised system, including: Discord tokens, browser-saved passwords, cryptocurrency wallet keys, Telegram sessions, SSH keys, API keys, cloud credentials, and CI/CD secrets.
-4. **Audit npm Dependencies:** Run `npm audit` and review all postinstall scripts in dependencies. Consider using `--ignore-scripts` for untrusted packages.
-5. **Monitor Exfiltration:** Review proxy/firewall logs for connections to `104.234.65[.]75:700` and Discord webhook POST requests originating from server infrastructure.
+2. **Eradication (preferred -- reimage):** Full reimaging of the compromised system is the recommended response. The dual-payload architecture (persistent RAT + credential stealer) means the system has been under full remote access and all local secrets should be considered exfiltrated. Reimaging eliminates any unknown persistence mechanisms.
+3. **Eradication (fallback -- file-level cleanup):** If reimaging is not immediately feasible, remove the scheduled task `\Maiden`. Delete `%LOCALAPPDATA%\ScopeSmart Technologies Inc\` and `%LOCALAPPDATA%\Programs\NodeRuntime\` directories. Remove the malicious npm packages. Note: file-level cleanup may miss undocumented persistence mechanisms deployed via the RAT.
+4. **Credential Rotation:** Rotate ALL credentials and tokens accessible from the compromised system, including: Discord tokens, browser-saved passwords, cryptocurrency wallet keys, Telegram sessions, SSH keys, API keys, cloud credentials, and CI/CD secrets.
+5. **Audit npm Dependencies:** Run `npm audit` and review all postinstall scripts in dependencies. Consider using `--ignore-scripts` for untrusted packages.
+6. **Monitor Exfiltration:** Review proxy/firewall logs for connections to `104.234.65[.]75:700` and Discord webhook POST requests originating from server infrastructure.
 
 ### Long-Term Hardening
 
@@ -202,7 +203,7 @@ dir /s /b "%TEMP%\gldriver_pre_core.exe" "%TEMP%\gldriver_pre_asset.exe" 2>nul
 
 ## Detection Rules
 
-The following detection rules cover the MALFEX campaign's key stages: payload delivery, dropper execution, persistence, C2 communication, and exfiltration. Rules use real (non-defanged) IOC values as required for detection. The Discord webhook Suricata rule (sid:2200003) has the highest false-positive risk since legitimate applications also use Discord webhooks -- scope it to server/CI infrastructure rather than developer desktops.
+The following detection rules cover the MALFEX campaign's key stages: payload delivery, dropper execution, persistence, and C2 communication. Rules use real (non-defanged) IOC values as required for detection. The imghippo rules (sid:2200004, sid:2200005) target a legitimate image hosting service abused by MALFEX -- see tuning guidance in each rule's notes.
 
 ### Sigma Rules
 
@@ -377,10 +378,10 @@ title: MALFEX PNG Polyglot Payload Fetch from GitHub cavecrew Repository
 id: 9974f8d8-d465-4ca9-861f-9f57847df573
 status: experimental
 description: >
-    Detects DNS queries to raw.githubusercontent.com followed by or
-    correlated with process creation that references the cavecrew/proj
-    repository path, used by MALFEX to host PNG polyglot payloads
-    containing encrypted executables.
+    Detects proxy or web-gateway log entries where the request URI
+    contains raw.githubusercontent.com/cavecrew/proj, used by
+    MALFEX to host PNG polyglot payloads containing encrypted
+    executables. Matches on the proxy category c-uri field.
 references:
     - https://hackread.com/malfex-npm-windows-rat-steals-discord-browser-data/
     - https://www.cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign
@@ -470,16 +471,19 @@ rule MALFEX_Overlord_RAT_Strings
         $rat2 = "screenshot" ascii nocase
         $rat3 = "remoteshell" ascii nocase
         $rat4 = "webcam" ascii nocase
-        $rat5 = "desktop" ascii nocase
         $ws1 = "websocket" ascii nocase
         $ws2 = "gorilla/websocket" ascii
+        $malfex1 = "ScopeSmart" ascii wide
+        $malfex2 = "malfexteam2027" ascii
+        $malfex3 = "cavecrew" ascii
 
     condition:
         filesize < 100MB and
         $go_build and
         (1 of ($sol*)) and
         (2 of ($rat*)) and
-        (1 of ($ws*))
+        (1 of ($ws*)) and
+        (1 of ($malfex*))
 }
 ```
 
@@ -490,7 +494,7 @@ rule MALFEX_Overlord_RAT_Strings
 Detects the IExpress-packaged AutoIt3 loader with MALFEX-specific artifacts.
 
 - Compile: yarac pass
-- Confidence: high
+- Confidence: medium (AutoIt + .a3x is common in legitimate installers; campaign-specific string anchors required)
 
 ```yara
 rule MALFEX_AutoIt_Loader_IExpress
@@ -513,8 +517,10 @@ rule MALFEX_AutoIt_Loader_IExpress
     condition:
         ($mz at 0 or $cab at 0) and
         filesize < 50MB and
-        $autoit and
-        (1 of ($a3x_magic, $scope, $key1))
+        (
+            ($autoit and ($scope or $key1)) or
+            ($autoit and $a3x_magic and ($scope or $key1))
+        )
 }
 ```
 
@@ -564,17 +570,17 @@ rule MALFEX_NPM_Postinstall_Script
 Detects the credential stealer by combination of Discord, browser, and Telegram targeting strings.
 
 - Compile: yarac pass
-- Confidence: medium (browser credential path strings are common in both malware and legitimate tools)
+- Confidence: low (browser credential path strings are common in both malware and legitimate tools; without a MALFEX-unique anchor this rule matches generic Node.js stealers with similar capabilities)
 
 ```yara
 rule MALFEX_movinlike_Stealer_Bundle
 {
     meta:
-        description = "Detects the movinlike Node.js credential stealer bundle deployed by MALFEX campaign targeting Discord tokens, browser credentials, and Telegram sessions"
+        description = "Detects Node.js credential stealer bundles with characteristics matching the movinlike stealer deployed by the MALFEX campaign. Note: this rule may also match other Node.js stealers with similar Discord/browser/Telegram targeting."
         author = "Actioner"
         date = "2026-10-02"
         reference = "https://www.cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $discord1 = "discord" ascii nocase
@@ -587,6 +593,9 @@ rule MALFEX_movinlike_Stealer_Bundle
         $tg = "tdata" ascii
         $crypto1 = "wallet" ascii nocase
         $node = "node_modules" ascii
+        $malfex1 = "malfexteam2027" ascii
+        $malfex2 = "movinlike" ascii
+        $c2 = "104.234.65.75" ascii
 
     condition:
         filesize < 100MB and
@@ -594,7 +603,8 @@ rule MALFEX_movinlike_Stealer_Bundle
         (1 of ($discord*)) and
         (1 of ($token*)) and
         (2 of ($browser*)) and
-        ($tg or $crypto1)
+        ($tg or $crypto1) and
+        (1 of ($malfex*) or $c2)
 }
 ```
 
@@ -611,7 +621,7 @@ Detects the specific malicious img-to-native package by unique string combinatio
 rule MALFEX_img_to_native_Package
 {
     meta:
-        description = "Detects known malicious img-to-native npm package files by SHA256 hash, part of the MALFEX supply-chain campaign"
+        description = "Detects known malicious img-to-native npm package files by string combination (package name + key-derivation constant), part of the MALFEX supply-chain campaign"
         author = "Actioner"
         date = "2026-10-02"
         reference = "https://osv.dev/vulnerability/MAL-2026-17216"
@@ -661,54 +671,43 @@ alert tcp $HOME_NET any -> 104.234.65.75 700 (msg:"Actioner - MALFEX movinlike S
 
 <!-- AUDIT: Suricata sid:2200002. suricata -T pass. IP and port from CloudSEK report. Real IP used. -->
 
-#### 3. Discord Webhook Exfiltration
-
-Detects HTTP POST requests to Discord webhook API used for data exfiltration.
-
-- Compile: suricata -T pass
-- Confidence: medium (Discord webhooks are used by legitimate applications; scope to server infrastructure)
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - MALFEX Exfiltration via Discord Webhook"; flow:established,to_server; http.method; content:"POST"; http.host; content:"discordapp.com"; http.uri; content:"/api/webhooks/"; fast_pattern; classtype:trojan-activity; reference:url,cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign; metadata:author Actioner, created_at 2026-10-02, campaign MALFEX; sid:2200003; rev:1;)
-```
-
-<!-- AUDIT: Suricata sid:2200003. suricata -T pass. Scope to server/CI networks to reduce FPs from legitimate Discord bot integrations. -->
-
-#### 4. imghippo Payload Hosting Request
+#### 3. imghippo Payload Hosting Request
 
 Detects HTTP requests to api.imghippo.com for PNG-disguised PE download.
 
 - Compile: suricata -T pass
-- Confidence: high
+- Confidence: medium
+- **Caveat:** api.imghippo.com is a legitimate image hosting service. This rule will fire on any .png fetch from that API. Deploy with suppression for known legitimate users or scope to high-risk network segments. Investigate hits by checking whether the downloaded PNG contains appended data after the IEND marker.
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - MALFEX PE Disguised as PNG Fetched from imghippo Hosting"; flow:established,to_server; http.host; content:"api.imghippo.com"; fast_pattern; http.uri; content:".png"; endswith; classtype:trojan-activity; reference:url,cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign; metadata:author Actioner, created_at 2026-10-02, campaign MALFEX; sid:2200004; rev:1;)
 ```
 
-<!-- AUDIT: Suricata sid:2200004. suricata -T pass. Initial version mixed request/response direction buffers; fixed to request-only. imghippo.com is a legitimate image host abused by MALFEX. -->
+<!-- AUDIT: Suricata sid:2200004. suricata -T pass. imghippo.com is a legitimate image host abused by MALFEX. Confidence lowered to medium due to FP risk on legitimate traffic. -->
 
-#### 5. imghippo DNS Query
+#### 4. imghippo DNS Query
 
 Detects DNS queries to the payload hosting domain.
 
 - Compile: suricata -T pass
-- Confidence: high
+- Confidence: medium
+- **Tuning:** api.imghippo.com is a legitimate image hosting service. Suppress by source IP for known legitimate users (e.g., `suppress gen_id 1, sig_id 2200005, track by_src, ip <legitimate_user_ip>`). Consider deploying only in segments where image hosting traffic is unexpected.
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - MALFEX DNS Query to imghippo Payload Hosting"; dns.query; content:"api.imghippo.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign; metadata:author Actioner, created_at 2026-10-02, campaign MALFEX; sid:2200005; rev:1;)
 ```
 
-<!-- AUDIT: Suricata sid:2200005. suricata -T pass. DNS query for payload hosting domain. May generate FPs if organization legitimately uses imghippo -- tune with suppression if needed. -->
+<!-- AUDIT: Suricata sid:2200005. suricata -T pass. DNS query for payload hosting domain. Confidence lowered to medium -- api.imghippo.com is a legitimate service. Tuning guidance added for suppression by src IP. -->
 
 ### Snort 3 Rules (Structural Check Only -- snort not installed)
 
 #### 1. GitHub cavecrew Payload Fetch
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - MALFEX PNG Polyglot Payload Fetch from GitHub cavecrew Repository"; flow:established, to_server; http_uri; content:"/cavecrew/proj", fast_pattern; http_header; field host; content:"raw.githubusercontent.com"; classtype:trojan-activity; reference:url,hackread.com/malfex-npm-windows-rat-steals-discord-browser-data/; metadata:author Actioner, created 2026-10-02, campaign MALFEX; sid:2200101; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - MALFEX PNG Polyglot Payload Fetch from GitHub cavecrew Repository"; flow:established, to_server; http_uri; content:"/cavecrew/proj", fast_pattern; http_host; content:"raw.githubusercontent.com"; classtype:trojan-activity; reference:url,hackread.com/malfex-npm-windows-rat-steals-discord-browser-data/; metadata:author Actioner, created 2026-10-02, campaign MALFEX; sid:2200101; rev:1;)
 ```
 
-<!-- AUDIT: Snort 3 sid:2200101. Structural check only (snort not installed). Uses underscore sticky buffers per Snort 3 syntax. http_header with field host replaces Suricata's http.host. -->
+<!-- AUDIT: Snort 3 sid:2200101. Structural check only (snort not installed). Uses http_host sticky buffer per Snort 3 syntax. -->
 
 #### 2. movinlike C2 Connection
 
@@ -717,14 +716,6 @@ alert tcp $HOME_NET any -> 104.234.65.75 700 (msg:"Actioner - MALFEX movinlike S
 ```
 
 <!-- AUDIT: Snort 3 sid:2200102. Structural check only. IP-based rule with port constraint. -->
-
-#### 3. Discord Webhook Exfiltration
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - MALFEX Exfiltration via Discord Webhook"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/api/webhooks/", fast_pattern; http_header; field host; content:"discordapp.com"; classtype:trojan-activity; reference:url,cloudsek.com/blog/malfex-malicious-npm-postinstall-supply-chain-campaign; metadata:author Actioner, created 2026-10-02, campaign MALFEX; sid:2200103; rev:1;)
-```
-
-<!-- AUDIT: Snort 3 sid:2200103. Structural check only. Same FP caveat as Suricata sid:2200003. -->
 
 ## Lessons Learned
 
