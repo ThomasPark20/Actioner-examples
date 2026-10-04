@@ -1,0 +1,27 @@
+title: CloudSyncD Backdoor File Artifacts
+id: 5d3f8a12-7c4b-49e1-b6d2-3e8a1f5c7d90
+status: experimental
+description: Detects creation of files associated with the CloudSyncD macOS backdoor including the working directory structure, credential storage file, and privilege escalation scripts.
+references:
+    - https://www.jamf.com/blog/cloudsyncd-macos-backdoor-fake-zoom-installer/
+    - https://securityaffairs.com/200293/malware/fake-zoom-installer-hides-macos-backdoor-cloudsyncd.html
+author: Actioner CTI
+date: 2026-10-04
+tags:
+    - attack.t1036.005
+    - attack.t1140
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_workdir:
+        TargetFilename|contains: '/.local/share/cloudsync/.config/logs/'
+    selection_credential_file:
+        TargetFilename|endswith: '/.config/zoom/data.json'
+    selection_temp_script:
+        TargetFilename|contains: '.app_swap_'
+        TargetFilename|endswith: '.sh'
+    condition: selection_workdir or selection_credential_file or selection_temp_script
+falsepositives:
+    - Legitimate Zoom configuration files (unlikely to use .config/zoom/data.json path)
+level: medium

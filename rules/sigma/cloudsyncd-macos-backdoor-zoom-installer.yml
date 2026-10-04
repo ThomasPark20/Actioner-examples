@@ -1,0 +1,30 @@
+title: CloudSyncD Fake Zoom Installer Spawning Suspicious Child Processes
+id: 9a2c7e41-3b8f-4d5e-a1c6-8e7f2d9b0a34
+status: experimental
+description: Detects the CloudSyncD dropper masquerading as a Zoom installer spawning suspicious child processes including credential validation via dscl or privilege escalation via sudo.
+references:
+    - https://www.jamf.com/blog/cloudsyncd-macos-backdoor-fake-zoom-installer/
+    - https://hackread.com/cloudsyncd-macos-backdoor-fake-zoom-installer-passwords/
+author: Actioner CTI
+date: 2026-10-04
+tags:
+    - attack.t1204.002
+    - attack.t1548.003
+logsource:
+    category: process_creation
+    product: macos
+detection:
+    selection_parent:
+        ParentImage|endswith: '/app_installer'
+        ParentCommandLine|contains: 'Zoom'
+    selection_child:
+        Image|endswith:
+            - '/dscl'
+            - '/sudo'
+            - '/cloudsyncd'
+            - '/cshelper'
+            - '/main-arm64.out'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate Zoom installers that may invoke system utilities (unlikely to match this specific parent-child pattern)
+level: medium
