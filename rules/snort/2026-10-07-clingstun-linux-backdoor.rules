@@ -1,0 +1,14 @@
+# ClingSTUN Linux Backdoor - Snort 3 Detection Rules
+# Author: Actioner
+# Date: 2026-10-07
+# Reference: https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+
+# Rule 7: STUN Binding Request with Zeroed Transaction ID
+alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - ClingSTUN STUN Binding Request with Zeroed Transaction ID"; flow:to_server; content:"|00 01 00 00|", depth 4; content:"|21 12 A4 42|", distance 0, within 4; content:"|00 00 00 00 00 00 00 00 00 00 00 00|", distance 0, within 12; dsize:20; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created 2026-10-07; sid:2100010; rev:1;)
+
+# Rule 8: Known C2 Download Server Connection
+alert tcp $HOME_NET any -> [124.163.212.119,222.223.152.97,118.145.196.225] any (msg:"Actioner - ClingSTUN Connection to Known C2 Download Server"; flow:established, to_server; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created 2026-10-07; sid:2100011; rev:1;)
+
+# Rule 9: High-Frequency STUN Beaconing
+# WARNING: Will produce false positives in WebRTC/VoIP environments. Tune count/seconds thresholds or scope $HOME_NET to IoT segments.
+alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - High-Frequency STUN Binding Requests Potential ClingSTUN Beaconing"; flow:to_server; content:"|00 01|", depth 2; content:"|21 12 A4 42|", offset 4, depth 4; dsize:20; detection_filter:track by_src, count 10, seconds 60; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created 2026-10-07; sid:2100012; rev:1;)
