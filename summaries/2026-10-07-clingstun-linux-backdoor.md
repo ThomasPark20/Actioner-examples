@@ -9,7 +9,7 @@ Version: 1.0-DRAFT
 
 ClingSTUN is a Linux back-connect proxy backdoor that exploits 35+ known vulnerabilities in IoT devices -- routers, DVRs, cameras, and network appliances -- to turn them into remotely controlled proxy nodes. First observed on September 5, 2026, and publicly reported by Fortinet FortiGuard Labs on October 5, 2026, the malware is notable for its abuse of legitimate public STUN (Session Traversal Utilities for NAT) servers to mask command-and-control traffic as normal VoIP/WebRTC NAT traversal. ClingSTUN embeds operator commands within STUN transaction ID fields and spoofs responses from trusted infrastructure such as Google's STUN servers (stun.l.google.com), making network-level detection particularly challenging.
 
-The malware supports ARM, MIPS R3000, PowerPC, Intel 80386, and AMD x86-64 architectures. It includes seven hardcoded self-propagation exploits enabling worm-like spreading, disables hardware watchdog timers to prevent auto-reboots, hides itself by bind-mounting fake /proc entries over its own process metadata, and persists across reboots by modifying SysV/BusyBox init scripts. Its proxy and tunneling capabilities enable attackers to route traffic through compromised devices, and it has also been observed launching denial-of-service attacks.
+The malware supports ARM, MIPS R3000, PowerPC, Intel 80386, and AMD x86-64 architectures. It includes eight hardcoded self-propagation exploits enabling worm-like spreading, disables hardware watchdog timers to prevent auto-reboots, hides itself by bind-mounting fake /proc entries over its own process metadata, and persists across reboots by modifying SysV/BusyBox init scripts. Its proxy and tunneling capabilities enable attackers to route traffic through compromised devices, and it has also been observed launching denial-of-service attacks.
 
 ## Background: IoT Device Ecosystem and STUN Protocol
 
@@ -83,10 +83,10 @@ Of these, `145.249.115[.]184` is a modified/operator-controlled STUN server. Com
 - **Proxy setup/removal**: Dynamic proxy configuration
 - **Denial-of-service attacks**: Observed targets include `112.151.157[.]222:8080` (South Korean ISP), `192.170.240[.]137:53` (University of Chicago), `23.81.40[.]193:25565` and `147.185.221[.]129:25565` (Minecraft servers)
 - **Remote command execution**: Arbitrary command execution on infected devices
-- **Self-propagation**: Worm-like spreading using seven hardcoded exploits
+- **Self-propagation**: Worm-like spreading using eight hardcoded exploits
 - **Competitor elimination**: Scans for and kills competing malware processes
 
-**Self-propagation CVEs** (7 hardcoded):
+**Self-propagation CVEs** (8 hardcoded):
 - CVE-2014-8361 (Realtek SDK miniigd SOAP)
 - CVE-2016-20016 (MVPower CCTV DVR)
 - CVE-2016-10372 (Eir D1000 router)
@@ -286,18 +286,19 @@ level: critical
 
 #### 2. ClingSTUN Boot Script Persistence Modification
 
-Detects modification of SysV/BusyBox init scripts used by ClingSTUN for persistence.
+Detects modification of SysV/BusyBox init scripts containing `.cling` references, consistent with ClingSTUN persistence. Requires file integrity monitoring that captures changed content (e.g., auditd with `-w` rules or Sysmon for Linux file_change events with content logging).
 
-compile: `sigma convert` to Splunk/LogScale -- both passed | confidence: **high**
+compile: `sigma convert` to Splunk/LogScale -- both passed | confidence: **medium**
 
 ```yaml
-title: ClingSTUN Boot Script Persistence Modification
+title: ClingSTUN Boot Script Persistence Modification with Cling Reference
 id: 8b4f2e5c-0d3a-4f9b-c7e6-2a1f4d8b0c3e
 status: experimental
 description: >
-    Detects modification of SysV/BusyBox init scripts used by ClingSTUN for
-    persistence. The malware appends itself to /etc/inittab, /etc/init.d/rcS,
-    and /etc/rc.d/rc.boot to survive device reboots.
+    Detects modification of SysV/BusyBox init scripts that contain references
+    to the .cling binary, consistent with ClingSTUN persistence. The malware
+    appends entries referencing /root/.cling or /usr/local/bin/.cling to
+    /etc/inittab, /etc/init.d/rcS, and /etc/rc.d/rc.boot to survive reboots.
 references:
     - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
 author: Actioner
@@ -308,19 +309,21 @@ logsource:
     category: file_change
     product: linux
 detection:
-    selection:
+    selection_file:
         TargetFilename:
             - '/etc/inittab'
             - '/etc/init.d/rcS'
             - '/etc/rc.d/rc.boot'
-    condition: selection
+    selection_content:
+        Contents|contains: '.cling'
+    condition: selection_file and selection_content
 falsepositives:
-    - Legitimate system configuration changes by administrators
-    - Firmware updates modifying init scripts
+    - Legitimate system configuration changes referencing similarly named binaries
+    - If content-based matching is unavailable in your log source, fall back to file-modification-only detection with higher FP tolerance
 level: high
 ```
 
-<!-- audit: compile-status=passed. file_change logsource requires file integrity monitoring (e.g., auditd with -w rules or Sysmon for Linux). Will fire on any modification to these files, which is appropriate for IoT devices where admin changes are rare. Not defanged. -->
+<!-- audit: compile-status=passed. Added content-based filter for '.cling' to avoid firing on every init script modification (critic finding: altitude violation). Medium confidence because content-based file_change detection depends on FIM tool capabilities; not all FIM solutions expose file contents in logs. If content matching is unavailable, this rule will not fire. Not defanged. -->
 
 #### 3. ClingSTUN Process Hiding via Proc Bind Mount
 
@@ -363,7 +366,7 @@ level: high
 
 #### 4. ClingSTUN Watchdog Timer Disable
 
-Detects processes accessing watchdog device files, used by ClingSTUN to prevent auto-reboots.
+Detects processes accessing watchdog device files, used by ClingSTUN to prevent auto-reboots. Note: watchdog disabling is a general IoT malware indicator (also seen in Mirai variants), not exclusive to ClingSTUN; correlate with other ClingSTUN-specific rules for attribution.
 
 compile: `sigma convert` to Splunk/LogScale -- both passed | confidence: **medium**
 
@@ -691,7 +694,7 @@ rule Malware_ClingSTUN_Backdoor_Hashes : backdoor iot
 - [Fortinet FortiGuard Labs -- ClingSTUN Analysis](https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure) -- primary technical analysis by Vincent Li; source of all IOCs, CVE lists, and TTP details
 - [The Hacker News -- Realtek Jungle SDK Exploit Attempts Deliver Cling Botnet](https://thehackernews.com/2026/10/realtek-jungle-sdk-exploit-attempts.html) -- detailed technical reporting with C2 infrastructure, STUN server list, and exploitation CVEs
 - [SecurityAffairs -- ClingSTUN Linux Backdoor Abuses Public STUN Infrastructure](https://securityaffairs.com/200450/uncategorized/clingstun-linux-backdoor-abuses-public-stun-infrastructure.html) -- supplementary reporting on targeted vendors and capabilities
-- [CISA KEV -- CVE-2021-35394](https://sara-open.sirp.io/kev/CVE-2021-35394) -- Realtek Jungle SDK RCE vulnerability details and CVSS scoring
+- [NVD -- CVE-2021-35394](https://nvd.nist.gov/vuln/detail/CVE-2021-35394) -- Realtek Jungle SDK RCE vulnerability details; listed in CISA Known Exploited Vulnerabilities catalog
 
 ---
 *Report generated by Actioner*

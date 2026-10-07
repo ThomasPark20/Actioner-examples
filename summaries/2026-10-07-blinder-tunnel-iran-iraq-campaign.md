@@ -279,7 +279,7 @@ level: high
 **Blinder Tunnel - ShelbyLoader RuntimeBroker Persistence Registry Key**
 Detects creation of the MicrosoftRuntime registry run key pointing to the non-standard RuntimeBrokers path.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - ShelbyLoader RuntimeBroker Persistence Registry Key
@@ -303,10 +303,10 @@ detection:
         TargetObject|endswith: '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\MicrosoftRuntime'
     selection_value:
         Details|contains: '\RuntimeBrokers\RuntimeBroker.exe'
-    condition: selection_key or (selection_key and selection_value)
+    condition: selection_key and selection_value
 falsepositives:
     - Unlikely - MicrosoftRuntime is not a standard Windows run key value name
-level: critical
+level: high
 ```
 
 ---
@@ -314,7 +314,7 @@ level: critical
 **Blinder Tunnel - RuntimeBroker Execution from Non-Standard LocalAppData Path**
 Detects RuntimeBroker.exe running from LocalAppData instead of its legitimate System32 location.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - RuntimeBroker Execution from Non-Standard LocalAppData Path
@@ -336,12 +336,10 @@ logsource:
 detection:
     selection:
         Image|contains: '\AppData\Local\Microsoft\RuntimeBrokers\RuntimeBroker.exe'
-    filter_legitimate:
-        Image|contains: '\Windows\System32\RuntimeBroker.exe'
-    condition: selection and not filter_legitimate
+    condition: selection
 falsepositives:
     - Unlikely - RuntimeBroker.exe should only run from System32
-level: critical
+level: high
 ```
 
 ---
@@ -349,7 +347,7 @@ level: critical
 **Blinder Tunnel - GitHub API C2 Communication**
 Detects proxy log entries showing access to the peakyblinders-tm GitHub repositories used for C2.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - GitHub API C2 Communication
@@ -372,15 +370,14 @@ detection:
         c-uri|contains:
             - 'api.github.com/repos/peakyblinders-tm/myLic'
             - 'api.github.com/repos/peakyblinders-tm/pubs'
-            - 'api.github.com/search/issues'
     selection_file_patterns:
         c-uri|contains:
             - '/Lic.txt'
             - '/Inf.txt'
-    condition: selection_github_api or (selection_github_api and selection_file_patterns)
+    condition: selection_github_api and selection_file_patterns
 falsepositives:
     - Legitimate access to unrelated GitHub repositories with similar naming
-level: critical
+level: high
 ```
 
 ---
@@ -388,7 +385,7 @@ level: critical
 **Blinder Tunnel - DNS Query to Campaign Phishing Domains**
 Detects DNS resolution of the six known phishing domains impersonating Google services.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - DNS Query to Campaign Phishing Domains
@@ -418,7 +415,7 @@ detection:
     condition: selection
 falsepositives:
     - None expected
-level: critical
+level: high
 ```
 
 ---
@@ -463,7 +460,7 @@ level: high
 **Blinder Tunnel - Network Connection to Campaign C2 Infrastructure**
 Detects outbound connections to the four known C2 IP addresses used across campaign operations.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - Network Connection to Campaign C2 Infrastructure
@@ -491,7 +488,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate traffic to Hetzner or other hosting providers sharing these IPs (unlikely given specificity)
-level: critical
+level: high
 ```
 
 ---
@@ -499,7 +496,7 @@ level: critical
 **Blinder Tunnel - DLL Sideloading via Renamed vshost.exe**
 Detects loading of RuntimeBroker.dll from the campaign's non-standard staging directory.
 
-compile: `sigma convert` to Splunk/LogScale -- passed | confidence: critical
+compile: `sigma convert` to Splunk/LogScale -- passed | confidence: high
 
 ```yaml
 title: Blinder Tunnel - DLL Sideloading via Renamed vshost.exe
@@ -526,7 +523,7 @@ detection:
     condition: selection_dll and selection_path
 falsepositives:
     - None expected - legitimate RuntimeBroker components do not load DLLs from LocalAppData
-level: critical
+level: high
 ```
 
 ### YARA Rules
@@ -667,12 +664,12 @@ compile: structural check only | confidence: high
 ```
 alert tcp $HOME_NET any -> 91.107.156.29 any (msg:"Actioner - Blinder Tunnel Blackwood Chisel Tunnel to Known C2 IP"; flow:established, to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100103; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ```
 alert tcp $HOME_NET any -> 65.109.214.145 8080 (msg:"Actioner - Blinder Tunnel Blackwood C2 Backend on Port 8080"; flow:established, to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100104; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ### Suricata Rules
 
@@ -686,22 +683,22 @@ compile: structural check only | confidence: high
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - g-drive.cam"; flow:to_server; dns.query; content:"g-drive.cam"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100202; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - googeldrive.cam"; flow:to_server; dns.query; content:"googeldrive.cam"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100203; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ```
 alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - googelmeet.online"; flow:to_server; dns.query; content:"googelmeet.online"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100204; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ```
 alert tcp $HOME_NET any -> [91.107.156.29,65.109.214.145,87.248.129.239,38.180.136.127] any (msg:"Actioner - Blinder Tunnel Connection to Known C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100205; rev:1;)
 ```
-compile: structural check only | confidence: critical
+compile: structural check only | confidence: high
 
 ## Lessons Learned
 
