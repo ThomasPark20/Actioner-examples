@@ -1,0 +1,174 @@
+title: ClingSTUN Backdoor File Creation in Known Paths
+id: 7a3e1f4b-9c2d-4e8a-b6f5-1d0e3c7a9b2f
+status: experimental
+description: >
+    Detects creation of the ClingSTUN backdoor binary in its known installation
+    paths /root/.cling and /usr/local/bin/.cling, as reported by Fortinet
+    FortiGuard Labs analysis of the ClingSTUN Linux proxy backdoor.
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+    - https://thehackernews.com/2026/10/realtek-jungle-sdk-exploit-attempts.html
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1036.005
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/root/.cling'
+            - '/usr/local/bin/.cling'
+    condition: selection
+falsepositives:
+    - Unlikely; these paths are specific to ClingSTUN malware
+level: critical
+---
+title: ClingSTUN Boot Script Persistence Modification with Cling Reference
+id: 8b4f2e5c-0d3a-4f9b-c7e6-2a1f4d8b0c3e
+status: experimental
+description: >
+    Detects modification of SysV/BusyBox init scripts that contain references
+    to the .cling binary, consistent with ClingSTUN persistence. The malware
+    appends entries referencing /root/.cling or /usr/local/bin/.cling to
+    /etc/inittab, /etc/init.d/rcS, and /etc/rc.d/rc.boot to survive reboots.
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1037.004
+logsource:
+    category: file_change
+    product: linux
+detection:
+    selection_file:
+        TargetFilename:
+            - '/etc/inittab'
+            - '/etc/init.d/rcS'
+            - '/etc/rc.d/rc.boot'
+    selection_content:
+        Contents|contains: '.cling'
+    condition: selection_file and selection_content
+falsepositives:
+    - Legitimate system configuration changes referencing similarly named binaries
+    - If content-based matching is unavailable in your log source, fall back to file-modification-only detection with higher FP tolerance
+level: high
+---
+title: ClingSTUN Process Information Hiding via Proc Bind Mount
+id: 9c5e3f6d-1a4b-5e0c-d8f7-3b2e5a9c1d4f
+status: experimental
+description: >
+    Detects ClingSTUN evasion technique where the malware copies process
+    information from /proc/1/ to /tmp and bind-mounts /tmp over its own
+    /proc/<pid> directory to masquerade as PID 1 (init/systemd).
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1014
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'mount'
+            - '/tmp'
+            - '/proc/'
+    condition: selection
+falsepositives:
+    - Container runtime operations that bind-mount /proc
+    - Debugging or forensics workflows mounting proc entries
+level: high
+---
+title: ClingSTUN Watchdog Timer Disabling via Device Access
+id: 0d6a4e7f-2b5c-6f1d-e9a8-4c3f6b0d2e5a
+status: experimental
+description: >
+    Detects processes accessing /dev/watchdog or /dev/misc/watchdog device
+    files, which ClingSTUN opens and sends ioctl commands to disable the
+    hardware watchdog timer and prevent automatic device reboots.
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1562.001
+logsource:
+    product: linux
+    service: auditd
+detection:
+    selection:
+        type: 'SYSCALL'
+        syscall: 'openat'
+    selection_path:
+        type: 'PATH'
+        name:
+            - '/dev/watchdog'
+            - '/dev/misc/watchdog'
+    condition: selection and selection_path
+falsepositives:
+    - Legitimate watchdog management daemons (watchdog, systemd-watchdog)
+    - Embedded system firmware update processes
+level: medium
+---
+title: ClingSTUN Network Connection to Known C2 Infrastructure
+id: 1e7b5f8a-3c6d-7e2f-f0b9-5d4a7c1e3f6b
+status: experimental
+description: >
+    Detects outbound network connections to known ClingSTUN C2 download
+    servers and the modified STUN server used for command delivery, as
+    identified by Fortinet FortiGuard Labs.
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1071
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection:
+        DestinationIp:
+            - '124.163.212.119'
+            - '222.223.152.97'
+            - '118.145.196.225'
+            - '145.249.115.184'
+    condition: selection
+falsepositives:
+    - Unlikely; these are confirmed ClingSTUN infrastructure IPs
+level: critical
+---
+title: ClingSTUN Single Instance Mutex Activity on Port 33957
+id: 2f8c6a9b-4d7e-8f3a-a1c0-6e5b8d2f4a7c
+status: experimental
+description: >
+    Detects network connection events involving TCP port 33957, which
+    ClingSTUN uses as a single-instance mutex to prevent multiple copies
+    from running on the same infected device. The network_connection
+    logsource captures local listening/connection events including loopback
+    activity associated with this mutex port.
+references:
+    - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
+    - https://thehackernews.com/2026/10/realtek-jungle-sdk-exploit-attempts.html
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1036.005
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection:
+        DestinationPort: 33957
+    condition: selection
+falsepositives:
+    - Applications legitimately using port 33957
+level: high

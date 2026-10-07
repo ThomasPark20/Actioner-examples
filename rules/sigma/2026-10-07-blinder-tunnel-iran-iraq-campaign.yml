@@ -1,0 +1,221 @@
+title: Blinder Tunnel - Malicious csproj MSBuild GetFrameworkPaths Override
+id: 7a1c3e4f-8b2d-4f5a-9c6e-1d0f3a2b5c7d
+status: experimental
+description: >
+    Detects MSBuild executing a csproj file that overrides the GetFrameworkPaths
+    target, as used by the Blinder Tunnel campaign (CL-STA-1178) to deploy
+    ShelbyLoader V2 via trojanized Visual Studio projects.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1127
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_msbuild:
+        Image|endswith: '\MSBuild.exe'
+    selection_csproj:
+        CommandLine|endswith:
+            - '.csproj'
+            - '.csproj"'
+    selection_suspicious_names:
+        CommandLine|contains:
+            - 'FlightManager'
+            - 'DubaiAirport'
+            - 'Carrers_IT_Test'
+    condition: selection_msbuild and (selection_csproj and selection_suspicious_names)
+falsepositives:
+    - Legitimate builds of projects with similar naming patterns
+level: high
+---
+title: Blinder Tunnel - ShelbyLoader RuntimeBroker Persistence Registry Key
+id: 2b3d4e5f-6a7c-8b9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects creation of the MicrosoftRuntime registry run key used by the Blinder
+    Tunnel campaign (CL-STA-1178) ShelbyLoader V2 for persistence, pointing to a
+    RuntimeBroker.exe binary deployed in a non-standard LocalAppData path.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|endswith: '\SOFTWARE\Microsoft\Windows\CurrentVersion\Run\MicrosoftRuntime'
+    selection_value:
+        Details|contains: '\RuntimeBrokers\RuntimeBroker.exe'
+    condition: selection_key and selection_value
+falsepositives:
+    - Unlikely - MicrosoftRuntime is not a standard Windows run key value name
+level: high
+---
+title: Blinder Tunnel - RuntimeBroker Execution from Non-Standard LocalAppData Path
+id: 3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects RuntimeBroker.exe execution from the non-standard path
+    %LOCALAPPDATA%\Microsoft\RuntimeBrokers, as used by the Blinder Tunnel campaign
+    (CL-STA-1178). The legitimate RuntimeBroker.exe runs from System32.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains: '\AppData\Local\Microsoft\RuntimeBrokers\RuntimeBroker.exe'
+    condition: selection
+falsepositives:
+    - Unlikely - RuntimeBroker.exe should only run from System32
+level: high
+---
+title: Blinder Tunnel - GitHub API C2 Communication
+id: 4d5e6f7a-8b9c-0d1e-2f3a-4b5c6d7e8f9a
+status: experimental
+description: >
+    Detects network connections to the GitHub API endpoint used by the Blinder
+    Tunnel campaign (CL-STA-1178) ShelbyLoader V2 for C2 communication via the
+    peakyblinders-tm/myLic repository.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1102.001
+logsource:
+    category: proxy
+detection:
+    selection_github_api:
+        c-uri|contains:
+            - 'api.github.com/repos/peakyblinders-tm/myLic'
+            - 'api.github.com/repos/peakyblinders-tm/pubs'
+    selection_file_patterns:
+        c-uri|contains:
+            - '/Lic.txt'
+            - '/Inf.txt'
+    condition: selection_github_api and selection_file_patterns
+falsepositives:
+    - Legitimate access to unrelated GitHub repositories with similar naming
+level: high
+---
+title: Blinder Tunnel - DNS Query to Campaign Phishing Domains
+id: 5e6f7a8b-9c0d-1e2f-3a4b-5c6d7e8f9a0b
+status: experimental
+description: >
+    Detects DNS queries to phishing domains used by the Blinder Tunnel campaign
+    (CL-STA-1178) for credential harvesting, impersonating Google Drive and
+    Google Meet services.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1566.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName:
+            - 'cloud.g-drive.cam'
+            - 'googeldrive.cam'
+            - 'drivegoogel.cam'
+            - 'googelmeet.online'
+            - 'meetonline.cam'
+            - 'asdfafadafg.online'
+    condition: selection
+falsepositives:
+    - None expected
+level: high
+---
+title: Blinder Tunnel - AppDomainManager ETW Disablement via Config File
+id: 6f7a8b9c-0d1e-2f3a-4b5c-6d7e8f9a0b1c
+status: experimental
+description: >
+    Detects creation or modification of .exe.config files containing
+    etwEnable=false, as used by the Blinder Tunnel campaign (CL-STA-1178)
+    to disable Event Tracing for Windows during AppDomainManager hijacking.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1574.014
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|endswith:
+            - 'RuntimeBroker.exe.config'
+            - 'vshost32.exe.config'
+    selection_location:
+        TargetFilename|contains: '\AppData\Local\Microsoft\RuntimeBrokers'
+    condition: selection_path and selection_location
+falsepositives:
+    - Legitimate Visual Studio debugging configurations in non-standard paths
+level: high
+---
+title: Blinder Tunnel - Network Connection to Campaign C2 Infrastructure
+id: 7a8b9c0d-1e2f-3a4b-5c6d-7e8f9a0b1c2d
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses used by the Blinder
+    Tunnel campaign (CL-STA-1178) for Chisel tunneling, credential harvesting,
+    and Blackwood C2 communications.
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '91.107.156.29'
+            - '87.248.129.239'
+            - '65.109.214.145'
+            - '38.180.136.127'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to Hetzner or other hosting providers sharing these IPs (unlikely given specificity)
+level: high
+---
+title: Blinder Tunnel - DLL Sideloading via Renamed vshost.exe
+id: 8b9c0d1e-2f3a-4b5c-6d7e-8f9a0b1c2d3e
+status: experimental
+description: >
+    Detects loading of RuntimeBroker.dll alongside a renamed vshost.exe binary
+    from the non-standard RuntimeBrokers directory, indicating ShelbyLoader V2
+    DLL sideloading as used in the Blinder Tunnel campaign (CL-STA-1178).
+references:
+    - https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/
+author: Actioner
+date: 2026-10-07
+tags:
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_dll:
+        ImageLoaded|endswith: '\RuntimeBroker.dll'
+    selection_path:
+        ImageLoaded|contains: '\AppData\Local\Microsoft\RuntimeBrokers'
+    condition: selection_dll and selection_path
+falsepositives:
+    - None expected - legitimate RuntimeBroker components do not load DLLs from LocalAppData
+level: high
