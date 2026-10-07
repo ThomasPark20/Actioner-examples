@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-07
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -228,7 +228,7 @@ Get-DnsClientCache | Where-Object { $_.Entry -match 'g-drive\.cam|googeldrive\.c
 
 ## Detection Rules
 
-The rules below cover the Blinder Tunnel campaign's infection chain from initial delivery through persistence and C2 communication. All rules target specific, campaign-derived indicators at strict leniency. Network rules (Snort/Suricata) have not been compiled against a live engine and are structurally validated only.
+The rules below cover the Blinder Tunnel campaign's infection chain from initial delivery through persistence and C2 communication: 8 Sigma, 4 YARA, 4 Snort, and 8 Suricata rules targeting specific, campaign-derived indicators at strict leniency. Sigma rules passed `sigma convert --without-pipeline` to both Splunk and LogScale backends. YARA rules passed `yarac` compilation. Network rules (Snort/Suricata) have not been compiled against a live engine and are structurally validated only. Compiles does not mean fires -- verify in your pipeline.
 
 <!-- AUDIT: All Sigma rules passed sigma convert --without-pipeline to both Splunk and LogScale backends. YARA rules passed yarac compilation. Snort/Suricata rules passed structural validation (balanced parentheses, required fields present, correct protocol-buffer alignment). sigma check could not run due to proxy blocking MITRE ATT&CK data fetch, but convert success confirms syntactic validity. All detection values use real (non-defanged) indicators per logsource-encoding.md guidance. Field names match Sysmon/Windows schema conventions. -->
 
@@ -557,7 +557,7 @@ rule APT_CL_STA_1178_ShelbyLoader_V2 : BlinderTunnel
         date = "2026-10-07"
         reference = "https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/"
         hash = "53f35e49eb9b271fd8cbcd3daacb525328dbf159a03dbd1c7adebe0363daa402"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $gh_repo = "peakyblinders-tm/myLic" ascii wide
@@ -583,7 +583,7 @@ rule APT_CL_STA_1178_Blackwood_Tunneler : BlinderTunnel
         date = "2026-10-07"
         reference = "https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/"
         hash = "76273382e4252c1f60a2251141e108942494409c759358320735891762c0682e"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $passphrase = "y0Da+QH#pwSg38E?=8R;71-jQu8Tqq" ascii wide
@@ -652,22 +652,22 @@ rule APT_CL_STA_1178_Trojanized_CSProj : BlinderTunnel
 All Snort rules below are structurally validated only (balanced parentheses, required fields present, correct protocol-buffer alignment). They have not been compiled against a live Snort 3 engine.
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub API C2 to peakyblinders-tm Repo"; flow:established, to_server; http_uri; content:"/repos/peakyblinders-tm/", fast_pattern; content:"/contents/", distance 0; http_header; content:"Authorization"; content:"token github_pat_"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100101; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub API C2 to peakyblinders-tm Repo"; flow:established,to_server; http_uri; content:"/repos/peakyblinders-tm/"; fast_pattern; content:"/contents/"; distance:0; http_header; content:"Authorization"; content:"token github_pat_"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100101; rev:1;)
 ```
 compile: structural check only | confidence: high
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub Issues Search Fallback C2"; flow:established, to_server; http_uri; content:"/search/issues", fast_pattern; http_header; content:"Authorization"; content:"token github_pat_"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100102; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub Issues Search Fallback C2"; flow:established,to_server; http_uri; content:"/search/issues"; fast_pattern; http_header; content:"Authorization"; content:"token github_pat_"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100102; rev:1;)
 ```
 compile: structural check only | confidence: high
 
 ```
-alert tcp $HOME_NET any -> 91.107.156.29 any (msg:"Actioner - Blinder Tunnel Blackwood Chisel Tunnel to Known C2 IP"; flow:established, to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100103; rev:1;)
+alert tcp $HOME_NET any -> 91.107.156.29 any (msg:"Actioner - Blinder Tunnel Blackwood Chisel Tunnel to Known C2 IP"; flow:established,to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100103; rev:1;)
 ```
 compile: structural check only | confidence: high
 
 ```
-alert tcp $HOME_NET any -> 65.109.214.145 8080 (msg:"Actioner - Blinder Tunnel Blackwood C2 Backend on Port 8080"; flow:established, to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100104; rev:1;)
+alert tcp $HOME_NET any -> 65.109.214.145 8080 (msg:"Actioner - Blinder Tunnel Blackwood C2 Backend on Port 8080"; flow:established,to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created 2026-10-07, campaign BlinderTunnel; sid:2100104; rev:1;)
 ```
 compile: structural check only | confidence: high
 
@@ -676,7 +676,7 @@ compile: structural check only | confidence: high
 All Suricata rules below are structurally validated only (dot-notation buffers, balanced parentheses, required fields). They have not been compiled against a live Suricata engine.
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub API C2 to peakyblinders-tm Repo"; flow:established,to_server; http.uri; content:"/repos/peakyblinders-tm/"; fast_pattern; content:"/contents/"; distance 0; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Blinder Tunnel ShelbyLoader GitHub API C2 to peakyblinders-tm Repo"; flow:established,to_server; http.uri; content:"/repos/peakyblinders-tm/"; fast_pattern; content:"/contents/"; distance:0; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100201; rev:1;)
 ```
 compile: structural check only | confidence: high
 
@@ -696,6 +696,21 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Doma
 compile: structural check only | confidence: high
 
 ```
+alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - drivegoogel.cam"; flow:to_server; dns.query; content:"drivegoogel.cam"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100206; rev:1;)
+```
+compile: structural check only | confidence: high
+
+```
+alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - meetonline.cam"; flow:to_server; dns.query; content:"meetonline.cam"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100207; rev:1;)
+```
+compile: structural check only | confidence: high
+
+```
+alert dns $HOME_NET any -> any any (msg:"Actioner - Blinder Tunnel Phishing Domain - asdfafadafg.online"; flow:to_server; dns.query; content:"asdfafadafg.online"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100208; rev:1;)
+```
+compile: structural check only | confidence: high
+
+```
 alert tcp $HOME_NET any -> [91.107.156.29,65.109.214.145,87.248.129.239,38.180.136.127] any (msg:"Actioner - Blinder Tunnel Connection to Known C2 Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/; metadata:author Actioner, created_at 2026-10-07, campaign BlinderTunnel; sid:2100205; rev:1;)
 ```
 compile: structural check only | confidence: high
@@ -711,7 +726,7 @@ compile: structural check only | confidence: high
 ## Sources
 
 - [Unit 42 - Blinder Tunnel Targets Critical Infrastructure](https://unit42.paloaltonetworks.com/blinder-tunnel-targets-critical-infrastructure/) -- primary technical analysis with full IOC set, infection chain details, and attribution assessment
-- [Elastic Security Labs - The Shelby Strategy](https://www.elastic.co/security-labs/) -- prior analysis of related ShelbyLoader/ShelbyC2 tooling (predecessor campaign)
+- [Elastic Security Labs - The Shelby Strategy](https://www.elastic.co/security-labs/the-shelby-strategy) -- prior analysis of related ShelbyLoader/ShelbyC2 tooling (predecessor campaign)
 
 ---
 *Report generated by Actioner*

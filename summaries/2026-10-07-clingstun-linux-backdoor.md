@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-07
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -444,27 +444,29 @@ level: critical
 
 <!-- audit: compile-status=passed. IOC-based detection; high confidence but time-limited as infrastructure rotates. IPs are real (not defanged) per logsource-encoding.md requirement. -->
 
-#### 6. ClingSTUN Single-Instance Port Binding
+#### 6. ClingSTUN Single-Instance Port 33957 Activity
 
-Detects binding to TCP port 33957, used as a mutex by ClingSTUN.
+Detects network connections involving TCP port 33957, which ClingSTUN uses as a single-instance mutex to prevent duplicate execution.
 
 compile: `sigma convert` to Splunk/LogScale -- both passed | confidence: **high**
 
 ```yaml
-title: ClingSTUN Single Instance Check on Port 33957
+title: ClingSTUN Single Instance Mutex Activity on Port 33957
 id: 2f8c6a9b-4d7e-8f3a-a1c0-6e5b8d2f4a7c
 status: experimental
 description: >
-    Detects a process binding to TCP port 33957, which ClingSTUN uses as a
-    single-instance mutex to prevent multiple copies from running on the
-    same infected device.
+    Detects network connection events involving TCP port 33957, which
+    ClingSTUN uses as a single-instance mutex to prevent multiple copies
+    from running on the same infected device. The network_connection
+    logsource captures local listening/connection events including loopback
+    activity associated with this mutex port.
 references:
     - https://www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure
     - https://thehackernews.com/2026/10/realtek-jungle-sdk-exploit-attempts.html
 author: Actioner
 date: 2026-10-07
 tags:
-    - attack.t1071
+    - attack.t1036.005
 logsource:
     category: network_connection
     product: linux
@@ -477,7 +479,7 @@ falsepositives:
 level: high
 ```
 
-<!-- audit: compile-status=passed. Port-based detection; high confidence as 33957 is not a well-known port. Not defanged (numeric port). -->
+<!-- audit: compile-status=passed. Removed attack.t1071 (Application Layer Protocol) -- a local mutex port binding is not C2 traffic (critic finding). Replaced with attack.t1036.005 (Masquerading) as the mutex is part of ClingSTUN's operational deception. Fixed description to accurately describe what network_connection with DestinationPort detects (connection events involving the port, not bind() syscall directly). Port 33957 is not a well-known port, so FP risk is low. Not defanged (numeric port). -->
 
 ### Snort 3 Rules
 
@@ -507,7 +509,7 @@ compile: uncompiled (structural check only) | confidence: **high**
 
 #### 9. ClingSTUN High-Frequency STUN Beaconing
 
-Detects high-frequency minimal STUN binding requests consistent with ClingSTUN's 5-second polling interval.
+Detects high-frequency minimal STUN binding requests consistent with ClingSTUN's 5-second polling interval. Warning: will produce false positives in environments with heavy WebRTC/VoIP usage (e.g., video conferencing endpoints); tune `count`/`seconds` thresholds per deployment or scope to IoT network segments only.
 
 ```
 alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - High-Frequency STUN Binding Requests Potential ClingSTUN Beaconing"; flow:to_server; content:"|00 01|", depth 2; content:"|21 12 A4 42|", offset 4, depth 4; dsize:20; detection_filter:track by_src, count 10, seconds 60; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created 2026-10-07; sid:2100012; rev:1;)
@@ -515,7 +517,7 @@ alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - High-Frequency ST
 
 compile: uncompiled (structural check only) | confidence: **medium**
 
-<!-- audit: Behavioral detection via detection_filter threshold. 10 hits in 60 seconds matches ClingSTUN's 5-second beacon interval (~12 expected). May fire in heavy WebRTC environments; tune count/seconds thresholds per deployment. Structurally valid. -->
+<!-- audit: Behavioral detection via detection_filter threshold. 10 hits in 60 seconds matches ClingSTUN's 5-second beacon interval (~12 expected). WebRTC clients (browsers, video conferencing apps) routinely generate high-frequency STUN traffic that will trigger this rule. Deployment recommendation: restrict $HOME_NET to IoT/embedded segments that should not run WebRTC. Structurally valid. -->
 
 ### Suricata Rules
 
@@ -531,17 +533,17 @@ compile: uncompiled (structural check only) | confidence: **high**
 
 <!-- audit: Suricata syntax: colon after depth/distance/within (not comma), metadata uses created_at. Structurally valid. High confidence as zeroed 12-byte transaction ID in a 20-byte-only STUN request is highly anomalous. -->
 
-#### 11. ClingSTUN Command Delivery via Spoofed Google STUN
+#### 11. ClingSTUN Command Delivery via Spoofed Google STUN (Correlation Only)
 
-Detects potential ClingSTUN command delivery appearing as Google STUN server responses from 74.125.250.129.
+Detects STUN success responses from Google's STUN server IP (74.125.250.129). **Correlation-only -- do not use as a standalone alert.** This rule fires on ALL legitimate Google STUN responses and will produce near-100% false positives if used alone. Must be correlated with Rule 10 (zeroed transaction ID requests from the same source host) to identify ClingSTUN activity.
 
 ```
-alert udp 74.125.250.129 3478 -> $HOME_NET any (msg:"Actioner - Potential ClingSTUN Command via Spoofed Google STUN Response"; flow:to_client; content:"|01 01|"; depth:2; content:"|21 12 A4 42|"; offset:4; depth:4; dsize:>20; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created_at 2026-10-07; sid:2100021; rev:1;)
+alert udp 74.125.250.129 3478 -> $HOME_NET any (msg:"Actioner - STUN Response from Google STUN Server - Correlate with Zeroed TxID Rule 2100020"; flow:to_client; content:"|01 01|"; depth:2; content:"|21 12 A4 42|"; offset:4; depth:4; dsize:>20; classtype:policy-violation; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created_at 2026-10-07; sid:2100021; rev:2;)
 ```
 
-compile: uncompiled (structural check only) | confidence: **medium**
+compile: uncompiled (structural check only) | confidence: **low**
 
-<!-- audit: Detects STUN success responses (0x0101) from Google's STUN IP that are larger than standard. Medium confidence because legitimate STUN responses also come from this IP; correlate with zeroed-transaction-ID request rule for higher fidelity. Structurally valid. -->
+<!-- audit: CRITICAL FP issue (critic finding): original rule fired on ALL legitimate Google STUN responses, producing near-100% FP rate. ClingSTUN delivers commands in the STUN transaction ID field of responses from 74.125.250.129, but without a way to match the specific transaction ID content (which varies per command), the rule cannot distinguish malicious from legitimate responses. Downgraded: classtype changed from trojan-activity to policy-violation; confidence lowered from medium to low; title and description now explicitly mark as correlation-only; msg references the companion zeroed-TxID rule (sid 2100020) for correlation. Structurally valid. -->
 
 #### 12. ClingSTUN Known C2 Download Server (Suricata)
 
@@ -569,7 +571,7 @@ compile: uncompiled (structural check only) | confidence: **high**
 
 #### 14. ClingSTUN High-Frequency STUN Beaconing (Suricata)
 
-Detects high-frequency 20-byte STUN binding requests consistent with ClingSTUN's 5-second polling.
+Detects high-frequency 20-byte STUN binding requests consistent with ClingSTUN's 5-second polling. Warning: will produce false positives in environments with heavy WebRTC/VoIP usage; tune `count`/`seconds` thresholds per deployment or scope `$HOME_NET` to IoT segments only.
 
 ```
 alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - High-Frequency STUN Binding Requests Potential ClingSTUN Beaconing"; flow:to_server; content:"|00 01|"; depth:2; content:"|21 12 A4 42|"; offset:4; depth:4; dsize:20; threshold:type both, track by_src, count 10, seconds 60; classtype:trojan-activity; reference:url,www.fortinet.com/blog/threat-research/clingstun-linux-backdoor-abuses-public-stun-infrastructure; metadata:author Actioner, created_at 2026-10-07; sid:2100024; rev:1;)
@@ -577,7 +579,7 @@ alert udp $HOME_NET any -> $EXTERNAL_NET 3478 (msg:"Actioner - High-Frequency ST
 
 compile: uncompiled (structural check only) | confidence: **medium**
 
-<!-- audit: Behavioral threshold rule using Suricata's threshold syntax. May fire in WebRTC-heavy environments. Structurally valid. -->
+<!-- audit: Behavioral threshold rule using Suricata's threshold syntax. WebRTC clients (browsers, video conferencing apps) routinely generate high-frequency STUN traffic that will trigger this rule. Deployment recommendation: restrict $HOME_NET to IoT/embedded segments that should not run WebRTC, or add pass rules for known WebRTC endpoints. Structurally valid. -->
 
 ### YARA Rules
 
