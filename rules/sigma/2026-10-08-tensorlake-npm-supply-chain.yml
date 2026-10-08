@@ -1,0 +1,139 @@
+title: Tensorlake Shai-Hulud Preinstall Hook Execution via Node
+id: 7c3a1e8f-4b2d-4f6a-9e0c-1d5f8a3b7c2e
+status: experimental
+description: >
+    Detects node.js executing the Shai-Hulud dropper setup.mjs from
+    the tensorlake npm package preinstall hook during npm install.
+references:
+    - https://socket.dev/blog/tensorlake-compromise
+    - https://www.endorlabs.com/learn/tensorlake-npm-package-compromised-by-shai-hulud-in-latest-software-supply-chain-attack
+author: Actioner
+date: 2026-10-08
+tags:
+    - attack.t1059.007
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\npm.cmd'
+            - '\npx.cmd'
+            - '\node.exe'
+    selection_child:
+        Image|endswith: '\node.exe'
+        CommandLine|contains:
+            - 'lib/setup.mjs'
+            - 'lib\setup.mjs'
+    filter_known:
+        CommandLine|contains:
+            - 'node_modules\@angular'
+            - 'node_modules\@babel'
+    condition: selection_parent and selection_child and not filter_known
+falsepositives:
+    - Legitimate npm packages using lib/setup.mjs as a preinstall script
+level: medium
+---
+title: Bun Runtime Download by Node Process - Shai-Hulud Indicator
+id: 8d4b2f9a-5c3e-4a7b-be1d-2e6f9b4c8d3f
+status: experimental
+description: >
+    Detects a Node.js or npm process spawning curl/wget to download
+    the Bun runtime from GitHub releases, a behavior characteristic
+    of the Shai-Hulud worm dropper (setup.mjs).
+references:
+    - https://socket.dev/blog/tensorlake-compromise
+    - https://www.aikido.dev/blog/tensorlake-npm-package-compromised
+author: Actioner
+date: 2026-10-08
+tags:
+    - attack.t1105
+    - attack.t1059.007
+logsource:
+    category: process_creation
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/node'
+            - '/bun'
+            - '\node.exe'
+            - '\bun.exe'
+    selection_download:
+        Image|endswith:
+            - '/curl'
+            - '/wget'
+            - '\curl.exe'
+            - '\wget.exe'
+        CommandLine|contains: 'oven-sh/bun/releases'
+    condition: selection_parent and selection_download
+falsepositives:
+    - Developers intentionally installing Bun via curl from a Node script
+    - CI/CD pipelines that programmatically install Bun via Node.js
+level: medium
+---
+title: Shai-Hulud gh-token-monitor Persistence Installation
+id: 9e5c3a0b-6d4f-4b8c-cf2e-3f7a0c5d9e4a
+status: experimental
+description: >
+    Detects creation of gh-token-monitor persistence artifacts used
+    by the Shai-Hulud worm to maintain access and enforce its
+    dead-man's switch mechanism across Linux, macOS, and Windows.
+references:
+    - https://socket.dev/blog/tensorlake-compromise
+    - https://www.ox.security/blog/shai-hulud-here-we-go-again-tensorlake-npm-package-hit-with-malware/
+author: Actioner
+date: 2026-10-08
+tags:
+    - attack.t1053.005
+    - attack.t1543.001
+    - attack.t1543.002
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'gh-token-monitor.service'
+            - 'com.user.gh-token-monitor.plist'
+            - 'gh-token-monitor\monitor.ps1'
+            - 'gh-token-monitor/monitor.ps1'
+    condition: selection
+falsepositives:
+    - Legitimate GitHub CLI monitoring tools (very unlikely to use this exact naming)
+level: critical
+---
+title: Shai-Hulud EtherHiding C2 Resolution via Ethereum RPC
+id: af6d4b1c-7e5a-4c9d-d03f-4a8b1d6e0f5b
+status: experimental
+description: >
+    Detects DNS queries to Ethereum RPC endpoints used by the
+    Shai-Hulud worm to resolve its C2 domain via an on-chain
+    smart contract (EtherHiding technique).
+references:
+    - https://www.endorlabs.com/learn/tensorlake-npm-package-compromised-by-shai-hulud-in-latest-software-supply-chain-attack
+    - https://www.aikido.dev/blog/tensorlake-npm-package-compromised
+author: Actioner
+date: 2026-10-08
+tags:
+    - attack.t1102.001
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection_rpc:
+        QueryName|endswith:
+            - '.llamarpc.com'
+            - '.publicnode.com'
+            - '.nodereal.io'
+            - '.ankr.com'
+            - 'go.getblock.io'
+    selection_process:
+        Image|endswith:
+            - '/node'
+            - '/bun'
+            - '\node.exe'
+            - '\bun.exe'
+    condition: selection_rpc and selection_process
+falsepositives:
+    - Legitimate blockchain/Web3 applications querying Ethereum RPC endpoints from Node.js
+level: medium
