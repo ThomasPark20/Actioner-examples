@@ -243,7 +243,7 @@ Key intimidation strings:
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvests `.npmrc`, `.aws/credentials`, SSH keys, `.env` files, vault tokens |
 | T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | Probes AWS IMDS (169.254.169.254) and ECS task credential endpoints |
 | T1539 | Steal Web Session Cookie | HackBrowserData extracts browser cookies and session data |
-| T1568.002 | Dynamic Resolution: Domain Generation Algorithms | EtherHiding: resolves C2 via Ethereum smart contract query |
+| T1102.001 | Web Service: Dead Drop Resolver | EtherHiding: resolves C2 domain via Ethereum smart contract query (dead-drop resolver pattern) |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communications over HTTPS; data exfiltration via GitHub API |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Windows ONLOGON scheduled task for gh-token-monitor persistence |
 | T1543.001 | Create or Modify System Process: Launch Agent | macOS LaunchAgent for gh-token-monitor persistence |
@@ -331,10 +331,11 @@ The rules below cover the Tensorlake Shai-Hulud attack chain from initial droppe
 
 ### Sigma Rule 1: Tensorlake Shai-Hulud Preinstall Hook Execution
 
-Detects Node.js executing the `setup.mjs` dropper from an npm preinstall hook, the initial execution vector for this compromise.
-<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk and -t log_scale both succeed; sigma check fails on MITRE ATT&CK data fetch due to network restriction, not rule syntax). Targets Windows process_creation; Linux/macOS coverage requires Sysmon-for-Linux or auditd equivalent. The filter_known block reduces FPs from angular/babel which also use setup scripts. -->
+Detects Node.js executing the `lib/setup.mjs` dropper from an npm preinstall hook, the initial execution vector for this compromise.
+<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk and -t log_scale both succeed). Targets Windows process_creation; Linux/macOS coverage requires Sysmon-for-Linux or auditd equivalent. The filter_known block reduces FPs from angular/babel which also use setup scripts. -->
+<!-- revision: Tightened CommandLine from setup.mjs to lib/setup.mjs + lib\setup.mjs; dropped meaningless |contains|all (single item); downgraded confidence high->medium per FP surface from other npm packages with lib/setup.mjs. -->
 
-**Compile: pass (convert) | Confidence: high**
+**Compile: pass (convert) | Confidence: medium**
 
 ```yaml
 title: Tensorlake Shai-Hulud Preinstall Hook Execution via Node
@@ -362,24 +363,26 @@ detection:
             - '\node.exe'
     selection_child:
         Image|endswith: '\node.exe'
-        CommandLine|contains|all:
-            - 'setup.mjs'
+        CommandLine|contains:
+            - 'lib/setup.mjs'
+            - 'lib\setup.mjs'
     filter_known:
         CommandLine|contains:
             - 'node_modules\@angular'
             - 'node_modules\@babel'
     condition: selection_parent and selection_child and not filter_known
 falsepositives:
-    - Legitimate npm packages using setup.mjs as a preinstall script (rare)
-level: high
+    - Legitimate npm packages using lib/setup.mjs as a preinstall script
+level: medium
 ```
 
 ### Sigma Rule 2: Bun Runtime Download by Node Process
 
 Detects a Node.js process spawning curl/wget to download the Bun runtime from GitHub releases, characteristic of the Shai-Hulud dropper bootstrap sequence.
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk succeeds). Cross-platform logsource (no product specified). Low FP rate: developers typically install Bun via shell, not programmatically from a Node.js child process. -->
+<!-- revision: Downgraded confidence high->medium; CI/CD scripts that install Bun via Node exist. -->
 
-**Compile: pass (convert) | Confidence: high**
+**Compile: pass (convert) | Confidence: medium**
 
 ```yaml
 title: Bun Runtime Download by Node Process - Shai-Hulud Indicator
@@ -416,13 +419,15 @@ detection:
     condition: selection_parent and selection_download
 falsepositives:
     - Developers intentionally installing Bun via curl from a Node script
-level: high
+    - CI/CD pipelines that programmatically install Bun via Node.js
+level: medium
 ```
 
 ### Sigma Rule 3: Shai-Hulud gh-token-monitor Persistence
 
 Detects creation of `gh-token-monitor` persistence artifacts (systemd units, LaunchAgents, scheduled tasks) used by the Shai-Hulud worm's dead-man's switch.
-<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk and -t log_scale succeed). file_event category; requires Sysmon EventID 11 or equivalent. monitor.ps1 could FP in rare cases but the combination with gh-token-monitor naming is highly specific. -->
+<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk and -t log_scale succeed). file_event category; requires Sysmon EventID 11 or equivalent. -->
+<!-- revision: Tightened monitor.ps1 to gh-token-monitor\monitor.ps1 + gh-token-monitor/monitor.ps1 to reduce FP surface; added attack.t1543.002 (Systemd Service) tag since rule also detects systemd persistence artifact. -->
 
 **Compile: pass (convert) | Confidence: high**
 
@@ -442,15 +447,16 @@ date: 2026-10-08
 tags:
     - attack.t1053.005
     - attack.t1543.001
+    - attack.t1543.002
 logsource:
     category: file_event
 detection:
     selection:
         TargetFilename|contains:
-            - 'gh-token-monitor'
-            - 'com.user.gh-token-monitor.plist'
             - 'gh-token-monitor.service'
-            - 'monitor.ps1'
+            - 'com.user.gh-token-monitor.plist'
+            - 'gh-token-monitor\monitor.ps1'
+            - 'gh-token-monitor/monitor.ps1'
     condition: selection
 falsepositives:
     - Legitimate GitHub CLI monitoring tools (very unlikely to use this exact naming)
@@ -461,6 +467,7 @@ level: critical
 
 Detects DNS queries from Node.js or Bun processes to Ethereum RPC endpoints used by Shai-Hulud for on-chain C2 domain resolution.
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk succeeds). dns_query category requires Sysmon EventID 22. In Web3/blockchain development environments this rule WILL produce false positives and should be tuned by environment. Medium confidence due to legitimate use of these RPC endpoints in dapp development. -->
+<!-- revision: Corrected MITRE tag from T1568.002 (DGA) to T1102.001 (Dead Drop Resolver) — EtherHiding reads domain from blockchain contract, not DGA. Added .ankr.com to selection_rpc (was listed as IOC but missing from rule). -->
 
 **Compile: pass (convert) | Confidence: medium**
 
@@ -478,7 +485,7 @@ references:
 author: Actioner
 date: 2026-10-08
 tags:
-    - attack.t1568.002
+    - attack.t1102.001
     - attack.t1071.001
 logsource:
     category: dns_query
@@ -488,6 +495,7 @@ detection:
             - '.llamarpc.com'
             - '.publicnode.com'
             - '.nodereal.io'
+            - '.ankr.com'
             - 'go.getblock.io'
     selection_process:
         Image|endswith:
