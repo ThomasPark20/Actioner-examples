@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-08
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -577,17 +577,31 @@ rule Supply_Chain_ShaiHulud_Tensorlake_Dropper
 
 ### Suricata Rules: Shai-Hulud C2 and EtherHiding Detection
 
-Three rules covering DNS resolution of the primary C2 domain, Ethereum RPC queries used for EtherHiding, and HTTP requests containing the attacker's smart contract address.
-<!-- audit: compile-status=pass (suricata -T exit 0, "Configuration provided was successfully loaded"). Rule 2100010 targets the specific C2 domain (high confidence, disposable domain); 2100011 targets the Ethereum RPC endpoint used most frequently (medium confidence, legitimate service); 2100012 targets the contract address in HTTP POST bodies (high confidence, durable IOC). -->
+Two rules covering DNS resolution of the primary C2 domain and HTTP requests containing the attacker's smart contract address. SIDs 2100010-2100012 fall within the Emerging Threats reserved range; for production deployment, organizations should use their own SID allocation (e.g., 9000000+).
+<!-- audit: compile-status=pass (suricata -T exit 0, "Configuration provided was successfully loaded"). Rule 2100010 targets the specific C2 domain (high confidence, disposable domain); 2100012 targets the contract address in HTTP POST bodies (high confidence, durable IOC but requires TLS inspection). -->
+<!-- revision: Dropped Suricata 2100011 per critic — eth.llamarpc.com is a major public RPC endpoint; DNS-only detection without process context produces unacceptable FP rate at specific/strict altitude. -->
 
-**Compile: pass (suricata -T) | Confidence: high / medium / high**
+### Suricata Rule 2100010: C2 Domain DNS
 
+Detects DNS queries for the Shai-Hulud primary C2 domain `iseekaigogo.com`.
+<!-- audit: High confidence; disposable domain with no legitimate use. -->
+
+**Compile: pass (suricata -T) | Confidence: high**
+
+```suricata
+alert dns $HOME_NET any -> any any (msg:"Actioner - Shai-Hulud C2 Domain Resolution (iseekaigogo.com)"; flow:to_server; dns.query; content:"iseekaigogo.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/tensorlake-compromise; metadata:author Actioner, created_at 2026-10-08, mitre_attack T1102.001; sid:2100010; rev:1;)
 ```
-alert dns $HOME_NET any -> any any (msg:"Actioner - Shai-Hulud C2 Domain Resolution (iseekaigogo.com)"; flow:to_server; dns.query; content:"iseekaigogo.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/tensorlake-compromise; metadata:author Actioner, created_at 2026-10-08; sid:2100010; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - Shai-Hulud EtherHiding RPC Query from Node/Bun (eth.llamarpc.com)"; flow:to_server; dns.query; content:"eth.llamarpc.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.aikido.dev/blog/tensorlake-npm-package-compromised; metadata:author Actioner, created_at 2026-10-08; sid:2100011; rev:1;)
+### Suricata Rule 2100012: Ethereum Contract HTTP Query
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Shai-Hulud Ethereum Contract Query for C2 Resolution"; flow:established,to_server; http.request_body; content:"0xb614155Fd88114d40549b259457Bcf921Df091B9"; fast_pattern; classtype:trojan-activity; reference:url,www.endorlabs.com/learn/tensorlake-npm-package-compromised-by-shai-hulud-in-latest-software-supply-chain-attack; metadata:author Actioner, created_at 2026-10-08; sid:2100012; rev:1;)
+Detects HTTP POST requests containing the attacker's Ethereum smart contract address used for EtherHiding C2 resolution. Requires TLS inspection (MITM proxy / SSL termination) to be effective, since virtually all Ethereum RPC traffic is HTTPS.
+<!-- audit: High confidence where TLS inspection is deployed; contract address is a durable, unique IOC. -->
+<!-- revision: Added TLS inspection caveat; updated MITRE metadata from T1568.002 to T1102.001. -->
+
+**Compile: pass (suricata -T) | Confidence: high**
+
+```suricata
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Shai-Hulud Ethereum Contract Query for C2 Resolution"; flow:established,to_server; http.request_body; content:"0xb614155Fd88114d40549b259457Bcf921Df091B9"; fast_pattern; classtype:trojan-activity; reference:url,www.endorlabs.com/learn/tensorlake-npm-package-compromised-by-shai-hulud-in-latest-software-supply-chain-attack; metadata:author Actioner, created_at 2026-10-08, mitre_attack T1102.001; sid:2100012; rev:1;)
 ```
 
 ## Lessons Learned
