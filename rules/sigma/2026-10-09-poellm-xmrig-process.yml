@@ -20,7 +20,6 @@ detection:
     selection_image:
         Image|endswith:
             - '/xmrig'
-            - '/iron'
     selection_cmdline:
         CommandLine|contains:
             - 'xmrig'
@@ -32,4 +31,4 @@ detection:
     condition: selection_image or selection_cmdline
 falsepositives:
     - Authorized cryptocurrency mining operations (not expected on production AI servers)
-level: high
+level: medium

@@ -16,7 +16,6 @@ tags:
     - attack.t1071.001
 logsource:
     category: proxy
-    product: windows
 detection:
     selection_graph:
         c-uri|contains: 'graph.microsoft.com'

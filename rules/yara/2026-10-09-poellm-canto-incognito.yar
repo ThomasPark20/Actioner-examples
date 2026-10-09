@@ -5,7 +5,7 @@ rule PoeLLM_Libgcrypt_ELF
         author = "Actioner"
         date = "2026-10-09"
         reference = "https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/"
-        reference2 = "https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html"
+        reference = "https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html"
         tlp = "WHITE"
         severity = "high"
 
