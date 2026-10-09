@@ -1,0 +1,11 @@
+# Snort rules for Antino backdoor staging infrastructure
+# Reference: https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
+
+# Detect DNS query for Antino staging domain (d32tpl7xt7175h.cloudfront.net)
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE Antino Backdoor - DNS Query to CloudFront Staging Domain (d32tpl7xt7175h.cloudfront.net)"; content:"|01 00 00 01|"; offset:2; depth:4; content:"|0e|d32tpl7xt7175h|0a|cloudfront|03|net|00|"; nocase; sid:2026100901; rev:1; classtype:trojan-activity; metadata:affected_product Windows, attack_target Client_Endpoint, mitre_attack_id T1071, deployment Perimeter;)
+
+# Detect TLS SNI to Antino staging domain
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Antino Backdoor - TLS Connection to CloudFront Staging Domain"; flow:established,to_server; content:"|16 03|"; depth:2; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100902; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
+
+# Detect HTTP request to staging domain for payload download
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Antino Backdoor - HTTP GET to CloudFront Staging Domain"; flow:established,to_server; content:"GET"; http_method; content:"d32tpl7xt7175h.cloudfront.net"; http_header; sid:2026100903; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)

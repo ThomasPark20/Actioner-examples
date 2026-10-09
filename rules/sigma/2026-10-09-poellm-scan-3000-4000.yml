@@ -1,0 +1,28 @@
+title: PoeLLM Port Scanning on AI Infrastructure Ports 3000 and 4000 (Canto Incognito)
+id: b5d2f8e4-9c3a-4e7b-a024-6d9b1f3c8e5a
+status: experimental
+description: >
+    Detects outbound connection attempts to ports 3000 (Gotenberg) and 4000
+    (LiteLLM) from a single host, indicative of the PoeLLM malware scanning
+    for exposed AI and developer infrastructure as part of the Canto Incognito
+    botnet propagation mechanism.
+references:
+    - https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/
+    - https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html
+author: Actioner
+date: 2026/10/09
+tags:
+    - attack.discovery
+    - attack.t1046
+logsource:
+    category: firewall
+detection:
+    selection_port3000:
+        dst_port: 3000
+    selection_port4000:
+        dst_port: 4000
+    condition: selection_port3000 and selection_port4000
+falsepositives:
+    - Legitimate internal services using both ports 3000 and 4000 (e.g., development environments running Node.js and LiteLLM)
+    - Network vulnerability scanners
+level: medium

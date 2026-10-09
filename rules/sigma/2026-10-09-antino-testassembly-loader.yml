@@ -1,0 +1,25 @@
+title: Antino Backdoor - TestAssembly.dll .NET Deserialization Loader
+id: a59b4818-2e67-40e2-84c0-9f0a7fa71aef
+status: experimental
+description: >
+    Detects the loading or creation of TestAssembly.dll, used by UAT-11587
+    as a .NET deserialization loader to deploy the Antino backdoor and associated payloads.
+references:
+    - https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
+author: CTI Research Team
+date: 2026-10-09
+tags:
+    - attack.execution
+    - attack.t1204.002
+    - attack.defense_evasion
+    - attack.t1027
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|endswith: '\TestAssembly.dll'
+    condition: selection
+falsepositives:
+    - Development and testing environments using assemblies named TestAssembly.dll
+level: high

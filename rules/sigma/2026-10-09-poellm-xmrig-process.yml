@@ -1,0 +1,35 @@
+title: XMRig Cryptocurrency Miner Process Execution (PoeLLM)
+id: d7f4b0a6-1e5c-4a9d-c246-8fbd3b5ea0c7
+status: experimental
+description: >
+    Detects execution of XMRig or Iron cryptocurrency miner binaries on Linux
+    hosts, as deployed by the PoeLLM malware. The Canto Incognito botnet
+    installs these miners on compromised AI infrastructure servers.
+references:
+    - https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/
+    - https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html
+author: Actioner
+date: 2026/10/09
+tags:
+    - attack.impact
+    - attack.t1496
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_image:
+        Image|endswith:
+            - '/xmrig'
+            - '/iron'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'xmrig'
+            - '--coin monero'
+            - 'stratum+tcp://'
+            - 'stratum+ssl://'
+            - 'kryptex.org'
+            - 'kryptex.network'
+    condition: selection_image or selection_cmdline
+falsepositives:
+    - Authorized cryptocurrency mining operations (not expected on production AI servers)
+level: high
