@@ -1,0 +1,31 @@
+title: PoeLLM Malicious libgcrypt ELF Binary Execution (Canto Incognito)
+id: a4c1e7d3-8b2f-4d6e-9f13-5c8a0e2b7d4f
+status: experimental
+description: >
+    Detects execution of the malicious ELF binary named "libgcrypt" associated
+    with the PoeLLM malware and Canto Incognito botnet campaign. The binary
+    masquerades as the legitimate GNU libgcrypt library but is actually a
+    cryptomining dropper with remote shell capability.
+references:
+    - https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/
+    - https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html
+    - https://cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/
+author: Actioner
+date: 2026/10/09
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.defense_evasion
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_name:
+        Image|endswith: '/libgcrypt'
+    selection_cmdline:
+        CommandLine|endswith: '/libgcrypt'
+    condition: selection_name or selection_cmdline
+falsepositives:
+    - Unlikely - the legitimate libgcrypt is a shared library (libgcrypt.so) not executed directly
+level: high

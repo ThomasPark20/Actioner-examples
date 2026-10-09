@@ -1,0 +1,28 @@
+title: Antino Backdoor - Suspicious slc.dll Loaded by GatherOsState.exe
+id: 7affaa1a-06d2-4b08-85f3-cd2776c1d5e3
+status: experimental
+description: >
+    Detects GatherOsState.exe loading slc.dll from a non-standard directory,
+    indicative of the Antino backdoor DLL sideloading technique used by UAT-11587.
+references:
+    - https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
+author: CTI Research Team
+date: 2026-10-09
+tags:
+    - attack.defense_evasion
+    - attack.t1574.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\GatherOsState.exe'
+        ImageLoaded|endswith: '\slc.dll'
+    filter_system:
+        ImageLoaded|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection and not filter_system
+falsepositives:
+    - Unlikely in legitimate environments
+level: critical

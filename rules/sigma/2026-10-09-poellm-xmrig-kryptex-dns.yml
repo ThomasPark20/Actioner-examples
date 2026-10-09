@@ -1,0 +1,28 @@
+title: XMRig or Iron Miner Connection to Kryptex Mining Pool (PoeLLM)
+id: c6e3a9f5-0d4b-4f8c-b135-7eac2a4d9f6b
+status: experimental
+description: >
+    Detects DNS queries or network connections to Kryptex mining pool domains
+    associated with the PoeLLM malware cryptocurrency mining activity. The
+    Canto Incognito botnet deploys XMRig and Iron miners that connect to
+    Kryptex, a Russian-operated mining service.
+references:
+    - https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/
+    - https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html
+    - https://cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/
+author: Actioner
+date: 2026/10/09
+tags:
+    - attack.impact
+    - attack.t1496
+logsource:
+    category: dns
+detection:
+    selection_dns:
+        query|endswith:
+            - '.kryptex.org'
+            - '.kryptex.network'
+    condition: selection_dns
+falsepositives:
+    - Users intentionally running Kryptex mining software (unlikely on servers)
+level: high

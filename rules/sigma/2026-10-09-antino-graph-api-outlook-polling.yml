@@ -1,0 +1,31 @@
+title: Antino Backdoor - Microsoft Graph API Outlook Command Polling
+id: f42b4b1f-5b3c-4e77-935d-593578325966
+status: experimental
+description: >
+    Detects suspicious outbound HTTPS connections to Microsoft Graph API
+    endpoints used by Antino backdoor for Outlook-based C2 command polling.
+    The backdoor polls for messages with subject prefix command_req_ every 10 seconds.
+references:
+    - https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
+    - https://www.esecurityplanet.com/cybersecurity-threats/news-uat-11587-antino-backdoor-microsoft-365-cloudflare/
+author: CTI Research Team
+date: 2026-10-09
+tags:
+    - attack.command_and_control
+    - attack.t1102.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_graph:
+        c-uri|contains: 'graph.microsoft.com'
+    selection_mail_messages:
+        c-uri|contains:
+            - '/me/messages'
+            - '/me/mailFolders'
+    selection_filter_subject:
+        c-uri|contains: 'command_req_'
+    condition: selection_graph and selection_mail_messages and selection_filter_subject
+falsepositives:
+    - Custom internal applications using Microsoft Graph API with similar naming conventions
+level: high
