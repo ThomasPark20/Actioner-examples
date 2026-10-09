@@ -5,7 +5,6 @@ rule Antino_Backdoor_SLC_DLL
         author = "CTI Research Team"
         date = "2026-10-09"
         reference = "https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html"
-        hash = ""
         tlp = "WHITE"
         severity = "critical"
 

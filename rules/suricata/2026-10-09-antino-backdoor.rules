@@ -13,5 +13,3 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - HT
 # Detect Graph API polling pattern with command_req_ subject filter
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - Graph API Outlook Command Polling (command_req_)"; http.host; content:"graph.microsoft.com"; http.uri; content:"/me/messages"; content:"command_req_"; sid:2026100914; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1102.002;)
 
-# Detect Graph API OneDrive heartbeat/exfiltration pattern
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - Graph API OneDrive C2 Activity"; http.host; content:"graph.microsoft.com"; http.uri; content:"/me/drive"; sid:2026100915; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1567.002;)

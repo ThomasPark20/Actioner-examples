@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-09
-Version: 1.0 (DRAFT)
+Version: 1.0
+<!-- revision: v1.0 finalized 2026-10-09. Dropped port-scan Sigma rule (fatal AND logic across single event). Dropped Gotenberg Snort/Suricata rules (/forms/ is legitimate API endpoint, 100% FP). Narrowed libgcrypt Sigma CommandLine to endswith. Removed /iron from XMRig Sigma Image (too generic), downgraded to medium. Fixed YARA reference2 meta key. Removed T1021 and T1041 MITRE mappings (incorrect). Added Lumen primary source. -->
 
 ## Executive Summary
 
@@ -127,8 +128,6 @@ Lumen attributes the campaign with **moderate confidence to an Italian-speaking 
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 address retrieved via HTTPS from GitHub (dash.css poem) |
 | T1102.001 | Web Service: Dead Drop Resolver | GitHub repository used as dead-drop for C2 address encoded in poem |
 | T1496 | Resource Hijacking | XMRig and Iron cryptocurrency miners deployed on compromised servers |
-| T1021 | Remote Services | Remote shell access to compromised hosts |
-| T1041 | Exfiltration Over C2 Channel | Mining output sent to Kryptex pool via C2/stratum protocols |
 
 ## Detection & Remediation
 
