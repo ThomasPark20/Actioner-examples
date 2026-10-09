@@ -1,6 +1,8 @@
 # Antino Backdoor: UAT-11587 Leverages Microsoft 365 as Command-and-Control Infrastructure
 
-**Status:** DRAFT | **Date:** 2026-10-09 | **TLP:** CLEAR
+<!-- revision: v1.0 — promoted from DRAFT after critic review. Changes: removed T1586.002 (spoofing != account compromise); moved graph.microsoft.com from network IOCs to behavioral section with DO NOT BLOCK note; fixed emoji shortcodes to plain text; reworded validation claims to note field-mapping caveat; dropped Scripted Diagnostics Sigma rule (pure TTP, wrong altitude); dropped Suricata OneDrive rule (excessive FP); fixed Sigma sideload title, proxy logsource, TestAssembly level/filters; fixed YARA empty hash field; fixed Snort TLS rule for Snort 3 tls.sni. -->
+
+**Status:** 1.0 | **Date:** 2026-10-09 | **TLP:** CLEAR
 
 ---
 
@@ -45,7 +47,9 @@ Initial access is achieved through spear-phishing emails that **spoof legitimate
 - These images are wrapped in HTML anchor tags pointing to a **Cloudflare Pages URL** hosting the next-stage payload
 - The visual fidelity of the fake preview persuades the recipient to click, initiating the infection chain
 
-**MITRE ATT&CK:** T1566.002 (Phishing: Spearphishing Link), T1586.002 (Compromise Accounts: Email Accounts)
+**MITRE ATT&CK:** T1566.002 (Phishing: Spearphishing Link)
+
+<!-- revision: removed T1586.002 (Compromise Accounts: Email Accounts) — the campaign spoofs sender identities rather than compromising actual email accounts; no evidence of account takeover was reported -->
 
 ---
 
@@ -138,8 +142,9 @@ Once loaded, Antino establishes its C2 channel through the Microsoft Graph API:
 | Indicator | Type | Context |
 |-----------|------|---------|
 | `d32tpl7xt7175h[.]cloudfront[.]net` | Domain | Payload staging infrastructure |
-| `graph[.]microsoft[.]com` | Domain | C2 channel (Graph API -- legitimate service abused) |
 | `rsproxy[.]cn` | Domain | Chinese crates.io mirror referenced in build artifacts (not C2) |
+
+<!-- revision: removed graph[.]microsoft[.]com from network IOCs — it is a legitimate Microsoft service abused for C2, not an adversary-controlled domain. Blocking it would disrupt all M365 services. Moved to behavioral indicators below. -->
 
 ### Behavioral Indicators
 
@@ -149,6 +154,7 @@ Once loaded, Antino establishes its C2 channel through the Microsoft Graph API:
 | OneDrive heartbeat every 60s | Graph API `/me/drive` writes at regular interval |
 | `GatherOsState.exe` outside System32 | DLL sideloading indicator |
 | `sdiagnhost.exe` spawning PowerShell | Scripted Diagnostics framework abuse |
+| `graph[.]microsoft[.]com` C2 traffic | Abused legitimate service -- **DO NOT BLOCK**; detect via Graph API query patterns (subject filter, polling frequency) and application identity auditing in Entra ID |
 
 ---
 
@@ -185,6 +191,8 @@ Attribution to a **China-nexus** actor is assessed with **high confidence** base
 | Command and Control | Ingress Tool Transfer | T1105 | CloudFront payload staging |
 | Exfiltration | Exfiltration Over Web Service: Exfiltration to Cloud Storage | T1567.002 | OneDrive file exfiltration |
 
+<!-- revision: removed T1586.002 from this table — spoofing sender identity is not the same as compromising email accounts -->
+
 ---
 
 ## Detection and Remediation
@@ -194,8 +202,7 @@ Attribution to a **China-nexus** actor is assessed with **high confidence** base
 1. **DLL sideloading**: Monitor for `GatherOsState.exe` execution outside `C:\Windows\System32\` and any instance loading `slc.dll` from a non-system path
 2. **Graph API anomalies**: Alert on high-frequency Graph API polling patterns (every 10 seconds) from non-standard applications, especially those filtering Outlook messages by `command_req_` subjects
 3. **Network IOCs**: Block and alert on connections to `d32tpl7xt7175h[.]cloudfront[.]net`
-4. **Scripted Diagnostics abuse**: Alert on `sdiagnhost.exe` or `msdt.exe` spawning PowerShell processes
-5. **TestAssembly.dll**: Alert on loading of `TestAssembly.dll` outside development environments
+4. **TestAssembly.dll**: Alert on loading of `TestAssembly.dll` outside development and test-runner environments
 
 ### Remediation Steps
 
@@ -212,7 +219,9 @@ Attribution to a **China-nexus** actor is assessed with **high confidence** base
 
 ### Sigma Rules
 
-All Sigma rules validated with `sigma check` (exit 0) and successfully converted with `sigma convert --without-pipeline -t splunk` (exit 0) and `sigma convert --without-pipeline -t log_scale` (exit 0). MITRE ATT&CK tag validation was skipped due to upstream data-source connectivity constraints in the build environment; tags follow standard Sigma taxonomy.
+All Sigma rules were parsed and successfully converted with `sigma convert --without-pipeline -t splunk` (exit 0) and `sigma convert --without-pipeline -t log_scale` (exit 0). MITRE ATT&CK tag validation was skipped due to upstream data-source connectivity constraints; tags follow standard Sigma taxonomy. Field mapping is untested (no pipeline applied); deployers should validate field names against their target SIEM's pipeline configuration.
+
+<!-- revision: reworded validation claim — "sigma check" could not complete due to MITRE ATT&CK data download failure (proxy 403). Conversion without pipeline does not test field mapping, so added caveat. -->
 
 ---
 
@@ -220,11 +229,13 @@ All Sigma rules validated with `sigma check` (exit 0) and successfully converted
 
 Detects execution of `GatherOsState.exe` from a non-standard directory, the primary DLL sideloading host for the Antino backdoor.
 
-**Compile status:** `sigma check` pass (exit 0) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
+<!-- audit/revision: removed "(slc.dll)" from title per reviewer — this rule checks process creation path only, not DLL load. slc.dll detection is in Rule 2. -->
+
+**Compile status:** `sigma convert -t splunk` pass (exit 0) | `sigma convert -t log_scale` pass (exit 0)
 **Confidence:** High
 
 ```yaml
-title: Antino Backdoor - GatherOsState.exe DLL Sideloading (slc.dll)
+title: Antino Backdoor - GatherOsState.exe DLL Sideloading
 id: 8a3f1e72-b5d4-4c91-a6e8-3d7f2c9b0e14
 status: experimental
 description: >
@@ -261,7 +272,7 @@ level: high
 
 Detects `GatherOsState.exe` loading `slc.dll` from a non-system directory, the precise sideloading combination used by Antino.
 
-**Compile status:** `sigma check` pass (exit 0) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
+**Compile status:** `sigma convert -t splunk` pass (exit 0) | `sigma convert -t log_scale` pass (exit 0)
 **Confidence:** Critical
 
 ```yaml
@@ -301,7 +312,9 @@ level: critical
 
 Detects outbound proxy logs showing Graph API requests with `command_req_` in the URI, the Antino C2 command-polling pattern.
 
-**Compile status:** `sigma check` pass (exit 0) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
+<!-- audit/revision: removed product: windows from logsource — proxy logs come from the proxy appliance, not from Windows endpoints. -->
+
+**Compile status:** `sigma convert -t splunk` pass (exit 0) | `sigma convert -t log_scale` pass (exit 0)
 **Confidence:** High
 
 ```yaml
@@ -323,7 +336,6 @@ tags:
     - attack.t1071.001
 logsource:
     category: proxy
-    product: windows
 detection:
     selection_graph:
         c-uri|contains: 'graph.microsoft.com'
@@ -343,18 +355,21 @@ level: high
 
 #### Sigma Rule 4: TestAssembly.dll .NET Deserialization Loader
 
-Detects loading of `TestAssembly.dll`, the .NET deserialization loader in the Antino infection chain.
+Detects loading of `TestAssembly.dll` outside development/test-runner contexts, the .NET deserialization loader in the Antino infection chain. Caveat: "TestAssembly.dll" is a generic name used by .NET test frameworks; the parent-process filter reduces but does not eliminate false positives.
 
-**Compile status:** `sigma check` pass (exit 0) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
-**Confidence:** High
+<!-- audit/revision: downgraded level from high to medium — TestAssembly.dll is a generic name used by .NET unit-test frameworks (NUnit, xUnit, MSTest). Added filter_dev_tools to exclude devenv.exe, dotnet.exe, vstest.console.exe, testhost.exe, testhost.x86.exe as parent processes. Updated false-positives section. -->
+
+**Compile status:** `sigma convert -t splunk` pass (exit 0) | `sigma convert -t log_scale` pass (exit 0)
+**Confidence:** Medium
 
 ```yaml
 title: Antino Backdoor - TestAssembly.dll .NET Deserialization Loader
 id: a59b4818-2e67-40e2-84c0-9f0a7fa71aef
 status: experimental
 description: >
-    Detects the loading or creation of TestAssembly.dll, used by UAT-11587
-    as a .NET deserialization loader to deploy the Antino backdoor and associated payloads.
+    Detects the loading of TestAssembly.dll, used by UAT-11587
+    as a .NET deserialization loader to deploy the Antino backdoor.
+    Excludes common .NET development and test runner processes to reduce false positives.
 references:
     - https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
 author: CTI Research Team
@@ -370,55 +385,27 @@ logsource:
 detection:
     selection:
         ImageLoaded|endswith: '\TestAssembly.dll'
-    condition: selection
+    filter_dev_tools:
+        Image|endswith:
+            - '\devenv.exe'
+            - '\dotnet.exe'
+            - '\vstest.console.exe'
+            - '\testhost.exe'
+            - '\testhost.x86.exe'
+    condition: selection and not filter_dev_tools
 falsepositives:
-    - Development and testing environments using assemblies named TestAssembly.dll
-level: high
+    - .NET unit-test frameworks (NUnit, xUnit, MSTest) that load assemblies named TestAssembly.dll
+    - Development and CI/CD build environments running test suites
+level: medium
 ```
 
 ---
 
-#### Sigma Rule 5: Windows Scripted Diagnostics Framework Abuse
+#### Sigma Rule 5: Windows Scripted Diagnostics Framework Abuse -- DROPPED
 
-Detects `sdiagnhost.exe` or `msdt.exe` spawning PowerShell, a defense-evasion technique used by Antino.
+<!-- audit/revision: DROPPED — pure TTP/behavioral rule with zero Antino-specific artifacts. Fires on Follina, legitimate troubleshooting, and any msdt abuse. Wrong altitude for specific-mode report. Already covered by SigmaHQ community rules. File deleted from repository. -->
 
-**Compile status:** `sigma check` pass (exit 0) | `sigma convert -t splunk` pass | `sigma convert -t log_scale` pass
-**Confidence:** High
-
-```yaml
-title: Antino Backdoor - Windows Scripted Diagnostics Framework Abuse
-id: 3ebbb67c-5af1-41f4-9ec1-687cb362004e
-status: experimental
-description: >
-    Detects abuse of the Windows Scripted Diagnostics framework (sdiagnhost.exe
-    or msdt.exe) to execute PowerShell commands, a technique employed by the
-    Antino backdoor for defense evasion.
-references:
-    - https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html
-author: CTI Research Team
-date: 2026-10-09
-tags:
-    - attack.execution
-    - attack.t1059.001
-    - attack.defense_evasion
-    - attack.t1218
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '\sdiagnhost.exe'
-            - '\msdt.exe'
-    selection_child:
-        Image|endswith:
-            - '\powershell.exe'
-            - '\pwsh.exe'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate Windows troubleshooting packs that invoke PowerShell
-level: high
-```
+This rule was removed during review. It detected `sdiagnhost.exe`/`msdt.exe` spawning PowerShell, a generic TTP already covered by [SigmaHQ community rules](https://github.com/SigmaHQ/sigma). It contained no Antino-specific indicators and does not meet the "specific" altitude requirement for this report.
 
 ---
 
@@ -427,7 +414,6 @@ level: high
 Detects the Antino implant (`slc.dll`) and the `TestAssembly.dll` loader based on structural and string indicators.
 
 **Compile status:** `yarac` pass (exit 0)
-**Confidence:** High
 
 ```yara
 rule Antino_Backdoor_SLC_DLL
@@ -437,7 +423,6 @@ rule Antino_Backdoor_SLC_DLL
         author = "CTI Research Team"
         date = "2026-10-09"
         reference = "https://thehackernews.com/2026/10/antino-backdoor-uses-outlook-and.html"
-        hash = ""
         tlp = "WHITE"
         severity = "critical"
 
@@ -502,25 +487,31 @@ rule Antino_TestAssembly_Loader
 }
 ```
 
+<!-- audit/revision: Antino_Backdoor_SLC_DLL confidence High. Antino_TestAssembly_Loader confidence High. Removed empty hash="" field from Antino_Backdoor_SLC_DLL meta — no sample hash available for publication. -->
+
 ---
 
 ### Snort Rules
 
 Detects DNS and HTTP/TLS connections to the Antino staging infrastructure.
 
-**Compile status:** :warning: uncompiled (structural check only -- Snort compiler not available in build environment)
-**Confidence:** High
+**Compile status:** [uncompiled] structural check only -- Snort compiler not available in build environment
 
 ```snort
 # Detect DNS query for Antino staging domain (d32tpl7xt7175h.cloudfront.net)
+# Confidence: High
 alert udp $HOME_NET any -> any 53 (msg:"MALWARE Antino Backdoor - DNS Query to CloudFront Staging Domain (d32tpl7xt7175h.cloudfront.net)"; content:"|01 00 00 01|"; offset:2; depth:4; content:"|0e|d32tpl7xt7175h|0a|cloudfront|03|net|00|"; nocase; sid:2026100901; rev:1; classtype:trojan-activity; metadata:affected_product Windows, attack_target Client_Endpoint, mitre_attack_id T1071, deployment Perimeter;)
 
-# Detect TLS SNI to Antino staging domain
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Antino Backdoor - TLS Connection to CloudFront Staging Domain"; flow:established,to_server; content:"|16 03|"; depth:2; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100902; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
+# Detect TLS SNI to Antino staging domain (Snort 3 - uses tls.sni sticky buffer)
+# Confidence: Medium — requires Snort 3; raw content match on TLS is unreliable in Snort 2
+alert tcp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"MALWARE Antino Backdoor - TLS SNI to CloudFront Staging Domain"; flow:established,to_server; tls.sni; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100902; rev:2; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
 
 # Detect HTTP request to staging domain for payload download
+# Confidence: High
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Antino Backdoor - HTTP GET to CloudFront Staging Domain"; flow:established,to_server; content:"GET"; http_method; content:"d32tpl7xt7175h.cloudfront.net"; http_header; sid:2026100903; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
 ```
+
+<!-- audit/revision: sid:2026100902 rewritten for Snort 3 tls.sni sticky buffer instead of raw content match on TLS handshake bytes. Changed destination port from $HTTP_PORTS to 443. Bumped rev to 2. Downgraded confidence from High to Medium — tls.sni requires Snort 3 and Snort 2 users will need the old raw-content approach which is inherently unreliable. -->
 
 ---
 
@@ -528,25 +519,27 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Antino Backdo
 
 Suricata-native detection for Antino staging infrastructure and Graph API C2 patterns.
 
-**Compile status:** :warning: uncompiled (structural check only -- Suricata compiler not available in build environment)
-**Confidence:** High
+**Compile status:** [uncompiled] structural check only -- Suricata compiler not available in build environment
 
 ```suricata
 # Detect DNS query for Antino staging domain
+# Confidence: High
 alert dns $HOME_NET any -> any any (msg:"MALWARE Antino Backdoor - DNS Query to CloudFront Staging Domain"; dns.query; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100911; rev:1; classtype:trojan-activity; metadata:affected_product Windows, attack_target Client_Endpoint, mitre_attack_id T1071;)
 
 # Detect TLS SNI to Antino staging domain
+# Confidence: High
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - TLS SNI to CloudFront Staging Domain"; tls.sni; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100912; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
 
 # Detect HTTP request to staging domain
+# Confidence: High
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - HTTP Request to CloudFront Staging Domain"; http.host; content:"d32tpl7xt7175h.cloudfront.net"; nocase; sid:2026100913; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1105;)
 
 # Detect Graph API polling pattern with command_req_ subject filter
+# Confidence: High
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - Graph API Outlook Command Polling (command_req_)"; http.host; content:"graph.microsoft.com"; http.uri; content:"/me/messages"; content:"command_req_"; sid:2026100914; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1102.002;)
-
-# Detect Graph API OneDrive heartbeat/exfiltration pattern
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - Graph API OneDrive C2 Activity"; http.host; content:"graph.microsoft.com"; http.uri; content:"/me/drive"; sid:2026100915; rev:1; classtype:trojan-activity; metadata:affected_product Windows, mitre_attack_id T1567.002;)
 ```
+
+<!-- audit/revision: removed sid:2026100915 (Graph API OneDrive C2 Activity) — matched ANY graph.microsoft.com + /me/drive request, producing massive false positives in any M365 environment. No Antino-specific narrowing was feasible for this pattern at the network level. -->
 
 ---
 
@@ -558,4 +551,4 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Antino Backdoor - Gr
 
 ---
 
-*DRAFT -- For internal review. Not for distribution.*
+*Version 1.0 -- Published 2026-10-09*

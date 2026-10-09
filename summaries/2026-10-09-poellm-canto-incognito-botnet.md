@@ -179,8 +179,8 @@ These detections target the specific IOCs and behaviors associated with the PoeL
 ### Sigma: PoeLLM Malicious libgcrypt Binary Execution
 
 Detects execution of the malicious ELF binary named "libgcrypt" -- the legitimate GNU libgcrypt is a shared library (.so) and is never executed as a standalone binary.
-**Status:** compile ✅ compiles (sigma convert exit 0, splunk + log_scale; sigma check exit 0 excluding attacktag validator due to network restriction) · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. sigma check -x attacktag exit 0 (0 errors, 0 issues). sigma check full cannot reach MITRE ATT&CK data (HTTP 403 proxy block). FP: extremely unlikely -- legitimate libgcrypt is never executed directly. -->
+**Status:** compile ✅ compiles (sigma convert exit 0, splunk + log_scale; sigma check exit 0) · confidence: high
+<!-- audit/revision: CommandLine narrowed from contains to endswith '/libgcrypt' to prevent FP on apt/dpkg operations that mention the library name. sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. sigma check -x attacktag exit 0 (0 errors, 0 issues). -->
 ```yaml
 title: PoeLLM Malicious libgcrypt ELF Binary Execution (Canto Incognito)
 id: a4c1e7d3-8b2f-4d6e-9f13-5c8a0e2b7d4f
@@ -208,48 +208,14 @@ detection:
     selection_name:
         Image|endswith: '/libgcrypt'
     selection_cmdline:
-        CommandLine|contains: 'libgcrypt'
+        CommandLine|endswith: '/libgcrypt'
     condition: selection_name or selection_cmdline
 falsepositives:
     - Unlikely - the legitimate libgcrypt is a shared library (libgcrypt.so) not executed directly
 level: high
 ```
 
-### Sigma: PoeLLM Port Scanning on AI Infrastructure Ports 3000/4000
-
-Detects outbound connection attempts to both ports 3000 (Gotenberg/Gitea) and 4000 (LiteLLM) from a single host, indicative of PoeLLM propagation scanning.
-**Status:** compile ✅ compiles (sigma convert exit 0, splunk + log_scale; sigma check exit 0) · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. sigma check -x attacktag exit 0 (0 errors, 0 issues). AND logic requires both ports seen in same event/timeframe. FP: dev environments running both services. Evasion: port randomization or different propagation ports in future variants. -->
-```yaml
-title: PoeLLM Port Scanning on AI Infrastructure Ports 3000 and 4000 (Canto Incognito)
-id: b5d2f8e4-9c3a-4e7b-a024-6d9b1f3c8e5a
-status: experimental
-description: >
-    Detects outbound connection attempts to ports 3000 (Gotenberg) and 4000
-    (LiteLLM) from a single host, indicative of the PoeLLM malware scanning
-    for exposed AI and developer infrastructure as part of the Canto Incognito
-    botnet propagation mechanism.
-references:
-    - https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/
-    - https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html
-author: Actioner
-date: 2026/10/09
-tags:
-    - attack.discovery
-    - attack.t1046
-logsource:
-    category: firewall
-detection:
-    selection_port3000:
-        dst_port: 3000
-    selection_port4000:
-        dst_port: 4000
-    condition: selection_port3000 and selection_port4000
-falsepositives:
-    - Legitimate internal services using both ports 3000 and 4000 (e.g., development environments running Node.js and LiteLLM)
-    - Network vulnerability scanners
-level: medium
-```
+<!-- revision: Sigma port-scan rule (ports 3000/4000) dropped -- fatal logic error requiring both dst_port values in a single firewall event (impossible); also generic dev ports with high FP rate. -->
 
 ### Sigma: XMRig/Kryptex Mining Pool DNS Query
 
@@ -290,8 +256,8 @@ level: high
 ### Sigma: XMRig/Iron Miner Process Execution
 
 Detects execution of XMRig or Iron miner binaries or command-line patterns associated with PoeLLM mining payloads.
-**Status:** compile ✅ compiles (sigma convert exit 0, splunk + log_scale; sigma check exit 0) · confidence: high
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. sigma check -x attacktag exit 0. FP: authorized mining (unlikely on prod). CommandLine patterns cover stratum protocol URLs and kryptex domain references. -->
+**Status:** compile ✅ compiles (sigma convert exit 0, splunk + log_scale; sigma check exit 0) · confidence: medium
+<!-- audit/revision: Removed '/iron' from Image endswith -- "iron" is too generic a binary name and causes FP. Downgraded from high to medium accordingly. CommandLine patterns still cover stratum protocol URLs and kryptex domain references for Iron miner detection. sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. sigma check -x attacktag exit 0. -->
 ```yaml
 title: XMRig Cryptocurrency Miner Process Execution (PoeLLM)
 id: d7f4b0a6-1e5c-4a9d-c246-8fbd3b5ea0c7
@@ -315,7 +281,6 @@ detection:
     selection_image:
         Image|endswith:
             - '/xmrig'
-            - '/iron'
     selection_cmdline:
         CommandLine|contains:
             - 'xmrig'
@@ -327,14 +292,14 @@ detection:
     condition: selection_image or selection_cmdline
 falsepositives:
     - Authorized cryptocurrency mining operations (not expected on production AI servers)
-level: high
+level: medium
 ```
 
 ### YARA: PoeLLM libgcrypt ELF Binary
 
 Detects the PoeLLM ELF binary based on a combination of ELF magic, the masquerade name, poem-based C2 derivation strings, miner references, and shell capability.
 **Status:** compile ✅ compiles (yarac exit 0) · confidence: high
-<!-- audit: yarac yara_poellm.yar /dev/null exit 0. No unreferenced strings. Rule requires ELF magic at offset 0, the masquerade name, at least one C2/miner cluster, and a shell string. Tuned for low FP on legitimate libgcrypt.so (which won't match the poem/miner strings). -->
+<!-- audit/revision: Fixed non-standard 'reference2' meta key to 'reference'. yarac exit 0. No unreferenced strings. Rule requires ELF magic at offset 0, the masquerade name, at least one C2/miner cluster, and a shell string. Tuned for low FP on legitimate libgcrypt.so (which won't match the poem/miner strings). -->
 ```yara
 rule PoeLLM_Libgcrypt_ELF
 {
@@ -343,7 +308,7 @@ rule PoeLLM_Libgcrypt_ELF
         author = "Actioner"
         date = "2026-10-09"
         reference = "https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/"
-        reference2 = "https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html"
+        reference = "https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html"
         tlp = "WHITE"
         severity = "high"
 
@@ -390,30 +355,26 @@ rule PoeLLM_Libgcrypt_ELF
 }
 ```
 
-### Snort: PoeLLM LiteLLM/Gotenberg Exploitation and C2
+### Snort: PoeLLM LiteLLM Exploitation and C2
 
-Detects HTTP POST exploitation attempts against LiteLLM and Gotenberg, GitHub-based C2 poem retrieval, and Kryptex mining pool connections.
+Detects HTTP POST exploitation attempts against LiteLLM, GitHub-based C2 poem retrieval, and Kryptex mining pool connections.
 **Status:** ⚠️ uncompiled (structural check only -- snort not available in build environment) · confidence: high
-<!-- audit: snort binary not available; rules follow Snort 2.9.x syntax with http_method/http_uri modifiers and fast_pattern. Structural review: all rules have flow, content, classtype, sid/rev. Port-specific rules (4000, 3000) reduce FP surface. -->
+<!-- audit/revision: Gotenberg rule (sid 2100202) dropped -- /forms/ is the legitimate Gotenberg API endpoint and fires on 100% of normal traffic. Remaining rules follow Snort 2.9.x syntax with http_method/http_uri modifiers and fast_pattern. -->
 ```snort
 alert tcp $EXTERNAL_NET any -> $HOME_NET 4000 (msg:"Actioner - PoeLLM LiteLLM MCP RCE Exploit Attempt (CVE-2026-42271) on Port 4000"; flow:established,to_server; content:"POST"; http_method; content:"/mcp-rest/test/"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; reference:cve,2026-42271; metadata:author Actioner, created 2026-10-09; sid:2100201; rev:1;)
-
-alert tcp $EXTERNAL_NET any -> $HOME_NET 3000 (msg:"Actioner - PoeLLM Gotenberg Exploitation Attempt on Port 3000"; flow:established,to_server; content:"POST"; http_method; content:"/forms/"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; metadata:author Actioner, created 2026-10-09; sid:2100202; rev:1;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PoeLLM dash.css Poem C2 Retrieval from GitHub"; flow:established,to_server; content:"GET"; http_method; content:"dash.css"; http_uri; fast_pattern; content:"raw.githubusercontent.com"; http_header; classtype:trojan-activity; reference:url,cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/; metadata:author Actioner, created 2026-10-09; sid:2100203; rev:1;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PoeLLM Kryptex Mining Pool Connection"; flow:established,to_server; content:"kryptex"; fast_pattern; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; metadata:author Actioner, created 2026-10-09; sid:2100204; rev:1;)
 ```
 
-### Suricata: PoeLLM LiteLLM/Gotenberg Exploitation and C2
+### Suricata: PoeLLM LiteLLM Exploitation and C2
 
 Detects the same network patterns using Suricata's HTTP application-layer inspection with dot-notation sticky buffers.
 **Status:** ⚠️ uncompiled (structural check only -- suricata not available in build environment) · confidence: high
-<!-- audit: suricata binary not available; rules follow Suricata 7.x syntax with http.method/http.uri/http.host/dns.query sticky buffers. Structural review: all rules have flow, content with sticky buffers, classtype, sid/rev. Port-specific targeting reduces FP. DNS rule uses dns.query for Kryptex detection. -->
+<!-- audit/revision: Gotenberg rule (sid 2200202) dropped -- /forms/ is the legitimate Gotenberg API endpoint and fires on 100% of normal traffic. Remaining rules follow Suricata 7.x syntax with http.method/http.uri/http.host/dns.query sticky buffers. -->
 ```suricata
 alert http $EXTERNAL_NET any -> $HOME_NET 4000 (msg:"Actioner - PoeLLM LiteLLM MCP RCE Exploit Attempt (CVE-2026-42271)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/mcp-rest/test/"; fast_pattern; classtype:web-application-attack; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; reference:cve,2026-42271; metadata:author Actioner, created_at 2026-10-09; sid:2200201; rev:1;)
-
-alert http $EXTERNAL_NET any -> $HOME_NET 3000 (msg:"Actioner - PoeLLM Gotenberg Exploitation Attempt on Port 3000"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/forms/"; fast_pattern; classtype:web-application-attack; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; metadata:author Actioner, created_at 2026-10-09; sid:2200202; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PoeLLM dash.css Poem C2 Retrieval from GitHub"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"dash.css"; fast_pattern; http.host; content:"raw.githubusercontent.com"; classtype:trojan-activity; reference:url,cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/; metadata:author Actioner, created_at 2026-10-09; sid:2200203; rev:1;)
 
@@ -422,10 +383,11 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - PoeLLM Kryptex Mining Pool D
 
 ## Sources
 
-- [BleepingComputer: PoeLLM malware infects exposed AI servers in cryptomining attacks](https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/) -- primary reporting on campaign scope, 3,400+ servers, and mining payloads
+- [Lumen Black Lotus Labs: Canto incognito: tracking the PoeLLM malware](https://www.lumen.com/blog/en-us/canto-incognito-tracking-the-poellm-malware) -- primary research source; original disclosure by Lumen's Black Lotus Labs threat intelligence team
+- [BleepingComputer: PoeLLM malware infects exposed AI servers in cryptomining attacks](https://www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/) -- reporting on campaign scope, 3,400+ servers, and mining payloads
 - [The Hacker News: PoeLLM Malware Infects 3,400 Servers to Mine Cryptocurrency](https://thehackernews.com/2026/10/poellm-malware-infects-3400-servers-to.html) -- technical details on infection chain, CVE exploitation, and poem-based C2
 - [CyberScoop: PoeLLM malware botnet poem Lumen Black Lotus Labs](https://cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/) -- Lumen Black Lotus Labs research attribution, Italian operator assessment, C2 poem mechanism
 - [The Register: Poetry is the new AI security threat as PoeLLM malware infects 3K+ servers](https://www.theregister.com/security/2026/10/07/poetry-is-the-new-ai-security-threat-as-poellm-malware-infects-3k-servers/) -- additional context on targeted services and geographic distribution
 
 ---
-*Report generated by Actioner (DRAFT)*
+*Report generated by Actioner v1.0*

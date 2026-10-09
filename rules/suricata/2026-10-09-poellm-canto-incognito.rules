@@ -1,6 +1,5 @@
 alert http $EXTERNAL_NET any -> $HOME_NET 4000 (msg:"Actioner - PoeLLM LiteLLM MCP RCE Exploit Attempt (CVE-2026-42271)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/mcp-rest/test/"; fast_pattern; classtype:web-application-attack; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; reference:cve,2026-42271; metadata:author Actioner, created_at 2026-10-09; sid:2200201; rev:1;)
 
-
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PoeLLM dash.css Poem C2 Retrieval from GitHub"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"dash.css"; fast_pattern; http.host; content:"raw.githubusercontent.com"; classtype:trojan-activity; reference:url,cyberscoop.com/poellm-malware-botnet-poem-lumen-black-lotus-labs/; metadata:author Actioner, created_at 2026-10-09; sid:2200203; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - PoeLLM Kryptex Mining Pool DNS Query"; dns.query; content:"kryptex"; fast_pattern; classtype:trojan-activity; reference:url,www.bleepingcomputer.com/news/security/poellm-malware-infects-exposed-ai-servers-in-cryptomining-attacks/; metadata:author Actioner, created_at 2026-10-09; sid:2200204; rev:1;)
