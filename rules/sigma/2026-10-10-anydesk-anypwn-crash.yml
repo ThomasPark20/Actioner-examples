@@ -1,0 +1,38 @@
+title: AnyDesk Service Crash - Possible AnyPwn Exploitation Attempt
+id: b2c3d4e5-6789-4bcd-aef0-1234567890bc
+status: experimental
+description: >
+    Detects the AnyDesk service crashing (segfault, SIGSEGV, or core dump),
+    which may indicate a failed AnyPwn exploitation attempt. The exploit is
+    probabilistic and crashes the service when heap layout is unfavorable.
+    Correlate with inbound connections to TCP/7070 and check AnyDesk version
+    (vulnerable: 8.0.2 or earlier). Multiple crashes in a short period are
+    especially suspicious.
+references:
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thecybersecguru.com/exploits/anydesk-linux-anypwn-pre-auth-root-rce/
+author: Actioner
+date: 2026-10-10
+tags:
+    - attack.t1190
+    - attack.t1499.004
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        - SyslogMessage|contains|all:
+            - 'anydesk'
+            - 'segfault'
+        - SyslogMessage|contains|all:
+            - 'anydesk'
+            - 'SIGSEGV'
+        - SyslogMessage|contains|all:
+            - 'anydesk'
+            - 'core dumped'
+    condition: selection
+falsepositives:
+    - Legitimate AnyDesk crashes unrelated to exploitation
+    - System instability or resource exhaustion causing service crashes
+level: medium

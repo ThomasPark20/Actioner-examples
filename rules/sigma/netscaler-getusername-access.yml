@@ -1,0 +1,28 @@
+title: NetScaler Anomalous GetUserName Endpoint Access (CVE-2026-88771/88772)
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
+status: experimental
+description: >
+    Detects HTTP requests to the /logon/LogonPoint/Authentication/GetUserName
+    endpoint on NetScaler appliances. Unit 42 observed continuous requests to
+    this endpoint from Sept 10-27, 2026 as part of the CVE-2026-88771 and
+    CVE-2026-88772 exploitation campaigns. This endpoint is described as
+    anomalous and its access may indicate reconnaissance or post-exploitation
+    activity against a NetScaler appliance.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: Actioner
+date: 2026/10/10
+tags:
+    - attack.t1190
+    - attack.t1595.002
+    - cve.2026-88771
+    - cve.2026-88772
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/logon/LogonPoint/Authentication/GetUserName'
+    condition: selection
+falsepositives:
+    - Unknown; Unit 42 describes any traffic to this endpoint as anomalous
+level: medium

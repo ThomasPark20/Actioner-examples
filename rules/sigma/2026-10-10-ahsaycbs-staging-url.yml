@@ -1,0 +1,23 @@
+title: AhsayCBS Exploitation Staging URL Access
+id: 8e4f6b12-3a7c-4d9e-b1f5-7c2e9a0d3b56
+status: experimental
+description: Detects command-line access to the Alibaba Cloud OSS staging URLs used to distribute malware in the AhsayCBS exploitation campaign.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: Actioner CTI
+date: 2026-10-10
+tags:
+    - attack.command_and_control
+    - attack.t1105
+    - attack.resource_development
+    - attack.t1608.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: 'imagefiles-backup.oss-ap-southeast-7.aliyuncs.com'
+    condition: selection
+falsepositives:
+    - Legitimate use of this specific Alibaba Cloud OSS bucket is unlikely in most environments
+level: high

@@ -1,0 +1,5 @@
+# Rule 1: Detect AnyPwn overflow trigger — varint-encoded 0xFFFFFFF0 in mode-5 stream packet
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Mode-5 Varint Overflow Trigger"; flow:established,to_server; content:"|F0 FF FF FF 0F|"; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner; sid:3026100101; rev:2;)
+
+# Rule 2: Detect rapid SYN connections to AnyDesk port consistent with heap grooming
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Heap Grooming - Rapid TCP SYN Burst to Port 7070"; flags:S; threshold:type both, track by_src, count 15, seconds 30; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner; sid:3026100102; rev:1;)

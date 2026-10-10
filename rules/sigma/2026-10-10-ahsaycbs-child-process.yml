@@ -1,0 +1,45 @@
+title: Suspicious Child Process Spawned by AhsayCBS Service
+id: 9a3c7e12-5d4f-4b8a-a1e3-6f2d8c9b0e14
+status: experimental
+description: Detects suspicious child processes spawned by the AhsayCBS backup service process (cbssvcX64.exe or cbssvcX86.exe), which may indicate exploitation of CVE-2026-105133/CVE-2026-105134.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+    - https://nvd.nist.gov/vuln/detail/cve-2026-105133
+    - https://nvd.nist.gov/vuln/detail/cve-2026-105134
+author: Actioner CTI
+date: 2026-10-10
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - attack.execution
+    - attack.t1059.001
+    - attack.t1059.003
+    - cve.2026-105133
+    - cve.2026-105134
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\cbssvcX64.exe'
+            - '\cbssvcX86.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\curl.exe'
+            - '\certutil.exe'
+            - '\whoami.exe'
+            - '\net.exe'
+            - '\net1.exe'
+            - '\ipconfig.exe'
+            - '\systeminfo.exe'
+            - '\tasklist.exe'
+            - '\sc.exe'
+            - '\reg.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate AhsayCBS administrative scripts spawning command-line tools
+level: high

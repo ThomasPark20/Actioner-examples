@@ -1,0 +1,33 @@
+title: NetScaler Suspicious .deb Web Shell Download (CVE-2026-88772)
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: >
+    Detects HTTP requests to download .deb packages from the /vpn/scripts/linux/
+    path on NetScaler appliances. CVE-2026-88772 exploitation drops PHP web
+    shells packaged as .deb files into this directory, which normally hosts
+    Citrix client installers. Known malicious .deb names include nsg64.deb,
+    nsgclient18.deb, nsgser18.deb, nsgsupport.deb, nsgpackage64.deb, and
+    nsgbuild.deb. Any request for unexpected .deb files from this path is
+    suspicious.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: Actioner
+date: 2026/10/10
+tags:
+    - attack.t1505.003
+    - attack.t1036.005
+    - cve.2026-88772
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/vpn/scripts/linux/'
+        cs-uri-stem|endswith: '.deb'
+    filter_legitimate:
+        cs-uri-stem|endswith:
+            - 'nsgclient64.deb'
+            - 'nsglinux64.deb'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate Citrix EPA/client installer downloads with non-standard file names (verify against Citrix-published installer names)
+level: high

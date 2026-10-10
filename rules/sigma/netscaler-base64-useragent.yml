@@ -1,0 +1,30 @@
+title: NetScaler Base64 Payload in User-Agent Header (CVE-2026-88771)
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: >
+    Detects HTTP requests with unusually long or Base64-encoded User-Agent
+    headers targeting NetScaler appliances. Stage 1 of the CVE-2026-88771
+    three-stage command injection chain delivers a Base64-encoded dropper
+    payload in the User-Agent header, which gets logged to
+    httpaccess-vpn.log. The request intentionally triggers a 404 response.
+    This rule looks for User-Agent values containing long Base64 strings
+    (64+ chars of Base64 alphabet characters).
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: Actioner
+date: 2026/10/10
+tags:
+    - attack.t1190
+    - attack.t1059
+    - cve.2026-88771
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-user-agent|re: '[A-Za-z0-9+/=]{64,}'
+    selection_status:
+        sc-status: 404
+    condition: selection and selection_status
+falsepositives:
+    - Long Base64 tokens in legitimate User-Agent strings from some security products or custom HTTP clients
+level: medium
