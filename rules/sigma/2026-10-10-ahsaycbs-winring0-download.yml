@@ -1,0 +1,27 @@
+title: WinRing0 Driver Download via Command Line
+id: 6c1e3d45-2f7a-4b8e-a9d1-5e3c7f0b2a68
+status: experimental
+description: Detects download of the WinRing0x64.sys vulnerable kernel driver via certutil or curl, as observed in AhsayCBS exploitation campaigns for BYOVD-based cryptomining.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: Actioner CTI
+date: 2026-10-10
+tags:
+    - attack.defense_evasion
+    - attack.t1105
+    - attack.privilege_escalation
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_certutil:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains: 'WinRing0'
+    selection_curl:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains: 'WinRing0'
+    condition: selection_certutil or selection_curl
+falsepositives:
+    - Legitimate use of WinRing0 driver in hardware monitoring software installation via command line is rare
+level: high

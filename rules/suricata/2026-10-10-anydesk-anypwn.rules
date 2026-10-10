@@ -1,0 +1,9 @@
+# Rule 1: Detect AnyPwn overflow trigger — varint-encoded 0xFFFFFFF0 in mode-5 stream packet
+# The exploit sends a mode-5 stream packet declaring payload length 0xFFFFFFF0.
+# The varint encoding of 0xFFFFFFF0 is the byte sequence F0 FF FF FF 0F, which is
+# the distinctive artifact of the integer-wraparound trigger.
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Mode-5 Varint Overflow Trigger"; flow:established,to_server; content:"|F0 FF FF FF 0F|"; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100101; rev:2;)
+
+# Rule 2: Detect rapid connection pattern consistent with AnyPwn heap grooming
+# The exploit opens many TCP connections to port 7070 for heap spray/grooming.
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Heap Grooming - Rapid TCP Connection Burst to Port 7070"; flags:S; threshold:type both, track by_src, count 15, seconds 30; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100102; rev:1;)

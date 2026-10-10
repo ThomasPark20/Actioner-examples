@@ -1,0 +1,51 @@
+title: Inbound Connection to AnyDesk Direct Port - Possible AnyPwn Attack Surface
+id: c3d4e5f6-7890-4cde-bf01-2345678901cd
+status: experimental
+description: >
+    Detects inbound TCP connections to port 7070 (AnyDesk direct connection port)
+    from external sources. The AnyPwn exploit targets AnyDesk Linux via direct TCP
+    connections to this port. While a single connection is not conclusive, any
+    external-origin connection to this port on a host running a vulnerable AnyDesk
+    version (8.0.2 or earlier) warrants investigation, especially if the host
+    should not be accepting direct AnyDesk connections.
+references:
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thecybersecguru.com/exploits/anydesk-linux-anypwn-pre-auth-root-rce/
+author: Actioner
+date: 2026-10-10
+tags:
+    - attack.t1190
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection:
+        DestinationPort: 7070
+        Initiated: 'false'
+    filter_internal:
+        SourceIp|startswith:
+            - '10.'
+            - '172.16.'
+            - '172.17.'
+            - '172.18.'
+            - '172.19.'
+            - '172.20.'
+            - '172.21.'
+            - '172.22.'
+            - '172.23.'
+            - '172.24.'
+            - '172.25.'
+            - '172.26.'
+            - '172.27.'
+            - '172.28.'
+            - '172.29.'
+            - '172.30.'
+            - '172.31.'
+            - '192.168.'
+            - '127.'
+    condition: selection and not filter_internal
+falsepositives:
+    - Legitimate external AnyDesk direct connections from authorized support staff
+    - AnyDesk relay infrastructure IP ranges
+level: medium

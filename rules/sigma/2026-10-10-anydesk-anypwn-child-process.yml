@@ -1,0 +1,49 @@
+title: AnyDesk Service Suspicious Child Process - Possible AnyPwn RCE Exploitation
+id: a1d2e3f4-5678-4abc-9def-0123456789ab
+status: experimental
+description: >
+    Detects the AnyDesk Linux service spawning suspicious child processes such as
+    shells, scripting interpreters, or download utilities. The AnyPwn exploit
+    (pre-auth heap buffer overflow in AnyDesk Linux <= 8.0.2) uses system() to
+    execute arbitrary commands as root. Legitimate AnyDesk service operation does
+    not spawn these processes without user-initiated remote sessions.
+references:
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thecybersecguru.com/exploits/anydesk-linux-anypwn-pre-auth-root-rce/
+author: Actioner
+date: 2026-10-10
+tags:
+    - attack.t1059
+    - attack.t1190
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith: '/anydesk'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/python'
+            - '/python3'
+            - '/perl'
+            - '/ruby'
+            - '/curl'
+            - '/wget'
+            - '/nc'
+            - '/ncat'
+            - '/socat'
+            - '/chmod'
+            - '/chown'
+            - '/useradd'
+            - '/adduser'
+    condition: selection_parent and selection_child
+falsepositives:
+    - AnyDesk legitimate remote support sessions where a user intentionally runs
+      shell commands through AnyDesk terminal features
+    - Custom AnyDesk automation scripts that spawn child processes
+level: high

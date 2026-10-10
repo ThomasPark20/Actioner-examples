@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-10
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
+<!-- revision: v1.1 — (1) Sigma "Repeated Crashes" renamed to "AnyDesk Service Crash" with single-event semantics; (2) Suricata Rule 1 and Snort Rule 1 now include content match for varint-encoded overflow value |F0 FF FF FF 0F|; (3) Suricata Rule 3 dropped — shell output from system() goes to local stdout, not back over AnyDesk port 7070; (4) T1068 removed from ATT&CK mapping (AnyDesk runs as root — no privilege escalation); (5) T1210 qualified for lateral movement only; (6) Suricata status note clarified re SYN-only rule direction. -->
 
 ## Executive Summary
 
@@ -130,8 +131,7 @@ The exploit is **probabilistic**. Success requires the target victim object to b
 | T1190 | Exploit Public-Facing Application | Pre-auth exploitation of AnyDesk service listening on TCP/7070, reachable without credentials |
 | T1059 | Command and Scripting Interpreter | Post-exploitation command execution via `system()` call from ROP chain |
 | T1059.004 | Unix Shell | The exploit uses `system()` to spawn a shell or run arbitrary commands as root |
-| T1068 | Exploitation for Privilege Escalation | Code execution attained as root via heap corruption in root-owned service |
-| T1210 | Exploitation of Remote Services | Remote service (AnyDesk) exploited for lateral movement / initial access |
+| T1210 | Exploitation of Remote Services | Remote service (AnyDesk) exploited (applicable when used for lateral movement; initial access is covered by T1190) |
 | T1499.004 | Application or System Exploitation (DoS) | Failed exploitation attempts crash the AnyDesk service |
 
 ## Impact Assessment
@@ -148,7 +148,7 @@ The exploit is **probabilistic**. Success requires the target victim object to b
 
 ### Immediate Detection
 
-1. Deploy the Suricata/Snort rules below to detect heap-grooming connection bursts and oversized packets to TCP/7070.
+1. Deploy the Suricata/Snort rules below to detect the mode-5 overflow trigger packet and heap-grooming connection bursts to TCP/7070.
 2. Deploy the Sigma rules to detect AnyDesk service spawning suspicious child processes and crash/restart patterns.
 3. Hunt for AnyDesk Linux installations running version <= 8.0.2 (`anydesk --version` or package manager queries).
 4. Review firewall logs for external connections to TCP/7070 on Linux hosts.
@@ -194,9 +194,7 @@ references:
 author: Actioner
 date: 2026-10-10
 tags:
-    - attack.execution
     - attack.t1059
-    - attack.initial_access
     - attack.t1190
 logsource:
     category: process_creation
@@ -231,21 +229,23 @@ falsepositives:
 level: high
 ```
 
-### Sigma: AnyDesk Service Repeated Crashes - Possible AnyPwn Exploitation Attempts
+### Sigma: AnyDesk Service Crash - Possible AnyPwn Exploitation Attempt
 
-Detects AnyDesk service crashes (segfault/SIGSEGV/core dump) in syslog, which may indicate failed AnyPwn exploitation attempts. The exploit is probabilistic and crashes the service when heap layout is unfavorable.
+Detects a single AnyDesk service crash (segfault/SIGSEGV/core dump) in syslog, which may indicate a failed AnyPwn exploitation attempt. Correlate with inbound connections to TCP/7070 and AnyDesk version.
 
 **Status:** compile `sigma check` blocked by proxy (MITRE ATT&CK data download) -- structural check only via `sigma convert` | `sigma convert -t splunk` ✅ | `sigma convert -t log_scale` ✅ · confidence: medium
-<!-- audit: sigma convert --without-pipeline -t splunk -> valid SPL output. sigma convert --without-pipeline -t log_scale -> valid LogScale output. sigma check fails on MITRE ATT&CK data download (HTTP 403 from proxy), not a rule syntax issue. Crash signals are not CVE-specific but are highly relevant when correlated with AnyDesk version and network activity. -->
+<!-- audit: sigma convert --without-pipeline -t splunk -> valid SPL output. sigma convert --without-pipeline -t log_scale -> valid LogScale output. sigma check fails on MITRE ATT&CK data download (HTTP 403 from proxy), not a rule syntax issue. Revised v1.1: renamed from "Repeated Crashes" — rule fires on a single crash event (no aggregation/count), so title and description now reflect single-event semantics. Crash signals are not CVE-specific but are highly relevant when correlated with AnyDesk version and network activity. -->
 ```yaml
-title: AnyDesk Service Repeated Crashes - Possible AnyPwn Exploitation Attempts
+title: AnyDesk Service Crash - Possible AnyPwn Exploitation Attempt
 id: b2c3d4e5-6789-4bcd-aef0-1234567890bc
 status: experimental
 description: >
-    Detects the AnyDesk service crashing and restarting, which may indicate failed
-    AnyPwn exploitation attempts. The exploit is probabilistic and crashes the
-    service when heap layout is unfavorable. Multiple crashes in a short period
-    from a host running AnyDesk Linux <= 8.0.2 should be investigated.
+    Detects the AnyDesk service crashing (segfault, SIGSEGV, or core dump),
+    which may indicate a failed AnyPwn exploitation attempt. The exploit is
+    probabilistic and crashes the service when heap layout is unfavorable.
+    Correlate with inbound connections to TCP/7070 and check AnyDesk version
+    (vulnerable: 8.0.2 or earlier). Multiple crashes in a short period are
+    especially suspicious.
 references:
     - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
     - https://github.com/v12-security/pocs/tree/main/anydesk
@@ -253,8 +253,8 @@ references:
 author: Actioner
 date: 2026-10-10
 tags:
-    - attack.initial_access
     - attack.t1190
+    - attack.t1499.004
 logsource:
     product: linux
     service: syslog
@@ -300,7 +300,6 @@ references:
 author: Actioner
 date: 2026-10-10
 tags:
-    - attack.initial_access
     - attack.t1190
 logsource:
     category: network_connection
@@ -339,33 +338,32 @@ level: medium
 
 ### Suricata: AnyPwn AnyDesk Pre-Auth Heap Overflow Detection Suite
 
-Three Suricata rules targeting the AnyPwn exploitation pattern on TCP/7070: oversized mode-5 stream packets, heap-grooming SYN bursts, and post-exploitation shell indicators.
+Two Suricata rules targeting the AnyPwn exploitation pattern on TCP/7070: the mode-5 overflow trigger packet (keyed on the varint-encoded 0xFFFFFFF0 value) and heap-grooming SYN bursts.
+<!-- revision: dropped Rule 3 (post-exploitation shell response) — shell output does not traverse AnyDesk port 7070; system() output goes to local stdout -->
 
-**Status:** compile ✅ suricata -T: "Configuration provided was successfully loaded" (1 warning: SYN-only rule 2 auto-disabled for toclient direction -- expected and correct) · confidence: medium
-<!-- audit: suricata 7.0.3 (-T -S anydesk-anypwn.rules -l /tmp/actioner) -> "Configuration provided was successfully loaded. Exiting." exit 0. Warning on rule 2 (SYN flags + no direction) is informational, not a failure. Rules use flow:established where applicable, thresholds for burst detection, and content matching for protocol-specific indicators. -->
+**Status:** compile ✅ suricata -T: "Configuration provided was successfully loaded" (1 warning: SYN-only rule 2 auto-disabled for toclient direction -- this is expected since the rule uses `flags:S` without `flow`, and it functions correctly for the to_server direction that matters) · confidence: medium
+<!-- audit: suricata (-T -S anydesk-anypwn.rules -l /tmp/actioner) -> "Configuration provided was successfully loaded. Exiting." exit 0. Warning on rule 2 (SYN flags + no direction) is informational: the rule fires for to_server SYN packets as intended; auto-disable applies only to the toclient direction which is irrelevant for this detection. Rule 1 revised v1.1: added content match for varint-encoded 0xFFFFFFF0 (bytes F0 FF FF FF 0F) as the distinctive exploit artifact, replacing the generic |00| + dsize match. Rule 3 dropped v1.1: system() output goes to local stdout/stderr, not back over the AnyDesk protocol on port 7070. -->
 ```suricata
-# Rule 1: Detect oversized payload length in AnyDesk session protocol on TCP/7070
-# The exploit sends a mode-5 stream packet with declared length 0xFFFFFFF0 or similar
-# values near 0xFFFFFFFF that cause integer wraparound when 0x10 is added.
-alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Oversized Mode-5 Stream Packet"; flow:established,to_server; content:"|00|"; offset:4; depth:1; dsize:>100; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100101; rev:1;)
+# Rule 1: Detect AnyPwn overflow trigger — varint-encoded 0xFFFFFFF0 in mode-5 stream packet
+# The exploit sends a mode-5 stream packet declaring payload length 0xFFFFFFF0.
+# The varint encoding of 0xFFFFFFF0 is the byte sequence F0 FF FF FF 0F, which is
+# the distinctive artifact of the integer-wraparound trigger.
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Mode-5 Varint Overflow Trigger"; flow:established,to_server; content:"|F0 FF FF FF 0F|"; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100101; rev:2;)
 
 # Rule 2: Detect rapid connection pattern consistent with AnyPwn heap grooming
 # The exploit opens many TCP connections to port 7070 for heap spray/grooming.
 alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Heap Grooming - Rapid TCP Connection Burst to Port 7070"; flags:S; threshold:type both, track by_src, count 15, seconds 30; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100102; rev:1;)
-
-# Rule 3: Detect post-exploitation shell response on AnyDesk port
-alert tcp $HOME_NET 7070 -> $EXTERNAL_NET any (msg:"Actioner - AnyPwn AnyDesk Post-Exploitation - Shell Response on AnyDesk Port"; flow:established,to_client; content:"/bin/sh"; classtype:successful-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-10, affected_product AnyDesk_Linux, attack_target Server; sid:2026100103; rev:1;)
 ```
 
 ### Snort: AnyPwn AnyDesk Pre-Auth Heap Overflow Detection
 
-Two Snort rules targeting the AnyPwn exploitation pattern: oversized mode-5 packets and heap-grooming SYN bursts on TCP/7070.
+Two Snort rules targeting the AnyPwn exploitation pattern: the mode-5 overflow trigger packet (varint-encoded 0xFFFFFFF0) and heap-grooming SYN bursts on TCP/7070.
 
 **Status:** ⚠️ uncompiled (structural check only -- Snort not installed) · confidence: medium
-<!-- audit: Snort is not installed in this environment. Rules follow Snort 2.9/3.x syntax conventions, mirroring the validated Suricata rules. Structural review: correct semicolon-delimited options, valid content/depth/offset modifiers, threshold syntax, metadata and reference fields. -->
+<!-- audit: Snort is not installed in this environment. Rules follow Snort 2.9/3.x syntax conventions, mirroring the validated Suricata rules. Structural review: correct semicolon-delimited options, valid content modifiers, threshold syntax, metadata and reference fields. Rule 1 revised v1.1: added content match for varint-encoded 0xFFFFFFF0 (bytes F0 FF FF FF 0F), replacing generic |00| + dsize match, to match the distinctive exploit artifact. -->
 ```snort
-# Rule 1: Detect oversized payload on AnyDesk direct connection port
-alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Oversized Mode-5 Stream Packet"; flow:established,to_server; content:"|00|"; offset:4; depth:1; dsize:>100; threshold:type both, track by_src, count 5, seconds 60; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner; sid:3026100101; rev:1;)
+# Rule 1: Detect AnyPwn overflow trigger — varint-encoded 0xFFFFFFF0 in mode-5 stream packet
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Pre-Auth Heap Overflow - Mode-5 Varint Overflow Trigger"; flow:established,to_server; content:"|F0 FF FF FF 0F|"; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner; sid:3026100101; rev:2;)
 
 # Rule 2: Detect rapid SYN connections to AnyDesk port consistent with heap grooming
 alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyPwn AnyDesk Heap Grooming - Rapid TCP SYN Burst to Port 7070"; flags:S; threshold:type both, track by_src, count 15, seconds 30; classtype:attempted-admin; reference:url,github.com/v12-security/pocs/tree/main/anydesk; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner; sid:3026100102; rev:1;)
