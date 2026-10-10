@@ -1,0 +1,30 @@
+title: NetScaler ns.log Poisoning via Pitboss Injection (CVE-2026-88771)
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects NetScaler ns.log entries containing the pitboss heartbeat string
+    used as a log-poisoning vector in CVE-2026-88771 three-stage exploitation.
+    Attackers inject a crafted login failure message that includes the prefix
+    "pitboss PPE missed too many heartbeats NSPPE;" followed by an embedded
+    command. The Perl script ns_monuploadd_err.pl processes this poisoned log
+    entry and executes the injected payload. This rule detects the anomalous
+    pitboss log entry pattern on the NetScaler appliance.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: Actioner
+date: 2026/10/10
+tags:
+    - attack.t1190
+    - attack.t1059
+    - attack.t1505.003
+    - cve.2026-88771
+logsource:
+    product: citrix
+    service: netscaler
+detection:
+    selection:
+        message|contains: 'pitboss PPE missed too many heartbeats NSPPE'
+    condition: selection
+falsepositives:
+    - Legitimate pitboss heartbeat failure messages on unhealthy appliances (correlate with appliance health and exploitation timeline)
+level: high

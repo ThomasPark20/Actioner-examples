@@ -1,0 +1,29 @@
+title: NetScaler Web Shell Access via CSS-Masqueraded Path (CVE-2026-88771)
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects HTTP requests to web shell paths masquerading as CSS files on
+    compromised NetScaler appliances. CVE-2026-88771 exploitation deploys a
+    PHP web shell at /logon/LogonPoint/custom/.ctxs.receiver and patches
+    httpd.conf to alias it to CSS-looking paths such as
+    /logon/LogonPoint/custom/receiver.min.css and variants with hex suffixes.
+    Any request to these paths indicates a compromised appliance.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+author: Actioner
+date: 2026/10/10
+tags:
+    - attack.t1505.003
+    - attack.t1036.005
+    - cve.2026-88771
+logsource:
+    category: webserver
+detection:
+    selection_css:
+        cs-uri-stem|contains: '/logon/LogonPoint/custom/receiver.min'
+    selection_hidden:
+        cs-uri-stem|contains: '/logon/LogonPoint/custom/.ctxs.receiver'
+    condition: selection_css or selection_hidden
+falsepositives:
+    - None expected; these paths are not part of legitimate NetScaler deployments
+level: critical
