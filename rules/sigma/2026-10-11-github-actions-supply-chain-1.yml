@@ -1,0 +1,29 @@
+title: GhostAction Malicious Workflow File Creation
+id: 7a3e4c91-2b8f-4d6a-9e1c-5f0a3d7b8c2e
+status: experimental
+description: >
+    Detects creation of GitHub Actions workflow files matching the GhostAction
+    campaign naming pattern (security-audit.yml, github_actions_security.yml,
+    security-check.yml), used in the October 2026 wave to steal CI/CD secrets
+    and cloud credentials from over 340 repositories.
+references:
+    - https://www.stepsecurity.io/blog/ghostaction-returns
+    - https://socket.dev/blog/ghostaction-cloud-credentials
+    - https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/
+    - https://thehackernews.com/2026/10/credential-stealing-github-actions.html
+author: Actioner
+date: 2026/10/11
+tags:
+    - attack.t1195.002
+logsource:
+    category: file_event
+detection:
+    selection_path:
+        TargetFilename|endswith:
+            - '.github/workflows/security-audit.yml'
+            - '.github/workflows/github_actions_security.yml'
+            - '.github/workflows/security-check.yml'
+    condition: selection_path
+falsepositives:
+    - Legitimate security audit workflows with these exact file names
+level: medium

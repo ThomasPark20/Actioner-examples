@@ -1,0 +1,23 @@
+alert http $HOME_NET any -> 193.32.204.199 any ( \
+    msg:"Actioner - GhostAction Credential Exfiltration to C2"; \
+    flow:established,to_server; \
+    http.method; content:"POST"; \
+    http.request_body; content:"AKIA_CTX_START"; fast_pattern; \
+    http.request_body; content:"REPO="; \
+    classtype:trojan-activity; \
+    reference:url,www.stepsecurity.io/blog/ghostaction-returns; \
+    reference:url,socket.dev/blog/ghostaction-cloud-credentials; \
+    metadata:author Actioner, created_at 2026-10-11; \
+    sid:10000001; rev:1; \
+)
+
+alert http $HOME_NET any -> 193.32.204.199 any ( \
+    msg:"Actioner - GhostAction Exfil Query Parameter monami"; \
+    flow:established,to_server; \
+    http.method; content:"POST"; \
+    http.uri; content:"?c=monami"; \
+    classtype:trojan-activity; \
+    reference:url,www.stepsecurity.io/blog/ghostaction-returns; \
+    metadata:author Actioner, created_at 2026-10-11; \
+    sid:10000002; rev:1; \
+)

@@ -1,0 +1,25 @@
+title: GhostAction Legacy C2 Network Connection
+id: 2d1e3f04-5a6b-4c7d-8e9f-0a1b2c3d4e5f
+status: experimental
+description: >
+    Detects outbound network connections to legacy GhostAction C2 endpoints
+    including IP 170.39.218.2 and 45.139.104.115, used in the 2025 and
+    early 2026 waves of the campaign.
+references:
+    - https://www.stepsecurity.io/blog/ghostaction-campaign-over-3-000-secrets-stolen-through-malicious-github-workflows
+    - https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/
+author: Actioner
+date: 2026/10/11
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '170.39.218.2'
+            - '45.139.104.115'
+    condition: selection
+falsepositives:
+    - IP address may have been reassigned to a benign host since the 2025 campaign
+level: high

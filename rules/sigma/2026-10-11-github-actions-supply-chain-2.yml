@@ -1,0 +1,26 @@
+title: GhostAction Network Exfiltration to C2 IP
+id: 9c5a6e13-4d0b-4f8c-ba3e-7a2c5f9d0e4a
+status: experimental
+description: >
+    Detects outbound network connections to the GhostAction C2 IP address
+    193.32.204.199 on ports 80 or 3000, used for credential exfiltration
+    from compromised GitHub Actions runners.
+references:
+    - https://www.stepsecurity.io/blog/ghostaction-returns
+    - https://socket.dev/blog/ghostaction-cloud-credentials
+author: Actioner
+date: 2026/10/11
+tags:
+    - attack.t1041
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '193.32.204.199'
+        DestinationPort:
+            - 80
+            - 3000
+    condition: selection
+falsepositives:
+    - None expected; this is a known malicious endpoint
+level: critical

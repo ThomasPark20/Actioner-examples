@@ -1,0 +1,28 @@
+title: AnyPwn Exploit Tool Execution Against AnyDesk Linux
+id: b42fc99b-18d9-4b2d-86bf-115f6ca5d9a5
+status: experimental
+description: >
+    Detects execution of the AnyPwn exploit tool (anypwn.py) targeting the
+    pre-authentication heap buffer overflow in AnyDesk for Linux 8.0.2.
+    The tool connects to TCP/7070 and sends crafted mode-5 stream packets
+    with an integer-overflowing payload length to achieve RCE as root.
+references:
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+author: Actioner
+date: 2026/10/11
+tags:
+    - attack.t1190
+    - attack.t1059.006
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'anypwn'
+            - '--host'
+    condition: selection
+falsepositives:
+    - Authorized penetration testing using the AnyPwn tool
+level: high
