@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-12
-Version: 1.0-DRAFT
+Version: 1.1
+<!-- revision: v1.1 — dropped Sigma rule 3 (high FP), fixed Snort comma→semicolon, removed T1552.004, added SID-range note, tightened detection intro -->
 
 ## Executive Summary
 
@@ -145,7 +146,7 @@ All collected data is sent in a single HTTP POST via `curl -s -m 20 -X POST --da
 | T1078.004 | Valid Accounts: Cloud Accounts | Stolen GitHub PATs used to authenticate and push commits as legitimate maintainers |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Bash script within the workflow step executes grep and curl commands on Ubuntu runners |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Working tree scanned for hardcoded credentials using regex patterns |
-| T1552.004 | Unsecured Credentials: Private Keys | SSH keys and private key material targeted in credential sweep |
+<!-- revision: removed T1552.004 (Private Keys) — payload grep patterns target API keys/PATs, not SSH/private key material -->
 | T1119 | Automated Collection | Automated grep of 13 credential patterns across working tree and full git history |
 | T1048.003 | Exfiltration Over Alternative Protocol: Exfiltration Over Unencrypted Non-C2 Protocol | Data exfiltrated via plain HTTP POST to hardcoded IP address |
 
@@ -201,7 +202,11 @@ grep -r '193.32.204.199' /var/log/
 
 ## Detection Rules
 
-Three Sigma rules target process-level indicators on CI/CD runners, one YARA rule detects the malicious workflow files on disk, and network rules (Snort/Suricata) target HTTP exfiltration to the known C2 IP. The Sigma rules require process creation logging (e.g., Sysmon or auditd) on runners, which is not standard on GitHub-hosted runners; they are most applicable to self-hosted runner environments. The network rules require inline inspection of HTTP traffic from runner egress.
+Two Sigma rules, one YARA rule, and five network rules (Snort/Suricata) cover this campaign. Sigma and YARA target self-hosted runners with process creation logging; network rules require inline HTTP inspection of runner egress.
+
+<!-- revision: tightened detection intro from 3 sentences to 2; updated rule count after dropping Sigma rule 3 -->
+
+> **SID Range Note:** The Snort SIDs (2100101-2100102) and Suricata SIDs (2200101-2200103) fall within the Emerging Threats reserved range. For production deployment, renumber to the 1000000-1999999 local-use range to avoid conflicts with ET rulesets.
 
 ### Sigma: GhostAction Credential Exfiltration via Curl to Known C2 IP
 
@@ -280,51 +285,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Suspicious Git History Credential Sweep in CI Environment
-
-Detects behavioral patterns consistent with automated git history mining for credentials, as performed by the GhostAction Variant B payload.
-
-<!-- audit: sigma convert --without-pipeline -t splunk: exit 0. sigma convert --without-pipeline -t log_scale: exit 0. sigma check blocked by proxy (HTTP 403 to MITRE ATT&CK). Tags attack.t1552.001 and attack.t1119 are valid. Level medium due to potential overlap with legitimate secret scanning tools. -->
-
-compile: **sigma convert exit 0** | confidence: **medium**
-
-```yaml
-title: Suspicious Git History Credential Sweep in CI Environment
-id: 3661cb2a-8d4a-4d18-bc51-ef73c8185c3f
-status: experimental
-description: >
-    Detects a process piping full git history output through grep for
-    credential patterns, a behavior characteristic of the GhostAction
-    workflow that mines entire git histories for leaked secrets.
-references:
-    - https://www.stepsecurity.io/blog/ghostaction-returns
-    - https://socket.dev/blog/ghostaction-cloud-credentials
-author: Actioner
-date: 2026-10-12
-tags:
-    - attack.t1552.001
-    - attack.t1119
-logsource:
-    category: process_creation
-detection:
-    selection_git_log:
-        CommandLine|contains|all:
-            - 'git log'
-            - '-p'
-            - '--all'
-    selection_grep_creds:
-        CommandLine|contains:
-            - 'AKIA'
-            - 'sk-ant-'
-            - 'ghp_'
-            - 'glpat-'
-            - 'sk-proj-'
-    condition: selection_git_log or selection_grep_creds
-falsepositives:
-    - Legitimate secret scanning tools such as truffleHog or git-secrets
-    - Developer searches for key patterns during audits
-level: medium
-```
+<!-- revision: Sigma rule 3 (Suspicious Git History Credential Sweep) dropped — TTP at wrong altitude; OR on generic credential prefixes (AKIA, ghp_, sk-ant-) causes high FP in CI; first two Sigma rules already provide complete campaign coverage. -->
 
 ### YARA: GhostAction Malicious Workflow File Detection
 
@@ -382,13 +343,14 @@ rule SupplyChain_GhostAction_Malicious_Workflow
 Detects HTTP POST requests to the GhostAction C2 IP containing credential exfiltration body markers.
 
 <!-- audit: snort not available in environment. Structural check: correct http service, flow established/to_server, http_method content "POST", http_client_body with content match, SIDs in 2100000+ range, semicolons terminate all options. -->
+<!-- revision: fixed comma→semicolon before fast_pattern in both Snort rules (SID 2100101, 2100102) -->
 
 compile: **uncompiled (structural check only)** | confidence: **high**
 
 ```snort
-alert http $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction HTTP POST Credential Exfiltration to C2 IP"; flow:established, to_server; http_method; content:"POST"; http_client_body; content:"REPO=", fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/ghostaction-returns; metadata:author Actioner, created 2026-10-12; sid:2100101; rev:1;)
+alert http $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction HTTP POST Credential Exfiltration to C2 IP"; flow:established, to_server; http_method; content:"POST"; http_client_body; content:"REPO="; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/ghostaction-returns; metadata:author Actioner, created 2026-10-12; sid:2100101; rev:1;)
 
-alert http $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction AWS Key Context Exfiltration Marker"; flow:established, to_server; http_method; content:"POST"; http_client_body; content:"AKIA_CTX_START", fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/ghostaction-returns; metadata:author Actioner, created 2026-10-12; sid:2100102; rev:1;)
+alert http $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction AWS Key Context Exfiltration Marker"; flow:established, to_server; http_method; content:"POST"; http_client_body; content:"AKIA_CTX_START"; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/ghostaction-returns; metadata:author Actioner, created 2026-10-12; sid:2100102; rev:1;)
 ```
 
 ### Suricata: GhostAction HTTP POST Exfiltration
