@@ -142,7 +142,7 @@ coredumpctl list anydesk 2>/dev/null
 
 Detects the root-owned AnyDesk process spawning shells or download utilities, the primary post-exploitation indicator.
 
-**Compile**: sigma check pass (attacktag validator excluded due to proxy blocking MITRE ATT&CK data fetch), sigma convert splunk pass, sigma convert log_scale pass | **Confidence**: high
+**Compile**: sigma check pass (attacktag validator excluded due to proxy blocking MITRE ATT&CK data fetch), sigma convert splunk pass, sigma convert log_scale pass | **Confidence**: medium
 
 ```yaml
 title: AnyDesk Linux Service Spawning Shell or Interpreter (CVE-2026-109390 Post-Exploitation)
@@ -187,12 +187,12 @@ level: critical
 
 ### Sigma Rule 2: AnyDesk Linux Service Crash Indicating Exploitation Attempt
 
-Detects AnyDesk crash or segfault entries in syslog, which occur when the probabilistic heap overflow exploit fails to achieve the required heap layout.
+Detects AnyDesk crash or segfault entries in syslog, which occur when the probabilistic heap overflow exploit fails to achieve the required heap layout. Each match is a single crash event; SOC analysts should correlate multiple hits within a short window (e.g., 3+ in 10 minutes) to distinguish exploitation attempts from isolated crashes.
 
 **Compile**: sigma check pass (attacktag validator excluded), sigma convert splunk pass, sigma convert log_scale pass | **Confidence**: medium
 
 ```yaml
-title: AnyDesk Linux Service Repeated Crashes Indicating Exploitation Attempts (CVE-2026-109390)
+title: AnyDesk Linux Service Crash Indicating Exploitation Attempt (CVE-2026-109390)
 id: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e
 status: experimental
 description: >
@@ -234,7 +234,7 @@ Two Suricata rules detecting potential exploitation traffic: one for the specifi
 
 **Caveat**: AnyDesk uses a proprietary binary protocol. The byte pattern 0xF0FFFFFF may appear at any offset in the TCP stream; this rule is heuristic and requires tuning against baseline AnyDesk traffic.
 
-**Compile**: suricata -T pass ("Configuration provided was successfully loaded") | **Confidence**: medium
+**Compile**: suricata -T pass ("Configuration provided was successfully loaded") | **Confidence**: Rule 1 medium, Rule 2 low (correlation-only)
 
 ```
 alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Possible Heap Overflow Exploit Payload Length 0xFFFFFFF0 (CVE-2026-109390)"; flow:established,to_server; content:"|F0 FF FF FF|"; fast_pattern; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:cve,2026-109390; reference:url,github.com/v12-security/pocs/tree/main/anydesk; metadata:author Actioner, created_at 2026-10-13; sid:2100300; rev:1;)
