@@ -1,0 +1,71 @@
+title: AnyDesk Linux Service Spawning Shell or Interpreter (CVE-2026-109390 Post-Exploitation)
+id: a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects the AnyDesk Linux service (which runs as root) spawning shell
+    interpreters or download utilities. This is the expected post-exploitation
+    behavior following successful heap buffer overflow exploitation of the
+    mode-5 stream handler in AnyDesk Linux 8.0.0-8.0.2 (CVE-2026-109390).
+references:
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+author: Actioner
+date: 2026-10-13
+tags:
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith: '/anydesk'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/python'
+            - '/python3'
+            - '/perl'
+            - '/curl'
+            - '/wget'
+    condition: selection_parent and selection_child
+falsepositives:
+    - AnyDesk custom client scripts that intentionally invoke shell commands (rare on Linux daemon installations)
+level: critical
+---
+title: AnyDesk Linux Service Crash Indicating Exploitation Attempt (CVE-2026-109390)
+id: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects AnyDesk service crash or core dump entries in syslog. The
+    CVE-2026-109390 heap overflow exploit is probabilistic and crashes the
+    service when heap layout conditions are not met. Each match is a single
+    crash event; SOC analysts should correlate multiple hits within a short
+    window (e.g., 3+ in 10 minutes) to distinguish exploitation attempts
+    from isolated crashes.
+references:
+    - https://github.com/v12-security/pocs/tree/main/anydesk
+    - https://thehackernews.com/2026/10/researchers-publish-working-exploit-for.html
+author: Actioner
+date: 2026-10-13
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_crash:
+        SyslogIdentifier: 'systemd'
+        Message|contains|all:
+            - 'anydesk'
+            - 'dumping core'
+    selection_segfault:
+        Message|contains|all:
+            - 'anydesk'
+            - 'segfault'
+    condition: selection_crash or selection_segfault
+falsepositives:
+    - Legitimate AnyDesk crashes due to software bugs or resource exhaustion (should be investigated regardless)
+level: high

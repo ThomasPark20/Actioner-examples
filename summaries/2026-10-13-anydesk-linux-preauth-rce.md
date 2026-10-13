@@ -3,7 +3,9 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-13
-Version: 1.0-DRAFT
+Version: 1.0
+
+<!-- revision: Sigma-1 confidence high->medium (TTP rule not vuln-specific); Sigma-2 title dropped "Repeated" (no aggregation in rule logic), added SOC correlation note; Suricata-2 & Snort-2 threshold 10/30s->30/60s, confidence medium->low, marked correlation-only; rev bumped to 2 on changed network rules. -->
 
 ## Executive Summary
 
@@ -239,24 +241,24 @@ Two Suricata rules detecting potential exploitation traffic: one for the specifi
 ```
 alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Possible Heap Overflow Exploit Payload Length 0xFFFFFFF0 (CVE-2026-109390)"; flow:established,to_server; content:"|F0 FF FF FF|"; fast_pattern; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:cve,2026-109390; reference:url,github.com/v12-security/pocs/tree/main/anydesk; metadata:author Actioner, created_at 2026-10-13; sid:2100300; rev:1;)
 
-alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Rapid Reconnection Burst Possible Exploit Brute-Force (CVE-2026-109390)"; flow:to_server; flags:S; threshold:type threshold, track by_src, count 10, seconds 30; classtype:attempted-admin; reference:cve,2026-109390; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-13; sid:2100301; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Rapid Reconnection Burst Possible Exploit Brute-Force [Correlation-Only] (CVE-2026-109390)"; flow:to_server; flags:S; threshold:type threshold, track by_src, count 30, seconds 60; classtype:attempted-admin; reference:cve,2026-109390; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created_at 2026-10-13; sid:2100301; rev:2;)
 ```
 
-<!-- Audit: suricata -T -S suricata_anydesk_exploit.rules -l /tmp/actioner exit 0. Rule 1 uses content match for the little-endian representation of 0xFFFFFFF0 (the integer-overflowed payload length) in established TCP streams to port 7070. fast_pattern on this content; threshold limits alerts to 1 per source IP per 60 seconds to reduce noise. Without protocol-level dissection, this is a best-effort heuristic -- 4 bytes of 0xF0FFFFFF could appear in legitimate binary protocol traffic, though this is unlikely given the specific port restriction. Rule 2 detects SYN flood patterns (10+ SYNs in 30 seconds) to port 7070 from a single source, which matches the brute-force heap layout behavior described by researchers. False positives possible from rapid legitimate reconnection scenarios. -->
+<!-- Audit: suricata -T -S suricata_anydesk_exploit.rules -l /tmp/actioner exit 0. Rule 1 uses content match for the little-endian representation of 0xFFFFFFF0 (the integer-overflowed payload length) in established TCP streams to port 7070. fast_pattern on this content; threshold limits alerts to 1 per source IP per 60 seconds to reduce noise. Without protocol-level dissection, this is a best-effort heuristic -- 4 bytes of 0xF0FFFFFF could appear in legitimate binary protocol traffic, though this is unlikely given the specific port restriction. Rule 2 (low confidence, correlation-only) detects SYN burst patterns (30+ SYNs in 60 seconds) to port 7070 from a single source, which matches the brute-force heap layout behavior described by researchers. Threshold raised from 10/30s to 30/60s because 10 SYNs in 30 seconds is within normal operating parameters (health checks, monitoring agents, reconnection retries). This rule should not generate standalone alerts; use it as a supporting/correlation indicator alongside other CVE-2026-109390 detections. -->
 
 ### Snort Rules: AnyDesk Exploit Network Detection
 
 Two equivalent Snort 3 rules for the same network patterns.
 
-**Compile**: not available (snort not installed) | **Confidence**: medium
+**Compile**: not available (snort not installed) | **Confidence**: Rule 1 medium, Rule 2 low (correlation-only)
 
 ```
 alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Possible Heap Overflow Exploit Payload Length 0xFFFFFFF0 (CVE-2026-109390)"; flow:established, to_server; content:"|F0 FF FF FF|", fast_pattern; threshold:type limit, track by_src, count 1, seconds 60; classtype:attempted-admin; reference:cve,2026-109390; reference:url,github.com/v12-security/pocs/tree/main/anydesk; metadata:author Actioner, created 2026-10-13; sid:2100400; rev:1;)
 
-alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Rapid Reconnection Burst Possible Exploit Brute-Force (CVE-2026-109390)"; flow:to_server; flags:S; threshold:type threshold, track by_src, count 10, seconds 30; classtype:attempted-admin; reference:cve,2026-109390; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created 2026-10-13; sid:2100401; rev:1;)
+alert tcp $EXTERNAL_NET any -> $HOME_NET 7070 (msg:"Actioner - AnyDesk Rapid Reconnection Burst Possible Exploit Brute-Force [Correlation-Only] (CVE-2026-109390)"; flow:to_server; flags:S; threshold:type threshold, track by_src, count 30, seconds 60; classtype:attempted-admin; reference:cve,2026-109390; reference:url,thehackernews.com/2026/10/researchers-publish-working-exploit-for.html; metadata:author Actioner, created 2026-10-13; sid:2100401; rev:2;)
 ```
 
-<!-- Audit: snort not available for compilation. Rules use Snort 3 syntax with comma-delimited content modifiers (fast_pattern). Structural review confirms balanced parentheses, all required fields (msg, sid, rev), semicolon termination, and flow keywords present. SID range 2100400-2100401 chosen to avoid collision with Suricata SIDs. -->
+<!-- Audit: snort not available for compilation. Rules use Snort 3 syntax with comma-delimited content modifiers (fast_pattern). Structural review confirms balanced parentheses, all required fields (msg, sid, rev), semicolon termination, and flow keywords present. SID range 2100400-2100401 chosen to avoid collision with Suricata SIDs. Rule 2 (low confidence, correlation-only): threshold raised from 10/30s to 30/60s to reduce false positives from normal operating patterns. Should not generate standalone alerts; use as a supporting/correlation indicator. -->
 
 ### YARA Rule: Vulnerable AnyDesk Linux Binary Detection
 
@@ -325,4 +327,4 @@ rule Vuln_AnyDesk_Linux_CVE_2026_109390 : vulnerability
 - [Tenable - CVE-2025-27918](https://www.tenable.com/cve/CVE-2025-27918) -- prior AnyDesk heap overflow (separate vulnerability, all platforms)
 
 ---
-*Report generated by Actioner (DRAFT)*
+*Report generated by Actioner*
