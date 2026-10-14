@@ -1,0 +1,30 @@
+title: Citrix NetScaler CVE-2026-88771 Log Poisoning via Pitboss Marker
+id: 3c8e4b17-9f2a-4d6e-b1c3-5a7e9d0f8b2c
+status: experimental
+description: >
+    Detects log poisoning attempts targeting CVE-2026-88771 where attackers inject
+    shell metacharacters and base64-encoded payloads into NetScaler ns.log entries
+    via the pitboss watchdog marker. The string NSPPE after pitboss is the marker
+    extracted by ns_monuploadd_err.pl for command execution.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+    - https://beazley.security/alerts-advisories/critical-vulnerability-in-citrix-netscaler-zero-day-prompts-emergency-shutdowns-cve-2026-88771-cve-2026-88772
+    - https://support.citrix.com/external/article/CTX697096
+author: Actioner
+date: 2026/10/14
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_pitboss:
+        cs-uri-stem|contains: '/nf/auth/doAuthentication.do'
+    selection_body:
+        request_body|contains|all:
+            - 'pitboss'
+            - 'NSPPE'
+    condition: selection_pitboss and selection_body
+falsepositives:
+    - Legitimate NetScaler pitboss watchdog events do not appear in HTTP POST request bodies
+level: critical

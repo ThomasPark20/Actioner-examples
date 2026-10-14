@@ -1,0 +1,24 @@
+title: Citrix NetScaler CVE-2026-88771 Base64 Payload in User-Agent
+id: 7a1d5e93-4b2f-4c8d-a9e6-3f0b8c7d2a1e
+status: experimental
+description: >
+    Detects the first stage of CVE-2026-88771 exploitation where an attacker places
+    a Base64-encoded dropper in the User-Agent header. The payload is logged to
+    httpaccess-vpn.log and later extracted by the log processing script for execution.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+    - https://www.helpnetsecurity.com/2026/09/28/citrix-netscaler-rce-zero-days-exploited-for-weeks-cve-2026-88771-cve-2026-88772/
+author: Actioner
+date: 2026/10/14
+tags:
+    - attack.t1190
+    - attack.t1027
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-user-agent|startswith: 'INDEX:'
+    condition: selection
+falsepositives:
+    - No known legitimate User-Agent strings begin with INDEX:
+level: critical
