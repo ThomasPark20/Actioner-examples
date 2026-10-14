@@ -1,0 +1,25 @@
+title: Citrix NetScaler Web Shell Access via Disguised CSS Path
+id: 9e3f7b24-6a1d-48c5-b0e2-1d4f8a9c5b3e
+status: experimental
+description: >
+    Detects HTTP requests to the web shell paths observed in the CVE-2026-88771/88772
+    campaign. Attackers disguise the PHP shell as a CSS file under the LogonPoint
+    custom directory using Alias/AliasMatch in httpd.conf.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+    - https://beazley.security/alerts-advisories/critical-vulnerability-in-citrix-netscaler-zero-day-prompts-emergency-shutdowns-cve-2026-88771-cve-2026-88772
+author: Actioner
+date: 2026/10/14
+tags:
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection_shell_path:
+        cs-uri-stem|contains:
+            - '/logon/LogonPoint/custom/receiver.min.css'
+            - '/logon/LogonPoint/custom/.ctxs.receiver'
+    condition: selection_shell_path
+falsepositives:
+    - Legitimate receiver.min.css requests from Citrix Workspace app; verify the response content type and size
+level: high
