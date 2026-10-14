@@ -1,0 +1,26 @@
+title: Ivanti Connect Secure CVE-2026-104935 - Anomalous POST to welcome.cgi
+id: 7f3a8b2e-1c4d-4e9f-b6a5-d8e2f0c3a1b7
+status: experimental
+description: >
+    Detects HTTP POST requests to the Ivanti Connect Secure welcome.cgi endpoint,
+    which is normally accessed via GET for authentication. POST requests to this
+    endpoint are characteristic of CVE-2026-104935 exploitation, where an attacker
+    uses the X-DSCGI-PATH header to route requests to protected CGI handlers like
+    wu.cgi for file upload and code execution.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    - https://www.cisa.gov/news-events/alerts/2026/10/13/cisa-adds-two-known-exploited-vulnerabilities-catalog
+author: Actioner
+date: 2026-10-14
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/dana-na/auth/url_default/welcome.cgi'
+        cs-method: 'POST'
+    condition: selection
+falsepositives:
+    - Custom integrations that POST to the Ivanti authentication endpoint
+level: medium

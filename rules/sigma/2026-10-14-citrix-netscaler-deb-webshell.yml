@@ -1,0 +1,29 @@
+title: Citrix NetScaler CVE-2026-88772 Deb Web Shell Download
+id: b5c2d194-8e3f-4a7b-9d6c-2e1f0a8b7c4d
+status: experimental
+description: >
+    Detects HTTP requests to .deb files in the NetScaler VPN scripts directory, which
+    were used to deliver WHIPSHOT PHP web shells via CVE-2026-88772 DTLS exploitation.
+references:
+    - https://unit42.paloaltonetworks.com/netscaler-zero-days-exploited/
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-citrix-netscaler-zero-day-to-deploy-web-shells/
+author: Actioner
+date: 2026/10/14
+tags:
+    - attack.t1505.003
+    - attack.t1036.005
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains:
+            - '/vpn/scripts/linux/nsgclient18.deb'
+            - '/vpn/scripts/linux/nsg64.deb'
+            - '/vpn/scripts/linux/nsgbuild.deb'
+            - '/vpn/scripts/linux/nsgsupport.deb'
+            - '/vpn/scripts/linux/nsgser18.deb'
+            - '/vpn/scripts/linux/nsgpackage64.deb'
+    condition: selection
+falsepositives:
+    - Legitimate NetScaler client package downloads; correlate with known good package names and hashes
+level: high
