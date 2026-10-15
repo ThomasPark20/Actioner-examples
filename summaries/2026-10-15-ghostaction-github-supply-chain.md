@@ -4,6 +4,7 @@ Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-15
 Version: 1.0
+Status: FINAL
 
 ## Executive Summary
 
@@ -196,12 +197,12 @@ The use of direct IP over plaintext HTTP means no DNS query is generated and dom
 | T1078.004 | Valid Accounts: Cloud Accounts | Stolen GitHub PATs used to authenticate and push malicious commits |
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious workflows planted in legitimate repositories to harvest credentials from CI/CD |
 | T1552.001 | Unsecured Credentials: Credentials in Files | Regex scanning of working tree and git history for hardcoded secrets |
-| T1552.004 | Unsecured Credentials: Private Keys | Targeting SSH keys and cloud credential files |
+| T1552 | Unsecured Credentials | Regex scanning targets credentials stored insecurely in files, environment variables, and git history |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Bash shell step executing grep and curl commands in workflow |
 | T1041 | Exfiltration Over C2 Channel | Stolen credentials sent via HTTP POST to attacker-controlled IP |
 | T1119 | Automated Collection | Automated scanning of 13 credential patterns across working tree and git history |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTP POST used for exfiltration |
-| T1588.002 | Obtain Capabilities: Tool | Use of infostealer logs to source initial GitHub credentials |
+| T1597.002 | Search Closed Sources: Purchase Technical Data | Use of infostealer logs and underground markets to source stolen GitHub credentials |
 
 ## Impact Assessment
 
@@ -243,7 +244,7 @@ find . -path '*/.github/workflows/security-audit.yml' -o -path '*/.github/workfl
 ### Long-Term Hardening
 
 - Enable GitHub secret scanning with push protection.
-- Require PR review for all changes to `.github/workflows/` via branch protection rules or CODEOWNERS.
+- Require PR review for all changes to `.github/workflows/` via branch protection rules or CODEOWNERS. Note: this control is only effective if "Allow specified actors to bypass required pull requests" is disabled or tightly scoped, as repository admins can otherwise bypass branch protection.
 - Require approval for workflow runs from outside collaborators.
 - Implement egress allowlisting on CI/CD runners (e.g., StepSecurity Harden-Runner `allowed-endpoints`) to catch raw-IP connections.
 - Monitor for unsigned, rapid-fire commits across multiple repos from a single account.
@@ -251,61 +252,24 @@ find . -path '*/.github/workflows/security-audit.yml' -o -path '*/.github/workfl
 
 ## Detection Rules
 
-The following rules target the GhostAction campaign's known workflow patterns, network indicators, and payload markers. Rules cover GitHub audit log events (Sigma), workflow file content (YARA), and network exfiltration (Snort, Suricata). All rules use real (non-defanged) indicator values for detection accuracy per the logsource encoding reference.
+The following rules target the GhostAction campaign's known workflow patterns, network indicators, and payload markers. Rules cover proxy/network logs (Sigma), workflow file content (YARA), and network exfiltration (Snort, Suricata). All rules use real (non-defanged) indicator values for detection accuracy per the logsource encoding reference.
 
-### Sigma Rule 1: GhostAction Malicious Workflow Commit to GitHub Repository
+> **IOC Shelf-Life Caveat:** IP-based indicators have a limited useful lifespan. The legacy C2 IPs (45.139.104[.]115 and 170.39.218[.]2) are 12+ months old and may have been reassigned to legitimate services. Rules targeting these IPs should be validated against current threat intelligence before deployment and periodically revalidated. The primary C2 IP (193.32.204[.]199) was active as of October 2026 but should also be revalidated before use.
 
-Detects commits with known GhostAction commit messages pushing malicious workflow files to GitHub repositories, as observed in GitHub audit log events.
+> **Revision Note (v1.0):** Three rules were removed during review for quality reasons:
+> - **Sigma: GhostAction Malicious Workflow Commit** -- Dropped because the `commit_message` field does not exist in GitHub `git.push` audit log events. The rule was non-functional and would never fire.
+> - **Sigma: Suspicious Credential Scanning in CI/CD Pipeline** -- Dropped for altitude violation. The behavioral patterns (grep for AKIA, git log, curl POST) match any legitimate secret scanner (trufflehog, gitleaks) and would produce unacceptable false positives.
+> - **YARA: GhostAction_CredentialPatterns** -- Dropped for altitude violation. The credential prefixes (AKIA, ghp_, sk-ant-, etc.) are industry-standard patterns found in security documentation, scanning tool configurations, and blog posts. The rule lacked GhostAction-specific anchoring.
+>
+> Two rules were downgraded from high to medium confidence: Sigma Legacy C2 and Suricata Legacy C2, both due to 12+ month IOC age and IP reassignment risk.
 
-<!-- audit: Sigma rule targeting github audit log push events with known malicious commit messages. Logsource uses product:github, service:audit, matching against commit message patterns. No defanged values in detection fields. Validated with sigma check and sigma convert. -->
-
-compile: see-validation | confidence: high
-
-```yaml
-title: GhostAction Malicious Workflow Commit Detected
-id: 7e2f4a1b-9c3d-4b8e-a5f7-1d6e0c9b2a3f
-status: experimental
-description: >
-    Detects push events to GitHub repositories with commit messages matching
-    the GhostAction campaign's known injection patterns. The campaign uses
-    stolen PATs to push malicious workflow files disguised as security tooling.
-references:
-    - https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/
-    - https://thehackernews.com/2026/10/ghostaction-compromises-about-1900.html
-    - https://www.stepsecurity.io/blog/ghostaction-returns
-author: Actioner
-date: 2026-10-15
-tags:
-    - attack.t1195.002
-    - attack.t1078.004
-logsource:
-    product: github
-    service: audit
-detection:
-    selection_action:
-        action: 'git.push'
-    selection_message:
-        commit_message|contains:
-            - 'Add security audit workflow'
-            - 'Update security audit workflow'
-            - 'Add Github Actions Security workflow'
-            - 'Update Github Actions Security workflow'
-            - 'Add security check workflow'
-            - 'Trigger security scan'
-    condition: selection_action and selection_message
-falsepositives:
-    - Legitimate security tooling being added with similar commit messages
-    - Internal security teams deploying audit workflows
-level: high
-```
-
-### Sigma Rule 2: GhostAction HTTP Exfiltration to Known C2 IP
+### Sigma Rule 1: GhostAction HTTP Exfiltration to Known C2 IP
 
 Detects outbound HTTP connections from CI/CD runners to the GhostAction C2 IP address 193.32.204.199 on ports 80 or 3000.
 
 <!-- audit: Sigma rule targeting network/proxy logs for connections to the known GhostAction C2 IP. Uses proxy logsource category. Real IP values in detection (not defanged). Validated with sigma check and sigma convert. -->
 
-compile: see-validation | confidence: high
+compile: pass (sigma convert) | confidence: high
 
 ```yaml
 title: GhostAction HTTP Exfiltration to C2 IP 193.32.204.199
@@ -336,64 +300,15 @@ falsepositives:
 level: critical
 ```
 
-### Sigma Rule 3: Suspicious GitHub Actions Workflow with Full Git History Checkout and Credential Grep
-
-Detects behavioral patterns of the GhostAction payload in CI/CD execution logs: a workflow that checks out full git history and performs regex-based credential scanning.
-
-<!-- audit: Sigma rule targeting process creation events on CI/CD runners for the GhostAction behavioral chain: fetch-depth 0 checkout followed by grep with credential patterns. Uses process_creation category. Validated with sigma check and sigma convert. -->
-
-compile: see-validation | confidence: medium
-
-```yaml
-title: Suspicious Credential Scanning in CI/CD Pipeline
-id: 9d4e6f2a-1b3c-4a5d-8e7f-0c9b2d1a3e4f
-status: experimental
-description: >
-    Detects process execution patterns consistent with GhostAction credential
-    harvesting in CI/CD environments. The malicious workflow greps for credential
-    patterns in the working tree and git history, then exfiltrates via curl POST
-    to a raw IP address.
-references:
-    - https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/
-    - https://socket.dev/blog/ghostaction-cloud-credentials
-author: Actioner
-date: 2026-10-15
-tags:
-    - attack.t1552.001
-    - attack.t1119
-logsource:
-    category: process_creation
-detection:
-    selection_grep:
-        CommandLine|contains|all:
-            - 'grep'
-            - '-rE'
-            - 'AKIA'
-    selection_gitlog:
-        CommandLine|contains|all:
-            - 'git'
-            - 'log'
-            - '-p'
-            - '--all'
-    selection_curl:
-        CommandLine|contains|all:
-            - 'curl'
-            - 'POST'
-            - '--data-binary'
-    condition: selection_grep or (selection_gitlog and selection_curl)
-falsepositives:
-    - Legitimate secret scanning tools that grep for credential patterns
-    - Security audit scripts performing git history analysis
-level: high
-```
-
-### Sigma Rule 4: GhostAction Legacy C2 Communication
+### Sigma Rule 2: GhostAction Legacy C2 Communication
 
 Detects network connections to legacy GhostAction C2 infrastructure including historical IPs and domains.
 
-<!-- audit: Sigma rule targeting proxy/network logs for legacy GhostAction C2 destinations. Covers the September 2025 and interim endpoints. Real values in detection fields. Validated with sigma check and sigma convert. -->
+> **Revalidation Required:** These legacy IOCs are 12+ months old (September 2025 through March 2026). The IPs may have been reassigned to legitimate services. Validate against current threat intelligence before deploying this rule in production, and schedule periodic revalidation.
 
-compile: see-validation | confidence: high
+<!-- audit: Sigma rule targeting proxy/network logs for legacy GhostAction C2 destinations. Covers the September 2025 and interim endpoints. Real values in detection fields. Fixed r-dns to cs-host per Sigma proxy field standards. Validated with sigma check and sigma convert. -->
+
+compile: pass (sigma convert) | confidence: medium
 
 ```yaml
 title: GhostAction Legacy C2 Infrastructure Communication
@@ -402,8 +317,9 @@ status: experimental
 description: >
     Detects network connections to legacy GhostAction C2 infrastructure
     including the original September 2025 endpoints and intermediate IPs.
-    These indicators remain relevant as the threat actor may reactivate
-    old infrastructure.
+    These indicators are 12+ months old and require revalidation against
+    current threat intelligence before deployment; IPs may have been
+    reassigned to unrelated services.
 references:
     - https://blog.gitguardian.com/ghostaction-campaign-3-325-secrets-stolen/
     - https://threats.wiz.io/all-incidents/ghostaction-campaign
@@ -420,14 +336,15 @@ detection:
             - '45.139.104.115'
             - '170.39.218.2'
     selection_domain:
-        r-dns|contains:
+        cs-host|contains:
             - 'bold-dhawan.45-139-104-115.plesk.page'
             - 'objective-hopper.45-139-104-115.plesk.page'
             - 'carte-avantage.com'
     condition: selection_ip or selection_domain
 falsepositives:
-    - Unlikely. These IPs and domains are specifically associated with GhostAction C2.
-level: high
+    - IP addresses may have been reassigned to legitimate services since the 2025 campaign
+    - Legitimate traffic to plesk.page subdomains (low probability for these specific subdomains)
+level: medium
 ```
 
 ### YARA Rule 1: GhostAction Security Audit Workflow
@@ -436,7 +353,7 @@ Detects the malicious GitHub Actions workflow files used by the GhostAction camp
 
 <!-- audit: YARA rule matching GhostAction workflow YAML files by content patterns. Targets the unique combination of workflow name, fetch-depth 0, credential grep patterns, and curl exfil to raw IP. No PE header requirement since these are YAML files. Validated with yarac. -->
 
-compile: see-validation | confidence: high
+compile: pass (yarac) | confidence: high
 
 ```yara
 rule SupplyChain_GhostAction_Workflow_SecurityAudit
@@ -453,8 +370,7 @@ rule SupplyChain_GhostAction_Workflow_SecurityAudit
         $name2 = "Github Actions Security" ascii
         $name3 = "Security Check" ascii
 
-        $trigger1 = "workflow_dispatch" ascii
-        $trigger2 = "push" ascii
+        $trigger = "workflow_dispatch" ascii
 
         $checkout = "fetch-depth: 0" ascii
 
@@ -465,9 +381,8 @@ rule SupplyChain_GhostAction_Workflow_SecurityAudit
         $grep5 = "sk-proj-" ascii
         $grep6 = "glpat-" ascii
 
-        $exfil1 = "193.32.204.199" ascii
-        $exfil2 = "curl" ascii
-        $exfil3 = "--data-binary" ascii
+        $exfil_ip = "193.32.204.199" ascii
+        $exfil_curl = "curl" ascii
 
         $marker1 = "AKIA_CTX_START" ascii
         $marker2 = "AKIA_CTX_END" ascii
@@ -477,10 +392,10 @@ rule SupplyChain_GhostAction_Workflow_SecurityAudit
     condition:
         filesize < 50KB and
         1 of ($name*) and
-        $trigger1 and
+        $trigger and
         (
             ($checkout and 2 of ($grep*)) or
-            ($exfil1 and $exfil2) or
+            ($exfil_ip and $exfil_curl) or
             (1 of ($marker*)) or
             ($gitlog and 1 of ($grep*))
         )
@@ -493,7 +408,7 @@ Detects the legacy GhostAction workflow variant that directly exfiltrates named 
 
 <!-- audit: YARA rule matching the named-secrets exfiltration variant of GhostAction. Targets the job name, cache busting technique, and secret posting behavior. Validated with yarac. -->
 
-compile: see-validation | confidence: high
+compile: pass (yarac) | confidence: high
 
 ```yara
 rule SupplyChain_GhostAction_Workflow_NamedSecrets
@@ -526,54 +441,13 @@ rule SupplyChain_GhostAction_Workflow_NamedSecrets
 }
 ```
 
-### YARA Rule 3: GhostAction Credential Pattern Scanner
-
-Detects files containing the specific combination of credential regex patterns used by GhostAction for scanning working trees and git histories.
-
-<!-- audit: YARA rule matching the credential pattern set used by GhostAction. The combination of these specific patterns in a single file is characteristic of the campaign. Validated with yarac. -->
-
-compile: see-validation | confidence: medium
-
-```yara
-rule SupplyChain_GhostAction_CredentialPatterns
-{
-    meta:
-        description = "Detects files containing the GhostAction credential scanning regex pattern set"
-        author = "Actioner"
-        date = "2026-10-15"
-        reference = "https://socket.dev/blog/ghostaction-cloud-credentials"
-        severity = "high"
-
-    strings:
-        $pat_aws_akia = "AKIA[0-9A-Z]{16}" ascii
-        $pat_aws_asia = "ASIA[0-9A-Z]{16}" ascii
-        $pat_anthropic = "sk-ant-" ascii
-        $pat_openai = "sk-proj-" ascii
-        $pat_openrouter = "sk-or-" ascii
-        $pat_ghp = "ghp_[A-Za-z0-9]{36}" ascii
-        $pat_ghpat = "github_pat_" ascii
-        $pat_gitlab = "glpat-" ascii
-        $pat_google = "AIza" ascii
-        $pat_slack = "xox" ascii
-        $pat_sendgrid = /SG\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/ ascii
-
-        $tool_grep = "grep" ascii
-        $tool_curl = "curl" ascii
-
-    condition:
-        filesize < 100KB and
-        5 of ($pat_*) and
-        $tool_grep and $tool_curl
-}
-```
-
 ### Snort Rule 1: GhostAction HTTP POST Exfiltration to C2
 
 Detects HTTP POST requests to the primary GhostAction C2 IP address with characteristic payload markers.
 
 <!-- audit: Snort 2 rule targeting HTTP POST to 193.32.204.199 with GhostAction body markers. Uses content match on the IP in the Host header and body content. Validated with snort -T. -->
 
-compile: see-validation | confidence: high
+compile: pass (snort -T) | confidence: high
 
 ```
 alert tcp $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction HTTP POST Exfiltration to C2 193.32.204.199"; flow:established,to_server; content:"POST"; depth:4; content:"REPO="; sid:2100010; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)
@@ -585,7 +459,7 @@ Detects the AKIA_CTX_START marker in HTTP traffic, indicating exfiltration of AW
 
 <!-- audit: Snort 2 rule targeting the AKIA_CTX_START body marker in outbound HTTP traffic to any destination, providing broader detection than IP-specific rules. Validated with snort -T. -->
 
-compile: see-validation | confidence: high
+compile: pass (snort -T) | confidence: high
 
 ```
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GhostAction AWS Credential Context Exfiltration Marker"; flow:established,to_server; content:"POST"; depth:4; content:"AKIA_CTX_START"; sid:2100011; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)
@@ -597,7 +471,7 @@ Detects HTTP requests to the GhostAction /api/workflow/receive endpoint on port 
 
 <!-- audit: Snort 2 rule targeting the September 2026 variant's API endpoint. Validated with snort -T. -->
 
-compile: see-validation | confidence: high
+compile: pass (snort -T) | confidence: high
 
 ```
 alert tcp $HOME_NET any -> 193.32.204.199 3000 (msg:"Actioner - GhostAction Workflow Receive API Endpoint"; flow:established,to_server; content:"/api/workflow/receive"; sid:2100012; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)
@@ -609,7 +483,7 @@ Detects HTTP POST requests to the GhostAction C2 IP with the characteristic quer
 
 <!-- audit: Suricata rule using http protocol with dot-notation sticky buffers. Targets POST method to the C2 IP with query patterns matching known GhostAction tags. Validated with suricata -T. -->
 
-compile: see-validation | confidence: high
+compile: pass (suricata -T) | confidence: high
 
 ```
 alert http $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction HTTP POST to C2 with Campaign Tag"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/?c="; sid:2100020; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)
@@ -621,7 +495,7 @@ Detects the AKIA_CTX_START marker in HTTP request bodies, indicating GhostAction
 
 <!-- audit: Suricata rule using http.request_body sticky buffer to detect the AWS context marker. Broader than IP-specific rules. Validated with suricata -T. -->
 
-compile: see-validation | confidence: high
+compile: pass (suricata -T) | confidence: high
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GhostAction AWS Credential Context in HTTP Body"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"AKIA_CTX_START"; fast_pattern; sid:2100021; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)
@@ -629,14 +503,16 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - GhostAction AWS C
 
 ### Suricata Rule 3: GhostAction Legacy C2 Communication
 
-Detects HTTP traffic to legacy GhostAction C2 IP addresses.
+Detects HTTP POST traffic to legacy GhostAction C2 IP addresses.
 
-<!-- audit: Suricata rule targeting legacy C2 IPs from the 2025 campaign waves. Validated with suricata -T. -->
+> **Revalidation Required:** These legacy IOCs are 12+ months old. The IPs may have been reassigned. Adding POST method match reduces false positives from incidental browsing to reassigned IPs, but revalidation against current threat intelligence is still required before deployment.
 
-compile: see-validation | confidence: high
+<!-- audit: Suricata rule targeting legacy C2 IPs from the 2025 campaign waves. Added http.method POST content match to reduce FP from IP reassignment. Validated with suricata -T. -->
+
+compile: pass (suricata -T) | confidence: medium
 
 ```
-alert http $HOME_NET any -> [45.139.104.115,170.39.218.2] any (msg:"Actioner - GhostAction Legacy C2 IP Communication"; flow:established,to_server; sid:2100022; rev:1; classtype:trojan-activity; reference:url,threats.wiz.io/all-incidents/ghostaction-campaign;)
+alert http $HOME_NET any -> [45.139.104.115,170.39.218.2] any (msg:"Actioner - GhostAction Legacy C2 IP Communication"; flow:established,to_server; http.method; content:"POST"; sid:2100022; rev:2; classtype:trojan-activity; reference:url,threats.wiz.io/all-incidents/ghostaction-campaign;)
 ```
 
 ## Lessons Learned

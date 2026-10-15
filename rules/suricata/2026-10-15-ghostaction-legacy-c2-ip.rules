@@ -1,0 +1,1 @@
+alert http $HOME_NET any -> [45.139.104.115,170.39.218.2] any (msg:"Actioner - GhostAction Legacy C2 IP Communication"; flow:established,to_server; http.method; content:"POST"; sid:2100022; rev:2; classtype:trojan-activity; reference:url,threats.wiz.io/all-incidents/ghostaction-campaign;)
