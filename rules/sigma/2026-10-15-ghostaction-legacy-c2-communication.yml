@@ -1,0 +1,34 @@
+title: GhostAction Legacy C2 Infrastructure Communication
+id: 5b7c9d1e-3a2f-4e6b-8d0c-2f1a4b5e7c8d
+status: experimental
+description: >
+    Detects network connections to legacy GhostAction C2 infrastructure
+    including the original September 2025 endpoints and intermediate IPs.
+    These indicators are 12+ months old and require revalidation against
+    current threat intelligence before deployment; IPs may have been
+    reassigned to unrelated services.
+references:
+    - https://blog.gitguardian.com/ghostaction-campaign-3-325-secrets-stolen/
+    - https://threats.wiz.io/all-incidents/ghostaction-campaign
+author: Actioner
+date: 2026-10-15
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_ip:
+        dst_ip:
+            - '45.139.104.115'
+            - '170.39.218.2'
+    selection_domain:
+        cs-host|contains:
+            - 'bold-dhawan.45-139-104-115.plesk.page'
+            - 'objective-hopper.45-139-104-115.plesk.page'
+            - 'carte-avantage.com'
+    condition: selection_ip or selection_domain
+falsepositives:
+    - IP addresses may have been reassigned to legitimate services since the 2025 campaign
+    - Legitimate traffic to plesk.page subdomains (low probability for these specific subdomains)
+level: medium

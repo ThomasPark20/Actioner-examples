@@ -1,0 +1,1 @@
+alert tcp $HOME_NET any -> 193.32.204.199 any (msg:"Actioner - GhostAction HTTP POST Exfiltration to C2 193.32.204.199"; flow:established,to_server; content:"POST"; depth:4; content:"REPO="; sid:2100010; rev:1; classtype:trojan-activity; reference:url,blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/;)

@@ -1,0 +1,26 @@
+title: GhostAction HTTP Exfiltration to C2 IP 193.32.204.199
+id: 3a8b5c7d-2e1f-4d9a-b6c8-0f3e7d5a1b2c
+status: experimental
+description: >
+    Detects HTTP POST requests to the GhostAction C2 IP address
+    193.32.204.199, used for exfiltrating stolen credentials from
+    compromised GitHub Actions workflows since August 2026.
+references:
+    - https://blog.gitguardian.com/ghostaction-github-actions-supply-chain-attack-returns/
+    - https://socket.dev/blog/ghostaction-cloud-credentials
+    - https://www.stepsecurity.io/blog/ghostaction-returns
+author: Actioner
+date: 2026-10-15
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        dst_ip: '193.32.204.199'
+        cs-method: 'POST'
+    condition: selection
+falsepositives:
+    - Unlikely. Direct HTTP POST to this IP is highly indicative of GhostAction activity.
+level: critical
