@@ -1,0 +1,47 @@
+title: curl or libcurl Process Crash Indicating Possible CVE-2026-92392 Exploitation
+id: b4e2d6f1-9a53-4c8e-b072-5d1f3e6a9c87
+status: experimental
+description: >
+    Detects segmentation faults or abort signals from curl or processes linked
+    against libcurl, reported via kernel log or syslog. The most common outcome
+    of triggering CVE-2026-92392 is a use-after-free crash. This rule detects
+    the symptom (crash) rather than the specific exploit, so triage should
+    correlate with HTTP/2 upload activity and examine crash dumps for
+    use-after-free in multi_done() or related functions.
+references:
+    - https://curl.se/docs/CVE-2026-92392.html
+    - https://daniel.haxx.se/blog/2026/10/14/a-uaf-turned-rce/
+    - https://github.com/curl/curl/commit/8b0744af5b1b631da5b938ca31c3f9895ad5a321
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1203
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_segfault_curl:
+        - Message|contains|all:
+            - 'segfault'
+            - 'curl'
+        - Message|contains|all:
+            - 'segfault'
+            - 'libcurl'
+    selection_sigabrt_curl:
+        - Message|contains|all:
+            - 'SIGABRT'
+            - 'curl'
+        - Message|contains|all:
+            - 'SIGABRT'
+            - 'libcurl'
+    selection_traps:
+        - Message|contains|all:
+            - 'traps:'
+            - 'curl'
+            - 'trap'
+    condition: selection_segfault_curl or selection_sigabrt_curl or selection_traps
+falsepositives:
+    - curl crashes unrelated to CVE-2026-92392 (other bugs, memory exhaustion, corrupt data)
+    - Applications with 'curl' in their name that are unrelated to libcurl
+    - Development and testing environments running curl under fuzzing or stress testing
+level: medium

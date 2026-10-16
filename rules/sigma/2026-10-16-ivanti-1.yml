@@ -1,0 +1,31 @@
+title: Ivanti Connect Secure Authentication Bypass via X-DSCGI-PATH Header Mismatch (CVE-2026-104935)
+id: 7f3a2c91-e8d4-4b5a-9c1f-6d2e8a4f7b3d
+status: experimental
+description: >
+    Detects HTTP requests to the Ivanti Connect Secure welcome.cgi endpoint
+    with an X-DSCGI-PATH header referencing the wu.cgi upload handler, which
+    is the primary exploitation vector for CVE-2026-104935. The header routes
+    the unauthenticated request to a protected CGI script, bypassing
+    authentication.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    - https://www.cisa.gov/news-events/alerts/2026/10/13/cisa-urges-patching-newly-exploited-vulnerability-ivanti-connect-secure
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1190
+    - cve.2026-104935
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/dana-na/auth/url_default/welcome.cgi'
+    selection_header:
+        cs-referer|contains:
+            - 'wu.cgi'
+            - '/home/runtime/tmp/'
+            - '/home/webserver/htdocs/dana/fb/smb/wu.cgi'
+    condition: selection_uri and selection_header
+falsepositives:
+    - Authorized penetration testing against Ivanti Connect Secure appliances
+level: critical

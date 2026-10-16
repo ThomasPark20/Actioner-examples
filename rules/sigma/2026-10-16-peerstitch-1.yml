@@ -1,0 +1,25 @@
+title: PEERSTITCH Ptrace Injection Into FortiOS Daemons
+id: 3a7c91e2-f8d4-4b1a-ae29-6c5d0f3e8b17
+status: experimental
+description: Detects the PEERSTITCH implant injector (lldprx) using ptrace to attach to FortiOS miglogd or iked daemons
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1055.008
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_injector:
+        Image|endswith: '/lldprx'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'lldprx!index.js!index.wasm!ipssem.js'
+            - 'lldprx!yyyy!pM.js'
+    condition: selection_injector or selection_cmdline
+falsepositives:
+    - Unknown
+level: critical

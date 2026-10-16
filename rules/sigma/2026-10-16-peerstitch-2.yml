@@ -1,0 +1,25 @@
+title: PEERSTITCH Anti-Forensics Activity on FortiOS
+id: 8b2e47f1-c3a6-4d9e-b5f8-1a9d0e7c6f34
+status: experimental
+description: Detects multiple anti-forensic commands associated with PEERSTITCH deployment on FortiOS devices, requiring at least two indicators to reduce false positives from routine maintenance
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1070.004
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_kill_miglogd:
+        CommandLine|contains: 'killall -9 miglogd'
+    selection_kill_syslogd:
+        CommandLine|contains: 'killall -9 syslogd'
+    selection_crashlog:
+        CommandLine|contains: 'diagnose debug crashlog clear'
+    condition: (selection_kill_miglogd and selection_kill_syslogd) or (selection_kill_miglogd and selection_crashlog) or (selection_kill_syslogd and selection_crashlog)
+falsepositives:
+    - Legitimate FortiOS maintenance operations involving multiple service restarts
+level: high

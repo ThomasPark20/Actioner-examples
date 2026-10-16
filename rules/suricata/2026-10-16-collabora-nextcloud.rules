@@ -1,0 +1,17 @@
+# Detect exploitation attempt via proxy.php with command injection (decoded form)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET EXPLOIT Collabora CODE Server proxy.php Command Injection Attempt (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; content:"proxy.php"; distance:0; content:"$("; sid:2026101601; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag Exploit; reference:cve,2026-110447; reference:url,github.com/CollaboraOnline/richdocumentscode/issues/354; classtype:web-application-attack; priority:1;)
+
+# Detect exploitation attempt with URL-encoded command substitution (raw URI)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET EXPLOIT Collabora CODE Server proxy.php URL-Encoded Command Injection (CVE-2026-110447)"; flow:established,to_server; http.uri.raw; content:"/richdocumentscode/"; content:"proxy.php"; distance:0; content:"%24%28"; sid:2026101602; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag Exploit; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
+
+# Detect access to known web shell filenames in richdocumentscode directory
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET TROJAN Collabora CODE Server Web Shell Access (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; pcre:"/\/sh[rx][a-f0-9]{4,5}\.php/U"; sid:2026101603; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag WebShell; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
+
+# Detect callback to webhook.site from Nextcloud server (post-exploitation beacon)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Collabora CODE Exploitation Callback to webhook.site (CVE-2026-110447)"; flow:established,to_server; http.host; content:"webhook.site"; http.uri; content:"/45060ed4-de0b-4119-8f0d-2a2776bbd413"; sid:2026101604; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag C2; reference:cve,2026-110447; classtype:trojan-activity; priority:2;)
+
+# Detect callback to second webhook.site UUID (post-exploitation beacon)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Collabora CODE Exploitation Callback to webhook.site UUID2 (CVE-2026-110447)"; flow:established,to_server; http.host; content:"webhook.site"; http.uri; content:"/774cf5e1-b5a4-4174-a1ad-0241861029a2"; sid:2026101605; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag C2; reference:cve,2026-110447; classtype:trojan-activity; priority:2;)
+
+# Generic webhook.site callback from HOME_NET (lower confidence, broader coverage)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET POLICY Outbound HTTP to webhook.site from HOME_NET (Possible Post-Exploitation Beacon)"; flow:established,to_server; http.host; content:"webhook.site"; threshold:type limit, track by_src, count 1, seconds 300; sid:2026101606; rev:1; metadata:affected_product Any, attack_target Server, created_at 2026_10_16, deployment Perimeter, tag C2; classtype:policy-violation; priority:3;)

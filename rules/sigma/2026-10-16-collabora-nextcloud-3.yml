@@ -1,0 +1,25 @@
+title: Collabora CODE Server Web Shell HTTP Access
+id: c8f56d12-3e7a-4b91-a5c0-d94e82f17b63
+status: experimental
+description: Detects HTTP requests to known web shell filenames dropped during CVE-2026-110447 exploitation in the richdocumentscode application directory.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-collabora-rce-flaw-to-backdoor-nextcloud-servers/
+    - https://thehackernews.com/2026/10/hackers-backdoor-nextcloud-servers.html
+    - https://github.com/CollaboraOnline/richdocumentscode/issues/354
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection_path:
+        cs-uri-stem|contains: '/richdocumentscode/'
+    selection_shell:
+        cs-uri-stem|re: '/sh[rx][a-f0-9]{4,5}\.php'
+    selection_param:
+        cs-uri-query|contains: 'c='
+    condition: selection_path and selection_shell and selection_param
+falsepositives:
+    - Extremely unlikely in normal Nextcloud operations
+level: critical

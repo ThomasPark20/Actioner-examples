@@ -1,0 +1,38 @@
+title: Ivanti Connect Secure Post-Exploitation Credential Theft Tools (CVE-2026-104935)
+id: 1a6e3b98-d4c7-4f52-a8d1-7c9f0e5b2a63
+status: experimental
+description: >
+    Detects execution of Python scripts associated with UTA0576
+    post-exploitation on Ivanti Connect Secure. The attacker deployed
+    credential theft, Kerberoasting, LDAP reconnaissance, and password
+    spraying tools in /tmp/ on the compromised appliance.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1059.006
+    - attack.t1558.003
+    - attack.t1110.003
+    - cve.2026-104935
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_interpreter:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+            - '/python3.6'
+    selection_scripts:
+        CommandLine|contains:
+            - '/tmp/ml.py'
+            - '/tmp/rq5.py'
+            - '/tmp/mk.py'
+            - '/tmp/rr.py'
+            - 'sp_run.py'
+            - '/data/.icscap/h.py'
+    condition: selection_interpreter and selection_scripts
+falsepositives:
+    - Custom administrative Python scripts on the appliance using matching filenames
+level: critical

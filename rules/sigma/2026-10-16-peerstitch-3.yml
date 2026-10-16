@@ -1,0 +1,30 @@
+title: PEERSTITCH Staging Directory and Path Traversal Auto-Script
+id: d4f19a83-e2b7-4c6f-9317-5b8a0d2e1f69
+status: experimental
+description: Detects file creation in PEERSTITCH staging directory or path traversal auto-script objects
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1190
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_staging:
+        TargetFilename|contains:
+            - '/data2/template/lldprx'
+            - '/data2/template/index.js'
+            - '/data2/template/index.wasm'
+            - '/data2/template/ipssem.js'
+            - '/data2/template/pM.js'
+    selection_traversal:
+        TargetFilename|contains:
+            - '../../../../setup'
+            - '../../tmp/apache2/conf/md-acme.conf'
+    condition: 1 of selection_*
+falsepositives:
+    - Unknown
+level: critical
