@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-16
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 2026-10-16 — dropped Sigma Rule 1 (version-string process_creation rule: version strings appear in stdout, not CommandLine; MITRE tag T1518.001 incorrect); kept Rule 2 (crash pattern) as-is at MEDIUM confidence; marked abbreviated commit hash; updated status to FINAL; wrote standalone rule file -->
 
 ## Executive Summary
 
@@ -19,7 +20,7 @@ curl is the most widely deployed command-line HTTP client and transfer library. 
 
 HTTP/2 multiplexes multiple logical streams over a single TCP connection. Each stream can be independently reset by either peer using `RST_STREAM` frames. The `HTTP_1_1_REQUIRED` (0x0d) and `REFUSED_STREAM` (0x07) error codes are standard mechanisms a server uses to request protocol downgrade or reject a stream, respectively. curl treats these resets as retryable errors and may attempt the transfer again on a new connection.
 
-The vulnerable code path was introduced in commit `cd9107e0128191b7b5396b` shipped with curl 8.12.0 (February 2025).
+The vulnerable code path was introduced in commit `cd9107e0128191b7b5396b...` (abbreviated; full hash unavailable from public sources at time of writing) shipped with curl 8.12.0 (February 2025).
 
 ## Attack Timeline (All Times UTC)
 
@@ -242,69 +243,35 @@ Rationale:
 3. **No malformed protocol elements:** Unlike many protocol exploits, this attack does not use malformed frames, invalid headers, or anomalous byte patterns. The exploit relies on timing and ordering of legitimate protocol operations.
 
 4. **Host-level detection is viable but limited:**
-   - Version inventory (Sigma) can identify vulnerable installations
+   - Version inventory is best handled through package managers, SBOM scanners, or EDR telemetry rather than Sigma process_creation rules (version strings are stdout output, not command-line arguments)
    - Crash pattern detection (Sigma) can identify exploitation attempts that result in crashes (the most likely outcome)
-   - Neither detects successful silent exploitation
+   - Neither approach detects successful silent exploitation
 
-**Conclusion:** Two Sigma rules are provided below for host-level detection. Network-level Suricata/Snort rules are assessed as **not production-ready** for this vulnerability due to the reasons above.
+**Conclusion:** One Sigma rule is provided below for crash-pattern detection. Version inventory is addressed as a recommended hunt approach using asset management tools. Network-level Suricata/Snort rules are assessed as **not production-ready** for this vulnerability due to the reasons above.
 
 ## Detection Rules
 
-These detections target host-level indicators of CVE-2026-92392: vulnerable curl versions and crash patterns from libcurl processes during HTTP/2 uploads. Network-level rules (Suricata/Snort) are not included because the attack uses standard encrypted HTTP/2 frame sequences that cannot be distinguished from legitimate traffic without TLS decryption and would produce unacceptable false-positive rates.
+This section provides one Sigma rule for host-level crash-pattern detection and a recommended hunt approach for version inventory. Network-level rules (Suricata/Snort) are not included because the attack uses standard encrypted HTTP/2 frame sequences that cannot be distinguished from legitimate traffic without TLS decryption and would produce unacceptable false-positive rates.
 
-### Sigma: Vulnerable curl Version Detected via Process Execution
+### Version Inventory (Hunt Approach — No Sigma Rule)
 
-Detects execution of curl binaries with version strings matching the vulnerable range (8.12.0 through 8.22.0). Useful for asset inventory and patch verification, not exploit detection. Note: this fires on `curl --version` output or process command-line metadata that includes version strings; it requires a log source that captures command-line arguments or process metadata.
-**Status:** compile ✅ compiles (sigma convert -t splunk --without-pipeline) · confidence: low
-<!-- audit: sigma convert exit 0 (pySigma 1.5.1, splunk backend). Rule targets process_creation with curl version strings in CommandLine. FP risk: moderate — version-check scripts, CI/CD pipelines, and configuration management tools routinely run curl --version. Use as inventory/hunt query, not alert. sigma check could not validate tags due to proxy blocking MITRE ATT&CK data fetch. -->
-```yaml
-title: Vulnerable curl Version Detected via Process Execution (CVE-2026-92392)
-id: a1f7c3e9-8d42-4b6a-9e15-3c7d0f8a2b64
-status: experimental
-description: >
-    Detects execution of curl binaries with version strings matching
-    curl 8.12.0 through 8.22.0, which are vulnerable to CVE-2026-92392
-    (HTTP/2 upload use-after-free). Use as an inventory and patch-verification
-    hunt query. Does not detect exploitation.
-references:
-    - https://curl.se/docs/CVE-2026-92392.html
-    - https://daniel.haxx.se/blog/2026/10/14/a-uaf-turned-rce/
-    - https://thehackernews.com/2026/10/curl-patches-http2-upload-flaw-after.html
-author: Actioner
-date: 2026/10/16
-tags:
-    - attack.t1518.001
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_curl_binary:
-        Image|endswith: '/curl'
-    selection_vulnerable_version:
-        CommandLine|contains:
-            - 'curl 8.12.'
-            - 'curl 8.13.'
-            - 'curl 8.14.0'
-            - 'curl 8.14.1'
-            - 'curl 8.14.2'
-            - 'curl 8.15.'
-            - 'curl 8.16.0'
-            - 'curl 8.16.1'
-            - 'curl 8.17.'
-            - 'curl 8.18.'
-            - 'curl 8.19.'
-            - 'curl 8.20.0'
-            - 'curl 8.20.1'
-            - 'curl 8.21.'
-            - 'curl 8.22.'
-    condition: selection_curl_binary and selection_vulnerable_version
-falsepositives:
-    - Legitimate version checking scripts during patching operations
-    - Configuration management and inventory tools auditing curl versions
-    - CI/CD pipelines that log curl version output
-    - Backport builds may report a vulnerable version string despite containing the fix
-level: low
-```
+<!-- revision-note: Sigma Rule 1 (id a1f7c3e9-8d42-4b6a-9e15-3c7d0f8a2b64) was DROPPED in v1.1.
+     Reason: The rule matched version strings (e.g. "curl 8.12.") in CommandLine fields of
+     process_creation logs. curl version strings appear in stdout output of "curl --version",
+     NOT in command-line arguments logged by process auditing. A process_creation log for
+     "curl --version" records the literal arguments "--version", not the program's printed
+     output "curl 8.12.0 ...". The rule would therefore never fire on real telemetry.
+     Additionally, the MITRE ATT&CK tag attack.t1518.001 (Security Software Discovery) was
+     incorrect — curl is a transfer tool, not security software. -->
+
+**Recommended hunt approach:** Identifying vulnerable curl/libcurl installations (8.12.0 through 8.22.0) is best accomplished through asset inventory mechanisms rather than Sigma process_creation rules. Version strings are program output, not command-line arguments, so they do not appear in process auditing logs. Suitable approaches include:
+
+- **Package manager queries:** `dpkg -l curl`, `rpm -q curl`, `apk info curl` across fleet via orchestration tools
+- **File-based inventory:** Enumerate `libcurl.so.*` shared objects by path (e.g., `/usr/lib/x86_64-linux-gnu/libcurl.so.4.8.0`) — the version is embedded in the `.so` filename on most distributions
+- **SBOM / vulnerability scanners:** Trivy, Grype, or similar tools scanning hosts and container images for CVE-2026-92392
+- **EDR telemetry:** Some EDR platforms inventory loaded library versions; query for libcurl modules in the vulnerable range
+
+These approaches provide reliable version identification without the false-detection issues of process_creation log matching.
 
 ### Sigma: curl or libcurl Process Crash During HTTP/2 Upload (CVE-2026-92392)
 
@@ -382,7 +349,7 @@ For environments with TLS-terminating proxies that log HTTP/2 frame details, a h
 - [The Hacker News: curl Patches HTTP/2 Upload Flaw After PoC Demonstrates Client-Side Code Execution](https://thehackernews.com/2026/10/curl-patches-http2-upload-flaw-after.html)
 - [Threat Landscape Blog: curl 8.23.0 Fixes High-Severity CVE-2026-92392 HTTP/2 Flaw](https://threatlandscape.io/blog/curl-8-23-0-http2-upload-use-after-free-cve-2026-92392)
 - [Fix Commit: 8b0744af5b1b631da5b938ca31c3f9895ad5a321](https://github.com/curl/curl/commit/8b0744af5b1b631da5b938ca31c3f9895ad5a321)
-- [Introducing Commit: cd9107e0128191b7b5396b](https://github.com/curl/curl/commit/cd9107e0128191b7b5396b)
+- [Introducing Commit: cd9107e0128191b7b5396b... (abbreviated)](https://github.com/curl/curl/commit/cd9107e0128191b7b5396b)
 - [HackerOne Report #4030333](https://hackerone.com/reports/4030333)
 - [Debian Security Advisory DSA-6558-1](https://linuxsecurity.com/advisories/debian/debian-dsa-6558-1-curl)
 - [Debian Security Tracker: CVE-2026-92392](https://security-tracker.debian.org/tracker/CVE-2026-92392)

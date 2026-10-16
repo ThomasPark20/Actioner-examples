@@ -1,0 +1,41 @@
+title: Credential and Cryptocurrency Wallet Discovery via Web Shell
+id: f4a91b28-7c3d-4e56-9d82-b1c5e7a36f90
+status: experimental
+description: Detects process execution patterns consistent with post-exploitation credential and cryptocurrency wallet discovery observed after CVE-2026-110447 exploitation on Nextcloud servers.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-collabora-rce-flaw-to-backdoor-nextcloud-servers/
+    - https://thehackernews.com/2026/10/hackers-backdoor-nextcloud-servers.html
+    - https://github.com/CollaboraOnline/richdocumentscode/issues/354
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1083
+    - attack.t1552.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/nginx'
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php'
+    selection_find:
+        Image|endswith: '/find'
+        CommandLine|contains:
+            - '.kdbx'
+            - 'wallet.dat'
+            - 'keystore.json'
+            - '.bitcoin'
+            - '.electrum'
+            - '.monero'
+            - '.ethereum'
+            - 'bitwarden'
+            - '1password'
+    condition: selection_parent and selection_find
+falsepositives:
+    - Legitimate administrative searches for credential databases from web server context (very unlikely)
+level: medium

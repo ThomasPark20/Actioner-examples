@@ -1,0 +1,26 @@
+title: Ivanti Connect Secure welcome.cgi Request from Known UTA0576 IP (CVE-2026-104935)
+id: 4e8b1d73-c9f2-4a06-b5d3-2f7e0c3a9d51
+status: experimental
+description: >
+    Detects requests to the Ivanti Connect Secure welcome.cgi endpoint
+    from the known UTA0576 exploitation source IP address 108.165.147.64
+    (Evoxt VPS). This is a high-fidelity IOC-only detection that will
+    expire when the attacker rotates infrastructure.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    - https://thehackernews.com/2026/10/attacker-chains-three-ivanti-connect.html
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1190
+    - cve.2026-104935
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|contains: '/dana-na/auth/url_default/welcome.cgi'
+        src_ip: '108.165.147.64'
+    condition: selection
+falsepositives:
+    - Legitimate traffic from the listed IP after infrastructure turnover
+level: critical

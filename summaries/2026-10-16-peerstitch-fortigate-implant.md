@@ -1,7 +1,8 @@
 # PEERSTITCH: Memory-Resident ARM64 Implant Targeting FortiGate Firewalls
 
 **Date:** 2026-10-16
-**Status:** DRAFT
+**Status:** FINAL
+**Revision:** v2 -- Applied critic review fixes: tightened YARA rule 1 conditions, raised Sigma rule 2 threshold to 2-of-3, corrected Snort confidence to MEDIUM, moved shared-secret hash to separate table, inlined Snort rules, clarified Snort rule framing
 **Author:** Actioner
 **Threat Actor Cluster:** CL-STA-0954 / UNC5820
 **Malware Family:** PEERSTITCH
@@ -92,7 +93,8 @@ PEERSTITCH is a 64-bit ARM64 ELF binary written in C. It is a fileless, memory-r
 | Orchestrator | b.js | ipssem.js | `fc1b10c58057ef9f1f9a1e2a3d4a1c89f43b0ead451398c70ed7a6e0312b36ee` |
 | Emscripten JS Runtime | a.js | index.js | `f84eea718526706afdf2d1a2774fab76ecb11c18fb61995a37be8249c5e379ab` |
 | WASM Module | a.wasm | index.wasm | `b7ae166fd49a7ecfe6322a80b8aa56d6aa0825d8f5d106dab2e4fb7d14ce15a8` |
-| Hard-coded Shared Secret ("123456") | - | - | `8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92` |
+
+**Hard-coded Shared Secret:** The implant uses the hard-coded secret `"123456"` (SHA-256: `8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92`) for session tag validation. This hash is the SHA-256 digest of the password string itself, not a file artifact, and should not be used for file-based IOC matching.
 
 ### Injection Mechanism
 
@@ -156,7 +158,6 @@ Cross-process data structures:
 | `fc1b10c58057ef9f1f9a1e2a3d4a1c89f43b0ead451398c70ed7a6e0312b36ee` | ipssem.js (orchestrator) |
 | `f84eea718526706afdf2d1a2774fab76ecb11c18fb61995a37be8249c5e379ab` | index.js (Emscripten JS runtime) |
 | `b7ae166fd49a7ecfe6322a80b8aa56d6aa0825d8f5d106dab2e4fb7d14ce15a8` | index.wasm (WASM module) |
-| `8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92` | Hard-coded shared secret artifact ("123456") |
 
 ### Network Indicators (Defanged)
 
@@ -243,7 +244,7 @@ Cross-process data structures:
 
 ### YARA Rules
 
-**File:** `/tmp/actioner/peerstitch_fortigate_implant.yar`
+**Files:** `rules/yara/2026-10-16-peerstitch-1.yar`, `rules/yara/2026-10-16-peerstitch-2.yar`
 
 #### Rule 1: `peerstitch_fortigate_arm64_implant`
 
@@ -263,8 +264,6 @@ rule peerstitch_fortigate_arm64_implant {
     strings:
         $elf = { 7F 45 4C 46 }
         $mmap_sc = { C8 1B 80 D2 01 00 00 D4 }
-        $nop_patch = { E0 03 00 AA }
-        $prologue = { FF 43 04 D1 }
         $br_x0 = { 00 00 1F D6 }
         $s_miglogd = "/bin/miglogd" ascii
         $s_iked = "/bin/iked" ascii
@@ -281,14 +280,14 @@ rule peerstitch_fortigate_arm64_implant {
         $elf at 0 and
         (
             ($mmap_sc and $br_x0) or
-            ($prologue and $nop_patch) or
-            (4 of ($s_*))
+            (5 of ($s_*)) or
+            (1 of ($s_acme_managed, $s_acme_conf, $s_ssh_config) and 3 of ($s_*))
         )
 }
 ```
 
 - **Compile status:** PASS (yarac validation successful)
-- **Confidence:** HIGH -- based on unique operational strings and ARM64 shellcode patterns directly from Unit 42 analysis
+- **Confidence:** HIGH -- ARM64 shellcode patterns and operational strings from Unit 42 analysis; generic ARM64 prologue/NOP patterns removed to prevent false positives on benign ELF binaries; string-only branch requires either 5+ strings or a highly-specific string plus 3 others
 
 #### Rule 2: `peerstitch_staging_scripts`
 
@@ -326,7 +325,7 @@ rule peerstitch_staging_scripts {
 
 #### Rule 1: PEERSTITCH Ptrace Injection Into FortiOS Daemons
 
-**File:** `/tmp/actioner/peerstitch_ptrace_injection.yml`
+**File:** `rules/sigma/2026-10-16-peerstitch-1.yml`
 
 ```yaml
 title: PEERSTITCH Ptrace Injection Into FortiOS Daemons
@@ -356,18 +355,18 @@ falsepositives:
 level: critical
 ```
 
-- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk and LogScale successful)
+- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk successful)
 - **Confidence:** HIGH
 
 #### Rule 2: PEERSTITCH Anti-Forensics Activity on FortiOS
 
-**File:** `/tmp/actioner/peerstitch_antiforensics.yml`
+**File:** `rules/sigma/2026-10-16-peerstitch-2.yml`
 
 ```yaml
 title: PEERSTITCH Anti-Forensics Activity on FortiOS
 id: 8b2e47f1-c3a6-4d9e-b5f8-1a9d0e7c6f34
 status: experimental
-description: Detects anti-forensic commands associated with PEERSTITCH deployment
+description: Detects multiple anti-forensic commands associated with PEERSTITCH deployment on FortiOS devices, requiring at least two indicators to reduce false positives from routine maintenance
 references:
     - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
 author: Actioner
@@ -385,18 +384,18 @@ detection:
         CommandLine|contains: 'killall -9 syslogd'
     selection_crashlog:
         CommandLine|contains: 'diagnose debug crashlog clear'
-    condition: 1 of selection_*
+    condition: (selection_kill_miglogd and selection_kill_syslogd) or (selection_kill_miglogd and selection_crashlog) or (selection_kill_syslogd and selection_crashlog)
 falsepositives:
-    - Legitimate FortiOS maintenance operations
+    - Legitimate FortiOS maintenance operations involving multiple service restarts
 level: high
 ```
 
-- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk and LogScale successful)
-- **Confidence:** HIGH
+- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk successful)
+- **Confidence:** HIGH -- requires at least 2-of-3 anti-forensic indicators, reducing false positives from individual maintenance commands
 
 #### Rule 3: PEERSTITCH Staging Directory and Path Traversal
 
-**File:** `/tmp/actioner/peerstitch_staging_directory.yml`
+**File:** `rules/sigma/2026-10-16-peerstitch-3.yml`
 
 ```yaml
 title: PEERSTITCH Staging Directory and Path Traversal Auto-Script
@@ -431,12 +430,12 @@ falsepositives:
 level: critical
 ```
 
-- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk and LogScale successful)
+- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk successful)
 - **Confidence:** HIGH
 
 #### Rule 4: PEERSTITCH C2 Infrastructure Network Connection
 
-**File:** `/tmp/actioner/peerstitch_network_c2.yml`
+**File:** `rules/sigma/2026-10-16-peerstitch-4.yml`
 
 ```yaml
 title: PEERSTITCH C2 Infrastructure Network Connection
@@ -472,25 +471,41 @@ falsepositives:
 level: critical
 ```
 
-- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk and LogScale successful)
+- **Compile status:** PASS (sigma check: 0 errors, 0 issues; convert to Splunk successful)
 - **Confidence:** HIGH
 
 ### Snort/Suricata Rules
 
-**File:** `/tmp/actioner/peerstitch_network.rules`
+**File:** `rules/snort/2026-10-16-peerstitch.rules` (1 rule file containing 8 signatures)
 
-8 rules covering:
-- SID 2026101601: Connection to primary staging server `23[.]240[.]77[.]233:8085`
-- SID 2026101602: Connection to secondary staging server `47[.]18[.]167[.]159:8085`
-- SID 2026101603: Connection to rogue ACME CA `23[.]240[.]77[.]233:8084`
-- SID 2026101604: ACME directory request to rogue CA
-- SID 2026101605: PEERSTITCH-specific ACME finalize order pattern
-- SID 2026101606: Rogue FortiGate registration from `45[.]32[.]41[.]202` on TCP 541
-- SID 2026101607: Rogue FortiGate registration from `198[.]199[.]122[.]22` on TCP 541
-- SID 2026101608: HTTP download of `pM.js` staging component
+```snort
+# SID 2026101601 - Connection to primary staging server on port 8085
+alert tcp $HOME_NET any -> 23.240.77.233 8085 (msg:"PEERSTITCH Primary Staging Server Connection (23.240.77.233:8085)"; flow:to_server,established; classtype:trojan-activity; sid:2026101601; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
 
-- **Compile status:** NOT VALIDATED (Snort/Suricata not available in environment; syntax manually verified)
-- **Confidence:** HIGH
+# SID 2026101602 - Connection to secondary staging server on port 8085
+alert tcp $HOME_NET any -> 47.18.167.159 8085 (msg:"PEERSTITCH Secondary Staging Server Connection (47.18.167.159:8085)"; flow:to_server,established; classtype:trojan-activity; sid:2026101602; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101603 - Connection to rogue ACME CA on port 8084
+alert tcp $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH Rogue ACME CA Connection (23.240.77.233:8084)"; flow:to_server,established; classtype:trojan-activity; sid:2026101603; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101604 - ACME directory request to rogue CA
+alert http $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH Rogue ACME Directory Request"; flow:to_server,established; content:"/directory"; http_uri; classtype:trojan-activity; sid:2026101604; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101605 - PEERSTITCH-specific ACME finalize order pattern
+alert http $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH ACME Finalize Order Pattern"; flow:to_server,established; content:"/acme/finalize/61924744/774083503"; http_uri; classtype:trojan-activity; sid:2026101605; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101606 - Rogue FortiGate registration from initial source IP on FGFM port
+alert tcp 45.32.41.202 any -> $HOME_NET 541 (msg:"PEERSTITCH Rogue FortiGate Registration Source (45.32.41.202 -> TCP 541)"; flow:to_server,established; classtype:trojan-activity; sid:2026101606; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101607 - Rogue FortiGate registration from replacement source IP on FGFM port
+alert tcp 198.199.122.22 any -> $HOME_NET 541 (msg:"PEERSTITCH Rogue FortiGate Registration Source (198.199.122.22 -> TCP 541)"; flow:to_server,established; classtype:trojan-activity; sid:2026101607; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101608 - HTTP download of pM.js staging component
+alert http $HOME_NET any -> any 8085 (msg:"PEERSTITCH Staging Script Download (pM.js)"; flow:to_server,established; content:"pM.js"; http_uri; classtype:trojan-activity; sid:2026101608; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+```
+
+- **Compile status:** UNVALIDATED -- no Snort 3 or Suricata 7 engine available in this environment; syntax manually reviewed. **Validation against Snort 3 or Suricata 7 is required before production deployment.**
+- **Confidence:** MEDIUM -- rules are syntactically sound but have not been compiled or tested against live traffic
 
 ---
 

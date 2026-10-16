@@ -1,0 +1,35 @@
+title: Collabora Online CODE Server proxy.php Command Injection Exploit Attempt
+id: 7e3c2a91-4f8b-4d6e-b1a3-c9e7f5d82b14
+status: experimental
+description: Detects HTTP requests targeting the Collabora Online Built-in CODE Server proxy.php endpoint with command injection patterns, indicating exploitation of CVE-2026-110447.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-collabora-rce-flaw-to-backdoor-nextcloud-servers/
+    - https://thehackernews.com/2026/10/hackers-backdoor-nextcloud-servers.html
+    - https://github.com/CollaboraOnline/richdocumentscode/issues/354
+    - https://github.com/CollaboraOnline/richdocumentscode/security/advisories/GHSA-g3vx-3m76-fghh
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1190
+    - attack.t1059.004
+    - cve.2026.110447
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: 'proxy.php'
+    selection_app_path:
+        cs-uri-stem|contains: '/richdocumentscode/'
+    selection_injection_high:
+        cs-uri-stem|contains:
+            - '$('
+            - '%24%28'
+            - '${IFS}'
+            - '%24%7BIFS%7D'
+            - '%2e%2e'
+    selection_injection_base64:
+        cs-uri-stem|contains: 'base64${IFS}'
+    condition: selection_uri and selection_app_path and (selection_injection_high or selection_injection_base64)
+falsepositives:
+    - Legitimate use of encoded path segments in the Collabora proxy URL is uncommon but possible in misconfigured setups
+level: critical

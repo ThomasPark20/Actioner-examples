@@ -1,9 +1,10 @@
 # Next.js Out-of-Band Patch for Two Critical RCE Flaws and High-Severity DoS
 
 **Date:** 2026-10-16
-**Status:** DRAFT
+**Status:** FINAL
 **Author:** Actioner
 **Severity:** Critical (CVSS 9.5) / High (CVSS 8.2)
+**Revision:** 2026-10-16 — Applied critic review: retired 2 Sigma rules and 2 Suricata SIDs with documented detection gaps; removed T1203 (client-side technique misapplied to server-side RCE); tightened surviving rules; corrected React advisory URLs.
 
 ---
 
@@ -29,7 +30,7 @@ As of October 15, 2026, there are no confirmed reports of exploitation in the wi
 | **CWE** | Not listed |
 | **Affected** | Next.js 16.0.0 through 16.4.0 |
 | **Fixed** | Next.js 16.4.1 |
-| **Upstream** | [GHSA-xqc2-xf4c-x3h3](https://github.com/react/react/security/advisories/GHSA-xqc2-xf4c-x3h3) (React) |
+| **Upstream** | [GHSA-xqc2-xf4c-x3h3](https://github.com/facebook/react/security/advisories/GHSA-xqc2-xf4c-x3h3) (React) |
 | **React Fix** | 19.0.9, 19.1.10, 19.2.9, 19.3.1 |
 | **Credit** | evolutionstorm (finder) |
 
@@ -104,7 +105,7 @@ An attacker would need to supply a malicious SVG file accessible via the `url` p
 | **CWE** | Not listed |
 | **Affected** | Next.js 13.0.0 through 15.5.27; 16.0.0 through 16.4.0 |
 | **Fixed** | Next.js 15.5.28, 16.4.1 |
-| **Upstream** | [GHSA-h3gv-c5rc-p453](https://github.com/react/react/security/advisories/GHSA-h3gv-c5rc-p453) (React) |
+| **Upstream** | [GHSA-h3gv-c5rc-p453](https://github.com/facebook/react/security/advisories/GHSA-h3gv-c5rc-p453) (React) |
 
 **Technical Details:**
 
@@ -125,7 +126,6 @@ Crafted HTTP requests targeting Next.js applications using the App Router with a
 | Technique ID | Name | Relevance |
 |---|---|---|
 | [T1190](https://attack.mitre.org/techniques/T1190/) | Exploit Public-Facing Application | All three flaws target internet-facing Next.js applications without authentication |
-| [T1203](https://attack.mitre.org/techniques/T1203/) | Exploitation for Client Execution | SVG processing and RSC deserialization lead to code execution on the server |
 | [T1059.007](https://attack.mitre.org/techniques/T1059/007/) | Command and Scripting Interpreter: JavaScript | Post-exploitation in the Node.js runtime environment |
 | [T1499.003](https://attack.mitre.org/techniques/T1499/003/) | Endpoint Denial of Service: Application or System Exploitation | Server Actions CPU exhaustion DoS |
 
@@ -133,11 +133,11 @@ Crafted HTTP requests targeting Next.js applications using the App Router with a
 
 ## Viability Gate Assessment
 
-**SVG/Image Optimization RCE (CVE-2026-96889):** VIABLE for detection. The attack requires HTTP requests to known endpoints (`/_next/image`, OG image routes) with SVG content containing XInclude directives. The `/_next/image` endpoint, SVG content types, and XInclude patterns are detectable at the network layer.
+**SVG/Image Optimization RCE (CVE-2026-96889):** PARTIALLY VIABLE for detection. The attack requires HTTP GET requests to known endpoints (`/_next/image`, OG image routes) where the `url=` query parameter points to an attacker-hosted malicious SVG. The endpoint and SVG file-extension references in the URL are detectable at the network layer (canary-level detection). However, the actual exploit payload (XInclude directives and duplicate ENTITY declarations) resides inside the remote SVG file fetched server-side by Next.js, not in the HTTP request from the attacker. No network-layer signature can inspect the content of the server-side fetch. Deep payload inspection rules targeting `cs-body` or `http.request_body` are not viable for this attack vector.
 
 **`use cache` RCE (GHSA-673q-mjm6-r5xr):** LIMITED viability. The exploitation occurs through the RSC Flight protocol deserialization layer. No specific HTTP request patterns, headers, or payload formats have been publicly documented. Detection must rely on version-based identification and anomaly detection rather than signature matching. No production-ready detection rule can be written for this flaw at this time.
 
-**Server Actions DoS (GHSA-p3m5-59mp-jv5r):** PARTIAL viability. Server Actions use POST requests with the `Next-Action` header. High-frequency POST requests causing server errors (5xx) can be detected, but distinguishing DoS attempts from legitimate traffic requires threshold-based rules with acceptable false-positive rates.
+**Server Actions DoS (GHSA-p3m5-59mp-jv5r):** LIMITED viability via Sigma. Server Actions use POST requests with the `Next-Action` custom header. The Sigma webserver log schema has no standard field for arbitrary request headers, so a Sigma rule cannot reliably detect the `Next-Action` header. Suricata's `http.header` buffer can match it with a threshold-based rule, but Sigma detection for this flaw is not viable without SIEM-specific field mappings. The Suricata threshold rule (SID 2026101604) provides the only network-layer detection.
 
 ---
 
@@ -145,19 +145,19 @@ Crafted HTTP requests targeting Next.js applications using the App Router with a
 
 ### Sigma Rules
 
-All Sigma rules validated with `sigma check` (0 errors) and successfully converted to Splunk SPL.
+Surviving rules validated with `sigma check` (0 errors, excluding attacktag/d3_fendtag/cvetag validators) and successfully converted to Splunk SPL via `sigma convert --without-pipeline -t splunk`.
 
-#### Rule 1: Next.js Image Optimization API SVG RCE Attempt
+#### Rule 1: Suspicious SVG Request to Next.js Image Optimization API (KEPT)
 
-- **File:** `nextjs_svg_rce_image_optimization.yml`
+- **File:** `2026-10-16-nextjs-1.yml`
 - **ID:** `482d6c5a-b20e-49cd-8bc1-d780d3feac5a`
-- **Compile status:** PASS
-- **Confidence:** MEDIUM — Detects SVG requests to `/_next/image` but cannot distinguish malicious from legitimate SVGs without payload inspection
-- **Level:** high
-- **Logic:** Matches web server access logs where `cs-uri-stem` contains `/_next/image` AND `cs-uri-query` contains `.svg`, `image/svg`, or URL-encoded SVG content type
+- **Compile status:** PASS (sigma check 0 errors, Splunk SPL conversion successful)
+- **Confidence:** MEDIUM — Canary rule. Detects SVG requests to `/_next/image` but cannot distinguish malicious from legitimate SVGs without payload inspection.
+- **Level:** medium
+- **Logic:** Matches web server access logs where `cs-uri-stem` contains `/_next/image` AND `cs-uri-query` contains `.svg`, `image/svg`, or `image%2Fsvg`
 
 ```yaml
-title: Next.js Image Optimization API SVG RCE Attempt (CVE-2026-96889)
+title: Suspicious SVG Request to Next.js Image Optimization API (CVE-2026-96889)
 id: 482d6c5a-b20e-49cd-8bc1-d780d3feac5a
 status: experimental
 description: >
@@ -166,7 +166,9 @@ description: >
   use-after-free in librsvg triggered by crafted SVG files with nested
   XIncludes and duplicate entity declarations, reachable through the
   sharp image processing library on glibc-based Linux. Requires
-  dangerouslyAllowSVG to be enabled in next.config.js.
+  dangerouslyAllowSVG to be enabled in next.config.js. This is a canary
+  rule: it flags all SVG requests to the vulnerable endpoint, not just
+  confirmed exploits, and should be tuned per environment.
 references:
   - https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
   - https://nextjs.org/blog/nextjs-security-update-october-14-2026
@@ -176,7 +178,6 @@ author: Actioner
 date: 2026/10/16
 tags:
   - attack.t1190
-  - attack.t1203
   - cve.2026.96889
 logsource:
   category: webserver
@@ -193,117 +194,33 @@ detection:
 falsepositives:
   - Legitimate SVG image optimization requests in applications with dangerouslyAllowSVG enabled
   - Internal monitoring or health check tools accessing image endpoints
-level: high
-```
-
-#### Rule 2: Next.js SVG XInclude Exploitation Attempt
-
-- **File:** `nextjs_svg_xinclude_exploit_attempt.yml`
-- **ID:** `0fbc88f6-cecc-45d5-9a84-424fc0e6e219`
-- **Compile status:** PASS
-- **Confidence:** HIGH — XInclude directives in SVG uploads are uncommon in legitimate traffic and directly correlate with the CVE-2026-96889 exploit trigger
-- **Level:** high
-- **Logic:** Matches web server logs where request content-type contains `svg` AND request body contains XInclude indicators
-
-```yaml
-title: Next.js SVG XInclude Exploitation Attempt (CVE-2026-96889)
-id: 0fbc88f6-cecc-45d5-9a84-424fc0e6e219
-status: experimental
-description: >
-  Detects HTTP request bodies or uploaded content containing SVG payloads
-  with XInclude directives, which are the specific trigger for the
-  use-after-free vulnerability in librsvg (CVE-2026-96889). The
-  vulnerability is triggered when librsvg processes an SVG document
-  containing nested XML inclusions (XIncludes) with duplicate entity
-  declarations. This rule targets web server logs that capture request
-  body content or POST data.
-references:
-  - https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
-  - https://nextjs.org/blog/nextjs-security-update-october-14-2026
-  - https://access.redhat.com/security/cve/cve-2026-96889
-author: Actioner
-date: 2026/10/16
-tags:
-  - attack.t1190
-  - attack.t1203
-  - cve.2026.96889
-logsource:
-  category: webserver
-  service: access
-detection:
-  selection_svg_header:
-    cs-content-type|contains: 'svg'
-  selection_xinclude:
-    cs-body|contains:
-      - 'xi:include'
-      - 'XInclude'
-      - 'xinclude'
-      - 'http://www.w3.org/2001/XInclude'
-  condition: selection_svg_header and selection_xinclude
-falsepositives:
-  - Legitimate SVG uploads that use XInclude for valid document composition
-level: high
-```
-
-#### Rule 3: Next.js Server Actions Potential DoS
-
-- **File:** `nextjs_server_actions_dos.yml`
-- **ID:** `19fdf67d-193c-4f58-8747-404d5e639474`
-- **Compile status:** PASS
-- **Confidence:** LOW — Relies on error status codes correlating with POST requests; requires tuning per environment
-- **Level:** medium
-- **Logic:** Matches POST requests referencing Next.js internals that result in 5xx server errors
-
-```yaml
-title: Next.js Server Actions Potential DoS via Crafted Requests
-id: 19fdf67d-193c-4f58-8747-404d5e639474
-status: experimental
-description: >
-  Detects patterns indicative of denial-of-service attempts targeting
-  Next.js Server Actions. The vulnerability (GHSA-p3m5-59mp-jv5r)
-  allows crafted POST requests to App Router applications with Server
-  Actions to cause excessive CPU usage, blocking processing of further
-  requests. This rule looks for high-frequency POST requests with the
-  Next-Action header from a single source, which may indicate
-  exploitation attempts.
-references:
-  - https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r
-  - https://nextjs.org/blog/nextjs-security-update-october-14-2026
-  - https://thehackernews.com/2026/10/nextjs-ships-out-of-band-patch-for-two.html
-author: Actioner
-date: 2026/10/16
-tags:
-  - attack.t1190
-  - attack.t1499.003
-logsource:
-  category: webserver
-  service: access
-detection:
-  selection_method:
-    cs-method: 'POST'
-  selection_action_header:
-    cs-referer|contains: '_next'
-  selection_status:
-    sc-status:
-      - 500
-      - 502
-      - 503
-      - 504
-  condition: selection_method and selection_action_header and selection_status
-falsepositives:
-  - Application errors unrelated to exploitation
-  - Load testing or stress testing activities
 level: medium
 ```
 
-#### Rule 4: Next.js next/og ImageResponse SVG Injection Attempt
+#### Rule 2: Next.js SVG XInclude Exploitation Attempt -- RETIRED
 
-- **File:** `nextjs_nextog_svg_rce.yml`
+> **RETIRED.** This rule used `cs-body` and `cs-content-type` to detect XInclude directives in HTTP request bodies. The primary attack vector for CVE-2026-96889 is a GET request to `/_next/image?url=<attacker-hosted-svg>` where the malicious SVG containing XInclude payloads is fetched **server-side** by Next.js. The XInclude content never appears in the HTTP request from client to server. Additionally, `cs-body` is not part of the Sigma webserver field taxonomy and is not populated by most log sources.
+>
+> **Detection gap:** No Sigma rule can inspect the content of the SVG file that the Next.js server fetches from the attacker-controlled URL. This is an inherent limitation of network-layer and access-log-based detection for server-side fetch vulnerabilities. Defenders should focus on: (1) patching sharp/librsvg, (2) disabling `dangerouslyAllowSVG`, and (3) restricting `remotePatterns` to trusted domains.
+>
+> - **Former ID:** `0fbc88f6-cecc-45d5-9a84-424fc0e6e219`
+
+#### Rule 3: Next.js Server Actions Potential DoS -- RETIRED
+
+> **RETIRED.** This rule used `cs-referer|contains: '_next'` as a proxy for the `Next-Action` HTTP header. This is fundamentally wrong: `cs-referer` is the Referer header, and any normal Next.js page navigation sets a Referer containing `_next`. The rule would fire on routine application traffic. The Sigma webserver log schema has no standard field for arbitrary request headers like `Next-Action`, and the rule lacked the `count()` or `timeframe:` aggregation needed for threshold-based DoS detection.
+>
+> **Detection gap:** Sigma's webserver category cannot express "request carries a custom header named X" without SIEM-specific field mappings. Threshold-based DoS detection for Server Actions is handled by Suricata SID 2026101604, which can match the `Next-Action` header via `http.header` and apply `threshold:` natively.
+>
+> - **Former ID:** `19fdf67d-193c-4f58-8747-404d5e639474`
+
+#### Rule 4: Next.js next/og ImageResponse SVG Injection Attempt (KEPT)
+
+- **File:** `2026-10-16-nextjs-2.yml`
 - **ID:** `e471688b-38cc-4e95-a1b5-ec33f15a2c19`
-- **Compile status:** PASS
-- **Confidence:** MEDIUM — OG image endpoint paths vary by application; rule covers common patterns
+- **Compile status:** PASS (sigma check 0 errors, Splunk SPL conversion successful)
+- **Confidence:** MEDIUM — OG image endpoint paths vary by application; rule covers common patterns. Tune `selection_og_endpoint` to match your routes.
 - **Level:** medium
-- **Logic:** Matches requests to common OG image endpoints with SVG-related query parameters
+- **Logic:** Matches requests to common OG image endpoints with SVG or XInclude-related query parameters
 
 ```yaml
 title: Next.js next/og ImageResponse SVG Injection Attempt (CVE-2026-96889)
@@ -311,11 +228,12 @@ id: e471688b-38cc-4e95-a1b5-ec33f15a2c19
 status: experimental
 description: >
   Detects HTTP requests targeting Next.js Open Graph image generation
-  endpoints (next/og ImageResponse) with SVG-related payloads. The
-  next/og component on the Node.js runtime is vulnerable to
-  CVE-2026-96889 even without dangerouslyAllowSVG being enabled,
-  as it processes SVGs internally for OG image generation through
-  the sharp/librsvg pipeline.
+  endpoints (next/og ImageResponse) with SVG-related or XInclude-related
+  payloads in the query string. The next/og component on the Node.js
+  runtime is vulnerable to CVE-2026-96889 even without dangerouslyAllowSVG
+  being enabled, as it processes SVGs internally for OG image generation
+  through the sharp/librsvg pipeline. Tune the endpoint paths in
+  selection_og_endpoint to match your application's OG image routes.
 references:
   - https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
   - https://nextjs.org/blog/nextjs-security-update-october-14-2026
@@ -324,7 +242,6 @@ author: Actioner
 date: 2026/10/16
 tags:
   - attack.t1190
-  - attack.t1203
   - cve.2026.96889
 logsource:
   category: webserver
@@ -338,39 +255,60 @@ detection:
   selection_svg_indicators:
     cs-uri-query|contains:
       - '.svg'
-      - 'svg'
-      - 'xmlns'
+      - 'image/svg'
+      - 'image%2Fsvg'
+      - 'xi%3Ainclude'
+      - 'XInclude'
+      - 'http%3A%2F%2Fwww.w3.org%2F2001%2FXInclude'
   condition: selection_og_endpoint and selection_svg_indicators
 falsepositives:
-  - Legitimate Open Graph image generation requests
-  - Social media crawlers requesting OG images
+  - Legitimate Open Graph image generation requests that reference SVG assets
+  - Social media crawlers requesting OG images with SVG-related query parameters
+  - Applications where OG endpoint paths differ from the defaults listed here
 level: medium
 ```
 
 ### Suricata/Snort Rules
 
-Four network-level IDS rules targeting HTTP traffic patterns.
+Two active network-level IDS rules and two retired SIDs with documented detection gaps.
 
-**File:** `nextjs_cve_2026_96889.rules`
+**File:** `2026-10-16-nextjs.rules`
+**Compile status:** UNCOMPILED (no Suricata engine available for verification)
 
-| SID | Description | Confidence |
-|---|---|---|
-| 2026101601 | SVG requests to `/_next/image` endpoint | MEDIUM |
-| 2026101602 | SVG payload with XInclude in request body | HIGH |
-| 2026101603 | SVG with duplicate ENTITY declarations (exploit trigger) | HIGH |
-| 2026101604 | Rapid POST with `Next-Action` header (DoS threshold) | LOW |
+| SID | Description | Confidence | Status |
+|---|---|---|---|
+| 2026101601 | SVG requests to `/_next/image` endpoint | MEDIUM | KEPT |
+| 2026101602 | ~~SVG payload with XInclude in request body~~ | ~~HIGH~~ | RETIRED |
+| 2026101603 | ~~SVG with duplicate ENTITY declarations~~ | ~~HIGH~~ | RETIRED |
+| 2026101604 | Rapid POST with `Next-Action` header (DoS threshold) | LOW | KEPT |
+
+**Retired SID 2026101602 and 2026101603:** Both rules inspected `http.request_body` for XInclude directives and duplicate ENTITY declarations. The primary attack vector is a GET request to `/_next/image?url=<attacker-hosted-svg>` where the malicious content resides inside the remote SVG file fetched server-side by Next.js, not in the attacker's HTTP request body. These rules cannot detect the primary attack vector.
 
 ```
-# Rule 1: SVG requests to /_next/image
+# Actioner — Next.js CVE-2026-96889 / GHSA-p3m5-59mp-jv5r
+# Date: 2026-10-16
+# Compile status: UNCOMPILED (no Suricata engine available for verification)
+#
+# RETIRED SIDs (not included):
+#   2026101602 — SVG XInclude in request body: RETIRED.
+#     The primary attack vector for CVE-2026-96889 is a GET request to
+#     /_next/image?url=<attacker-hosted-svg>. The malicious XInclude payload
+#     resides inside the remote SVG file fetched server-side by Next.js, not
+#     in the HTTP request body sent by the attacker. Inspecting
+#     http.request_body cannot detect this attack. No viable network-layer
+#     signature exists for the XInclude content itself.
+#
+#   2026101603 — Duplicate ENTITY declarations in SVG body: RETIRED.
+#     Same detection gap as SID 2026101602. The duplicate ENTITY declarations
+#     that trigger the use-after-free are inside the attacker-hosted SVG file,
+#     not in the HTTP request from client to server.
+
+# SID 2026101601: SVG requests to /_next/image endpoint
+# Confidence: MEDIUM — canary rule; flags all SVG references, not just exploits
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Next.js Image Optimization SVG Request - Potential CVE-2026-96889"; flow:established,to_server; http.uri; content:"/_next/image"; http.uri; content:".svg"; reference:cve,2026-96889; classtype:web-application-attack; sid:2026101601; rev:1;)
 
-# Rule 2: SVG with XInclude in request body
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Next.js SVG XInclude Payload - Potential CVE-2026-96889 Exploit"; flow:established,to_server; http.request_body; content:"xi:include"; nocase; http.request_body; content:"<svg"; nocase; reference:cve,2026-96889; classtype:web-application-attack; sid:2026101602; rev:1;)
-
-# Rule 3: Duplicate ENTITY declarations in SVG
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER SVG Duplicate Entity Declaration - Potential CVE-2026-96889 Exploit"; flow:established,to_server; http.request_body; content:"<!ENTITY"; content:"<!ENTITY"; distance:1; http.request_body; content:"<svg"; nocase; reference:cve,2026-96889; classtype:web-application-attack; sid:2026101603; rev:1;)
-
-# Rule 4: Server Actions DoS threshold
+# SID 2026101604: Server Actions DoS — rapid POST with Next-Action header
+# Confidence: LOW — threshold-based; tune count/seconds per environment
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Next.js Server Actions Rapid POST - Potential DoS"; flow:established,to_server; http.method; content:"POST"; http.header; content:"Next-Action"; threshold:type both, track by_src, count 50, seconds 10; classtype:attempted-dos; sid:2026101604; rev:1;)
 ```
 
@@ -398,10 +336,10 @@ The `use cache` RCE in the React Flight protocol **cannot currently be detected 
 
 ### Detection Deployment Priority
 
-1. Deploy SVG XInclude detection (Rule 2 / SID 2026101602) — highest confidence, most specific to the exploit
-2. Deploy `/_next/image` SVG monitoring (Rule 1 / SID 2026101601) — broad coverage of the primary attack surface
-3. Deploy Server Actions DoS threshold (Rule 4 / SID 2026101604) — tune threshold per environment
-4. Deploy OG image endpoint monitoring (Rule 4 Sigma) — adjust endpoint paths per application
+1. Deploy `/_next/image` SVG monitoring (Sigma Rule 1 / SID 2026101601) — canary-level coverage of the primary attack surface
+2. Deploy OG image endpoint monitoring (Sigma Rule 4) — adjust endpoint paths per application
+3. Deploy Server Actions DoS threshold (SID 2026101604) — tune count/seconds per environment
+4. Version-based inventory scan for unpatched Next.js 16.0.0-16.4.0 (no network signature available for `use cache` RCE)
 
 ---
 
@@ -421,7 +359,7 @@ These are separate from the October 14 patch but involve the same attack surface
 - [GHSA-673q-mjm6-r5xr: use cache RCE Advisory (GitHub)](https://github.com/vercel/next.js/security/advisories/GHSA-673q-mjm6-r5xr)
 - [GHSA-2464-fhr4-w9xw: Image Optimization RCE Advisory (GitHub)](https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw)
 - [GHSA-p3m5-59mp-jv5r: Server Actions DoS Advisory (GitHub)](https://github.com/vercel/next.js/security/advisories/GHSA-p3m5-59mp-jv5r)
-- [GHSA-xqc2-xf4c-x3h3: React RSC RCE Advisory (GitHub)](https://github.com/react/react/security/advisories/GHSA-xqc2-xf4c-x3h3)
+- [GHSA-xqc2-xf4c-x3h3: React RSC RCE Advisory (GitHub)](https://github.com/facebook/react/security/advisories/GHSA-xqc2-xf4c-x3h3)
 - [CVE-2026-96889 (Red Hat)](https://access.redhat.com/security/cve/cve-2026-96889)
 - [Next.js Ships Out-of-Band Patch for Two Critical RCE Flaws (The Hacker News)](https://thehackernews.com/2026/10/nextjs-ships-out-of-band-patch-for-two.html)
 - [Next.js & React Security Release Oct 2026 (Netlify)](https://www.netlify.com/changelog/2026-10-14-nextjs-react-security-vulnerabilities/)

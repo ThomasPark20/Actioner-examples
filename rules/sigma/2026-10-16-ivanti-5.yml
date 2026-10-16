@@ -1,0 +1,34 @@
+title: Ivanti Connect Secure Log Tampering Post-Exploitation (CVE-2026-104935)
+id: 3b5d7e29-a1c8-4f63-b9d4-8e2f0c6a1b75
+status: experimental
+description: >
+    Detects attempts to tamper with or delete Ivanti Connect Secure debug
+    and audit logs. UTA0576 selectively truncated and rewrote debuglog and
+    audit.log entries to cover exploitation tracks.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1070.002
+    - cve.2026-104935
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_logs:
+        CommandLine|contains:
+            - '/home/runtime/dlogs/debuglog'
+            - '/var/log/audit/audit.log'
+    selection_action:
+        CommandLine|contains:
+            - 'rm '
+            - 'truncate '
+            - 'shred '
+            - '> /dev/null'
+            - 'echo "" >'
+            - 'sed -i'
+    condition: selection_logs and selection_action
+falsepositives:
+    - Legitimate log rotation by Ivanti system maintenance processes
+level: high

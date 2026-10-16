@@ -1,0 +1,31 @@
+title: PEERSTITCH C2 Infrastructure Network Connection
+id: a1c8e5f2-7b3d-4a96-8e1f-9d2c0b5a3e78
+status: experimental
+description: Detects network connections to known PEERSTITCH C2 and staging infrastructure
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection_staging:
+        DestinationIp:
+            - '23.240.77.233'
+            - '47.18.167.159'
+        DestinationPort:
+            - 8084
+            - 8085
+    selection_rogue_fgt:
+        SourceIp:
+            - '45.32.41.202'
+            - '198.199.122.22'
+        DestinationPort: 541
+    condition: 1 of selection_*
+falsepositives:
+    - Unknown
+level: critical

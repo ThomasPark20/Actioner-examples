@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-16
-Version: 1.0 (DRAFT)
+Version: 2.0 (FINAL)
+Revision: Applied critic review -- fixed Sigma Rule 1 field encoding (cs-uri-query to cs-uri-stem), removed service restriction, tightened base64 match; fixed Suricata SID 2026101602 to use http.uri.raw for encoded matching; fixed Suricata SID 2026101604 with correct webhook UUIDs and added SID 2026101605/2026101606; added /U flag to SID 2026101603 pcre; dropped YARA Rule 2 (redundant generic shell detector); downgraded Sigma Rule 4 confidence to MEDIUM.
 
 ## Executive Summary
 
@@ -195,21 +196,21 @@ tags:
     - cve.2026.110447
 logsource:
     category: webserver
-    service: apache
 detection:
     selection_uri:
-        cs-uri-query|contains: 'proxy.php'
+        cs-uri-stem|contains: 'proxy.php'
     selection_app_path:
         cs-uri-stem|contains: '/richdocumentscode/'
-    selection_injection:
+    selection_injection_high:
         cs-uri-stem|contains:
             - '$('
             - '%24%28'
             - '${IFS}'
             - '%24%7BIFS%7D'
-            - 'base64'
             - '%2e%2e'
-    condition: selection_uri and selection_app_path and selection_injection
+    selection_injection_base64:
+        cs-uri-stem|contains: 'base64${IFS}'
+    condition: selection_uri and selection_app_path and (selection_injection_high or selection_injection_base64)
 falsepositives:
     - Legitimate use of encoded path segments in the Collabora proxy URL is uncommon but possible in misconfigured setups
 level: critical
@@ -316,6 +317,7 @@ detection:
         ParentImage|endswith:
             - '/apache2'
             - '/httpd'
+            - '/nginx'
             - '/php-fpm'
             - '/php-cgi'
             - '/php'
@@ -334,30 +336,36 @@ detection:
     condition: selection_parent and selection_find
 falsepositives:
     - Legitimate administrative searches for credential databases from web server context (very unlikely)
-level: high
+level: medium
 ```
 
 - **Compile status:** PASS (sigma convert successful)
-- **Confidence:** HIGH -- specific parent-child process relationship with distinctive search targets
+- **Confidence:** MEDIUM -- campaign-observed TTP; specific parent-child process relationship with distinctive search targets, but not CVE-specific
 
 ### Suricata Rules
 
 ```
-# Detect exploitation attempt via proxy.php with command injection
+# Detect exploitation attempt via proxy.php with command injection (decoded form)
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET EXPLOIT Collabora CODE Server proxy.php Command Injection Attempt (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; content:"proxy.php"; distance:0; content:"$("; sid:2026101601; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag Exploit; reference:cve,2026-110447; reference:url,github.com/CollaboraOnline/richdocumentscode/issues/354; classtype:web-application-attack; priority:1;)
 
-# Detect exploitation attempt with URL-encoded command substitution
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET EXPLOIT Collabora CODE Server proxy.php URL-Encoded Command Injection (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; content:"proxy.php"; distance:0; content:"%24%28"; sid:2026101602; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag Exploit; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
+# Detect exploitation attempt with URL-encoded command substitution (raw URI)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET EXPLOIT Collabora CODE Server proxy.php URL-Encoded Command Injection (CVE-2026-110447)"; flow:established,to_server; http.uri.raw; content:"/richdocumentscode/"; content:"proxy.php"; distance:0; content:"%24%28"; sid:2026101602; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag Exploit; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
 
 # Detect access to known web shell filenames in richdocumentscode directory
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET TROJAN Collabora CODE Server Web Shell Access (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; pcre:"/\/sh[rx][a-f0-9]{4,5}\.php/"; sid:2026101603; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag WebShell; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ET TROJAN Collabora CODE Server Web Shell Access (CVE-2026-110447)"; flow:established,to_server; http.uri; content:"/richdocumentscode/"; pcre:"/\/sh[rx][a-f0-9]{4,5}\.php/U"; sid:2026101603; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag WebShell; reference:cve,2026-110447; classtype:web-application-attack; priority:1;)
 
-# Detect callback to webhook.site from Nextcloud server (post-exploitation beacon)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Collabora CODE Exploitation Callback to webhook.site"; flow:established,to_server; http.host; content:"webhook.site"; http.uri; content:"rf4645"; sid:2026101604; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag C2; reference:cve,2026-110447; classtype:trojan-activity; priority:2;)
+# Detect callback to webhook.site UUID #1 (post-exploitation beacon)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Collabora CODE Exploitation Callback to webhook.site (CVE-2026-110447)"; flow:established,to_server; http.host; content:"webhook.site"; http.uri; content:"/45060ed4-de0b-4119-8f0d-2a2776bbd413"; sid:2026101604; rev:2; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag C2; reference:cve,2026-110447; classtype:trojan-activity; priority:2;)
+
+# Detect callback to webhook.site UUID #2 (post-exploitation beacon)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Collabora CODE Exploitation Callback to webhook.site UUID2 (CVE-2026-110447)"; flow:established,to_server; http.host; content:"webhook.site"; http.uri; content:"/774cf5e1-b5a4-4174-a1ad-0241861029a2"; sid:2026101605; rev:1; metadata:affected_product Collabora_Online_CODE_Server, attack_target Server, created_at 2026_10_16, cve CVE_2026_110447, deployment Perimeter, tag C2; reference:cve,2026-110447; classtype:trojan-activity; priority:2;)
+
+# Generic webhook.site callback from HOME_NET (lower confidence, broader coverage)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET POLICY Outbound HTTP to webhook.site from HOME_NET (Possible Post-Exploitation Beacon)"; flow:established,to_server; http.host; content:"webhook.site"; threshold:type limit, track by_src, count 1, seconds 300; sid:2026101606; rev:1; metadata:affected_product Any, attack_target Server, created_at 2026_10_16, deployment Perimeter, tag C2; classtype:policy-violation; priority:3;)
 ```
 
 - **Compile status:** NOT VALIDATED (suricata binary not available in environment; rules follow ET syntax conventions)
-- **Confidence:** HIGH for SIDs 2026101601-2026101603 (exploit and web shell access patterns); MEDIUM for SID 2026101604 (specific callback identifier may change)
+- **Confidence:** HIGH for SIDs 2026101601-2026101603 (exploit and web shell access patterns); HIGH for SIDs 2026101604-2026101605 (exact observed callback UUIDs); LOW for SID 2026101606 (generic webhook.site -- high false-positive potential)
 
 ### YARA Rules
 
@@ -383,32 +391,12 @@ rule Collabora_CODE_WebShell_CVE_2026_110447 {
         (filesize < 200 and $var_get and $shell_exec and $default_id) or
         (filesize < 200 and $shell_exec and $stderr_redirect and $var_get)
 }
-
-rule Collabora_CODE_WebShell_Filename_Pattern {
-    meta:
-        description = "Detects PHP files matching the naming convention of web shells dropped during CVE-2026-110447 exploitation (shx/shrf prefix with hex suffix)"
-        author = "Actioner"
-        date = "2026-10-16"
-        reference = "https://github.com/CollaboraOnline/richdocumentscode/issues/354"
-        severity = "high"
-
-    strings:
-        $php_open = "<?php" ascii nocase
-        $shell_exec = "shell_exec" ascii
-        $system = "system(" ascii
-        $passthru = "passthru(" ascii
-        $exec = "exec(" ascii
-        $popen = "popen(" ascii
-
-    condition:
-        $php_open at 0 and
-        filesize < 500 and
-        any of ($shell_exec, $system, $passthru, $exec, $popen)
-}
 ```
 
+> **Note:** YARA Rule 2 (`Collabora_CODE_WebShell_Filename_Pattern`) from v1.0 was DROPPED during review. It was a generic small PHP shell detector that did not inspect filenames despite its title, and its detection surface is already covered by Rule 1 above.
+
 - **Compile status:** PASS (yarac compilation successful, 0 errors)
-- **Confidence:** HIGH for `Collabora_CODE_WebShell_CVE_2026_110447` (exact hash and content match); MEDIUM for `Collabora_CODE_WebShell_Filename_Pattern` (generic small PHP shell detection -- pair with filesystem path context for precision)
+- **Confidence:** HIGH for `Collabora_CODE_WebShell_CVE_2026_110447` (exact hash and content match)
 
 ## Remediation
 

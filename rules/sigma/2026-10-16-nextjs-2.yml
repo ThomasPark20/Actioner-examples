@@ -1,0 +1,43 @@
+title: Next.js next/og ImageResponse SVG Injection Attempt (CVE-2026-96889)
+id: e471688b-38cc-4e95-a1b5-ec33f15a2c19
+status: experimental
+description: >
+  Detects HTTP requests targeting Next.js Open Graph image generation
+  endpoints (next/og ImageResponse) with SVG-related or XInclude-related
+  payloads in the query string. The next/og component on the Node.js
+  runtime is vulnerable to CVE-2026-96889 even without dangerouslyAllowSVG
+  being enabled, as it processes SVGs internally for OG image generation
+  through the sharp/librsvg pipeline. Tune the endpoint paths in
+  selection_og_endpoint to match your application's OG image routes.
+references:
+  - https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
+  - https://nextjs.org/blog/nextjs-security-update-october-14-2026
+  - https://www.netlify.com/changelog/2026-10-14-nextjs-react-security-vulnerabilities/
+author: Actioner
+date: 2026/10/16
+tags:
+  - attack.t1190
+  - cve.2026.96889
+logsource:
+  category: webserver
+  service: access
+detection:
+  selection_og_endpoint:
+    cs-uri-stem|contains:
+      - '/api/og'
+      - '/og-image'
+      - '/opengraph-image'
+  selection_svg_indicators:
+    cs-uri-query|contains:
+      - '.svg'
+      - 'image/svg'
+      - 'image%2Fsvg'
+      - 'xi%3Ainclude'
+      - 'XInclude'
+      - 'http%3A%2F%2Fwww.w3.org%2F2001%2FXInclude'
+  condition: selection_og_endpoint and selection_svg_indicators
+falsepositives:
+  - Legitimate Open Graph image generation requests that reference SVG assets
+  - Social media crawlers requesting OG images with SVG-related query parameters
+  - Applications where OG endpoint paths differ from the defaults listed here
+level: medium

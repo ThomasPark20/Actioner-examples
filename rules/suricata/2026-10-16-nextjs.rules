@@ -1,0 +1,25 @@
+# Actioner — Next.js CVE-2026-96889 / GHSA-p3m5-59mp-jv5r
+# Date: 2026-10-16
+# Compile status: UNCOMPILED (no Suricata engine available for verification)
+#
+# RETIRED SIDs (not included):
+#   2026101602 — SVG XInclude in request body: RETIRED.
+#     The primary attack vector for CVE-2026-96889 is a GET request to
+#     /_next/image?url=<attacker-hosted-svg>. The malicious XInclude payload
+#     resides inside the remote SVG file fetched server-side by Next.js, not
+#     in the HTTP request body sent by the attacker. Inspecting
+#     http.request_body cannot detect this attack. No viable network-layer
+#     signature exists for the XInclude content itself.
+#
+#   2026101603 — Duplicate ENTITY declarations in SVG body: RETIRED.
+#     Same detection gap as SID 2026101602. The duplicate ENTITY declarations
+#     that trigger the use-after-free are inside the attacker-hosted SVG file,
+#     not in the HTTP request from client to server.
+
+# SID 2026101601: SVG requests to /_next/image endpoint
+# Confidence: MEDIUM — canary rule; flags all SVG references, not just exploits
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Next.js Image Optimization SVG Request - Potential CVE-2026-96889"; flow:established,to_server; http.uri; content:"/_next/image"; http.uri; content:".svg"; reference:cve,2026-96889; classtype:web-application-attack; sid:2026101601; rev:1;)
+
+# SID 2026101604: Server Actions DoS — rapid POST with Next-Action header
+# Confidence: LOW — threshold-based; tune count/seconds per environment
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Next.js Server Actions Rapid POST - Potential DoS"; flow:established,to_server; http.method; content:"POST"; http.header; content:"Next-Action"; threshold:type both, track by_src, count 50, seconds 10; classtype:attempted-dos; sid:2026101604; rev:1;)

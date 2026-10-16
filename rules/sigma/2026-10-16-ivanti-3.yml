@@ -1,0 +1,30 @@
+title: Ivanti Connect Secure Hidden .icscap Directory or dsstatmond Process (CVE-2026-104935)
+id: 9d2c4f85-b7e1-4a39-8c6d-5e3f1b2a0d74
+status: experimental
+description: >
+    Detects creation of or access to the hidden .icscap directory or the
+    dsstatmond process used by UTA0576 for traffic capture on compromised
+    Ivanti Connect Secure appliances. The attacker renamed tcpdump to
+    dsstatmond in /data/.icscap/ to capture plaintext credentials.
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+author: Actioner
+date: 2026/10/16
+tags:
+    - attack.t1040
+    - attack.t1036.005
+    - cve.2026-104935
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_process:
+        Image|endswith: '/dsstatmond'
+    selection_path:
+        CommandLine|contains:
+            - '.icscap'
+            - '/data/.icscap/'
+    condition: selection_process or selection_path
+falsepositives:
+    - Legitimate Ivanti diagnostic processes using similar naming (unlikely)
+level: critical

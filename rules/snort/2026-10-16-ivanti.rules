@@ -1,0 +1,7 @@
+# Ivanti Connect Secure CVE-2026-104935 Authentication Bypass Detection
+# Requires TLS inspection upstream for HTTPS-served ICS endpoints.
+# Scope destination to ICS VPN appliance addresses in production.
+
+alert tcp any any -> any $HTTP_PORTS (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to wu.cgi"; flow:to_server,established; content:"/dana-na/auth/url_default/welcome.cgi"; http_uri; content:"X-DSCGI-PATH"; http_header; content:"wu.cgi"; http_header; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026104901; rev:1; priority:1;)
+
+alert tcp any any -> any $HTTP_PORTS (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to runtime tmp"; flow:to_server,established; content:"/dana-na/auth/url_default/welcome.cgi"; http_uri; content:"X-DSCGI-PATH"; http_header; content:"/home/runtime/tmp/"; http_header; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026104902; rev:1; priority:1;)

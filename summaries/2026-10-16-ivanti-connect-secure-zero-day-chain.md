@@ -1,6 +1,6 @@
 # CVE-2026-104935: Ivanti Connect Secure Zero-Day Chain -- Authentication Bypass to Unauthenticated Root (CVSS 8.6)
 
-> **Status:** Draft -- Actioner automated analysis
+> **Status:** FINAL -- Actioner automated analysis (revised 2026-10-16)
 > **Date:** 2026-10-16
 > **Analyst:** Actioner
 > **CVE:** CVE-2026-104935 (covers authentication bypass + RCE); privilege escalation flaw has no CVE yet
@@ -102,7 +102,7 @@ The Perl payload launches a Bash script, which runs a Base64-encoded, zlib-compr
 | Credential Access | T1040 -- Network Sniffing | Traffic capture on plaintext protocol ports (LDAP 389, HTTP, FTP, telnet) |
 | Credential Access | T1558.003 -- Steal or Forge Kerberos Tickets: Kerberoasting | Custom Python Kerberos implementation |
 | Credential Access | T1110.003 -- Brute Force: Password Spraying | sp_run.py against AD accounts |
-| Credential Access | T1552.004 -- Unsecured Credentials: Private Keys | LDAP extraction of LAPS passwords and BitLocker recovery keys |
+| Credential Access | T1552 -- Unsecured Credentials | LDAP extraction of LAPS passwords and BitLocker recovery keys |
 | Discovery | T1087.002 -- Account Discovery: Domain Account | Username enumeration from authentication logs and AD queries |
 
 ### Timeline
@@ -229,15 +229,14 @@ Detects requests to the Ivanti Connect Secure welcome.cgi endpoint from the know
 **Status:** compile pass · confidence: high
 
 ```yaml
-title: Ivanti Connect Secure welcome.cgi Request Indicating Exploit Chain Replay (CVE-2026-104935)
+title: Ivanti Connect Secure welcome.cgi Request from Known UTA0576 IP (CVE-2026-104935)
 id: 4e8b1d73-c9f2-4a06-b5d3-2f7e0c3a9d51
 status: experimental
 description: >
-    Detects requests to the Ivanti Connect Secure welcome.cgi endpoint from
-    a known exploitation source IP or with characteristics of the UTA0576
-    exploit chain. UTA0576 re-exploited the full chain for each command,
-    generating numerous requests. Deploy alongside network-level
-    threshold alerting for welcome.cgi volume anomalies.
+    Detects requests to the Ivanti Connect Secure welcome.cgi endpoint
+    from the known UTA0576 exploitation source IP address 108.165.147.64
+    (Evoxt VPS). This is a high-fidelity IOC-only detection that will
+    expire when the attacker rotates infrastructure.
 references:
     - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
     - https://thehackernews.com/2026/10/attacker-chains-three-ivanti-connect.html
@@ -341,7 +340,7 @@ detection:
             - '/tmp/mk.py'
             - '/tmp/rr.py'
             - 'sp_run.py'
-            - '/tmp/h.py'
+            - '/data/.icscap/h.py'
     condition: selection_interpreter and selection_scripts
 falsepositives:
     - Custom administrative Python scripts on the appliance using matching filenames
@@ -422,11 +421,11 @@ Equivalent detection using Suricata's HTTP-aware keywords. Requires TLS inspecti
 **Status:** compile pass · confidence: high
 
 ```
-alert http any any -> any any (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to wu.cgi"; flow:to_server,established; http.uri; content:"/dana-na/auth/url_default/welcome.cgi"; http.header; content:"X-DSCGI-PATH"; content:"wu.cgi"; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026104901; rev:1;)
+alert http any any -> any any (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to wu.cgi"; flow:to_server,established; http.uri; content:"/dana-na/auth/url_default/welcome.cgi"; http.header; content:"X-DSCGI-PATH"; content:"wu.cgi"; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026105001; rev:1;)
 ```
 
 ```
-alert http any any -> any any (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to runtime tmp"; flow:to_server,established; http.uri; content:"/dana-na/auth/url_default/welcome.cgi"; http.header; content:"X-DSCGI-PATH"; content:"/home/runtime/tmp/"; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026104902; rev:1;)
+alert http any any -> any any (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-104935 Auth Bypass - X-DSCGI-PATH to runtime tmp"; flow:to_server,established; http.uri; content:"/dana-na/auth/url_default/welcome.cgi"; http.header; content:"X-DSCGI-PATH"; content:"/home/runtime/tmp/"; reference:cve,2026-104935; reference:url,www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/; classtype:web-application-attack; sid:2026105002; rev:1;)
 ```
 
 > **Prerequisite:** TLS inspection required for HTTPS-served ICS endpoints. Scope destination to ICS VPN appliance addresses in production.
@@ -437,7 +436,7 @@ alert http any any -> any any (msg:"EXPLOIT Ivanti Connect Secure CVE-2026-10493
 
 #### Rules 1-2: Volexity Official YARA Rules (from [volexity/threat-intel](https://github.com/volexity/threat-intel/tree/main/2026/2026-10-13%20Ivanti))
 
-These rules are authored by Volexity and published under their threat-intel repository license. They detect the exploit chain's HTTP header pattern and the in-memory Python privilege escalation payload.
+These rules are authored by Volexity and published under their threat-intel repository license. They detect the exploit chain's HTTP header pattern and the in-memory Python privilege escalation payload. **Deployment note:** `exploit_log_ivanti_rce` matches a single HTTP header string and may fire on cached threat intelligence reports, blog mirrors, or SIEM log archives that contain the indicator verbatim. Scope file-scan deployments to appliance images and forensic artifacts, not analyst workstations or document stores.
 <!-- audit: yarac /tmp/actioner/ivanti-cve-2026-104935.yar /dev/null: PASS (exit 0). -->
 
 **Status:** compile pass · confidence: high (Volexity-authored, based on observed samples)
@@ -526,7 +525,7 @@ rule apt_py_uta0576_credential_tools: CVE_2026_104935 UTA0576
     $spray2 = "sp_out.txt" ascii
 
   condition:
-    (2 of ($ldap_tool*)) or
+    (2 of ($ldap_tool*) and ($icscap_dir or $dsstatmond)) or
     ($icscap_dir and $dsstatmond) or
     ($kerb1 and ($spray1 or $spray2))
 }
@@ -556,4 +555,4 @@ rule apt_py_uta0576_credential_tools: CVE_2026_104935 UTA0576
 
 ---
 
-*Draft report generated 2026-10-16. Primary detection relies on HTTP header mismatch indicators, behavioral process monitoring, and file system artifact hunting. Promote through your organization's detection engineering workflow before production deployment.*
+*FINAL report generated 2026-10-16. Revision: (1) Sigma #2 title/description aligned to IOC-only logic; (2) Sigma #4 corrected /tmp/h.py to /data/.icscap/h.py per IOC table; (3) YARA #3 ldap_tool branch anchored to ICS-appliance co-conditions to reduce false positives; (4) T1552.004 replaced with T1552 for LAPS/BitLocker credential extraction; (5) Suricata SIDs offset to 2026105001-2 to avoid Snort SID overlap; (6) YARA #1 deployment guidance added for cached-report false positives. Primary detection relies on HTTP header mismatch indicators, behavioral process monitoring, and file system artifact hunting. Promote through your organization's detection engineering workflow before production deployment.*

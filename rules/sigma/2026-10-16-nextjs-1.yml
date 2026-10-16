@@ -1,0 +1,38 @@
+title: Suspicious SVG Request to Next.js Image Optimization API (CVE-2026-96889)
+id: 482d6c5a-b20e-49cd-8bc1-d780d3feac5a
+status: experimental
+description: >
+  Detects HTTP requests to the Next.js Image Optimization API endpoint
+  (/_next/image) that reference SVG image sources. CVE-2026-96889 is a
+  use-after-free in librsvg triggered by crafted SVG files with nested
+  XIncludes and duplicate entity declarations, reachable through the
+  sharp image processing library on glibc-based Linux. Requires
+  dangerouslyAllowSVG to be enabled in next.config.js. This is a canary
+  rule: it flags all SVG requests to the vulnerable endpoint, not just
+  confirmed exploits, and should be tuned per environment.
+references:
+  - https://github.com/vercel/next.js/security/advisories/GHSA-2464-fhr4-w9xw
+  - https://nextjs.org/blog/nextjs-security-update-october-14-2026
+  - https://access.redhat.com/security/cve/cve-2026-96889
+  - https://thehackernews.com/2026/10/nextjs-ships-out-of-band-patch-for-two.html
+author: Actioner
+date: 2026/10/16
+tags:
+  - attack.t1190
+  - cve.2026.96889
+logsource:
+  category: webserver
+  service: access
+detection:
+  selection_endpoint:
+    cs-uri-stem|contains: '/_next/image'
+  selection_svg:
+    cs-uri-query|contains:
+      - '.svg'
+      - 'image/svg'
+      - 'image%2Fsvg'
+  condition: selection_endpoint and selection_svg
+falsepositives:
+  - Legitimate SVG image optimization requests in applications with dangerouslyAllowSVG enabled
+  - Internal monitoring or health check tools accessing image endpoints
+level: medium

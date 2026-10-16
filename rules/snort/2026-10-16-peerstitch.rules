@@ -1,0 +1,29 @@
+# PEERSTITCH FortiGate Implant Network Detection Rules
+# Date: 2026-10-16
+# Reference: https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+# Status: UNVALIDATED - requires compilation against Snort 3 or Suricata 7 before deployment
+# Author: Actioner
+
+# SID 2026101601 - Connection to primary staging server on port 8085
+alert tcp $HOME_NET any -> 23.240.77.233 8085 (msg:"PEERSTITCH Primary Staging Server Connection (23.240.77.233:8085)"; flow:to_server,established; classtype:trojan-activity; sid:2026101601; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101602 - Connection to secondary staging server on port 8085
+alert tcp $HOME_NET any -> 47.18.167.159 8085 (msg:"PEERSTITCH Secondary Staging Server Connection (47.18.167.159:8085)"; flow:to_server,established; classtype:trojan-activity; sid:2026101602; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101603 - Connection to rogue ACME CA on port 8084
+alert tcp $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH Rogue ACME CA Connection (23.240.77.233:8084)"; flow:to_server,established; classtype:trojan-activity; sid:2026101603; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101604 - ACME directory request to rogue CA
+alert http $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH Rogue ACME Directory Request"; flow:to_server,established; content:"/directory"; http_uri; classtype:trojan-activity; sid:2026101604; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101605 - PEERSTITCH-specific ACME finalize order pattern
+alert http $HOME_NET any -> 23.240.77.233 8084 (msg:"PEERSTITCH ACME Finalize Order Pattern"; flow:to_server,established; content:"/acme/finalize/61924744/774083503"; http_uri; classtype:trojan-activity; sid:2026101605; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101606 - Rogue FortiGate registration from initial source IP on FGFM port
+alert tcp 45.32.41.202 any -> $HOME_NET 541 (msg:"PEERSTITCH Rogue FortiGate Registration Source (45.32.41.202 -> TCP 541)"; flow:to_server,established; classtype:trojan-activity; sid:2026101606; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101607 - Rogue FortiGate registration from replacement source IP on FGFM port
+alert tcp 198.199.122.22 any -> $HOME_NET 541 (msg:"PEERSTITCH Rogue FortiGate Registration Source (198.199.122.22 -> TCP 541)"; flow:to_server,established; classtype:trojan-activity; sid:2026101607; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
+
+# SID 2026101608 - HTTP download of pM.js staging component
+alert http $HOME_NET any -> any 8085 (msg:"PEERSTITCH Staging Script Download (pM.js)"; flow:to_server,established; content:"pM.js"; http_uri; classtype:trojan-activity; sid:2026101608; rev:1; metadata:created_at 2026_10_16, updated_at 2026_10_16;)
