@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-17
-Version: 1.0-DRAFT
+Version: 1.0
+<!-- revision: fixed payload size 1344->1280 bytes in section 2 to match IOC table; added SID range caveat for ET ruleset collision avoidance -->
 
 ## Executive Summary
 
@@ -70,7 +71,7 @@ PEERSTITCH (`lldprx`) is a 64-bit Linux ARM64 ELF binary, statically linked agai
 3. **Process attachment:** Attaches to each target via `PTRACE_SEIZE` and halts execution with `PTRACE_INTERRUPT`.
 4. **Register snapshot:** Captures registers X0-X30, SP, and PC via `PTRACE_GETREGSET`.
 5. **Memory allocation:** Generates a 45-byte ARM64 bootstrap shellcode (SHA-256: `829b1cd270b30565739a478441833f49f10a49bd06f0d18cc96c8ae4a0431f11`) that calls `mmap` (syscall 0xDE) to allocate a 16,384-byte (0x4000) RWX memory region with `MAP_PRIVATE | MAP_ANONYMOUS`.
-6. **Payload injection:** Writes the 1,344-byte injection payload (data block SHA-256: `bd064244dad748cf2a44074bee56f5bfab4a2b18ee944b75d1b3febd4c1fe02a`) to the new RWX buffer via `/proc/<pid>/mem`.
+6. **Payload injection:** Writes the 1,280-byte injection payload (data block SHA-256: `bd064244dad748cf2a44074bee56f5bfab4a2b18ee944b75d1b3febd4c1fe02a`) to the new RWX buffer via `/proc/<pid>/mem`.
 7. **Code patching:** Applies ARM64 NOP instructions (`0xAA0003E0` -- `MOV X0, X0`) at three offsets: `base+0x106F7B8`, `base+0x1072E20`, and `base+0x109A570`. Installs a 20-byte trampoline at `base+0x135102C` to redirect execution into the RWX buffer.
 8. **Self-deletion:** Unlinks `lldprx` from disk after execution.
 
@@ -262,6 +263,8 @@ When a match is found, the hook extracts a session tag (up to 31 bytes) and writ
 ## Detection Rules
 
 These detections target the CL-STA-0954 campaign's specific C2 infrastructure, staging patterns, and PEERSTITCH implant artifacts at PoC/advisory-specific altitude. Compiles does not equal fires -- verify in your environment's log pipeline before production deployment.
+
+> **SID Range Caveat:** Snort SIDs 2100001-2100003 and Suricata SIDs 2200001-2200002 fall within the Emerging Threats reserved range (2000000+). Before deploying alongside ET community or ET Pro rulesets, rebase these to your local SID range (1000001-1999999) to avoid collisions.
 
 ### Sigma: PEERSTITCH C2 Infrastructure Connection via Firewall
 

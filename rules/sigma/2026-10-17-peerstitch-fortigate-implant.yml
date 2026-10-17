@@ -1,0 +1,53 @@
+title: PEERSTITCH C2 Infrastructure Connection via Firewall
+id: f8a3b1c2-4d5e-4f70-8192-a3b4c5d6e7f8
+status: experimental
+description: >
+    Detects outbound connections to known PEERSTITCH C2 staging IP addresses
+    used for payload delivery (port 8085) and ACME-based reverse shell (port 8084)
+    in the CL-STA-0954 campaign targeting FortiGate firewalls.
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026-10-17
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip:
+            - '23.240.77.233'
+            - '47.18.167.159'
+            - '45.32.41.202'
+            - '198.199.122.22'
+    condition: selection
+falsepositives:
+    - Legitimate traffic to these IPs from non-Fortinet infrastructure (unlikely)
+level: high
+---
+title: PEERSTITCH Staging Payload Download via Proxy
+id: a1b2c3d4-e5f6-4890-abcd-1234567890ab
+status: experimental
+description: >
+    Detects HTTP requests to known PEERSTITCH staging infrastructure downloading
+    the pM.js preparation script on port 8085, as observed in CL-STA-0954.
+references:
+    - https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+author: Actioner
+date: 2026-10-17
+tags:
+    - attack.t1105
+logsource:
+    category: proxy
+detection:
+    selection_uri:
+        c-uri|contains: '/pM.js'
+    selection_ip:
+        dst_ip:
+            - '23.240.77.233'
+            - '47.18.167.159'
+    condition: selection_uri and selection_ip
+falsepositives:
+    - Legitimate JavaScript file named pM.js from unrelated infrastructure
+level: critical

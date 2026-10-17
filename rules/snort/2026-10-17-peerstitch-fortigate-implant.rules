@@ -1,0 +1,8 @@
+# PEERSTITCH C2 Payload Download and ACME Channel
+# Reference: https://unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/
+# Note: SIDs 2100001-2100003 are in the Emerging Threats reserved range (2000000+).
+# Rebase to local SID range (1000001-1999999) before deploying alongside ET rulesets.
+
+alert tcp $HOME_NET any -> 23.240.77.233 8085 (msg:"Actioner - PEERSTITCH Staging Payload Download from Primary C2"; flow:established,to_server; content:"/pM.js"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> 47.18.167.159 8085 (msg:"Actioner - PEERSTITCH Staging Payload Download from Secondary C2"; flow:established,to_server; content:"/pM.js"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> 23.240.77.233 8084 (msg:"Actioner - PEERSTITCH ACME C2 Channel to Known Infrastructure"; flow:established,to_server; content:"/acme/"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; sid:2100003; rev:1;)
