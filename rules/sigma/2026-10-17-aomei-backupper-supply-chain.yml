@@ -1,0 +1,139 @@
+title: AOMEI Supply Chain - RadminComponentRuntime Scheduled Task Creation
+id: 8c4e1a2b-3d5f-4e6a-9b7c-2d1e8f0a4c3b
+status: experimental
+description: >
+    Detects creation of the RadminComponentRuntime scheduled task used by
+    CROSSROAD downloader in the AOMEI Backupper supply chain compromise
+    (UNC7017). The task runs FamItrfc.exe with --runtimechk every 3 hours
+    to trigger DLL side-loading of the SHINYROAD backdoor.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering
+    - https://www.manageengine.com/threat-analysis-lab/aomei-backupper-supply-chain-compromise.html
+author: Actioner
+date: 2026/10/17
+tags:
+    - attack.t1053.005
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'RadminComponentRuntime'
+            - 'FamItrfc'
+    condition: selection_schtasks
+falsepositives:
+    - Legitimate Radmin Server installations creating similarly named tasks (unlikely in most environments)
+level: high
+---
+title: AOMEI ABNotify Spawning Executable From Rendering Directory
+id: 3768e7d0-ba38-48fa-a630-d25bb50438de
+status: experimental
+description: >
+    Detects ABNotify.exe launching an executable from the AOMEI Backupper
+    html rendering directory. In the UNC7017 supply chain attack, the tampered
+    Notifycfg.ini caused ABNotify to execute the malicious upgrade-now.exe
+    dropper from the html subdirectory.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering
+    - https://www.manageengine.com/threat-analysis-lab/aomei-backupper-supply-chain-compromise.html
+author: Actioner
+date: 2026/10/17
+tags:
+    - attack.t1195.002
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\ABNotify.exe'
+        Image|contains: '\html\'
+        Image|endswith: '.exe'
+    condition: selection
+falsepositives:
+    - Legitimate AOMEI promotional content launching a browser (rare, and should not launch .exe from html directory)
+level: high
+---
+title: AOMEI Supply Chain - CROSSROAD Self-Deletion via Nitrod Flag
+id: a2b3c4d5-e6f7-8901-abcd-ef2345678901
+status: experimental
+description: >
+    Detects the CROSSROAD downloader's self-deletion mechanism where it
+    copies itself to TEMP and relaunches with the --nitrod argument.
+    This is a distinctive artifact of the UNC7017 AOMEI supply chain attack.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering
+author: Actioner
+date: 2026/10/17
+tags:
+    - attack.t1070.004
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: '--nitrod'
+    condition: selection
+falsepositives:
+    - Unknown legitimate use of --nitrod flag
+level: high
+---
+title: AOMEI Supply Chain - SHINYROAD COM Server Registration in Non-Standard Path
+id: b3c4d5e6-f7a8-9012-bcde-f34567890123
+status: experimental
+description: >
+    Detects dllhost.exe hosting the RuntimeComponent.dll COM server from
+    the Radmin application directory under LocalAppData. The SHINYROAD
+    backdoor registers a COM object that causes dllhost.exe to load the
+    malicious DLL from a non-standard path.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering
+    - https://www.manageengine.com/threat-analysis-lab/aomei-backupper-supply-chain-compromise.html
+author: Actioner
+date: 2026/10/17
+tags:
+    - attack.t1559.001
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\dllhost.exe'
+        ImageLoaded|contains: '\Radmin\'
+        ImageLoaded|endswith: '\RuntimeComponent.dll'
+    condition: selection
+falsepositives:
+    - Legitimate Radmin Server components loaded by COM (unlikely from LocalAppData)
+level: high
+---
+title: AOMEI Supply Chain - CROSSROAD IP Check User-Agent
+id: c4d5e6f7-a8b9-0123-cdef-456789012345
+status: experimental
+description: >
+    Detects the distinctive User-Agent strings used by the CROSSROAD
+    downloader for public IP geolocation checks. The malware uses
+    Anyviewer-loader/1.0 and Anyviewer-ipcheck/1.0 to determine whether
+    the victim is in China before proceeding with payload delivery.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering
+author: Actioner
+date: 2026/10/17
+tags:
+    - attack.t1016
+    - attack.t1614
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-useragent|contains:
+            - 'Anyviewer-loader/1.0'
+            - 'Anyviewer-ipcheck/1.0'
+    condition: selection
+falsepositives:
+    - Legitimate AnyViewer software using similar User-Agent strings (verify context)
+level: high

@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-17
-Version: 1.0 DRAFT
+Version: 1.0
+<!-- revision: v1.0 finalized 2026-10-17; applied critic fixes: ABNotify ATT&CK tag T1059->T1204.002, CROSSROAD YARA status corrected, ADAPTAGENT description scope note, file:// URI defanged -->
 
 ## Executive Summary
 
@@ -43,7 +44,7 @@ During each tampering window, the attacker modified two files on AOMEI's servers
 - July 16: URL changed from `https://www2.aomeisoftware.com/download/abpopup/upgrade-now.zip` to `https://promotion.storage-data.com/download/abpopup/upgrade-now.zip`; `thrid` incremented from 5 to 6; MD5 changed to `31323E7E738230FA6A8DEEF2B7894666`
 - July 20: URL changed to `https://storage.googleapis.com/aomeiupdate/upgrade-now.zip`; `thrid` set to 7; MD5 changed to `BF73C4391B58CA95220CE3AE03F66DCF`
 
-**Notifycfg.ini** — July 16: Injected 35,000+ `[dummy_XXXXXX]` sections to bloat the config and force an update-and-execute cycle. July 20: Replaced a legitimate 400x380 promotional banner with a 1x1 invisible pop-up pointing to `file://8.210.84.56/DavWWWRoot/campaign/24hour-flash-sale.html`, coercing WebDAV/SMB authentication to capture NetNTLMv2 hashes.
+**Notifycfg.ini** — July 16: Injected 35,000+ `[dummy_XXXXXX]` sections to bloat the config and force an update-and-execute cycle. July 20: Replaced a legitimate 400x380 promotional banner with a 1x1 invisible pop-up pointing to `file[:]//8[.]210[.]84[.]56/DavWWWRoot/campaign/24hour-flash-sale[.]html`, coercing WebDAV/SMB authentication to capture NetNTLMv2 hashes.
 
 The AOMEI process chain `ABService.exe` -> `Backupper.exe` -> `ABNotify.exe` downloaded the tampered config, fetched the malicious `upgrade-now.zip`, extracted it to the `Tmphtml\` staging directory, and moved it to the `html\` rendering directory for execution.
 
@@ -162,7 +163,7 @@ Deployed from early July 2026 onward on select hosts:
 | URL | hxxps://promotion[.]storage-data[.]com/config/whitelist[.]ini | Target allowlist endpoint |
 | URL | hxxps://storage[.]googleapis[.]com/aomeiupdate/upgrade-now[.]zip | Jul 20 GCS staging |
 | URL | hxxps://storage[.]googleapis[.]com/aomeiupdate/component[.]zip | Jul 20 GCS component |
-| URL | `file://8[.]210[.]84[.]56/DavWWWRoot/campaign/24hour-flash-sale[.]html` | WebDAV NTLM coercion |
+| URL | `file[:]//8[.]210[.]84[.]56/DavWWWRoot/campaign/24hour-flash-sale[.]html` | WebDAV NTLM coercion |
 | User-Agent | Anyviewer-loader/1.0 | CROSSROAD IP check |
 | User-Agent | Anyviewer-ipcheck/1.0 | CROSSROAD IP check |
 
@@ -314,7 +315,7 @@ author: Actioner
 date: 2026/10/17
 tags:
     - attack.t1195.002
-    - attack.t1059
+    - attack.t1204.002
 logsource:
     category: process_creation
     product: windows
@@ -456,8 +457,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - AOMEI CROSSROAD U
 
 ### YARA: CROSSROAD Downloader
 Detects the CROSSROAD downloader via distinctive metadata typo (`AOMEI Update Compent`), self-deletion artifacts (`--nitrod`, `:wtfbbq`), mutex, and scheduled task name.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on pos (published strings from GTIG), quiet on neg. Keys on 3+ distinctive campaign strings; PE header check + filesize cap reduce FP risk. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Strings sourced from GTIG report; not tested against actual malware samples. Keys on 3+ distinctive campaign strings; PE header check + filesize cap reduce FP risk. -->
 ```yara
 rule Malware_CROSSROAD_Downloader
 {
@@ -534,7 +535,7 @@ Detects the ADAPTAGENT loader masquerading as Nitro PDF software, keying on Adap
 rule Malware_ADAPTAGENT_Loader
 {
     meta:
-        description = "Detects ADAPTAGENT (Adaptix C2) loader masquerading as Nitro PDF software, used as follow-on tooling in the AOMEI Backupper supply chain attack."
+        description = "Detects ADAPTAGENT (Adaptix C2) loader masquerading as Nitro PDF software, used as follow-on tooling in the AOMEI Backupper supply chain attack. Note: the ($s2 and ($s3 or $s4)) branch detects the Adaptix C2 framework generally, not only this campaign's deployment."
         author = "Actioner"
         date = "2026-10-17"
         reference = "https://cloud.google.com/blog/topics/threat-intelligence/investigating-ephemeral-supply-chain-tampering"
