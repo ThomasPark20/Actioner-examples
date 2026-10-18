@@ -1,0 +1,7 @@
+alert http $HOME_NET any -> 104.234.65.75 700 (msg:"MALFEX Stage 2 Download - setup.exe from C2"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/setup.exe"; classtype:trojan-activity; sid:2026101801; rev:1;)
+
+alert http $HOME_NET any -> 104.234.65.75 7007 (msg:"MALFEX Stealer C2 Communication - sendRouter"; flow:established,to_server; http.uri; content:"/about/sendRouter"; classtype:trojan-activity; sid:2026101802; rev:1;)
+
+alert http $HOME_NET any -> 104.234.65.75 7007 (msg:"MALFEX Stealer C2 Communication - discord endpoint"; flow:established,to_server; http.uri; content:"/about/discord"; classtype:trojan-activity; sid:2026101803; rev:1;)
+
+alert tcp $HOME_NET any -> 104.234.65.75 7007 (msg:"MALFEX RAT WebSocket C2 - Agent Registration"; flow:established,to_server; content:"GET /agent?license="; depth:20; classtype:trojan-activity; sid:2026101804; rev:1;)

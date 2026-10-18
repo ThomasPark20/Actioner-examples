@@ -1,0 +1,39 @@
+title: ConnectWise App Self-Assigning Directory Role
+id: a7e3b1d9-5c2f-4e80-9a16-8d4f0e3c7b52
+status: experimental
+description: >
+    Detects ConnectWise Cloud Management or SkyKick service principals adding
+    themselves to Entra ID directory roles such as Exchange Administrator or Global
+    Administrator. This behavior was observed in approximately 50 tenants during
+    the October 2026 ConnectWise supply chain attack.
+    Confidence: HIGH - role self-assignment by a backup application is not expected behavior.
+references:
+    - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
+    - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
+author: Actioner
+date: 2026-10-18
+tags:
+    - attack.t1098.003
+logsource:
+    product: azure
+    service: auditlogs
+# NOTE: The field 'InitiatedBy.app.appId' uses dot-notation to reference a nested
+# JSON property. Backend support varies; some SIEM pipelines flatten this field
+# (e.g., 'InitiatedBy_app_appId' in Splunk). A Sigma pipeline or field mapping
+# may be required for correct conversion.
+detection:
+    selection_operation:
+        OperationName: 'Add member to role'
+    selection_initiator:
+        InitiatedBy.app.appId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
+    condition: selection_operation and selection_initiator
+falsepositives:
+    - Legitimate ConnectWise role configuration during initial product setup (rare and should be documented)
+level: critical

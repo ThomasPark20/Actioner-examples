@@ -219,61 +219,49 @@ Prior to the native addon approach, the campaign used JavaScript-based loaders:
 
 ## Detection Rules
 
-### Sigma: Node.js Spawns Suspended dllhost.exe
+### Sigma: Node.js Spawns dllhost.exe Without COM Activation (Confidence: high)
 
 Detects the specific process injection pattern where node.exe creates a dllhost.exe child process without the standard /Processid: COM argument.
 
-<!-- audit: sigma check -x attacktag: 0 errors, 0 issues; sigma convert splunk: OK; sigma convert log_scale: OK -->
+**File:** `rules/sigma/malfex-npm-imgdecode-node-spawns-dllhost.yml`
 
-**File:** `/tmp/actioner/sigma_node_spawns_dllhost.yml`
-
-### Sigma: MALFEX Scheduled Task Persistence
+### Sigma: MALFEX Scheduled Task Persistence (Confidence: high)
 
 Detects schtasks.exe creating the MicrosoftEdgeUpdateService task name used by MALFEX for persistence.
 
-<!-- audit: sigma check -x attacktag: 0 errors, 0 issues; sigma convert splunk: OK; sigma convert log_scale: OK -->
+**File:** `rules/sigma/malfex-npm-imgdecode-scheduled-task.yml`
 
-**File:** `/tmp/actioner/sigma_malfex_scheduled_task.yml`
-
-### Sigma: MALFEX Fake EdgeUpdate Binary Drop
+### Sigma: MALFEX Fake EdgeUpdate Binary Drop (Confidence: high)
 
 Detects file creation of MicrosoftEdgeUpdate.exe in the AppData\Roaming EdgeUpdate path, which is not a legitimate Edge updater location.
 
-<!-- audit: sigma check -x attacktag: 0 errors, 0 issues; sigma convert splunk: OK; sigma convert log_scale: OK -->
+**File:** `rules/sigma/malfex-npm-imgdecode-persistence-path.yml`
 
-**File:** `/tmp/actioner/sigma_malfex_persistence_path.yml`
-
-### Sigma: MALFEX Registry Run Key Persistence
+### Sigma: MALFEX Registry Run Key Persistence (Confidence: high)
 
 Detects registry set operations creating the MicrosoftEdgeUpdateService value under a Run key.
 
-<!-- audit: sigma check -x attacktag: 0 errors, 0 issues; sigma convert splunk: OK; sigma convert log_scale: OK -->
+**File:** `rules/sigma/malfex-npm-imgdecode-run-key.yml`
 
-**File:** `/tmp/actioner/sigma_malfex_run_key.yml`
-
-### YARA: MALFEX imgdecode Native Addon
+### YARA: MALFEX imgdecode Native Addon (Confidence: high)
 
 Detects the malicious imgdecode.node DLL via XOR-0x37 encoded strings for the decryption key, GitHub URL, WriteProcessMemory, and CreateRemoteThread, plus the characteristic PDB path.
 
-<!-- audit: yarac: compiled successfully, exit 0 -->
+**File:** `rules/yara/malfex-npm-imgdecode.yar`
 
-**File:** `/tmp/actioner/yara_malfex_imgdecode_addon.yar`
-
-### YARA: MALFEX Stage 2 Go Downloader
+### YARA: MALFEX Stage 2 Go Downloader (Confidence: medium)
 
 Detects the Go-compiled downloader that fetches setup.exe from the MALFEX C2 server.
 
-<!-- audit: yarac: compiled successfully, exit 0 (same file, second rule) -->
+**File:** `rules/yara/malfex-npm-imgdecode.yar` (rule: `MALFEX_Stage2_Go_Downloader`)
 
-**File:** `/tmp/actioner/yara_malfex_imgdecode_addon.yar` (rule: `MALFEX_Stage2_Go_Downloader`)
+### Suricata: MALFEX C2 Network Indicators (Confidence: high)
 
-### Suricata: MALFEX C2 Network Indicators
+Four rules covering Stage 2 download (setup.exe on port 700), stealer API endpoints (/about/sendRouter, /about/discord), and RAT WebSocket registration.
 
-Five rules covering Stage 2 download (setup.exe on port 700), stealer API endpoints (/about/sendRouter, /about/discord), RAT WebSocket registration, and TLS SNI for the GitHub payload host.
+> **Non-standard port caveat:** Rules targeting ports 700 and 7007 require HTTP application-layer detection on those ports. Suricata 7+ automatic protocol detection handles this by default; older versions need explicit `app-layer.protocols.http.detection-ports` configuration for ports 700 and 7007.
 
-<!-- audit: suricata -T: configuration loaded successfully, exit 0 -->
-
-**File:** `/tmp/actioner/suricata_malfex_c2.rules`
+**File:** `rules/suricata/malfex-npm-imgdecode.rules`
 
 ## Sources
 

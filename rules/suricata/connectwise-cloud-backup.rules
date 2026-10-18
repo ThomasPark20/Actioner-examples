@@ -1,0 +1,2 @@
+alert ip 144.172.64.128 any -> $HOME_NET any (msg:"ACTIONER CTI ConnectWise Cloud Backup Supply Chain - Attacker IP Inbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101801; rev:2;)
+alert ip $HOME_NET any -> 144.172.64.128 any (msg:"ACTIONER CTI ConnectWise Cloud Backup Supply Chain - Attacker IP Outbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101802; rev:2;)

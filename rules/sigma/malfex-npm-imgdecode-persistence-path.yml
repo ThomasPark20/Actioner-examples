@@ -1,0 +1,28 @@
+title: MALFEX Persistence Binary Drop - Fake EdgeUpdate Path
+id: 3c5e7f9a-2b4d-6e8f-a1c3-5d7b9e0f4c6a
+status: experimental
+description: Detects file creation of MicrosoftEdgeUpdate.exe in the AppData EdgeUpdate directory, a persistence mechanism used by the MALFEX imgdecode supply chain malware.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner CTI
+date: 2026-10-18
+tags:
+    - attack.t1547.001
+    - attack.t1036
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Microsoft\EdgeUpdate\MicrosoftEdgeUpdate.exe'
+        TargetFilename|contains: '\AppData\Roaming\'
+    filter_legitimate:
+        Image|endswith:
+            - '\MicrosoftEdgeUpdate.exe'
+            - '\setup.exe'
+        Image|contains: '\Microsoft\EdgeUpdate\'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Edge update binaries writing to AppData Roaming rather than Local (unlikely for legitimate Edge updater)
+level: high

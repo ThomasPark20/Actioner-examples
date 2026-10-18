@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-18
-Version: 1 (DRAFT)
+Version: 2 (REVISED)
 
 ## Executive Summary
 
@@ -94,7 +94,7 @@ Huntress observed possible alphabetical targeting, with the most interesting vic
 
 ## Indicators of Compromise (IOCs)
 
-> All network IOCs are defanged. Detection rules in the appendix use real (non-defanged) values.
+> All IPv4 network IOCs are defanged with bracket notation. The IPv6 ULA range below is shown verbatim as it is internal/non-routable and not an attacker indicator. Detection rules in the appendix use real (non-defanged) values.
 
 ### Network Indicators
 
@@ -146,7 +146,6 @@ Huntress observed possible alphabetical targeting, with the most interesting vic
 | T1528 | Steal Application Access Token | Obtained Graph tokens for customer tenants using stolen application credentials |
 | T1098.003 | Account Manipulation: Additional Cloud Roles | Service principals self-assigned Exchange Administrator and Global Administrator roles |
 | T1098.001 | Account Manipulation: Additional Cloud Credentials | New client secrets planted on MSP management tools and security applications |
-| T1136.003 | Create Account: Cloud Account | Potential creation of new application registrations for persistence |
 | T1530 | Data from Cloud Storage | Potential access to SharePoint and OneDrive data through consented permissions |
 | T1114.002 | Email Collection: Remote Email Collection | Full mailbox access available through Exchange Web Services consent |
 
@@ -196,8 +195,6 @@ Disabling an app blocks new token issuance immediately but already-issued tokens
 
 Detects service principal sign-ins for the seven compromised ConnectWise application IDs from the known attacker IP `144.172.64.128`.
 
-<!-- audit: sigma check passed (0 errors, 0 issues, -x attacktag -x d3_fendtag); sigma convert --without-pipeline -t splunk passed; sigma convert --without-pipeline -t log_scale passed; attempt 1/3 -->
-
 ```yaml
 title: ConnectWise Cloud Backup App Suspicious Service Principal Sign-In
 id: f8a2c4e1-3d7b-4a91-b5e6-9c0d2f1a8b34
@@ -207,6 +204,7 @@ description: >
     (formerly SkyKick) application identities from the known attacker IP address
     144.172.64.128. In October 2026, attackers used stolen application credentials
     to authenticate as these apps and access Microsoft 365 tenant data.
+    Confidence: HIGH - matches known attacker IP against specific compromised app IDs.
 references:
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
     - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
@@ -216,12 +214,15 @@ date: 2026-10-18
 tags:
     - attack.t1078.004
     - attack.t1550.001
+# NOTE: This rule targets AADServicePrincipalSignInLogs (service principal sign-ins),
+# not the default SigninLogs (user sign-ins). Some backends may require a custom
+# pipeline to resolve this log source correctly.
 logsource:
     product: azure
-    service: signinlogs
+    service: aadserviceprincipalsigninlogs
 detection:
     selection_app:
-        AppId|contains:
+        AppId:
             - '506e08f9-6e9a-4da4-942b-a099a03644ae'
             - '2399d300-6fca-4e6a-a686-399fefe75b83'
             - '24205314-2b89-4e07-a2a4-579e898a5640'
@@ -237,13 +238,11 @@ falsepositives:
 level: critical
 ```
 
-**File:** `/tmp/actioner/sigma-connectwise-cloud-backup-suspicious-sp-signin.yml`
+**File:** `rules/sigma/connectwise-cloud-backup-sp-signin.yml`
 
 ### Sigma: ConnectWise App Self-Assigning Directory Role
 
 Detects ConnectWise/SkyKick service principals adding themselves to Entra ID directory roles, the primary escalation technique observed in ~50 tenants.
-
-<!-- audit: sigma check passed (0 errors, 0 issues, -x attacktag -x d3_fendtag); sigma convert --without-pipeline -t splunk passed; sigma convert --without-pipeline -t log_scale passed; attempt 1/3 -->
 
 ```yaml
 title: ConnectWise App Self-Assigning Directory Role
@@ -254,6 +253,7 @@ description: >
     themselves to Entra ID directory roles such as Exchange Administrator or Global
     Administrator. This behavior was observed in approximately 50 tenants during
     the October 2026 ConnectWise supply chain attack.
+    Confidence: HIGH - role self-assignment by a backup application is not expected behavior.
 references:
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
     - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
@@ -264,11 +264,13 @@ tags:
 logsource:
     product: azure
     service: auditlogs
+# NOTE: 'InitiatedBy.app.appId' uses dot-notation for a nested JSON property.
+# A Sigma pipeline or field mapping may be required for correct conversion.
 detection:
     selection_operation:
         OperationName: 'Add member to role'
     selection_initiator:
-        InitiatedBy.app.appId|contains:
+        InitiatedBy.app.appId:
             - '506e08f9-6e9a-4da4-942b-a099a03644ae'
             - '2399d300-6fca-4e6a-a686-399fefe75b83'
             - '24205314-2b89-4e07-a2a4-579e898a5640'
@@ -282,13 +284,11 @@ falsepositives:
 level: critical
 ```
 
-**File:** `/tmp/actioner/sigma-connectwise-sp-self-role-assignment.yml`
+**File:** `rules/sigma/connectwise-cloud-backup-directory-role.yml`
 
 ### Sigma: Credential Addition to Service Principal by ConnectWise App
 
 Detects ConnectWise apps adding credentials to other service principals, the persistence mechanism used to plant secrets on MSP management tools and security platforms.
-
-<!-- audit: sigma check passed (0 errors, 0 issues, -x attacktag -x d3_fendtag); sigma convert --without-pipeline -t splunk passed; sigma convert --without-pipeline -t log_scale passed; attempt 1/3 -->
 
 ```yaml
 title: Credential Addition to Service Principal by ConnectWise App
@@ -300,6 +300,8 @@ description: >
     October 2026 supply chain attack, compromised ConnectWise apps added new
     client secrets to MSP management tools and security applications for
     persistence. Secrets were observed with expiry dates in 2028.
+    Confidence: HIGH - credential addition by a backup application to unrelated
+    service principals is anomalous.
 references:
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
     - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
@@ -310,13 +312,15 @@ tags:
 logsource:
     product: azure
     service: auditlogs
+# NOTE: 'InitiatedBy.app.appId' uses dot-notation for a nested JSON property.
+# A Sigma pipeline or field mapping may be required for correct conversion.
 detection:
     selection_operation:
-        OperationName|contains:
-            - 'Update application'
+        OperationName:
+            - 'Update application - Certificates and secrets management'
             - 'Add service principal credentials'
     selection_initiator:
-        InitiatedBy.app.appId|contains:
+        InitiatedBy.app.appId:
             - '506e08f9-6e9a-4da4-942b-a099a03644ae'
             - '2399d300-6fca-4e6a-a686-399fefe75b83'
             - '24205314-2b89-4e07-a2a4-579e898a5640'
@@ -330,13 +334,11 @@ falsepositives:
 level: high
 ```
 
-**File:** `/tmp/actioner/sigma-connectwise-credential-addition.yml`
+**File:** `rules/sigma/connectwise-cloud-backup-credential-addition.yml`
 
 ### Sigma: ConnectWise App Sign-In with Suspicious User-Agent
 
 Detects ConnectWise app sign-ins using Python/curl user-agents associated with the attacker's tooling, distinct from the legitimate `kiota-dotnet` agent.
-
-<!-- audit: sigma check passed (0 errors, 0 issues, -x attacktag -x d3_fendtag); sigma convert --without-pipeline -t splunk passed; sigma convert --without-pipeline -t log_scale passed; attempt 1/3 -->
 
 ```yaml
 title: ConnectWise App Sign-In with Suspicious User-Agent
@@ -347,6 +349,8 @@ description: >
     Management apps using user-agent strings associated with the October 2026
     supply chain attack tooling (Python-urllib, python-requests, curl). Legitimate
     ConnectWise traffic uses the kiota-dotnet user-agent from Azure infrastructure.
+    Confidence: MEDIUM - user-agent strings can be spoofed, but these specific
+    combinations with ConnectWise app IDs are strong indicators.
 references:
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
     - https://todyl.com/blog/investigation-unauthorized-access-through-the-connectwise-cloud-backup-microsoft-365-app
@@ -355,12 +359,17 @@ date: 2026-10-18
 tags:
     - attack.t1078.004
     - attack.t1550.001
+# NOTE: This rule targets AADServicePrincipalSignInLogs (service principal sign-ins),
+# not the default SigninLogs (user sign-ins). Some backends may require a custom
+# pipeline to resolve this log source correctly.
+# NOTE: 'UserAgent' field may appear nested in some Entra schemas. Verify field
+# mapping in your pipeline.
 logsource:
     product: azure
-    service: signinlogs
+    service: aadserviceprincipalsigninlogs
 detection:
     selection_app:
-        AppId|contains:
+        AppId:
             - '506e08f9-6e9a-4da4-942b-a099a03644ae'
             - '2399d300-6fca-4e6a-a686-399fefe75b83'
             - '24205314-2b89-4e07-a2a4-579e898a5640'
@@ -379,20 +388,36 @@ falsepositives:
 level: high
 ```
 
-**File:** `/tmp/actioner/sigma-connectwise-suspicious-useragent-sp-signin.yml`
+**File:** `rules/sigma/connectwise-cloud-backup-suspicious-ua.yml`
 
 ### Suricata: ConnectWise Cloud Backup Attacker IP
 
 Alerts on any traffic to or from the known attacker IP `144.172.64.128`.
 
-<!-- audit: suricata -T -S passed (configuration successfully loaded); snort -T -c passed (successfully validated); attempt 1/3 -->
-
 ```
-alert ip 144.172.64.128 any -> $HOME_NET any (msg:"ETPRO TROJAN ConnectWise Cloud Backup Supply Chain - Attacker IP Inbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101801; rev:1;)
-alert ip $HOME_NET any -> 144.172.64.128 any (msg:"ETPRO TROJAN ConnectWise Cloud Backup Supply Chain - Attacker IP Outbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101802; rev:1;)
+alert ip 144.172.64.128 any -> $HOME_NET any (msg:"ACTIONER CTI ConnectWise Cloud Backup Supply Chain - Attacker IP Inbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101801; rev:2;)
+alert ip $HOME_NET any -> 144.172.64.128 any (msg:"ACTIONER CTI ConnectWise Cloud Backup Supply Chain - Attacker IP Outbound"; reference:url,www.huntress.com/blog/vendor-credential-enables-unauthorized-access; classtype:trojan-activity; sid:2026101802; rev:2;)
 ```
 
-**File:** `/tmp/actioner/suricata-connectwise-attacker-ip.rules`
+**File:** `rules/suricata/connectwise-cloud-backup.rules`
+
+### Detection Confidence Summary
+
+| Rule | Confidence | Notes |
+|---|---|---|
+| SP Sign-In from Attacker IP | HIGH | Known attacker IP + specific compromised app IDs |
+| Directory Role Self-Assignment | HIGH | Role self-assignment by backup app is never expected |
+| Credential Addition | HIGH | Credential planting on unrelated apps is anomalous |
+| Suspicious User-Agent | MEDIUM | User-agents are spoofable; combined with app ID filter improves fidelity |
+| Suricata Attacker IP | HIGH | Direct IP match; limited shelf life |
+
+### Supplementary Hunting Leads
+
+The following indicators are supplementary hunting leads not covered by the detection rules above. They require manual investigation and context before escalation.
+
+**Session ID prefix `009ae85a-`:** All malicious service principal sign-ins observed in this campaign shared session IDs beginning with `009ae85a-`. This prefix may be an artifact of the attacker's tooling or token request configuration. Hunt query: filter `AADServicePrincipalSignInLogs` for `CorrelationId` or `SessionId` values starting with `009ae85a-` in the October 13-17 window. Note: this is a weak indicator on its own and may match legitimate sessions; correlate with other IOCs before actioning.
+
+**`kiota-dotnet` user-agent coverage gap:** The `kiota-dotnet` user-agent string was used by the attacker during the privilege escalation phase (directory role self-assignments). However, this is also the legitimate user-agent for ConnectWise Cloud Management traffic. A detection rule filtering on `kiota-dotnet` alone would produce excessive false positives. This user-agent is therefore excluded from the Suspicious User-Agent rule. Analysts should investigate `kiota-dotnet` sign-ins only when correlated with other indicators (non-Microsoft source IP, unexpected role assignment activity, or presence in a tenant that does not use ConnectWise products).
 
 ### YARA
 
