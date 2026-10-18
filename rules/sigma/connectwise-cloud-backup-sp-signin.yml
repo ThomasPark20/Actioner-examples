@@ -1,0 +1,41 @@
+title: ConnectWise Cloud Backup App Suspicious Service Principal Sign-In
+id: f8a2c4e1-3d7b-4a91-b5e6-9c0d2f1a8b34
+status: experimental
+description: >
+    Detects service principal sign-ins for compromised ConnectWise Cloud Backup
+    (formerly SkyKick) application identities from the known attacker IP address
+    144.172.64.128. In October 2026, attackers used stolen application credentials
+    to authenticate as these apps and access Microsoft 365 tenant data.
+    Confidence: HIGH - matches known attacker IP against specific compromised app IDs.
+references:
+    - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
+    - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
+    - https://thehackernews.com/2026/10/connectwise-suspends-cloud-backup-after.html
+author: Actioner
+date: 2026-10-18
+tags:
+    - attack.t1078.004
+    - attack.t1550.001
+# NOTE: This rule targets AADServicePrincipalSignInLogs (service principal sign-ins),
+# not the default SigninLogs (user sign-ins). The Sigma service value
+# 'aadserviceprincipalsigninlogs' maps to this table. Some backends may require a
+# custom pipeline to resolve this log source correctly.
+logsource:
+    product: azure
+    service: aadserviceprincipalsigninlogs
+detection:
+    selection_app:
+        AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
+    selection_ip:
+        IpAddress: '144.172.64.128'
+    condition: selection_app and selection_ip
+falsepositives:
+    - Legitimate ConnectWise Cloud Backup operations routed through this IP (unlikely given it is a RouterHosting VPS)
+level: critical

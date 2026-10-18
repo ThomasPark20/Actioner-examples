@@ -1,0 +1,25 @@
+title: MALFEX Scheduled Task Persistence - MicrosoftEdgeUpdateService
+id: 2b4d6e8f-1a3c-5e7b-9d0f-4c6a8e2b1d3f
+status: experimental
+description: Detects creation of a scheduled task named MicrosoftEdgeUpdateService, used by the MALFEX imgdecode supply chain malware for persistence masquerading as a legitimate Microsoft Edge update service.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner CTI
+date: 2026-10-18
+tags:
+    - attack.t1053.005
+    - attack.t1036
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'MicrosoftEdgeUpdateService'
+    condition: selection_schtasks
+falsepositives:
+    - Unlikely; this specific task name is not used by legitimate Microsoft Edge updates which use MicrosoftEdgeUpdateTaskMachineCore and MicrosoftEdgeUpdateTaskMachineUA
+level: critical

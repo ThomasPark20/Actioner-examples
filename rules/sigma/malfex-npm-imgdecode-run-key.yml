@@ -1,0 +1,23 @@
+title: MALFEX Registry Run Key Persistence - MicrosoftEdgeUpdateService
+id: 4d6e8f0a-3c5e-7f9b-b2d4-6e8a1c3f5d7b
+status: experimental
+description: Detects registry modification creating a Run key value named MicrosoftEdgeUpdateService, used by the MALFEX imgdecode supply chain malware for persistence.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner CTI
+date: 2026-10-18
+tags:
+    - attack.t1547.001
+    - attack.t1036
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Microsoft\Windows\CurrentVersion\Run\'
+        TargetObject|endswith: '\MicrosoftEdgeUpdateService'
+    condition: selection
+falsepositives:
+    - None known; legitimate Microsoft Edge uses different value names for its Run key entries
+level: critical
