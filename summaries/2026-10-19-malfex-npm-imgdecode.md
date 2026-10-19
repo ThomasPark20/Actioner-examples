@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-19
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -199,8 +199,7 @@ The final payload `setup.exe` (SHA-256: `8d50cb1b...`) is a 71.5 MB Node.js 18 a
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious npm packages published to public registry |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Node.js native addon loaded via `require()` |
-| T1055.001 | Process Injection: Dynamic-link Library Injection | Shellcode injected into suspended dllhost.exe via VirtualAllocEx/WriteProcessMemory/CreateRemoteThread |
-| T1055.012 | Process Injection: Process Hollowing | dllhost.exe started suspended, shellcode injected before resuming |
+| T1055 | Process Injection | Shellcode injected into suspended dllhost.exe via VirtualAllocEx/WriteProcessMemory/CreateRemoteThread |
 | T1027 | Obfuscated Files or Information | XOR-encoded strings (key 0x37), AES-256-CBC encrypted payloads |
 | T1140 | Deobfuscate/Decode Files or Information | Runtime decryption of payload using nif-runtime-2027 passphrase |
 | T1105 | Ingress Tool Transfer | Downloads encrypted payload from GitHub and stealer from C2 |
@@ -251,7 +250,7 @@ find / -path "*/node_modules/imgdecode" -o -path "*/node_modules/cdn-img-fetch" 
 4. **Rotate all credentials:** browser passwords, Discord tokens, npm/GitHub tokens, SSH keys, cloud API keys, and any `.env` file contents
 5. **Move crypto funds** to new wallets if seed phrases, mnemonics, or wallet files were stored on the affected system
 6. **Compare local logs** with centralized/external logs -- the stealer tampers with local Security and Sysmon EVTX records
-7. **Block** C2 IP `104.234.65.75` at the network perimeter
+7. **Block** C2 IP `104.234.65[.]75` at the network perimeter
 
 ### Long-Term Hardening
 
@@ -286,7 +285,7 @@ references:
 author: Actioner
 date: 2026/10/19
 tags:
-    - attack.t1055.001
+    - attack.t1055
     - attack.t1059.007
 logsource:
     category: process_creation
@@ -303,20 +302,21 @@ falsepositives:
 level: high
 ```
 
-### Sigma: Network Connection to MALFEX C2 IP
+### Sigma: Outbound Connection to MALFEX C2 IP 104.234.65.75
 
-Detects any network connection to the known MALFEX C2 IP `104.234.65[.]75`.
+Detects any network connection to the known MALFEX C2 IP `104.234.65[.]75`. No process filter -- fires for any image.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. Single-IP rule; will need updates if actor rotates infrastructure. No known legitimate services at this IP. -->
+<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. Single-IP rule; will need updates if actor rotates infrastructure. No known legitimate services at this IP. Title renamed from "Node.js Connects" to match detection logic (no Image filter). -->
 
 ```yaml
-title: Node.js Connects to MALFEX C2 IP 104.234.65.75
+title: Outbound Connection to MALFEX C2 IP 104.234.65.75
 id: 2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e
 status: experimental
 description: >
-    Detects network connections from node.exe to the known MALFEX campaign
+    Detects outbound network connections to the known MALFEX campaign
     C2 server at 104.234.65.75, used for payload download (port 700) and
-    stealer C2/WebSocket communication (port 7007).
+    stealer C2/WebSocket communication (port 7007). No process image filter;
+    fires for any process connecting to this IP.
 references:
     - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
     - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
@@ -340,8 +340,8 @@ level: critical
 ### Sigma: MALFEX Persistence via MicrosoftEdgeUpdateService
 
 Detects the MALFEX stealer creating persistence via a scheduled task or registry Run key named `MicrosoftEdgeUpdateService`.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. Requires process_creation logging (Sysmon EID 1 or 4688 with command-line). If the stealer uses direct registry/task API calls rather than reg.exe/schtasks.exe, this rule will miss -- supplement with registry_set monitoring. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. Requires process_creation logging (Sysmon EID 1 or 4688 with command-line). The stealer likely uses direct registry/task API calls rather than reg.exe/schtasks.exe command lines, so this rule may miss -- supplement with registry_set monitoring. Downgraded from high to medium per critic review. -->
 
 ```yaml
 title: MALFEX Stealer Persistence via MicrosoftEdgeUpdateService
@@ -376,7 +376,7 @@ detection:
     condition: selection_schtasks or selection_reg
 falsepositives:
     - Legitimate Microsoft Edge update service installations (verify the binary path points to the official Edge updater)
-level: high
+level: medium
 ```
 
 ### Sigma: MALFEX Stealer Drops Masquerading EdgeUpdate Binary
@@ -424,7 +424,7 @@ Detects outbound TCP connections to the MALFEX C2 IP `104.234.65[.]75` on any po
 <!-- audit: snort -c /etc/snort/snort.conf -R m.rules -T exit 0 (Snort 2.9.20). IP-specific rules; will age out if the actor rotates infrastructure. -->
 
 ```snort
-alert tcp $HOME_NET any -> $EXTERNAL_NET 700 (msg:"Actioner - MALFEX C2 Stage-2 Download from 104.234.65.75:700"; flow:established,to_server; content:"GET"; depth:3; content:"/setup.exe"; distance:1; sid:2100001; rev:1; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)
+alert tcp $HOME_NET any -> 104.234.65.75 700 (msg:"Actioner - MALFEX C2 Stage-2 Download from 104.234.65.75:700"; flow:established,to_server; content:"GET"; depth:3; content:"/setup.exe"; distance:1; sid:2100001; rev:2; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)
 
 alert tcp $HOME_NET any -> 104.234.65.75 7007 (msg:"Actioner - MALFEX Stealer WebSocket C2 to 104.234.65.75:7007"; flow:established,to_server; content:"Upgrade|3a 20|websocket"; nocase; fast_pattern; sid:2100002; rev:1; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)
 
@@ -448,7 +448,7 @@ alert tcp $HOME_NET any -> 104.234.65.75 any (msg:"Actioner - MALFEX Known C2 IP
 ### YARA: MALFEX imgdecode Native Addon DLL
 
 Detects the MALFEX `imgdecode` malicious Node.js native addon via PDB path, decryption passphrase, XOR key, and process injection API imports. Covers all three known DLL builds.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
 <!-- audit: yarac exit 0. yara pos.txt matched Malware_MALFEX_Imgdecode_Native_Addon; neg.txt quiet. Positive constructed from published PDB path and passphrase strings, not an upstream sample. Condition uses OR branches: $pdb alone is sufficient; alternatively $passphrase + 2 injection APIs; or $export + $passphrase. -->
 
 ```yara
@@ -525,8 +525,8 @@ rule Malware_MALFEX_Go_Downloader
 ### YARA: MALFEX movinlike Stealer
 
 Detects the MALFEX `movinlike` Node.js stealer packed with `pkg`, via its `.env` config strings, MALFEX license key pattern, and C2 IP.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0. The 100MB filesize is intentional (pkg-packed Node.js apps are large; the known sample is 71.5 MB). Condition requires C2 IP plus env config, or MALFEX license plus name/IP. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: yarac exit 0. The 100MB filesize is intentional (pkg-packed Node.js apps are large; the known sample is 71.5 MB). Condition requires C2 IP plus env config, or MALFEX license plus name/IP. Added uint16(0) == 0x5A4D PE header check per critic review to prevent matching on reports/blog posts containing "MALFEX-" and "movinlike". Downgraded from high/critical to medium. -->
 
 ```yara
 rule Malware_MALFEX_Movinlike_Stealer
@@ -537,7 +537,7 @@ rule Malware_MALFEX_Movinlike_Stealer
         date = "2026-10-19"
         reference = "https://safedep.io/malfex-imgdecode-npm-native-addon-loader/"
         hash = "8d50cb1ba0c2a16a673a2d08a8fb5c45bd8755c95c30ded98a84c74bfe52c9e6"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $license = "MALFEX-" ascii
@@ -548,6 +548,7 @@ rule Malware_MALFEX_Movinlike_Stealer
         $c2 = "104.234.65.75" ascii
 
     condition:
+        uint16(0) == 0x5A4D and
         filesize < 100MB and
         (
             (2 of ($env*) and $c2) or
@@ -574,7 +575,11 @@ rule Malware_MALFEX_Movinlike_Stealer
 - [The Hacker News - Eight Malicious npm Packages Downloaded 40,767 Times](https://thehackernews.com/2026/10/eight-malicious-npm-packages-downloaded.html) -- broader MALFEX campaign coverage (Checkmarx/CloudSEK findings)
 - [Socket.dev - imgdecode package files](https://socket.dev/npm/package/imgdecode/files/1.0.0/index.js) -- package structure analysis
 - [npm - imgdecode versions](https://www.npmjs.com/package/imgdecode?activeTab=versions) -- package version history
-- [OSV Advisory MAL-2026-17320](https://osv.dev/) -- `imgdecode` advisory
+- [Checkmarx - MALFEX Campaign Analysis](https://checkmarx.com/blog/malfex-npm-supply-chain-attack/) -- initial MALFEX campaign discovery and analysis
+- [CloudSEK - MALFEX Threat Actor Attribution](https://cloudsek.com/blog/malfex-npm-supply-chain-campaign/) -- linguistic attribution and campaign tracking
+- [OSV Advisory MAL-2026-17320](https://osv.dev/vulnerability/MAL-2026-17320) -- `imgdecode` advisory
+
+<!-- revision: FINAL 1.0 — Sigma dllhost rule: T1055.001→T1055 (shellcode injection, not DLL injection). Sigma C2 IP rule: renamed from "Node.js Connects" to "Outbound Connection" (no Image filter in detection). Sigma persistence rule: downgraded high→medium (stealer likely uses API calls, not schtasks/reg.exe CLIs). Snort sid:2100001: $EXTERNAL_NET→104.234.65.75 (specific C2 IP). YARA imgdecode: sample label fired✓→constructed. YARA movinlike: added uint16(0)==0x5A4D PE check, downgraded to medium. ATT&CK table: removed T1055.012 (not process hollowing), corrected T1055.001→T1055. Defanged bare IP in Remediation §7. Fixed OSV link to specific advisory. Added Checkmarx and CloudSEK source URLs. -->
 
 ---
 *Report generated by Actioner*

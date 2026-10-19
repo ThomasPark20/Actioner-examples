@@ -1,0 +1,33 @@
+title: MALFEX Stealer Persistence via MicrosoftEdgeUpdateService
+id: 3c4d5e6f-7a8b-9c0d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects the MALFEX movinlike stealer creating persistence via a scheduled
+    task or registry Run key named MicrosoftEdgeUpdateService, which masquerades
+    as a legitimate Microsoft Edge update service.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner
+date: 2026/10/19
+tags:
+    - attack.t1053.005
+    - attack.t1547.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'MicrosoftEdgeUpdateService'
+            - '/create'
+    selection_reg:
+        Image|endswith: '\reg.exe'
+        CommandLine|contains|all:
+            - 'MicrosoftEdgeUpdateService'
+            - 'CurrentVersion\Run'
+    condition: selection_schtasks or selection_reg
+falsepositives:
+    - Legitimate Microsoft Edge update service installations (verify the binary path points to the official Edge updater)
+level: medium
