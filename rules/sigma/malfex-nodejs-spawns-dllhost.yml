@@ -1,0 +1,29 @@
+title: Node.js Spawns Suspended dllhost.exe - MALFEX imgdecode Shellcode Injection
+id: 7a1b3c4d-9e2f-4a6b-8d7c-1e5f0a3b2c4d
+status: experimental
+description: >
+    Detects node.exe spawning dllhost.exe, indicative of the MALFEX imgdecode
+    native addon injecting shellcode into a suspended dllhost.exe process.
+    The addon creates dllhost.exe with CREATE_SUSPENDED and injects shellcode
+    via VirtualAllocEx/WriteProcessMemory/CreateRemoteThread.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner
+date: 2026/10/19
+tags:
+    - attack.t1055
+    - attack.t1059.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        ParentImage|endswith: '\node.exe'
+        Image|endswith: '\dllhost.exe'
+    filter_com:
+        CommandLine|contains: '/Processid:'
+    condition: selection and not filter_com
+falsepositives:
+    - Legitimate Node.js applications that spawn COM surrogate processes (unlikely without /Processid:)
+level: high

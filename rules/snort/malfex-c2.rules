@@ -1,0 +1,5 @@
+alert tcp $HOME_NET any -> 104.234.65.75 700 (msg:"Actioner - MALFEX C2 Stage-2 Download from 104.234.65.75:700"; flow:established,to_server; content:"GET"; depth:3; content:"/setup.exe"; distance:1; sid:2100001; rev:2; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)
+
+alert tcp $HOME_NET any -> 104.234.65.75 7007 (msg:"Actioner - MALFEX Stealer WebSocket C2 to 104.234.65.75:7007"; flow:established,to_server; content:"Upgrade|3a 20|websocket"; nocase; fast_pattern; sid:2100002; rev:1; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)
+
+alert tcp $HOME_NET any -> 104.234.65.75 any (msg:"Actioner - MALFEX Known C2 IP 104.234.65.75 Outbound Connection"; flow:established,to_server; sid:2100003; rev:1; classtype:trojan-activity; reference:url,safedep.io/malfex-imgdecode-npm-native-addon-loader/;)

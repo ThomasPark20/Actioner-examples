@@ -1,0 +1,26 @@
+title: Outbound Connection to MALFEX C2 IP 104.234.65.75
+id: 2b3c4d5e-6f7a-8b9c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects outbound network connections to the known MALFEX campaign
+    C2 server at 104.234.65.75, used for payload download (port 700) and
+    stealer C2/WebSocket communication (port 7007). No process image filter;
+    fires for any process connecting to this IP.
+references:
+    - https://safedep.io/malfex-imgdecode-npm-native-addon-loader/
+    - https://thehackernews.com/2026/10/malfex-npm-package-imgdecode-hides.html
+author: Actioner
+date: 2026/10/19
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp: '104.234.65.75'
+    condition: selection
+falsepositives:
+    - None expected - this is a known malicious IP
+level: critical
