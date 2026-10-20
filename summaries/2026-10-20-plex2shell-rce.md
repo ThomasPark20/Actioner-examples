@@ -252,95 +252,7 @@ level: high
 
 ---
 
-**SIGMA-3: Plex TranscoderH264Options Tampering (CVE-2026-96655/96656)**
-Detects modifications to the Plex Preferences.xml file, which may indicate stage 3-4 exploitation injecting `dump-yuv` or `stats=` options. Requires file integrity monitoring.
-<!-- Validation: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0 -->
-
-```yaml
-title: Plex TranscoderH264Options Tampering for File Write (CVE-2026-96655/96656)
-id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
-status: experimental
-description: >
-    Detects modification of the Plex Media Server TranscoderH264Options
-    preference to include dump-yuv or stats= x264 options, which is the
-    mechanism used in CVE-2026-96655/96656 (Plex2Shell stages 3-4) to
-    write a malicious shared object into the Codecs directory.
-references:
-    - https://securityaffairs.com/201324/hacking/plex2shell-exploit-used-to-turn-vulnerable-plex-servers-into-crypto-miners.html
-    - https://zmain.info/blog/plex2shell
-author: Actioner
-date: 2026/10/20
-tags:
-    - attack.persistence
-    - attack.t1574
-    - cve.2026.96655
-    - cve.2026.96656
-logsource:
-    category: file_change
-    product: linux
-detection:
-    selection_file:
-        TargetFilename|endswith: 'Preferences.xml'
-        TargetFilename|contains: 'Plex Media Server'
-    condition: selection_file
-falsepositives:
-    - Normal Plex preference changes (requires secondary analysis of TranscoderH264Options content)
-level: medium
-```
-> compile-status: ✅ compiles (Splunk + LogScale) | confidence: low -- Caveat: fires on any Preferences.xml change, not specifically dump-yuv; secondary triage required to confirm malicious content.
-
----
-
-**SIGMA-4: Plex Media Server or Transcoder Spawning Shell Process**
-Detects shell interpreters spawned as child processes of Plex binaries, consistent with successful code execution via the planted `.so` constructor.
-<!-- Validation: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0 -->
-
-```yaml
-title: Plex Media Server or Transcoder Spawning Shell Process
-id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
-status: experimental
-description: >
-    Detects the Plex Media Server or Plex Transcoder process spawning
-    a shell interpreter, which is consistent with successful exploitation
-    of the Plex2Shell chain (CVE-2026-96656) where a malicious shared
-    object loaded via dlopen executes fork/execve to spawn a shell.
-references:
-    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
-    - https://zmain.info/blog/plex2shell
-author: Actioner
-date: 2026/10/20
-tags:
-    - attack.execution
-    - attack.t1059.004
-    - cve.2026.96656
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '/Plex Media Server'
-            - '/Plex Transcoder'
-            - '/Plex Script Host'
-    selection_child:
-        Image|endswith:
-            - '/sh'
-            - '/bash'
-            - '/dash'
-            - '/zsh'
-            - '/ash'
-            - '/ksh'
-            - '/busybox'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Plex post-processing scripts or legitimate Plex plugins that invoke shell commands
-level: medium
-```
-> compile-status: ✅ compiles (Splunk + LogScale) | confidence: medium -- Caveat: behavioral TTP rule; legitimate Plex post-processing scripts may spawn shells, requiring baseline tuning.
-
----
-
-**SIGMA-5: Plex2Shell Known Attacker Infrastructure Communication**
+**SIGMA-3: Plex2Shell Known Attacker Infrastructure Communication**
 Detects network connections to IPs and domains observed in October 2026 Plex2Shell exploitation campaigns.
 <!-- Validation: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0 -->
 
@@ -359,7 +271,7 @@ author: Actioner
 date: 2026/10/20
 tags:
     - attack.command_and_control
-    - attack.t1071
+    - attack.t1071.001
     - attack.t1496
 logsource:
     category: network_connection
@@ -383,7 +295,7 @@ level: high
 
 ---
 
-**SIGMA-6: Plex2Shell Post-Exploitation Miner or Proxy Process Names**
+**SIGMA-4: Plex2Shell Post-Exploitation Miner or Proxy Process Names**
 Detects process creation matching known payload names from the Plex2Shell campaigns.
 <!-- Validation: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0 -->
 
@@ -423,15 +335,15 @@ level: high
 
 ### Suricata Rules
 
-<!-- Validation: suricata -T -S suricata-plex2shell.rules -l /tmp/actioner => exit 0 on attempt 2 (removed malformed IP-only rule) -->
+<!-- Validation: suricata -T -S suricata-plex2shell.rules -l /tmp => exit 0 (4 rules; rule 1 rev:2 adds URL injection content match) -->
 
 **SURICATA-1: Plex2Shell SSRF via /player/timeline (CVE-2026-96652)**
-Alerts on HTTP requests containing both `/player/timeline` and `protocol=` in the URI, matching stage 1 exploitation.
+Alerts on HTTP requests to `/player/timeline` where the `protocol` parameter contains a full URL injection (`protocol=http://...`), matching stage 1 exploitation. Legitimate Plex client traffic uses bare `protocol=http` without `://`.
 
 ```
-alert http any any -> any any (msg:"Plex2Shell SSRF - Suspicious protocol parameter in /player/timeline (CVE-2026-96652)"; flow:to_server,established; http.uri; content:"/player/timeline"; content:"protocol="; sid:2026101; rev:1; classtype:web-application-attack; metadata:cve CVE-2026-96652, created_at 2026_10_20, confidence medium;)
+alert http any any -> any any (msg:"Plex2Shell SSRF - URL injection in /player/timeline protocol parameter (CVE-2026-96652)"; flow:to_server,established; http.uri; content:"/player/timeline"; content:"protocol=http"; content:"://"; distance:0; sid:2026101; rev:2; classtype:web-application-attack; metadata:cve CVE-2026-96652, created_at 2026_10_20, confidence medium;)
 ```
-> compile-status: ✅ compiles | confidence: medium -- Legitimate Plex clients also hit /player/timeline; the rule fires on any protocol= parameter, so tuning for benign values is needed.
+> compile-status: ✅ compiles | confidence: medium -- Matches URL injection in the protocol parameter. The `distance:0` ensures `://` immediately follows `protocol=http`, distinguishing exploit traffic from legitimate `protocol=http` or `protocol=https` values.
 
 **SURICATA-2: Plex2Shell searchOne Identifier Injection (CVE-2026-96654)**
 Alerts on HTTP requests to `searchOne` containing `identifier=` and path-traversal sequences.
@@ -461,33 +373,9 @@ alert http any any -> $EXTERNAL_NET any (msg:"Plex2Shell Payload Download from K
 
 ### YARA Rules
 
-<!-- Validation: yarac yara-plex2shell-payloads.yar /dev/null => exit 0 on attempt 2 (added hash module import, removed unreferenced string) -->
+<!-- Validation: yarac yara-plex2shell-payloads.yar /dev/null => exit 0 (4 rules: 2 hash, 2 string-based; generic ELF constructor rule dropped during review) -->
 
-**YARA-1: Plex2Shell ELF Constructor Payload**
-Detects small ELF shared objects containing `/bin/sh` and `-c` strings, consistent with the Plex2Shell PoC payload structure.
-
-```yara
-rule Plex2Shell_ELF_Constructor_Payload
-{
-    meta:
-        description = "Detects ELF shared objects with constructor-based fork/execve pattern matching the Plex2Shell PoC payload (CVE-2026-96656)"
-        author = "Actioner"
-        date = "2026-10-20"
-        reference = "https://github.com/code-zm/plex2shell"
-        confidence = "medium"
-
-    strings:
-        $elf = { 7F 45 4C 46 }
-        $binsh = "/bin/sh" ascii
-        $dash_c = "-c" ascii
-
-    condition:
-        $elf at 0 and $binsh and $dash_c and filesize < 100KB
-}
-```
-> compile-status: ✅ compiles | confidence: low -- Generic pattern that will match many legitimate small ELF binaries containing /bin/sh; use as a hunting rule only.
-
-**YARA-2: Plex2Shell Known Miner Hash (x12345)**
+**YARA-1: Plex2Shell Known Miner Hash (x12345)**
 Matches the specific SHA-256 hash of the observed XMRig miner payload.
 
 ```yara
@@ -508,7 +396,7 @@ rule Plex2Shell_Known_Miner_Hash
 ```
 > compile-status: ✅ compiles | confidence: high -- Exact hash match; no false positives possible.
 
-**YARA-3: Plex2Shell Known Proxy Hash (myawesomeproxy)**
+**YARA-2: Plex2Shell Known Proxy Hash (myawesomeproxy)**
 Matches the specific SHA-256 hash of the observed myawesomeproxy backdoor.
 
 ```yara
@@ -527,7 +415,7 @@ rule Plex2Shell_Known_Proxy_Hash
 ```
 > compile-status: ✅ compiles | confidence: high -- Exact hash match; no false positives possible.
 
-**YARA-4: Plex2Shell Proxy Strings**
+**YARA-3: Plex2Shell Proxy Strings**
 Detects ELF binaries containing strings associated with the myawesomeproxy backdoor.
 
 ```yara
@@ -552,7 +440,7 @@ rule Plex2Shell_Proxy_Strings
 ```
 > compile-status: ✅ compiles | confidence: medium -- Survives recompilation as long as strings are not stripped; the consent notice string is distinctive.
 
-**YARA-5: Plex2Shell Miner Strings**
+**YARA-4: Plex2Shell Miner Strings**
 Detects ELF binaries containing strings associated with the mylovelyminer XMRig payload.
 
 ```yara
