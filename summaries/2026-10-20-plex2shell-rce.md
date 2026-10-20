@@ -3,11 +3,11 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-20
-Version: 1.0 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
-Plex2Shell is a chain of four vulnerabilities in Plex Media Server (CVE-2026-96652, CVE-2026-96654, CVE-2026-96655, CVE-2026-96656) that, when exploited in sequence, achieve unauthenticated remote code execution. The chain was discovered by researcher Zach Main and reported to Plex on July 27, 2026. Plex shipped fixes on August 3, 2026 in version 1.43.3.10861, but the researcher published a detailed writeup and proof-of-concept on October 16, 2026. Within 24 hours, honeypot operators observed in-the-wild exploitation deploying XMRig-based cryptocurrency miners and a reverse proxy backdoor called "myawesomeproxy." The combined CVSS 3.1 score of the chain is 9.8 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). All Plex Media Server instances below version 1.43.3.10861 -- including NAS, VM, and Docker deployments -- are vulnerable.
+Plex2Shell is a chain of four vulnerabilities in Plex Media Server (CVE-2026-96652, CVE-2026-96654, CVE-2026-96655, CVE-2026-96656) that, when exploited in sequence, achieve unauthenticated remote code execution. The chain was discovered by researcher Zach Main and reported to Plex on July 27, 2026. Plex shipped fixes on August 3, 2026 in version 1.43.3.10861, but the researcher published a detailed writeup and proof-of-concept on October 16, 2026. Within 24 hours, honeypot operators observed in-the-wild exploitation deploying XMRig-based cryptocurrency miners and a reverse proxy backdoor called "myawesomeproxy." The assessed CVSS 3.1 impact of the full chain is 9.8 (AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H). All Plex Media Server instances below version 1.43.3.10861 -- including NAS, VM, and Docker deployments -- are vulnerable.
 
 ## Background
 
@@ -111,16 +111,16 @@ The exploit chain works across all Plex Media Server platforms (bare-metal Linux
 
 | Package | Vulnerable Versions | Fixed Version |
 |---|---|---|
-| Plex Media Server | < 1.43.3.10828 | 1.43.3.10861 |
+| Plex Media Server | < 1.43.3.10861 | 1.43.3.10861 |
 
 ## MITRE ATT&CK Mapping
 
 | Technique | ID | Exploit Stage / Activity |
 |---|---|---|
 | Exploit Public-Facing Application | T1190 | Initial access via Plex port 32400 (CVE-2026-96652) |
-| Server-Side Request Forgery | T1190 (sub) | SSRF in stages 1 and 3 |
+| Server-Side Request Forgery | T1190 | SSRF in stages 1 and 3 |
 | Steal Application Access Token | T1528 | Admin token theft via searchOne injection (CVE-2026-96654) |
-| Hijack Execution Flow: DLL Side-Loading | T1574.002 | Unsigned `.so` loaded from Codecs directory (CVE-2026-96656) |
+| Hijack Execution Flow: Dynamic Linker Hijacking | T1574.006 | Unsigned `.so` loaded from Codecs directory (CVE-2026-96656) |
 | Command and Scripting Interpreter: Unix Shell | T1059.004 | Shell execution via ELF constructor fork/execve |
 | Ingress Tool Transfer | T1105 | wget/curl retrieval of miner and proxy payloads |
 | Resource Hijacking | T1496 | XMRig cryptocurrency mining |
@@ -159,12 +159,12 @@ The exploit chain works across all Plex Media Server platforms (bare-metal Linux
 
 ## Detection Rules
 
-<!-- AUDIT: sigma check could not run due to proxy blocking MITRE ATT&CK data download (HTTP 403). All 6 Sigma rules validated via sigma convert to Splunk (exit 0) and LogScale (exit 0). YARA validated via yarac (exit 0, attempt 2 after fixing hash module import and unreferenced string). Suricata validated via suricata -T (exit 0, attempt 2 after removing malformed IP-only rule). -->
+> **Validation note:** `sigma check` could not run because the proxy blocked the MITRE ATT&CK data download (HTTP 403). All Sigma rules were validated via `sigma convert` to Splunk and LogScale (exit 0). YARA rules validated via `yarac` (exit 0). Suricata rules validated via `suricata -T` (exit 0). SIDs 2026101-2026104 fall within the Emerging Threats reserved range (2000000-2999999); reassign to a local range before production deployment.
 
 ### Sigma Rules
 
 **SIGMA-1: Plex2Shell SSRF via Player Timeline Endpoint (CVE-2026-96652)**
-Detects HTTP requests to `/player/timeline` with a non-standard `protocol=` parameter, indicating stage 1 SSRF exploitation. Requires Plex web access logs.
+Detects HTTP requests to `/player/timeline` with a full URL injected into the `protocol` parameter (e.g., `protocol=http://attacker-ip/...`), indicating stage 1 SSRF exploitation. Legitimate Plex clients use bare values like `protocol=http`. Requires Plex web access logs.
 <!-- Validation: sigma convert -t splunk exit 0; sigma convert -t log_scale exit 0; sigma check blocked by proxy (MITRE data fetch 403) -->
 
 ```yaml
@@ -173,8 +173,10 @@ id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
 status: experimental
 description: >
     Detects HTTP requests to the Plex Media Server /player/timeline endpoint
-    with a suspicious protocol parameter, indicating exploitation of the
-    unauthenticated SSRF in CVE-2026-96652 (Plex2Shell chain stage 1).
+    with a full URL injected into the protocol parameter (e.g., protocol=http://...),
+    indicating exploitation of the unauthenticated SSRF in CVE-2026-96652
+    (Plex2Shell chain stage 1). Legitimate Plex clients use bare protocol
+    values such as protocol=http or protocol=https without a URL.
 references:
     - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
     - https://www.securityweek.com/plex2shell-exploit-chain-weaponized-against-plex-servers-hours-after-disclosure/
@@ -191,17 +193,20 @@ logsource:
 detection:
     selection:
         cs-uri-stem|contains: '/player/timeline'
-        cs-uri-query|contains: 'protocol='
-    filter_legitimate:
+    exploit_injection:
         cs-uri-query|contains:
-            - 'protocol=http'
-            - 'protocol=https'
-    condition: selection and not filter_legitimate
+            - 'protocol=http://'
+            - 'protocol=https://'
+            - 'protocol=http%3A//'
+            - 'protocol=https%3A//'
+            - 'protocol=http%3a//'
+            - 'protocol=https%3a//'
+    condition: selection and exploit_injection
 falsepositives:
-    - Custom Plex client implementations using non-standard protocol values
+    - Custom Plex client implementations injecting full URLs into the protocol parameter (unlikely)
 level: high
 ```
-> compile-status: ✅ compiles (Splunk + LogScale) | confidence: medium -- Caveat: custom Plex-product logsource requires mapping; the filter for legitimate protocol values may need tuning per environment.
+> compile-status: ✅ compiles (Splunk + LogScale) | confidence: medium -- Caveat: custom Plex-product logsource requires mapping; detects URL injection specifically, not bare `protocol=http` values.
 
 ---
 
@@ -225,7 +230,7 @@ author: Actioner
 date: 2026/10/20
 tags:
     - attack.credential_access
-    - attack.t1550
+    - attack.t1528
     - cve.2026.96654
 logsource:
     category: webserver
@@ -237,7 +242,6 @@ detection:
         cs-uri-query|contains:
             - '../'
             - '%2e%2e'
-            - '%2F'
             - 'identifier=/'
     condition: selection and traversal
 falsepositives:

@@ -1,0 +1,33 @@
+title: Plex2Shell Known Attacker Infrastructure Communication
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: >
+    Detects network connections to known Plex2Shell attacker infrastructure
+    IPs and domains observed in October 2026 exploitation campaigns deploying
+    XMRig miners and myawesomeproxy backdoors.
+references:
+    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
+    - https://www.securityweek.com/plex2shell-exploit-chain-weaponized-against-plex-servers-hours-after-disclosure/
+author: Actioner
+date: 2026/10/20
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1496
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection_ip:
+        DestinationIp:
+            - '91.92.40.202'
+            - '176.65.139.228'
+            - '45.194.92.222'
+            - '217.60.194.116'
+    selection_domain:
+        DestinationHostname|endswith:
+            - 'proxystream.st'
+    condition: selection_ip or selection_domain
+falsepositives:
+    - Unlikely; these are known malicious indicators
+level: high

@@ -1,0 +1,32 @@
+title: Plex2Shell searchOne Identifier Injection (CVE-2026-96654)
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: >
+    Detects requests to the Plex Media Server searchOne endpoint with
+    path-traversal or injection patterns in the identifier parameter,
+    consistent with CVE-2026-96654 (Plex2Shell chain stage 2) used to
+    steal the owner admin token.
+references:
+    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
+    - https://zmain.info/blog/plex2shell
+author: Actioner
+date: 2026/10/20
+tags:
+    - attack.credential_access
+    - attack.t1528
+    - cve.2026.96654
+logsource:
+    category: webserver
+    product: plex
+detection:
+    selection:
+        cs-uri-stem|contains: 'searchOne'
+    traversal:
+        cs-uri-query|contains:
+            - '../'
+            - '%2e%2e'
+            - 'identifier=/'
+    condition: selection and traversal
+falsepositives:
+    - Unlikely in normal Plex operation
+level: high

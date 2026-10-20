@@ -1,0 +1,37 @@
+title: Plex2Shell SSRF via Player Timeline Endpoint (CVE-2026-96652)
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects HTTP requests to the Plex Media Server /player/timeline endpoint
+    with a full URL injected into the protocol parameter (e.g., protocol=http://...),
+    indicating exploitation of the unauthenticated SSRF in CVE-2026-96652
+    (Plex2Shell chain stage 1). Legitimate Plex clients use bare protocol
+    values such as protocol=http or protocol=https without a URL.
+references:
+    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
+    - https://www.securityweek.com/plex2shell-exploit-chain-weaponized-against-plex-servers-hours-after-disclosure/
+    - https://zmain.info/blog/plex2shell
+author: Actioner
+date: 2026/10/20
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - cve.2026.96652
+logsource:
+    category: webserver
+    product: plex
+detection:
+    selection:
+        cs-uri-stem|contains: '/player/timeline'
+    exploit_injection:
+        cs-uri-query|contains:
+            - 'protocol=http://'
+            - 'protocol=https://'
+            - 'protocol=http%3A//'
+            - 'protocol=https%3A//'
+            - 'protocol=http%3a//'
+            - 'protocol=https%3a//'
+    condition: selection and exploit_injection
+falsepositives:
+    - Custom Plex client implementations injecting full URLs into the protocol parameter (unlikely)
+level: high

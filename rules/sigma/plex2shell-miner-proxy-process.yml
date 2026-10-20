@@ -1,0 +1,28 @@
+title: Plex2Shell Post-Exploitation Miner or Proxy Process Names
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f809102
+status: experimental
+description: >
+    Detects process creation with names matching known Plex2Shell
+    post-exploitation payloads: the XMRig miner (mylovelyminer, x12345)
+    and the reverse proxy backdoor (myawesomeproxy).
+references:
+    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
+author: Actioner
+date: 2026/10/20
+tags:
+    - attack.execution
+    - attack.t1496
+    - attack.t1090
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/mylovelyminer'
+            - '/myawesomeproxy'
+            - '/x12345'
+    condition: selection
+falsepositives:
+    - Unlikely; these are specific malware payload names
+level: high
