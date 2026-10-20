@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"MALWARE Rank Math PRO Supply Chain - DNS Query to rank1cdn.com C2"; dns.query; content:"rank1cdn.com"; nocase; reference:url,rankmath.com/kb/pro-3-0-123-security-incident/; classtype:trojan-activity; sid:2026101501; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Rank Math PRO Supply Chain - HTTP Request to rank1cdn.com C2"; flow:established,to_server; http.host; content:"rank1cdn.com"; reference:url,rankmath.com/kb/pro-3-0-123-security-incident/; classtype:trojan-activity; sid:2026101502; rev:1;)
+
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Rank Math PRO Supply Chain - TLS SNI to rank1cdn.com C2"; tls.sni; content:"rank1cdn.com"; nocase; reference:url,rankmath.com/kb/pro-3-0-123-security-incident/; classtype:trojan-activity; sid:2026101503; rev:1;)

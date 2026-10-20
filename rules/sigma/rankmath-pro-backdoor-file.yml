@@ -1,0 +1,23 @@
+title: Rank Math PRO Supply Chain - Fake WordPress Core File Creation
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: Detects creation or modification of wp-includes/class-wp-cache-util.php, a fake WordPress core file deployed by the Rank Math PRO 3.0.123 supply chain backdoor.
+references:
+    - https://rankmath.com/kb/pro-3-0-123-security-incident/
+    - https://www.bleepingcomputer.com/news/security/wordpress-seo-plugin-rank-math-compromised-to-backdoor-websites/
+author: CTI Analyst
+date: 2026-10-20
+tags:
+    - attack.persistence
+    - attack.t1505.003
+    - cve.2026-111862
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/wp-includes/class-wp-cache-util.php'
+    condition: selection
+falsepositives:
+    - No legitimate WordPress core file with this name exists
+level: critical

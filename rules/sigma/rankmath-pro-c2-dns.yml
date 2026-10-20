@@ -1,0 +1,23 @@
+title: Rank Math PRO Supply Chain - C2 DNS Query to rank1cdn.com
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: Detects DNS queries to rank1cdn.com, the C2 domain used in the Rank Math PRO 3.0.123 supply chain attack.
+references:
+    - https://rankmath.com/kb/pro-3-0-123-security-incident/
+    - https://www.securityweek.com/rank-math-pro-wordpress-plugin-compromised-in-supply-chain-attack/
+author: CTI Analyst
+date: 2026-10-20
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - cve.2026-111862
+logsource:
+    category: dns
+detection:
+    selection:
+        query|endswith:
+            - 'rank1cdn.com'
+    condition: selection
+falsepositives:
+    - Unlikely, rank1cdn.com is a known malicious domain registered for this attack
+level: critical

@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-20
 **CVE:** CVE-2026-111862 (CVSS 9.8)
-**Status:** DRAFT
+**Status:** FINAL
 
 ---
 
@@ -187,10 +187,9 @@ The malware targets Linux-based WordPress hosting environments. It may:
 
 ## Detection Rules
 
-<!-- AUDIT: All rules validated 2026-10-20. YARA compiled with yarac 4.5.0 exit 0.
-     Sigma rules converted to Splunk and LogScale with sigma-cli 3.1.0 exit 0.
-     sigma check could not complete due to MITRE ATT&CK data endpoint being unreachable (403).
-     Suricata rules validated with suricata 7.0.3 -T exit 0. -->
+This section provides 8 detection rules across 4 formats: 2 YARA rules for file scanning, 3 Sigma rules for log-based detection, and 3 Suricata rules for network monitoring. All rules target specific, attack-unique indicators to minimize false positives.
+
+**Validation note:** `sigma check` could not complete during validation because the MITRE ATT&CK data endpoint was unreachable (HTTP 403 from the build environment proxy). This is an environmental limitation, not a rule defect; the rules were validated with `sigma convert` to Splunk and LogScale backends.
 
 ### YARA: Rank Math PRO Backdoor Components
 
@@ -329,91 +328,13 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Suspicious .htaccess Modification
-
-Detects .htaccess file modifications that may enable .cache file PHP execution. Caveat: this is a behavioral rule and will generate false positives from legitimate WordPress operations.
-
-- **File:** `sigma_rankmath_htaccess_mod.yml`
-- **Compile status:** Compiles (sigma convert to Splunk and LogScale, exit 0)
-- **Confidence:** Low -- .htaccess modifications are common in WordPress; this is a broad behavioral indicator
-
-```yaml
-title: Rank Math PRO Supply Chain - Suspicious .htaccess Modification for PHP Cache Execution
-id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
-status: experimental
-description: Detects modification of .htaccess files that could enable .cache files to execute as PHP, a persistence technique used in the Rank Math PRO 3.0.123 supply chain attack.
-references:
-    - https://rankmath.com/kb/pro-3-0-123-security-incident/
-    - https://thehackernews.com/2026/10/popular-wordpress-seo-plugin-rank-math.html
-author: CTI Analyst
-date: 2026-10-20
-tags:
-    - attack.persistence
-    - attack.defense_evasion
-    - attack.t1036.005
-    - cve.2026-111862
-logsource:
-    category: file_event
-    product: linux
-detection:
-    selection:
-        TargetFilename|endswith: '.htaccess'
-    filter_known:
-        Image|endswith:
-            - '/apache2'
-            - '/httpd'
-            - '/nginx'
-    condition: selection and not filter_known
-falsepositives:
-    - Legitimate WordPress plugin installations or updates that modify .htaccess
-    - Web server configuration management tools
-level: medium
-```
-
-### Sigma: Rogue WordPress Admin Account Creation
-
-Detects web requests indicating creation of attacker-controlled admin accounts. Caveat: requires web server access logs with query string logging enabled.
-
-- **File:** `sigma_rankmath_rogue_admin.yml`
-- **Compile status:** Compiles (sigma convert to Splunk and LogScale, exit 0)
-- **Confidence:** Medium -- relies on web server log visibility into POST parameters which may not be available
-
-```yaml
-title: Rank Math PRO Supply Chain - Rogue WordPress Admin Account Creation
-id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
-status: experimental
-description: Detects creation of rogue WordPress administrator accounts with usernames starting with wpsupport_ or email addresses at wp-mail.net, associated with the Rank Math PRO 3.0.123 supply chain attack.
-references:
-    - https://rankmath.com/kb/pro-3-0-123-security-incident/
-    - https://www.bleepingcomputer.com/news/security/wordpress-seo-plugin-rank-math-compromised-to-backdoor-websites/
-author: CTI Analyst
-date: 2026-10-20
-tags:
-    - attack.persistence
-    - attack.t1136.003
-    - cve.2026-111862
-logsource:
-    category: webserver
-detection:
-    selection_user:
-        cs-uri-query|contains: 'wpsupport_'
-    selection_email:
-        cs-uri-query|contains: 'wp-mail.net'
-    selection_path:
-        cs-uri-stem|contains: '/wp-admin/user-new.php'
-    condition: selection_path and (selection_user or selection_email)
-falsepositives:
-    - Unlikely, the wpsupport_ prefix and wp-mail.net domain are specific to this attack
-level: high
-```
-
 ### Sigma: Malicious Cron Job with ms6v46 Marker
 
-Detects crontab manipulation referencing the attacker's persistence marker.
+Detects command-line activity referencing the attacker's cron persistence marker. The condition targets only the `ms6v46` marker string, which is unique to this campaign; the draft's original condition (`selection_crontab or selection_marker`) was corrected because the OR with any crontab invocation would cause unacceptable false positives.
 
 - **File:** `sigma_rankmath_cron_persistence.yml`
 - **Compile status:** Compiles (sigma convert to Splunk and LogScale, exit 0)
-- **Confidence:** High -- the `ms6v46` string is unique to this attack campaign
+- **Confidence:** High -- the `ms6v46` string is unique to this attack campaign and has no legitimate use
 
 ```yaml
 title: Rank Math PRO Supply Chain - Malicious Cron Job with ms6v46 Marker
@@ -438,7 +359,7 @@ detection:
         Image|endswith: '/crontab'
     selection_marker:
         CommandLine|contains: 'ms6v46'
-    condition: selection_crontab or selection_marker
+    condition: selection_marker
 falsepositives:
     - Extremely unlikely given the specificity of the ms6v46 marker string
 level: critical
@@ -450,7 +371,9 @@ Three rules targeting DNS, HTTP, and TLS traffic to the C2 domain.
 
 - **File:** `suricata_rankmath.rules`
 - **Compile status:** Compiles (suricata 7.0.3 -T, exit 0)
+- **SIDs:** 2026101501-2026101503 (placeholder SIDs for local deployment; reassign to your organization's SID range before production use)
 - **Confidence:** High -- rank1cdn[.]com is attack-specific infrastructure with no legitimate use
+- **Note:** The `http.host` buffer in Suricata is already normalized to lowercase, so `nocase` is not needed on SID 2026101502 (and Suricata 7.x rejects it as redundant). The DNS and TLS SNI rules use `nocase` as those buffers are not normalized.
 
 ```
 alert dns $HOME_NET any -> any any (msg:"MALWARE Rank Math PRO Supply Chain - DNS Query to rank1cdn.com C2"; dns.query; content:"rank1cdn.com"; nocase; reference:url,rankmath.com/kb/pro-3-0-123-security-incident/; classtype:trojan-activity; sid:2026101501; rev:1;)
