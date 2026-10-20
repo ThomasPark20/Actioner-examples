@@ -1,7 +1,7 @@
 # OVHcloud CLI Supply Chain Attack (GlassWorm)
 
 **Date:** 2026-10-20  
-**Status:** DRAFT  
+**Status:** FINAL  
 **Altitude:** Specific (PoC/advisory-specific)  
 **Leniency:** Strict
 
@@ -226,28 +226,19 @@ build  -ldflags="-s -w"
 
 ## Detection Rules
 
-<!-- ============================================================
-     VALIDATION AUDIT LOG
+**Summary:** 9 detection rules total -- 3 Sigma, 3 YARA, 3 Suricata (see revision notes below). All rules validated: Sigma rules convert cleanly via `sigma convert --without-pipeline` to both Splunk and LogScale; YARA rules compile via `yarac`; Suricata rules pass `suricata -T` with no warnings.
 
-     Sigma rules:
-       - sigma check: FAILED (MITRE ATT&CK data fetch returns HTTP 403
-         from the proxy; this is an environment network issue, not a
-         rule syntax issue)
-       - sigma convert --without-pipeline -t splunk: ALL 5 rules EXIT 0
-       - sigma convert --without-pipeline -t log_scale: ALL 5 rules EXIT 0
-       Conclusion: All Sigma rules parse and convert correctly.
+**Validation note:** `sigma check` fails in this environment due to an HTTP 403 when fetching MITRE ATT&CK data (a network/proxy issue, not a rule syntax issue). All Sigma rules parse and convert correctly regardless.
 
-     YARA rules:
-       - yarac yara_ovhcloud_glassworm.yar /dev/null: EXIT 0
-       All 4 YARA rules compiled successfully.
+**Revision notes (critic pass):**
+- Dropped Sigma rule "Suspicious Node.js Preinstall Script Execution" -- fails altitude gate; purely behavioral/TTP, matches every npm package with a preinstall hook.
+- Dropped Sigma rule "GlassWorm Throttle File Creation - init.json" -- fails altitude and false-positive gates; `init.json` is extraordinarily generic.
+- Dropped YARA rule "GlassWorm_Variation_Selector_Obfuscation" -- fails altitude gate; technique heuristic, not artifact-specific; malware already covered by GlassWorm_Loader_AES_Key and Sigma hash rules.
+- Fixed Suricata rule 12 (SID 9000003): replaced truncated wallet prefix with the full 44-character Solana address for consistency and to eliminate partial collision risk.
 
-     Suricata rules:
-       - suricata -T (attempt 1): EXIT 0 with 2 warnings about
-         duplicate http.header and http.request_body buffer instances
-       - Fixed duplicate buffer declarations
-       - suricata -T (attempt 2): EXIT 0, clean, no warnings
-       All 3 Suricata rules validated.
-     ============================================================ -->
+**Cross-platform caveat:** Sigma rules below use `product: windows` (Sysmon logsource). The OVHcloud CLI attack is cross-platform (Linux, macOS, Windows). Adapt the `product` field for cross-platform EDR or Splunk deployments as needed.
+
+**SID range note:** Suricata SIDs 9000001-9000003 are placeholders. Assign production SIDs from your organization's allocated range before deployment.
 
 ### Sigma Rules
 
@@ -319,93 +310,11 @@ falsepositives:
 level: critical
 ```
 
-#### 3. Suspicious Node.js Preinstall Script Execution
-
-**Type:** Sigma | **Compile:** &#x2705; compiles (Splunk + LogScale) | **Confidence:** medium
-
-Detects npm-spawned Node.js executing a `preinstall.js` file, the pattern used by the GlassWorm loader. Caveat: legitimate npm packages with preinstall hooks will trigger this; deploy alongside hash-based rules or tune to CI/build environments.
-
-```yaml
-title: Suspicious Node.js Preinstall Script Execution
-id: ac5e3f69-f4b2-4db3-c7ea-9a1b5f3d8c64
-status: experimental
-description: >
-  Detects Node.js executing a preinstall.js script spawned by npm,
-  a pattern used by the GlassWorm loader in the OVHcloud CLI supply chain attack.
-references:
-    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
-author: Detection Engineering
-date: 2026-10-20
-tags:
-    - attack.execution
-    - attack.t1059.007
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_parent:
-        ParentImage|endswith:
-            - '\npm.cmd'
-            - '\npm'
-            - '/npm'
-    selection_child:
-        Image|endswith:
-            - '\node.exe'
-            - '/node'
-        CommandLine|contains: 'preinstall.js'
-    condition: selection_parent and selection_child
-falsepositives:
-    - Legitimate npm packages with preinstall scripts
-level: medium
-```
-
-#### 4. GlassWorm Throttle File Creation - init.json in Home Directory
-
-**Type:** Sigma | **Compile:** &#x2705; compiles (Splunk + LogScale) | **Confidence:** low
-
-Detects creation of `init.json` in a user's home directory, used as a re-execution throttle by GlassWorm. Caveat: `init.json` is a generic filename; this rule is best used as a hunt query or in combination with other GlassWorm indicators.
-
-```yaml
-title: GlassWorm Throttle File Creation - init.json in Home Directory
-id: bd6f4a7a-a5c3-4ec4-d8fb-ab2c6a4e9d75
-status: experimental
-description: >
-  Detects creation of init.json in the user home directory, used as a
-  throttle marker by the GlassWorm malware associated with the OVHcloud
-  CLI supply chain attack.
-references:
-    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
-author: Detection Engineering
-date: 2026-10-20
-tags:
-    - attack.defense_evasion
-    - attack.t1497.003
-logsource:
-    category: file_event
-    product: macos
-detection:
-    selection:
-        TargetFilename|endswith: '/init.json'
-        TargetFilename|contains:
-            - '/Users/'
-            - '/home/'
-    filter_known:
-        Image|contains:
-            - 'Visual Studio'
-            - 'JetBrains'
-            - 'vscode'
-    condition: selection and not filter_known
-falsepositives:
-    - IDEs and development tools writing init.json in project directories within home
-    - Node.js project initialization
-level: low
-```
-
-#### 5. OVHcloud CLI Malicious Build Metadata in Process or File
+#### 3. OVHcloud CLI Malicious Build Metadata in Process or File
 
 **Type:** Sigma | **Compile:** &#x2705; compiles (Splunk + LogScale) | **Confidence:** high
 
-Matches the specific VCS commit hash or pseudo-version string from the malicious OVHcloud CLI build in command-line telemetry (e.g., from `go version -m` forensic scans). These strings are unique to this compromise.
+Matches the specific VCS commit hash or pseudo-version string from the malicious OVHcloud CLI build in command-line telemetry (e.g., from `go version -m` forensic scans). These strings are unique to this compromise. **Note:** This is a forensic sweep detection; it does not fire on normal binary execution. It requires an investigator or automated scanner to run `go version -m` against suspect binaries and log the output.
 
 ```yaml
 title: OVHcloud CLI Malicious Build Metadata in Process or File
@@ -438,11 +347,11 @@ level: critical
 
 ### YARA Rules
 
-#### 6. OVHcloud CLI Malicious Binary (ELF Build Metadata)
+#### 4. OVHcloud CLI Malicious Binary (ELF Build Metadata)
 
 **Type:** YARA | **Compile:** &#x2705; compiles (yarac 4.5.0) | **Confidence:** high
 
-Matches ELF binaries containing the specific build metadata from the malicious OVHcloud CLI build, including the pseudo-version, VCS commit, module path, and dirty flag.
+Matches ELF binaries containing the specific build metadata from the malicious OVHcloud CLI build, including the pseudo-version, VCS commit, module path, and dirty flag. **Note:** This rule checks for the ELF magic bytes (`0x7f454c46`) and therefore matches only Linux binaries. PE (Windows) and Mach-O (macOS) variants of the malicious binary are not matched; the hash-based Sigma rules (1 and 2) partially fill this gap across all platforms.
 
 ```yara
 rule OVHcloud_CLI_Malicious_Binary {
@@ -462,7 +371,7 @@ rule OVHcloud_CLI_Malicious_Binary {
 }
 ```
 
-#### 7. GlassWorm Loader AES Key
+#### 5. GlassWorm Loader AES Key
 
 **Type:** YARA | **Compile:** &#x2705; compiles (yarac 4.5.0) | **Confidence:** high
 
@@ -485,44 +394,7 @@ rule GlassWorm_Loader_AES_Key {
 }
 ```
 
-#### 8. GlassWorm Variation Selector Obfuscation
-
-**Type:** YARA | **Compile:** &#x2705; compiles (yarac 4.5.0) | **Confidence:** medium
-
-Detects JavaScript files containing large numbers of Unicode variation-selector characters (U+FE00-U+FE0F, encoded as UTF-8 bytes `EF B8 8x`) combined with `eval` or `require`. Caveat: while this technique is distinctive, it could theoretically appear in legitimate internationalization code, though the 100-instance threshold makes false positives unlikely.
-
-```yara
-rule GlassWorm_Variation_Selector_Obfuscation {
-    meta:
-        description = "Detects JavaScript files using invisible Unicode variation selector characters for payload encoding, a GlassWorm technique"
-        author = "Detection Engineering"
-        date = "2026-10-20"
-        reference = "https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool"
-    strings:
-        $vs1 = { EF B8 80 }
-        $vs2 = { EF B8 81 }
-        $vs3 = { EF B8 82 }
-        $vs4 = { EF B8 83 }
-        $vs5 = { EF B8 84 }
-        $vs6 = { EF B8 85 }
-        $vs7 = { EF B8 86 }
-        $vs8 = { EF B8 87 }
-        $vs9 = { EF B8 88 }
-        $vs10 = { EF B8 89 }
-        $vs11 = { EF B8 8A }
-        $vs12 = { EF B8 8B }
-        $vs13 = { EF B8 8C }
-        $vs14 = { EF B8 8D }
-        $vs15 = { EF B8 8E }
-        $vs16 = { EF B8 8F }
-        $eval = "eval" ascii
-        $require = "require" ascii
-    condition:
-        filesize < 1MB and (#vs1 + #vs2 + #vs3 + #vs4 + #vs5 + #vs6 + #vs7 + #vs8 + #vs9 + #vs10 + #vs11 + #vs12 + #vs13 + #vs14 + #vs15 + #vs16) > 100 and ($eval or $require)
-}
-```
-
-#### 9. GlassWorm Solana Dead-Drop Wallet
+#### 6. GlassWorm Solana Dead-Drop Wallet
 
 **Type:** YARA | **Compile:** &#x2705; compiles (yarac 4.5.0) | **Confidence:** high
 
@@ -544,7 +416,7 @@ rule GlassWorm_Solana_DeadDrop {
 
 ### Suricata Rules
 
-#### 10. GlassWorm Stage-Two Response Headers
+#### 7. GlassWorm Stage-Two Response Headers
 
 **Type:** Suricata | **Compile:** &#x2705; compiles (Suricata 7.0.3) | **Confidence:** medium
 
@@ -554,7 +426,7 @@ Alerts on HTTP responses containing both `ivbase64` and `secretkey` headers, use
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE GlassWorm Stage-Two Response Headers (ivbase64/secretkey)"; flow:established,to_client; http.header; content:"ivbase64"; nocase; content:"secretkey"; nocase; classtype:trojan-activity; sid:9000001; rev:1;)
 ```
 
-#### 11. GlassWorm Solana Dead-Drop Wallet Lookup
+#### 8. GlassWorm Solana Dead-Drop Wallet Lookup
 
 **Type:** Suricata | **Compile:** &#x2705; compiles (Suricata 7.0.3) | **Confidence:** high
 
@@ -564,14 +436,14 @@ Alerts on HTTP request bodies containing the GlassWorm Solana wallet address, in
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE GlassWorm Solana Dead-Drop Wallet Lookup"; flow:established,to_server; http.request_body; content:"BjVeAjPrSKFiingBn4vZvghsGj9KCE8AJVtbc9S8o8SC"; classtype:trojan-activity; sid:9000002; rev:1;)
 ```
 
-#### 12. GlassWorm Solana RPC getSignaturesForAddress
+#### 9. GlassWorm Solana RPC getSignaturesForAddress
 
 **Type:** Suricata | **Compile:** &#x2705; compiles (Suricata 7.0.3) | **Confidence:** medium
 
-Alerts on Solana JSON-RPC `getSignaturesForAddress` calls containing the beginning of the GlassWorm wallet address. Caveat: partial wallet match reduces specificity slightly, but `getSignaturesForAddress` combined with this wallet prefix is a strong indicator.
+Alerts on Solana JSON-RPC `getSignaturesForAddress` calls containing the GlassWorm wallet address. This rule uses the full 44-character Solana address for consistency with rule 8 and to eliminate partial collision risk.
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE GlassWorm Solana RPC getSignaturesForAddress"; flow:established,to_server; http.request_body; content:"getSignaturesForAddress"; content:"BjVeAjPrSKFiingBn4"; classtype:trojan-activity; sid:9000003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE GlassWorm Solana RPC getSignaturesForAddress"; flow:established,to_server; http.request_body; content:"getSignaturesForAddress"; content:"BjVeAjPrSKFiingBn4vZvghsGj9KCE8AJVtbc9S8o8SC"; classtype:trojan-activity; sid:9000003; rev:1;)
 ```
 
 ---
