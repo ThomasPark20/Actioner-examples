@@ -1,0 +1,24 @@
+title: OVHcloud CLI Malicious Build Metadata in Process or File
+id: ce7a5b8b-b6d4-4fd5-e9ac-bc3d7b5fae86
+status: experimental
+description: Detects command-line or file content containing the specific pseudo-version and commit hash from the malicious OVHcloud CLI build.
+references:
+    - https://thehackernews.com/2026/10/hackers-hijack-five-ovhcloud-cli.html
+    - https://github.com/ovh/ovhcloud-cli/issues/300
+author: Detection Engineering
+date: 2026-10-20
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_pseudoversion:
+        CommandLine|contains: '5ead8ef9b43d354dfb5caadff803b11afc8c5c58'
+    selection_module:
+        CommandLine|contains: 'v0.15.1-0.20261013083505-5ead8ef9b43d'
+    condition: selection_pseudoversion or selection_module
+falsepositives:
+    - Unlikely - highly specific commit hash
+level: critical

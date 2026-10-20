@@ -1,0 +1,26 @@
+title: Rank Math PRO Supply Chain - Malicious Cron Job with ms6v46 Marker
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: Detects system cron job entries tagged with the #ms6v46 marker used by the Rank Math PRO 3.0.123 backdoor for persistence.
+references:
+    - https://rankmath.com/kb/pro-3-0-123-security-incident/
+    - https://thehackernews.com/2026/10/popular-wordpress-seo-plugin-rank-math.html
+author: CTI Analyst
+date: 2026-10-20
+tags:
+    - attack.persistence
+    - attack.execution
+    - attack.t1053.003
+    - cve.2026-111862
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_crontab:
+        Image|endswith: '/crontab'
+    selection_marker:
+        CommandLine|contains: 'ms6v46'
+    condition: selection_marker
+falsepositives:
+    - Extremely unlikely given the specificity of the ms6v46 marker string
+level: critical

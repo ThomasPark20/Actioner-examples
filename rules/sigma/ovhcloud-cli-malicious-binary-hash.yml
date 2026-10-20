@@ -1,0 +1,23 @@
+title: OVHcloud CLI Malicious Binary - Known Hash
+id: 8a3c1e47-d2f0-4b91-a5c8-7e9f3d1b6a42
+status: experimental
+description: Detects the known malicious OVHcloud CLI binary (v0.15.0 Linux arm64) by SHA-256 hash from the October 2026 supply chain compromise.
+references:
+    - https://thehackernews.com/2026/10/hackers-hijack-five-ovhcloud-cli.html
+    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
+author: Detection Engineering
+date: 2026-10-20
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - '3833daffcaaaab27e4e0e0833240ffcb1df8df648f4ec0bc4a75c176e28933cb'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

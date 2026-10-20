@@ -1,0 +1,23 @@
+title: GlassWorm Loader or Stage Two - Known Hashes
+id: 9b4d2f58-e3a1-4ca2-b6d9-8f0a4e2c7b53
+status: experimental
+description: Detects the GlassWorm preinstall.js loader or decrypted stage-two payload by SHA-256 hash, associated with the OVHcloud CLI supply chain attack.
+references:
+    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
+author: Detection Engineering
+date: 2026-10-20
+tags:
+    - attack.execution
+    - attack.t1059.007
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - '43df42fd79f6f81e530892b54634598770d6e496796a863c596e616bcb3fec70'
+            - '0f79989912572a24ba13baabb32b3fd084496271c51448d47b66fe1aedbf293c'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

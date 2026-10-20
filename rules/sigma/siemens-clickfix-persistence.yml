@@ -1,0 +1,36 @@
+title: Siemens Software Center Startup Entry Without Proper Installation
+id: 5f8c2d67-b9ea-4a1f-e236-6b7c8d9e0f1a
+status: experimental
+description: >
+    Detects creation of scheduled tasks or startup entries referencing
+    SiemensSoftwareCenter.exe, which may indicate persistence established
+    by malware exploiting CVE-2026-110936 on systems where the software
+    was never legitimately installed.
+references:
+    - https://productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center/
+author: Actioner CTI
+date: 2026-10-20
+tags:
+    - attack.persistence
+    - attack.t1053.005
+    - attack.t1547.001
+    - cve.2026-110936
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'SiemensSoftwareCenter'
+            - '\AppData\Local\'
+    selection_reg:
+        Image|endswith: '\reg.exe'
+        CommandLine|contains|all:
+            - 'SiemensSoftwareCenter'
+            - '\CurrentVersion\Run'
+            - '\AppData\Local\'
+    condition: selection_schtasks or selection_reg
+falsepositives:
+    - Legitimate Siemens Software Center installations creating scheduled update tasks
+level: medium
