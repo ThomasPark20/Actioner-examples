@@ -1,0 +1,27 @@
+title: AllMyBasic.msi Malicious MSI Installation - CVE-2026-110936
+id: 1b4e8f23-d5a6-4c7b-ae92-2d3e4f5a6b7c
+status: experimental
+description: >
+    Detects the execution of msiexec.exe installing AllMyBasic.msi, a known
+    malicious MSI package used in CVE-2026-110936 ClickFix attacks to deploy
+    a trojanized Siemens Software Center bundle.
+references:
+    - https://productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center/
+    - https://thehackernews.com/2026/10/clickfix-attackers-exploit-siemens.html
+author: Actioner CTI
+date: 2026-10-20
+tags:
+    - attack.execution
+    - attack.t1218.007
+    - cve.2026-110936
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\msiexec.exe'
+        CommandLine|contains: 'AllMyBasic.msi'
+    condition: selection
+falsepositives:
+    - Unlikely; AllMyBasic.msi is not a known legitimate software package
+level: high

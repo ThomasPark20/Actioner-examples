@@ -1,0 +1,28 @@
+title: Suspicious archive.dll Load by Siemens Software Center
+id: 2c5f9a34-e6b7-4d8c-bf03-3e4f5a6b7c8d
+status: experimental
+description: >
+    Detects loading of archive.dll from a user-writable AppData directory by
+    SiemensSoftwareCenter.exe, indicating DLL sideloading as seen in
+    CVE-2026-110936 exploitation.
+references:
+    - https://productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center/
+    - https://productcert.siemens.com/productcert/html/ssa-580366.html
+author: Actioner CTI
+date: 2026-10-20
+tags:
+    - attack.defense-evasion
+    - attack.t1574.002
+    - cve.2026-110936
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\SiemensSoftwareCenter.exe'
+        ImageLoaded|endswith: '\archive.dll'
+        ImageLoaded|contains: '\AppData\Local\'
+    condition: selection
+falsepositives:
+    - Unlikely given the AppData path constraint; legitimate installations load from Program Files
+level: high
