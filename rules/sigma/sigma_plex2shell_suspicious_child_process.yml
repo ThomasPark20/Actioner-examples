@@ -1,0 +1,38 @@
+title: Plex2Shell - Suspicious Child Process Spawned by Plex Media Server
+id: 8a3c7e1f-4d92-4b6a-a1e3-9f5c2d8b7e04
+status: experimental
+description: Detects suspicious child processes spawned by Plex Media Server or Plex Transcoder binaries, indicating potential exploitation of the Plex2Shell CVE chain (CVE-2026-96652, CVE-2026-96654, CVE-2026-96655, CVE-2026-96656).
+references:
+    - https://zmain.info/blog/plex2shell
+    - https://www.boredhackerblog.info/2026/10/plex-vulnerabilities-being-exploited-in.html
+    - https://github.com/code-zm/plex2shell
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1190
+    - attack.t1059.004
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/Plex Media Server'
+            - '/Plex Transcoder'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/curl'
+            - '/wget'
+            - '/python'
+            - '/python3'
+            - '/perl'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Admin-configured transcoder wrapper scripts
+    - Legitimate Plex post-processing scripts (Tautulli, Bazarr, etc.)
+    - Plex post-processing webhooks and notification agents
+level: medium

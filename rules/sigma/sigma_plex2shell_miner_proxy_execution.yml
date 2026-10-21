@@ -1,0 +1,33 @@
+title: Plex2Shell - XMRig Miner or Proxy Backdoor Execution
+id: 2b4d6f8e-1a3c-5e7d-9b2f-4c6e8a0d3f15
+status: experimental
+description: Detects execution of known Plex2Shell payload process names including the XMRig miner (mylovelyminer), the proxy backdoor (myawesomeproxy), or the intermediate dropper (x12345) observed in Plex2Shell exploitation campaigns.
+references:
+    - https://www.boredhackerblog.info/2026/10/plex-vulnerabilities-being-exploited-in.html
+    - https://thehackernews.com/2026/10/hackers-exploit-plex2shell-flaws-to.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1496
+    - attack.t1090.003
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_process_name:
+        Image|endswith:
+            - '/myawesomeproxy'
+            - '/mylovelyminer'
+            - '/x12345'
+    selection_command_line:
+        CommandLine|contains:
+            - 'myawesomeproxy'
+            - 'mylovelyminer'
+            - 'x12345'
+            - 'ota.proxystream.st'
+            - 'global.relay.proxystream.st'
+    condition: selection_process_name or selection_command_line
+falsepositives:
+    - Unlikely
+level: critical

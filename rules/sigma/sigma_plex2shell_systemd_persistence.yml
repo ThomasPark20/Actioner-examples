@@ -1,0 +1,23 @@
+title: Plex2Shell - Malicious Systemd Service Persistence
+id: 9d1f4b7e-5c28-4a63-b8e2-3a6d0f9c1e47
+status: experimental
+description: Detects creation of systemd service unit files associated with the Plex2Shell campaign payloads myawesomeproxy and mylovelyminer, used for persistence on compromised Plex servers.
+references:
+    - https://www.boredhackerblog.info/2026/10/plex-vulnerabilities-being-exploited-in.html
+    - https://www.cybernewsai.com/blog/plex2shell-how-to-detect-patch-plex-media-server-rce
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - '/systemd/system/myawesomeproxy.service'
+            - '/systemd/system/mylovelyminer.service'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical
