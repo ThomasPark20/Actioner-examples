@@ -1,0 +1,22 @@
+title: FortiSIEM Service Script Modification - CVE-2026-106173
+id: e1a83033-f5dc-4911-8125-07a86bd6ab97
+status: experimental
+description: Detects modification of the FortiSIEM Redis health-check script redishb.sh, the primary exploitation target for CVE-2026-106173 where a gRPC path traversal allows unauthenticated arbitrary file writes.
+references:
+    - https://fortiguard.fortinet.com/psirt/FG-IR-26-180
+    - https://horizon3.ai/attack-research/cve-2026-106173-deep-dive-fortisiem-grpc-path-traversal-file-write-rce/
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1190
+    - attack.t1565.001
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '/opt/charting/redishb.sh'
+    condition: selection
+falsepositives:
+    - Legitimate FortiSIEM software updates or patch installations
+level: high
