@@ -1,0 +1,39 @@
+title: GlassWorm Solana RPC Dead Drop Connection from Developer Machine
+id: 2f8b4c6e-9a1d-4e3f-b7c5-8d6f2a4e1c3b
+status: experimental
+description: |
+    Detects outbound connections to Solana RPC endpoints from developer workstations or build servers. GlassWorm malware, including the OVHcloud CLI supply-chain variant, queries Solana blockchain transaction memos via getSignaturesForAddress for wallet BjVeAjPrSKFiingBn4vZvghsGj9KCE8AJVtbc9S8o8SC to retrieve C2 payload URLs. This rule operates at the proxy URL level and cannot match the wallet address in the HTTP request body; it is therefore a heuristic that flags any Solana RPC traffic not matching known-legitimate filters. For body-level wallet address matching, deploy the companion Snort (sid:2100006) or Suricata (sid:2200003) rules.
+references:
+    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
+    - https://checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders/
+    - https://thehackernews.com/2026/03/glassworm-malware-uses-solana-dead.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1102.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+    product: windows
+detection:
+    selection_solana_rpc:
+        c-uri|contains:
+            - 'api.mainnet-beta.solana.com'
+            - 'solana-mainnet.gateway.tatum.io'
+            - 'go.getblock.us'
+            - 'solana-rpc.publicnode.com'
+            - 'solana.drpc.org'
+            - 'solana.leorpc.com'
+            - 'solana.api.onfinality.io'
+            - 'api.blockeden.xyz/solana'
+    filter_legitimate:
+        c-uri|contains:
+            - 'solana-labs'
+            - 'phantom'
+            - 'solflare'
+    condition: selection_solana_rpc and not filter_legitimate
+falsepositives:
+    - Legitimate Solana blockchain development or wallet software
+    - Cryptocurrency trading applications
+    - This is a proxy-level heuristic that matches any Solana RPC traffic; it cannot distinguish the specific GlassWorm wallet address (BjVeAjPrSKFiingBn4vZvghsGj9KCE8AJVtbc9S8o8SC) in the request body. Use Snort sid:2100006 or Suricata sid:2200003 for body-level wallet address matching.
+level: medium

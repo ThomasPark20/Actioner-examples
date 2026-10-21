@@ -1,0 +1,33 @@
+title: GlassWorm C2 and Exfiltration Server Communication
+id: 1e5a3b8c-7d4f-4c2e-a6b9-5f8d3e2c1a7b
+status: experimental
+description: Detects network connections to known GlassWorm command-and-control and exfiltration infrastructure. These IP addresses have been used for payload delivery, data exfiltration, and WebSocket RAT communication across multiple GlassWorm campaigns including the OVHcloud CLI supply-chain attack.
+references:
+    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
+    - https://thehackernews.com/2026/03/glassworm-malware-uses-solana-dead.html
+    - https://checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders/
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: firewall
+detection:
+    selection_c2_ips:
+        dst_ip:
+            - '45.32.150.251'
+            - '45.32.151.157'
+            - '70.34.242.255'
+            - '208.85.20.124'
+            - '217.69.3.152'
+            - '217.69.0.159'
+            - '217.69.11.57'
+            - '217.69.11.99'
+            - '45.32.150.97'
+            - '45.150.34.158'
+    condition: selection_c2_ips
+falsepositives:
+    - Several of these IPs are hosted on Vultr shared infrastructure and may be reassigned to legitimate services over time. Review and revalidate this indicator set within 90 days.
+    - Legitimate traffic to these IP addresses is unlikely in enterprise environments during the active campaign period
+level: critical
