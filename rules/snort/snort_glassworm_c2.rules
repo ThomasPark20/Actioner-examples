@@ -1,0 +1,13 @@
+alert tcp $HOME_NET any -> 45.32.150.251 any (msg:"GlassWorm C2 - Stage 2 Payload Delivery Server"; classtype:trojan-activity; sid:2100001; rev:1; reference:url,opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool; reference:url,checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders;)
+
+alert tcp $HOME_NET any -> 208.85.20.124 80 (msg:"GlassWorm Exfiltration - POST to /wall Endpoint"; flow:to_server,established; content:"POST"; http_method; content:"/wall"; http_uri; classtype:trojan-activity; sid:2100002; rev:1; reference:url,opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool; reference:url,checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders;)
+
+alert tcp $HOME_NET any -> 217.69.3.152 any (msg:"GlassWorm Exfiltration Server Communication"; classtype:trojan-activity; sid:2100003; rev:1; reference:url,thehackernews.com/2026/03/glassworm-malware-uses-solana-dead.html;)
+
+alert tcp $HOME_NET any -> 217.69.0.159 10000 (msg:"GlassWorm DHT Bootstrap Node Communication"; classtype:trojan-activity; sid:2100004; rev:1; reference:url,checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders;)
+
+alert tcp $HOME_NET any -> 45.150.34.158 any (msg:"GlassWorm Ledger Phishing Recovery Phrase Server"; classtype:trojan-activity; sid:2100005; rev:1; reference:url,thehackernews.com/2026/03/glassworm-malware-uses-solana-dead.html;)
+
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"GlassWorm Solana Memo Dead Drop Query with Wallet Address"; flow:to_server,established; content:"api.mainnet-beta.solana.com"; http_header; content:"getSignaturesForAddress"; http_client_body; content:"BjVeAjPrSKFiingBn4vZvghsGj9KCE8AJVtbc9S8o8SC"; http_client_body; classtype:trojan-activity; sid:2100006; rev:2; reference:url,opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool;)
+
+alert tcp $HOME_NET any -> any $HTTP_PORTS (msg:"GlassWorm Stage 2 Archive Download Path"; flow:to_server,established; content:"/get_arhive_npm/"; http_uri; classtype:trojan-activity; sid:2100007; rev:1; reference:url,checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders;)

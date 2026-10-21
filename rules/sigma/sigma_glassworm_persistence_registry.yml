@@ -1,0 +1,24 @@
+title: GlassWorm Registry Run Key Persistence
+id: 6c8d2e4f-3a1b-4f7e-9d5c-2b8a1f6e3c7d
+status: experimental
+description: Detects creation of registry Run key entries used by GlassWorm for persistence. The malware creates an UpdateLedger entry pointing to the dropped TvVdSR.exe payload. The UpdateLedger value name alone may overlap with legitimate Ledger Live auto-update entries, so this rule requires the combination of both the registry key name and the TvVdSR.exe executable path, or the TvVdSR.exe path alone.
+references:
+    - https://checkmarx.com/zero-post/glassworm-targets-developer-ides-again-hiding-staged-malware-behind-runtime-rebuilt-loaders/
+    - https://thehackernews.com/2026/03/glassworm-malware-uses-solana-dead.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_run_key:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run\'
+        TargetObject|endswith: '\UpdateLedger'
+    selection_run_value:
+        Details|contains: 'TvVdSR.exe'
+    condition: (selection_run_key and selection_run_value) or selection_run_value
+falsepositives:
+    - The UpdateLedger value name alone could match legitimate Ledger Live auto-updater entries; this rule requires the TvVdSR.exe executable path to reduce false positives
+level: critical

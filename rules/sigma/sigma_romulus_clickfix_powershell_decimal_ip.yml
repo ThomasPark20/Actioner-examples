@@ -1,0 +1,47 @@
+title: PowerShell Download Using Decimal IP Address Notation With ROMULUS URI Patterns
+id: 6d133556-24ea-4547-b85a-15de1283cc7a
+status: experimental
+description: >
+    Detects PowerShell execution with decimal IP address notation in URLs combined
+    with ROMULUS ClickFix platform URI patterns (/app/ or /s/ paths), or connections
+    to known ROMULUS decimal IP addresses (1450003207 = 86.109.75.7, 1614733393 =
+    96.62.224.81, 35387519 = 2.27.248.127, etc.). The ROMULUS platform uses
+    decimal-encoded IPs to evade URL filters when downloading malicious MSI
+    installers and staging scripts.
+references:
+    - https://www.forescout.com/?p=115732
+    - https://thehackernews.com/2026/10/romulus-clickfix-platform-tricks-users.html
+author: Actioner
+date: 2026/10/21
+modified: 2026/10/21
+tags:
+    - attack.t1059.001
+    - attack.t1105
+    - attack.t1027.010
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_decimal_ip:
+        CommandLine|re: 'https?://[0-9]{8,10}/'
+    selection_romulus_uri:
+        CommandLine|contains:
+            - '/app/'
+            - '/s/'
+    selection_known_decimal_ips:
+        CommandLine|contains:
+            - '1450003207'
+            - '1614733393'
+            - '35387519'
+            - '2549127135'
+            - '392073696'
+            - '1570300022'
+    condition: selection_powershell and ((selection_decimal_ip and selection_romulus_uri) or selection_known_decimal_ips)
+falsepositives:
+    - Rare legitimate use of decimal IP notation in PowerShell scripts that also reference /app/ or /s/ URI patterns
+    - Decimal IP notation in non-malicious automation scripts targeting legitimate services
+level: medium

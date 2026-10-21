@@ -1,0 +1,29 @@
+title: Siemens Software Center Launched From User-Writable Path via Msiexec
+id: a7e3c1d4-5b2f-4e8a-9c01-3d6f7a8b9e12
+status: experimental
+description: Detects SiemensSoftwareCenter.exe spawned by msiexec.exe from a user-writable AppData path, matching the CVE-2026-110936 DLL sideloading exploitation chain where AllMyBasic.msi drops and executes the legitimate Siemens binary alongside a malicious archive.dll.
+references:
+    - https://productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center
+    - https://thehackernews.com/2026/10/clickfix-attackers-exploit-siemens.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1574.002
+    - attack.t1218.007
+    - cve.2026.110936
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\msiexec.exe'
+    selection_child:
+        Image|endswith: '\SiemensSoftwareCenter.exe'
+    selection_path:
+        Image|contains:
+            - '\AppData\Local\Programs\'
+            - '\AppData\Local\Temp\'
+    condition: selection_parent and selection_child and selection_path
+falsepositives:
+    - Legitimate Siemens Software Center installations that run from AppData paths during an official update, though official installs typically use Program Files
+level: high

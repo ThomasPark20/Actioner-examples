@@ -1,0 +1,30 @@
+title: OVHcloud CLI Malicious Build Metadata Detection
+id: 7a3c8e1f-4d2b-4f6a-9e8c-1b5d7f3a2c4e
+status: experimental
+description: Detects execution of the backdoored OVHcloud CLI binary by matching the malicious build commit hash or dirty module version string in process command line or file metadata. The compromised binary was built from commit 5ead8ef, not the legitimate v0.15.0 commit 760fd72.
+references:
+    - https://opensourcemalware.com/blog/glassworm-hacks-ovh-clouds-cli-tool
+    - https://www.bleepingcomputer.com/news/security/ovhcloud-cli-releases-backdoored-on-github-to-steal-developer-secrets/
+    - https://thehackernews.com/2026/10/hackers-hijack-five-ovhcloud-cli.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1195.002
+    - attack.t1059.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith:
+            - '\ovhcloud-cli.exe'
+            - '\ovhcloud.exe'
+    selection_malicious_version:
+        CommandLine|contains:
+            - '5ead8ef9b43d'
+            - 'v0.15.1-0.20261013083505'
+            - '5ead8ef'
+    condition: selection_binary or selection_malicious_version
+falsepositives:
+    - Legitimate development builds that reference the same commit (unlikely outside OVHcloud contributor environments)
+level: critical

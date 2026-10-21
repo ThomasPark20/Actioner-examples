@@ -1,0 +1,29 @@
+title: Suspicious Process Spawned via FortiSIEM Cron Script - CVE-2026-106173
+id: 66ef86a7-8798-4516-b5aa-2af59e4e64c1
+status: experimental
+description: Detects unexpected child processes spawned when the FortiSIEM cron-executed Redis health-check script runs attacker-injected commands after exploitation of CVE-2026-106173.
+references:
+    - https://fortiguard.fortinet.com/psirt/FG-IR-26-180
+    - https://horizon3.ai/attack-research/cve-2026-106173-deep-dive-fortisiem-grpc-path-traversal-file-write-rce/
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1053.003
+    - attack.t1059.004
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection:
+        ParentCommandLine|contains: 'redishb.sh'
+    filter_legitimate:
+        Image|endswith:
+            - '/redis-cli'
+            - '/redis-server'
+            - '/grep'
+            - '/awk'
+            - '/sed'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate administrative scripts invoked through the Redis health-check chain
+level: medium

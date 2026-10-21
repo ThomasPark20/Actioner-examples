@@ -1,0 +1,15 @@
+# Actioner - ROMULUS ClickFix / CVE-2026-110936 Suricata Rules
+# SID range: 1100001-1100006 (local/custom, non-reserved)
+# Date: 2026-10-21
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LegionLoader C2 POST to /nback.php on smashshape.com"; flow:to_server,established; http.method; content:"POST"; http.host; content:"smashshape.com"; http.uri; content:"/nback.php"; http.content_type; content:"application/x-www-form-urlencoded"; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1100001; rev:2;)
+
+alert http $HOME_NET any -> [86.109.75.7,96.62.224.81,151.240.151.223,23.94.145.224,93.152.224.118,2.27.248.127] any (msg:"Actioner - ROMULUS ClickFix Staging Script Request to Known Panel IP"; flow:to_server,established; http.uri; content:"/s/"; pcre:"/\/s\/[0-9a-f]{12}/"; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1100002; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CVE-2026-110936 C2 to wizardexpensive.com"; flow:to_server,established; http.host; content:"wizardexpensive.com"; reference:url,productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center; classtype:trojan-activity; sid:1100003; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - ROMULUS LegionLoader Archive Download from orbitflownetwork.lol"; flow:to_server,established; http.host; content:"orbitflownetwork.lol"; http.uri; content:"/dl/"; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1100004; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LegionLoader C2 POST to /nfront.php on smashshape.com"; flow:to_server,established; http.host; content:"smashshape.com"; http.uri; content:"/nfront.php"; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1100005; rev:2;)
+
+alert tcp $HOME_NET any -> 96.62.218.59 any (msg:"Actioner - CVE-2026-110936 RAT C2 Communication to 96.62.218.59"; flow:to_server,established; reference:url,productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center; classtype:trojan-activity; sid:1100006; rev:1;)

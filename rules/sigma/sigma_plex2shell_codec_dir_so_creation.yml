@@ -1,0 +1,23 @@
+title: Plex2Shell - Suspicious Shared Object Created in Plex Codecs Directory
+id: 6c8e2a4d-3f17-4b9e-a5d1-7e9c0b2f8d36
+status: experimental
+description: Detects creation of shared object (.so) files in the Plex Media Server Codecs directory that do not match legitimate codec naming patterns. This is a key indicator of CVE-2026-96656 exploitation in the Plex2Shell chain.
+references:
+    - https://zmain.info/blog/plex2shell
+    - https://censys.com/advisory/cve-2026-96652-cve-2026-96654-cve-2026-96655-cve-2026-96656/
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1574.002
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: '/Plex Media Server/Codecs/'
+        TargetFilename|endswith: '.so'
+    condition: selection
+falsepositives:
+    - Legitimate Plex codec updates (automatic codec downloads place .so files in this directory)
+level: medium
