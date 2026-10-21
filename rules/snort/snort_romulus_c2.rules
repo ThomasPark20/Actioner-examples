@@ -1,0 +1,13 @@
+# Actioner - ROMULUS ClickFix / CVE-2026-110936 Snort Rules
+# SID range: 1000001-1000005 (local/custom, non-reserved)
+# Date: 2026-10-21
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LegionLoader C2 POST to /nfront.php on smashshape.com"; flow:to_server,established; content:"POST"; http_method; content:"/nfront.php"; http_uri; content:"application/x-www-form-urlencoded"; http_header; content:"smashshape.com"; http_header; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1000001; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LegionLoader C2 POST to /nback.php on smashshape.com"; flow:to_server,established; content:"POST"; http_method; content:"/nback.php"; http_uri; content:"application/x-www-form-urlencoded"; http_header; content:"smashshape.com"; http_header; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1000002; rev:2;)
+
+alert tcp $HOME_NET any -> [86.109.75.7,96.62.224.81,151.240.151.223,23.94.145.224,93.152.224.118,2.27.248.127] $HTTP_PORTS (msg:"Actioner - ROMULUS ClickFix Staging Script Request to Known Panel IP"; flow:to_server,established; content:"/s/"; http_uri; pcre:"/\/s\/[0-9a-f]{12}/U"; reference:url,www.forescout.com/?p=115732; classtype:trojan-activity; sid:1000003; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-110936 C2 Communication to wizardexpensive.com"; flow:to_server,established; content:"wizardexpensive.com"; http_header; reference:url,productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center; classtype:trojan-activity; sid:1000004; rev:2;)
+
+alert tcp $HOME_NET any -> 96.62.218.59 any (msg:"Actioner - CVE-2026-110936 RAT C2 Communication to 96.62.218.59"; flow:to_server,established; reference:url,productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center; classtype:trojan-activity; sid:1000005; rev:1;)

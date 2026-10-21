@@ -1,0 +1,42 @@
+title: ROMULUS LegionLoader 7zr.exe Extraction With Known Archive Names
+id: b9f8a3c5-d4a5-4fca-9cd7-95573827005a
+status: experimental
+description: >
+    Detects PowerShell spawning 7zr.exe with a password argument for silent
+    extraction of known ROMULUS Route B archive filenames (J8QkZUVJgV.7z,
+    CarJqRHyOtBu3mI.7z) or using known ROMULUS archive passwords. This
+    matches the nested password-protected 7z archive delivery chain used to
+    deliver the LegionLoader inflated PE carrier.
+references:
+    - https://www.forescout.com/?p=115732
+    - https://thehackernews.com/2026/10/romulus-clickfix-platform-tricks-users.html
+author: Actioner
+date: 2026/10/21
+modified: 2026/10/21
+tags:
+    - attack.t1059.001
+    - attack.t1140
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_child:
+        Image|endswith: '\7zr.exe'
+    selection_args:
+        CommandLine|contains|all:
+            - ' -p'
+            - ' -y'
+    selection_romulus_artifacts:
+        CommandLine|contains:
+            - 'J8QkZUVJgV'
+            - 'CarJqRHyOtBu3mI'
+            - 'iQQaQ7Yo41rbZ'
+            - 'RkfZvXZt6XtfuoZsHfSr'
+    condition: selection_parent and selection_child and selection_args and selection_romulus_artifacts
+falsepositives:
+    - Unlikely; the archive filenames and passwords are specific to the ROMULUS LegionLoader delivery chain
+level: high

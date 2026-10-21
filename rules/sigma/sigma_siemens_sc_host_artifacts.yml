@@ -1,0 +1,36 @@
+title: Siemens Software Center DLL Sideloading Host Artifacts
+id: 9f05dddd-cfbf-459a-b26a-f628ae21eea4
+status: experimental
+description: >
+    Detects creation of artifact files associated with the CVE-2026-110936
+    exploitation chain, specifically activate.bak and statinfosta.DB in the
+    SM Software Provisioning Service directory, or ftc.uml in the FTSuite
+    directory. These files are created alongside the sideloaded Siemens
+    Software Center binary.
+references:
+    - https://productcert.siemens.com/news/2026/10/19/active-exploitation-of-cve-2026-110936-in-siemens-software-center
+    - https://socprime.com/blog/cve-2026-110936-analysis/
+author: Actioner
+date: 2026/10/21
+modified: 2026/10/21
+tags:
+    - attack.t1574.002
+    - cve.2026.110936
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_sm_artifacts:
+        TargetFilename|endswith:
+            - '\activate.bak'
+            - '\statinfosta.DB'
+    selection_sm_path:
+        TargetFilename|contains: '\AppData\Local\Programs\SM Software Provisioning Service\'
+    selection_ftc_artifact:
+        TargetFilename|endswith: '\ftc.uml'
+    selection_ftc_path:
+        TargetFilename|contains: '\AppData\Local\FTSuite\'
+    condition: (selection_sm_artifacts and selection_sm_path) or (selection_ftc_artifact and selection_ftc_path)
+falsepositives:
+    - Unlikely outside of this specific exploitation chain
+level: high

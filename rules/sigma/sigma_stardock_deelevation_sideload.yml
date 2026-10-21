@@ -1,0 +1,28 @@
+title: Stardock DeElevation DLL Sideloading From User-Writable Path
+id: 594a92ca-93a5-4f54-a150-66591194b1e5
+status: experimental
+description: Detects the Stardock DeElevation Tool binary loading DeElevator64.dll or I++u.dll from a user-writable Programs directory, matching the ROMULUS Route A DLL sideloading chain that deploys malware via a trojanized Stardock MSI installer.
+references:
+    - https://www.forescout.com/?p=115732
+    - https://thehackernews.com/2026/10/romulus-clickfix-platform-tricks-users.html
+author: Actioner
+date: 2026/10/21
+tags:
+    - attack.t1574.002
+    - attack.t1218.007
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\DeElevate64.exe'
+    selection_dll:
+        ImageLoaded|endswith:
+            - '\DeElevator64.dll'
+            - '\I++u.dll'
+    selection_path:
+        ImageLoaded|contains: '\AppData\Local\Programs\'
+    condition: selection_process and selection_dll and selection_path
+falsepositives:
+    - Legitimate Stardock DeElevation Tool installed to a user-writable path, though the official installer uses Program Files
+level: high
