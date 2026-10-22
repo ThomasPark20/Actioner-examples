@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-22
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -160,7 +160,7 @@ These details come from Zscaler's analysis and are not explicitly tied to the St
 |-----|-----------|--------|-------------------|
 | T1595 | Active Scanning | Reconnaissance | ARTEX-automated scanning and reconnaissance of cloud resources |
 | T1110 | Brute Force | Credential Access | Cross-tenant password spraying: 151,000+ failed logons, 2,900/min peak, targeting 327 accounts |
-| T1195 | Supply Chain Compromise | Initial Access | Compromise of ConnectWise Cloud Backup multi-tenant OAuth application credentials |
+| T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Initial Access | Compromise of ConnectWise Cloud Backup multi-tenant OAuth application credentials |
 | T1078.004 | Valid Accounts: Cloud Accounts | Defense Evasion, Initial Access | Service-principal authentication using compromised ConnectWise app credentials into 2,250+ tenants |
 | T1528 | Steal Application Access Token | Credential Access | Theft and use of ConnectWise OAuth application client secrets for token generation |
 | T1087.004 | Account Discovery: Cloud Account | Discovery | Graph API directory and permission reconnaissance in victim tenants |
@@ -251,7 +251,7 @@ author: Actioner
 date: 2026/10/22
 tags:
     - attack.t1078.004
-    - attack.t1195
+    - attack.t1195.002
 logsource:
     product: azure
     service: signinlogs
@@ -278,20 +278,21 @@ level: critical
 
 <!-- AUDIT: sigma check blocked by network (MITRE ATT&CK data fetch 403); sigma convert --without-pipeline -t splunk and -t log_scale both produce correct output. Field names AppId and IPAddress match Azure AD SigninLogs schema. IPs are not defanged per logsource-encoding ref. Tags use technique-only format. -->
 
-### Sigma: OAuth Application Self-Assigned Global Administrator Role
+### Sigma: Global Administrator Role Assignment via ConnectWise Service Principal
 
-Detects an OAuth service principal adding itself to the Global Administrator (Company Administrator) directory role, the key privilege-escalation step observed in this campaign.
-**Status**: compile (splunk, logscale) ✅ | confidence: high
+Detects a ConnectWise OAuth application service principal adding a member to the Global Administrator (Company Administrator) directory role, the key privilege-escalation step observed in this campaign. Scoped to the three known compromised ConnectWise application IDs via `InitiatedBy.App.AppId`.
+**Status**: compile (splunk, logscale) ✅ | confidence: medium
 
 ```yaml
-title: OAuth Application Self-Assigned Global Administrator Role
+title: Global Administrator Role Assignment via ConnectWise Service Principal
 id: e8b3d4f5-9c6a-4a27-b1e0-4c8d0f2a3b56
 status: experimental
 description: >
-    Detects an OAuth application or service principal adding itself to the Global
-    Administrator directory role via Azure AD audit logs. Observed in the Storm-0940
-    ConnectWise supply chain compromise where compromised apps elevated their own
-    privileges to Global Administrator.
+    Detects a ConnectWise OAuth application service principal adding a member to
+    the Global Administrator directory role via Azure AD audit logs. Observed in
+    the Storm-0940 ConnectWise supply chain compromise where compromised apps
+    elevated privileges to Global Administrator. Scoped to the three known
+    compromised ConnectWise application IDs.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -310,28 +311,35 @@ detection:
         TargetResources|contains:
             - 'Company Administrator'
             - 'Global Administrator'
-    condition: selection_operation and selection_role
+    selection_app:
+        InitiatedBy.App.AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_operation and selection_role and selection_app
 falsepositives:
-    - Legitimate emergency break-glass procedures assigning Global Administrator
-level: critical
+    - Legitimate ConnectWise administrative operations assigning Global Administrator (unlikely during active compromise)
+level: high
 ```
 
-<!-- AUDIT: sigma check blocked by network; splunk and logscale convert OK. OperationName and TargetResources are standard Azure AD audit log field names. TargetResources is a JSON array in raw logs; |contains handles substring matching against the serialized form. Both "Company Administrator" (internal) and "Global Administrator" (display) names covered. -->
+<!-- AUDIT: sigma convert --without-pipeline -t splunk and -t log_scale both exit 0. InitiatedBy.App.AppId filter constrains detection to the three compromised ConnectWise AppIds, restoring specific altitude per critic review. OperationName and TargetResources are standard Azure AD audit log fields. TargetResources |contains handles substring matching against the serialized JSON array. Confidence medium: the AppId filter eliminates most FPs but legitimate ConnectWise role assignments remain possible. -->
 
-### Sigma: Suspicious Credential Addition to OAuth Application Service Principal
+### Sigma: Service Principal Credential Addition to OAuth Application
 
-Detects addition of new credentials to OAuth application service principals, the persistence technique Storm-0940 used to maintain backdoor access after the initial ConnectWise compromise.
-**Status**: compile (splunk, logscale) ✅ | confidence: medium
+Detects a service principal (application identity) adding new credentials to OAuth applications, the persistence technique Storm-0940 used to maintain backdoor access after the initial ConnectWise compromise. Anchored to service-principal-initiated events only (`InitiatedBy.App.AppId` must be present) to filter out routine administrator credential rotation.
+**Status**: compile (splunk, logscale) ✅ | confidence: low
 
 ```yaml
-title: Suspicious Credential Addition to OAuth Application Service Principal
+title: Service Principal Credential Addition to OAuth Application
 id: c5f9a3d4-6e7b-4c0a-d1f8-3a4b5c6d7e8f
 status: experimental
 description: >
-    Detects addition of new credentials such as secrets or certificates to OAuth
-    application service principals. Storm-0940 used this technique for persistence
-    after compromising ConnectWise applications to maintain backdoor access to
-    victim Microsoft 365 tenants.
+    Detects a service principal (application identity) adding new credentials
+    such as secrets or certificates to OAuth applications via Azure AD audit
+    logs. Storm-0940 used this technique for persistence after compromising
+    ConnectWise applications, planting backdoor credentials in other tenant
+    applications. Scoped to service-principal-initiated events only to reduce
+    noise from routine administrator credential rotation.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -342,19 +350,21 @@ logsource:
     product: azure
     service: auditlogs
 detection:
-    selection:
+    selection_operation:
         OperationName:
             - 'Update application - Certificates and secrets management'
             - 'Add service principal credentials'
             - 'Update service principal/Update Application - Certificates and secrets management'
-    condition: selection
+    selection_initiator:
+        InitiatedBy.App.AppId: '*'
+    condition: selection_operation and selection_initiator
 falsepositives:
-    - Routine application credential rotation by administrators
-    - Automated certificate renewal processes
-level: high
+    - Automated certificate renewal pipelines running as service principals
+    - Managed identity credential rotation
+level: medium
 ```
 
-<!-- AUDIT: sigma check blocked by network; splunk and logscale convert OK. This rule is broader (no IP/App pinning) because credential additions to ANY app are the persistence vector; the attacker planted credentials in random tenant applications. Medium confidence reflects higher FP potential from legitimate credential rotation. -->
+<!-- AUDIT: sigma convert --without-pipeline -t splunk and -t log_scale both exit 0. InitiatedBy.App.AppId wildcard anchor constrains to service-principal-initiated events, filtering out interactive administrator operations. Confidence low: credential additions by service principals occur legitimately in automated pipelines; correlate with ConnectWise app sign-in activity (rule 1/4) for higher fidelity. -->
 
 ### Sigma: Automated Tool User-Agent in ConnectWise App Sign-in
 
