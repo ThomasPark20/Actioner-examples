@@ -1,0 +1,10 @@
+# Storm-0940 / ARTEX ConnectWise Supply Chain Compromise — Suricata 7.x Rules
+# Report: 2026-10-22-storm0940-artex-connectwise-supply-chain.md
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+# Author: Actioner
+# Date: 2026-10-22
+# Rules: 2 (1 IP, 1 UA)
+# IOC Expiry: IP rule (sid:2200001) valid_until 2027-01-22; review at 90 days or upon new intel.
+
+alert ip $HOME_NET any -> [144.172.64.128,144.172.64.99,144.172.64.60,144.172.94.243] any (msg:"Actioner - Storm-0940 Outbound Connection to Known RouterHosting Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22, valid_until 2027-01-22; sid:2200001; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Storm-0940 ARTEX azure-toolkit User-Agent in HTTP Request"; flow:established,to_server; http.user_agent; content:"azure-toolkit/"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22; sid:2200002; rev:1;)

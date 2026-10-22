@@ -223,14 +223,14 @@ An empty result does not prove no access occurred.
 - Apply least-privilege to multi-tenant OAuth application permissions; avoid granting broad Graph API or directory permissions
 - Implement continuous monitoring of service-principal sign-in activity with alerting on anomalous patterns
 - Establish baseline for OAuth application credential management and alert on deviations
-- Enable and retain MicrosoftGraphActivityLogs for Graph API audit trail
-- Implement conditional access policies for workload identities (service principals) where supported
+- Enable and retain MicrosoftGraphActivityLogs for Graph API audit trail (requires Microsoft 365 E5 or equivalent licensing)
+- Implement conditional access policies for workload identities (service principals) where supported (requires Azure AD Premium P2 / Entra ID P2 licensing)
 - Regularly review and audit third-party multi-tenant application permissions and consent grants
 - Consider requiring admin consent for new third-party application registrations
 
 ## Detection Rules
 
-The rules below cover the two primary detection surfaces exposed by this campaign: (1) Azure AD/Entra ID sign-in and audit log indicators detectable via Sigma, and (2) network-level IP and user-agent indicators detectable via Snort and Suricata. No YARA rules are provided because the sources disclose no file hashes, binary signatures, or endpoint file-level artifacts. All network IOC IPs are time-bound to the October 2026 campaign window and should be reviewed periodically for continued relevance.
+The rules below cover the two primary detection surfaces exposed by this campaign: (1) Azure AD/Entra ID sign-in and audit log indicators detectable via Sigma, and (2) network-level IP and user-agent indicators detectable via Snort and Suricata. No YARA rules are provided because the sources disclose no file hashes, binary signatures, or endpoint file-level artifacts. All network IOC IPs are time-bound to the October 2026 campaign window; IP-based rules carry a `valid_until: 2027-01-22` metadata field and should be reviewed at that 90-day mark or upon new threat intelligence for continued relevance.
 
 ### Sigma: Storm-0940 Compromised ConnectWise App Sign-in from Known Malicious IP
 
@@ -413,24 +413,28 @@ level: high
 Two Snort 2.9 rules detecting outbound connections to known Storm-0940 RouterHosting IPs and the custom `azure-toolkit` user-agent string.
 **Status**: compile ✅ | confidence: high (IP rule), medium (UA rule)
 
+> **IOC Expiry Note:** The IP addresses in sid:2100001 are time-bound to the October 2026 Storm-0940 campaign window. Review for continued relevance by 2027-01-22 (90 days) or upon new threat intelligence. Infrastructure reuse by the threat actor or reassignment to benign tenants may change the rule's fidelity.
+
 ```
-alert ip $HOME_NET any -> [144.172.64.128,144.172.64.99,144.172.64.60,144.172.94.243] any (msg:"Actioner - Outbound Connection to Storm-0940 RouterHosting Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created 2026-10-22; sid:2100001; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP azure-toolkit User-Agent Associated with Storm-0940 ARTEX"; flow:established,to_server; content:"azure-toolkit/1.0"; http_header; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created 2026-10-22; sid:2100002; rev:1;)
+alert ip $HOME_NET any -> [144.172.64.128,144.172.64.99,144.172.64.60,144.172.94.243] any (msg:"Actioner - Outbound Connection to Storm-0940 RouterHosting Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22, valid_until 2027-01-22; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - HTTP azure-toolkit User-Agent Associated with Storm-0940 ARTEX"; flow:established,to_server; content:"azure-toolkit/1.0"; http_header; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22; sid:2100002; rev:1;)
 ```
 
-<!-- AUDIT: Validated via snort -c /etc/snort/snort.conf -T (Snort 2.9.20): "Snort successfully validated the configuration!" IP rule covers the 4 RouterHosting-range IPs; Brazilian VPN egress IPs excluded due to transience. UA rule limited to azure-toolkit/1.0 (most distinctive; python-requests/curl are too common for network-level detection without additional context). -->
+<!-- AUDIT: Validated via snort -c /etc/snort/snort.conf -T (Snort 2.9.20): "Snort successfully validated the configuration!" IP rule covers the 4 RouterHosting-range IPs; Brazilian VPN egress IPs excluded due to transience. UA rule limited to azure-toolkit/1.0 (most distinctive; python-requests/curl are too common for network-level detection without additional context). Metadata key aligned to created_at per Snort metadata conventions. IOC expiry (valid_until 2027-01-22) added to IP rule. -->
 
 ### Suricata: Storm-0940 Infrastructure and User-Agent Detection
 
 Two Suricata rules using dot-notation sticky buffers for the same indicators.
 **Status**: compile ✅ | confidence: high (IP rule), medium (UA rule)
 
+> **IOC Expiry Note:** The IP addresses in sid:2200001 are time-bound to the October 2026 Storm-0940 campaign window. Review for continued relevance by 2027-01-22 (90 days) or upon new threat intelligence. Infrastructure reuse by the threat actor or reassignment to benign tenants may change the rule's fidelity.
+
 ```
-alert ip $HOME_NET any -> [144.172.64.128,144.172.64.99,144.172.64.60,144.172.94.243] any (msg:"Actioner - Storm-0940 Outbound Connection to Known RouterHosting Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22; sid:2200001; rev:1;)
+alert ip $HOME_NET any -> [144.172.64.128,144.172.64.99,144.172.64.60,144.172.94.243] any (msg:"Actioner - Storm-0940 Outbound Connection to Known RouterHosting Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22, valid_until 2027-01-22; sid:2200001; rev:1;)
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Storm-0940 ARTEX azure-toolkit User-Agent in HTTP Request"; flow:established,to_server; http.user_agent; content:"azure-toolkit/"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; metadata:author Actioner, created_at 2026-10-22; sid:2200002; rev:1;)
 ```
 
-<!-- AUDIT: Validated via suricata -T -S (Suricata 7.0.3): "Configuration provided was successfully loaded. Exiting." Dot-notation http.user_agent buffer used correctly. IP rule matches Snort rule scope. -->
+<!-- AUDIT: Validated via suricata -T -S (Suricata 7.0.3): "Configuration provided was successfully loaded. Exiting." Dot-notation http.user_agent buffer used correctly. IP rule matches Snort rule scope. IOC expiry (valid_until 2027-01-22) added to IP rule. -->
 
 ### YARA
 

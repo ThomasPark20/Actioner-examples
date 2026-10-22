@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-22
-Version: 1.0-DRAFT
+Version: 1.0-FINAL
 
 ## Executive Summary
 
@@ -321,7 +321,11 @@ env | grep PRIVCOLLECT_ACTIVE
 
 ## Detection Rules
 
-Five Sigma rules, three Snort rules, five Suricata rules, and four YARA rules detect the stealer persistence files, exfiltration traffic, C2 dead-drop communication, and malicious package contents. All rules validated except where noted. The primary caveat is that `sitecustomize.py` is also a legitimate Python filename -- detection by filename alone requires correlation with other indicators.
+Five Sigma rules, three Snort rules, five Suricata rules, and five YARA rules detect the stealer persistence files, exfiltration traffic, C2 dead-drop communication, and malicious package contents. All rules validated except where noted. The primary caveat is that `sitecustomize.py` is also a legitimate Python filename -- detection by filename alone requires correlation with other indicators.
+
+**Important caveats:**
+- **HTTPS-only dead-drop rules (Snort SID 2100003, Suricata SID 2200005):** The GitHub `raw.githubusercontent.com` dead-drop URL uses HTTPS exclusively. These rules require TLS-terminating inspection (SSL/TLS proxy) to see the cleartext HTTP layer. Without TLS interception, rely on the DNS-based rules (Sigma DNS query, Suricata SID 2200003) or endpoint-level detection instead.
+- **PRIVCOLLECT_ACTIVE Sigma rule:** The malware sets this environment variable in-process via `os.environ`, not on the command line. The Sigma rule using `CommandLine|contains` only catches explicit shell invocations (e.g., `PRIVCOLLECT_ACTIVE=1 python ...`), not the malware's actual mechanism. This rule is rated low confidence and should be used as a supplementary indicator alongside file-based and network-based rules.
 
 ### Sigma Rules
 
@@ -469,18 +473,22 @@ level: critical
 
 ---
 
-Detection of the PRIVCOLLECT_ACTIVE environment variable in process creation.
+Detection of the PRIVCOLLECT_ACTIVE environment variable in process creation command lines.
 Compile: sigma convert Splunk/LogScale -- validated.
-Confidence: medium
+Confidence: low -- The actual malware sets `PRIVCOLLECT_ACTIVE` in-process via `os.environ`, which does not appear in the command line logged by process creation events. This rule only catches explicit shell invocations (e.g., `PRIVCOLLECT_ACTIVE=1 python ...`) or tooling that exports the variable. It serves as a supplementary indicator, not a primary detection.
 
 ```yaml
 title: LiteLLM Supply Chain - PRIVCOLLECT_ACTIVE Environment Variable
 id: a1d4f7c9-8e3b-4b6a-c2d5-f9e1a3b7d8c6
 status: experimental
 description: >
-    Detects process creation where the PRIVCOLLECT_ACTIVE environment variable is set,
-    indicating the LiteLLM v1.107.0 privcollect credential stealer is active or has
-    been inherited by child processes.
+    Detects process creation where the PRIVCOLLECT_ACTIVE environment variable
+    appears in the command line. NOTE: The actual malware sets this variable
+    in-process via os.environ, so this rule only catches explicit shell
+    invocations (e.g., PRIVCOLLECT_ACTIVE=1 python ...) or child processes
+    where the variable was exported. It does not detect the malware's own
+    mechanism. Use as a supplementary indicator alongside file-based and
+    network-based rules.
 references:
     - https://www.wiz.io/blog/litellm-compromised-steals-credentials
     - https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
@@ -497,10 +505,10 @@ detection:
     condition: selection
 falsepositives:
     - Security researchers analyzing the malware
-level: critical
+level: low
 ```
 
-<!-- audit: Validated via sigma convert. CommandLine may not always contain the env var string; detection depends on how the variable is propagated. Medium confidence as env var may not appear in logged command line. -->
+<!-- audit: Validated via sigma convert. Demoted from critical to low: the malware sets PRIVCOLLECT_ACTIVE via os.environ in-process, not on the command line. CommandLine|contains only fires on explicit shell invocations or exported env vars. Supplementary indicator only. -->
 
 ### Snort Rules
 
@@ -519,6 +527,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Su
 Detects HTTP GET/POST to the /codepy second-stage payload endpoint.
 Compile: snort -T validated.
 Confidence: high
+Tuning: The URI path "/codepy" is short. If false positives occur in environments with legitimate /codepy endpoints, add a destination IP or Host header constraint.
 
 ```
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain C2 Fetch /codepy Endpoint"; flow:established,to_server; content:"/codepy"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created 2026-10-22; sid:2100002; rev:1;)
@@ -531,12 +540,13 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Su
 Detects HTTP fetch of the GitHub dead-drop domain.txt file.
 Compile: snort -T validated.
 Confidence: high
+**HTTPS caveat:** GitHub `raw.githubusercontent.com` uses HTTPS exclusively. This rule requires TLS-terminating inspection (SSL/TLS proxy or MITM) to see the cleartext HTTP layer. Without TLS interception, use the DNS-based rules or endpoint-level detection instead.
 
 ```
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain GitHub Dead Drop domain.txt Fetch"; flow:established,to_server; content:"/letters9813/pythonclient-test/main/domain.txt"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer; metadata:author Actioner, created 2026-10-22; sid:2100003; rev:1;)
 ```
 
-<!-- audit: Snort 2.9 syntax validated. Full path match is highly specific, very low FP risk. GitHub raw content uses HTTPS so this requires TLS interception or visibility at the proxy layer. -->
+<!-- audit: Snort 2.9 syntax validated. Full path match is highly specific, very low FP risk. GitHub raw content uses HTTPS so this requires TLS interception or visibility at the proxy layer. HTTPS caveat surfaced in visible prose per review. -->
 
 ### Suricata Rules
 
@@ -565,14 +575,15 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Ch
 ---
 
 Detects DNS query to the attacker-controlled litellm.dev domain.
-Compile: suricata -T validated.
+Compile: suricata -T validated (rev:2 with fix).
 Confidence: high
+**Fix (rev:2):** Added `endswith;` to anchor the domain match and prevent false positives on domains like `notlitellm.dev.example.com`. Removed `nocase;` as Suricata's `dns.query` buffer is already normalized to lowercase.
 
 ```
-alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query to litellm.dev"; dns.query; content:"litellm.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created_at 2026-10-22; sid:2200003; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query to litellm.dev"; dns.query; content:"litellm.dev"; endswith; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created_at 2026-10-22; sid:2200003; rev:2;)
 ```
 
-<!-- audit: Suricata 7.0.3 validated. dns.query buffer. Matches any query containing litellm.dev. Real domain value used (not defanged). -->
+<!-- audit: Suricata 7.0.3 validated (rev:2). Fixed: added endswith to anchor match, removed unnecessary nocase (dns.query is already lowercase-normalized). -->
 
 ---
 
@@ -591,12 +602,13 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Ch
 Detects HTTP fetch of the GitHub dead-drop domain.txt resolver.
 Compile: suricata -T validated.
 Confidence: high
+**HTTPS caveat:** GitHub `raw.githubusercontent.com` uses HTTPS exclusively. This rule requires TLS-terminating inspection (SSL/TLS proxy or MITM) to see the cleartext HTTP layer. Without TLS interception, use the DNS-based SID 2200003 or endpoint-level detection instead.
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain GitHub Dead Drop domain.txt Fetch"; flow:established,to_server; http.uri; content:"/letters9813/pythonclient-test/main/domain.txt"; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer; metadata:author Actioner, created_at 2026-10-22; sid:2200005; rev:1;)
 ```
 
-<!-- audit: Suricata 7.0.3 validated. Full URI path is highly specific. GitHub raw content uses HTTPS; requires TLS interception or proxy visibility. -->
+<!-- audit: Suricata 7.0.3 validated. Full URI path is highly specific. GitHub raw content uses HTTPS; requires TLS interception or proxy visibility. HTTPS caveat surfaced in visible prose per review. -->
 
 ### YARA Rules
 
