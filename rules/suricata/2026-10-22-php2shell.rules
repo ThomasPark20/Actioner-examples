@@ -1,0 +1,12 @@
+# PHP2Shell Detection Rules - Suricata
+# CVE-2026-109618 (OOM Corruption RCE) and CVE-2026-109619 (Use-After-Free RCE)
+# Generated: 2026-10-22 | Author: Actioner | Version: FINAL-1.0
+
+# Rule 1: Session Upload Progress RCE (CVE-2026-109619) | Confidence: medium
+# Detects HTTP POST with PHP_SESSION_UPLOAD_PROGRESS in body + PHPSESSID cookie + multipart content type.
+# Note: Legitimate session upload progress traffic exists; tune/threshold in environments with upload-progress features.
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Session Upload Progress RCE Attempt (CVE-2026-109619)"; flow:established,to_server; http.method; content:"POST"; http.content_type; content:"multipart/form-data"; http.request_body; content:"PHP_SESSION_UPLOAD_PROGRESS"; fast_pattern; http.cookie; content:"PHPSESSID="; classtype:web-application-attack; reference:cve,2026-109619; reference:url,blog.talosintelligence.com/two-critical-rces-in-php-core/; metadata:author Actioner, created_at 2026-10-22; sid:2200001; rev:1;)
+
+# Rule 2: Oversized Multipart Filename OOM Trigger (CVE-2026-109618) | Confidence: high
+# Detects HTTP POST with multipart/form-data containing filenames >= 4096 bytes, the OOM trigger mechanism.
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Oversized Multipart Filename OOM Trigger (CVE-2026-109618)"; flow:established,to_server; http.method; content:"POST"; http.content_type; content:"multipart/form-data"; http.request_body; content:"filename="; fast_pattern; pcre:"/filename\x3d\x22[^\x22]{4096,}/R"; classtype:web-application-attack; reference:cve,2026-109618; reference:url,isc.sans.edu/diary/33440; metadata:author Actioner, created_at 2026-10-22; sid:2200002; rev:1;)

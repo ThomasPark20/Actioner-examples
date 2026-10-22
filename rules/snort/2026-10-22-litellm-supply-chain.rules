@@ -1,0 +1,17 @@
+# Actioner - LiteLLM v1.107.0 Supply Chain Attack Detection Rules (Snort 2.9)
+# Date: 2026-10-22
+
+# SID 2100001: Detects HTTP POST to the litellm.dev exfiltration endpoint with X-Token header.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain Exfil POST to litellm.dev/healthcheck"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; content:"X-Token|3a 20|XWiA8gZNa7NcX2XRoAEb"; http_header; fast_pattern; classtype:trojan-activity; reference:url,www.aikido.dev/blog/litellm-compromised-infostealer-rat; metadata:author Actioner, created 2026-10-22; sid:2100001; rev:1;)
+
+# SID 2100002: Detects HTTP GET/POST to the /codepy second-stage payload endpoint.
+# Tuning: The URI path "/codepy" is short. If false positives occur in environments
+# with legitimate /codepy endpoints, add a destination IP or Host header constraint.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain C2 Fetch /codepy Endpoint"; flow:established,to_server; content:"/codepy"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created 2026-10-22; sid:2100002; rev:1;)
+
+# SID 2100003: Detects HTTP fetch of the GitHub dead-drop domain.txt file.
+# CAVEAT: GitHub raw.githubusercontent.com uses HTTPS exclusively. This rule
+# requires TLS-terminating inspection (SSL/TLS proxy or MITM) to see the
+# cleartext HTTP layer. Without TLS interception, use the DNS-based rules
+# or endpoint-level detection instead.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain GitHub Dead Drop domain.txt Fetch"; flow:established,to_server; content:"/letters9813/pythonclient-test/main/domain.txt"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer; metadata:author Actioner, created 2026-10-22; sid:2100003; rev:1;)

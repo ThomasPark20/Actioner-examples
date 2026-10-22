@@ -1,0 +1,132 @@
+title: LiteLLM Supply Chain - Malicious cook.pth File in Site-Packages
+id: 8a1f3c7e-4b2d-4e9a-b6f1-d8c5e2a9f3b7
+status: experimental
+description: >
+    Detects the creation of cook.pth in a Python site-packages directory,
+    a persistence mechanism used by the LiteLLM v1.107.0 supply chain attack
+    to load the privcollect credential stealer on every Python interpreter start.
+references:
+    - https://www.aikido.dev/blog/litellm-compromised-infostealer-rat
+    - https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-22
+tags:
+    - attack.t1195.002
+    - attack.t1546
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: 'site-packages'
+        TargetFilename|endswith: 'cook.pth'
+    condition: selection
+falsepositives:
+    - Legitimate Python packages using cook.pth (unlikely name)
+level: critical
+---
+title: LiteLLM Supply Chain - Stealer Run-Once Marker File
+id: 2d7e9b4a-6f1c-4a3e-8d5b-c9e2f1a7b3d6
+status: experimental
+description: >
+    Detects creation of the privcollect stealer run-once marker file
+    /tmp/.pc_once_72129118c59f5636c0bb or the remote code loader lock file
+    /tmp/remote_code_loader.lock, both indicators of the LiteLLM v1.107.0 compromise.
+references:
+    - https://www.aikido.dev/blog/litellm-compromised-infostealer-rat
+    - https://www.wiz.io/blog/litellm-compromised-steals-credentials
+author: Actioner
+date: 2026-10-22
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection_marker:
+        TargetFilename: '/tmp/.pc_once_72129118c59f5636c0bb'
+    selection_lock:
+        TargetFilename: '/tmp/remote_code_loader.lock'
+    condition: selection_marker or selection_lock
+falsepositives:
+    - None known
+level: critical
+---
+title: LiteLLM Supply Chain - DNS Query to Exfiltration Domain litellm.dev
+id: f4c8a1e6-3b7d-4d2f-9e5a-a6b3c8d1f2e9
+status: experimental
+description: >
+    Detects DNS resolution of the attacker-controlled domain litellm.dev used
+    as the exfiltration endpoint in the LiteLLM v1.107.0 supply chain attack.
+    This domain is not affiliated with the legitimate LiteLLM project.
+references:
+    - https://www.wiz.io/blog/litellm-compromised-steals-credentials
+    - https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-22
+tags:
+    - attack.t1071.001
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'litellm.dev'
+    condition: selection
+falsepositives:
+    - None known - this domain is attacker-controlled
+level: critical
+---
+title: LiteLLM Supply Chain - HTTP POST to litellm.dev Healthcheck Exfil Endpoint
+id: b3e5d8f2-1a9c-4c7e-a4b6-e7f2d9c1a8b5
+status: experimental
+description: >
+    Detects HTTP connections to the exfiltration endpoint www.litellm.dev/healthcheck
+    used by the privcollect credential stealer in the LiteLLM v1.107.0 compromise.
+references:
+    - https://www.aikido.dev/blog/litellm-compromised-infostealer-rat
+    - https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-22
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains: '/healthcheck'
+        r-dns|endswith: 'litellm.dev'
+    condition: selection
+falsepositives:
+    - None known - this domain is attacker-controlled
+level: critical
+---
+title: LiteLLM Supply Chain - PRIVCOLLECT_ACTIVE Environment Variable
+id: a1d4f7c9-8e3b-4b6a-c2d5-f9e1a3b7d8c6
+status: experimental
+description: >
+    Detects process creation where the PRIVCOLLECT_ACTIVE environment variable
+    appears in the command line. NOTE: The actual malware sets this variable
+    in-process via os.environ, so this rule only catches explicit shell
+    invocations (e.g., PRIVCOLLECT_ACTIVE=1 python ...) or child processes
+    where the variable was exported. It does not detect the malware's own
+    mechanism. Use as a supplementary indicator alongside file-based and
+    network-based rules.
+references:
+    - https://www.wiz.io/blog/litellm-compromised-steals-credentials
+    - https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-22
+tags:
+    - attack.t1059.006
+    - attack.t1195.002
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains: 'PRIVCOLLECT_ACTIVE'
+    condition: selection
+falsepositives:
+    - Security researchers analyzing the malware
+level: low

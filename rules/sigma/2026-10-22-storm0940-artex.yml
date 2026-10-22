@@ -1,0 +1,146 @@
+# Storm-0940 / ARTEX ConnectWise Supply Chain Compromise — Sigma Detection Rules
+# Report: 2026-10-22-storm0940-artex-connectwise-supply-chain.md
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+# Author: Actioner
+# Date: 2026-10-22
+# Rules: 4 (2 signinlogs, 2 auditlogs)
+---
+title: Storm-0940 Compromised ConnectWise App Sign-in from Known Malicious IP
+id: f7a2c3d4-8e5b-4f19-a6d0-3b7c9e1f2a45
+status: experimental
+description: >
+    Detects service principal sign-ins using compromised ConnectWise OAuth application
+    IDs from IP addresses attributed to Storm-0940 infrastructure during the October
+    2026 ConnectWise Cloud Backup supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/22
+tags:
+    - attack.t1078.004
+    - attack.t1195.002
+logsource:
+    product: azure
+    service: signinlogs
+detection:
+    selection_app:
+        AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    selection_ip:
+        IPAddress:
+            - '144.172.64.128'
+            - '144.172.64.99'
+            - '144.172.64.60'
+            - '187.15.88.186'
+            - '187.15.90.217'
+            - '187.15.89.186'
+            - '144.172.94.243'
+    condition: selection_app and selection_ip
+falsepositives:
+    - Legitimate ConnectWise operations from these IPs is unlikely given confirmed compromise
+level: critical
+---
+title: Global Administrator Role Assignment via ConnectWise Service Principal
+id: e8b3d4f5-9c6a-4a27-b1e0-4c8d0f2a3b56
+status: experimental
+description: >
+    Detects a ConnectWise OAuth application service principal adding a member to
+    the Global Administrator directory role via Azure AD audit logs. Observed in
+    the Storm-0940 ConnectWise supply chain compromise where compromised apps
+    elevated privileges to Global Administrator. Scoped to the three known
+    compromised ConnectWise application IDs.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/22
+tags:
+    - attack.t1098.003
+logsource:
+    product: azure
+    service: auditlogs
+detection:
+    selection_operation:
+        OperationName:
+            - 'Add member to role'
+            - 'Add eligible member to role'
+    selection_role:
+        TargetResources|contains:
+            - 'Company Administrator'
+            - 'Global Administrator'
+    selection_app:
+        InitiatedBy.App.AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_operation and selection_role and selection_app
+falsepositives:
+    - Legitimate ConnectWise administrative operations assigning Global Administrator (unlikely during active compromise)
+level: high
+---
+title: Service Principal Credential Addition to OAuth Application
+id: c5f9a3d4-6e7b-4c0a-d1f8-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects a service principal (application identity) adding new credentials
+    such as secrets or certificates to OAuth applications via Azure AD audit
+    logs. Storm-0940 used this technique for persistence after compromising
+    ConnectWise applications, planting backdoor credentials in other tenant
+    applications. Scoped to service-principal-initiated events only to reduce
+    noise from routine administrator credential rotation.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/22
+tags:
+    - attack.t1098.001
+logsource:
+    product: azure
+    service: auditlogs
+detection:
+    selection_operation:
+        OperationName:
+            - 'Update application - Certificates and secrets management'
+            - 'Add service principal credentials'
+            - 'Update service principal/Update Application - Certificates and secrets management'
+    selection_initiator:
+        InitiatedBy.App.AppId: '*'
+    condition: selection_operation and selection_initiator
+falsepositives:
+    - Automated certificate renewal pipelines running as service principals
+    - Managed identity credential rotation
+level: medium
+---
+title: Automated Tool User-Agent in ConnectWise App Sign-in
+id: d6a0b4e5-7f8c-4d1b-e2a9-4b5c6d7e8f9a
+status: experimental
+description: >
+    Detects Azure AD sign-ins to ConnectWise OAuth applications using automation
+    tool user agents observed during the Storm-0940 ARTEX-driven ConnectWise supply
+    chain attack, including python-requests, Python-urllib, curl, and azure-toolkit.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/22
+tags:
+    - attack.t1078.004
+logsource:
+    product: azure
+    service: signinlogs
+detection:
+    selection_ua:
+        UserAgent|startswith:
+            - 'python-requests/'
+            - 'Python-urllib/'
+            - 'curl/'
+            - 'azure-toolkit/'
+    selection_app:
+        AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_ua and selection_app
+falsepositives:
+    - Legitimate ConnectWise automation scripts using these user agents
+level: high

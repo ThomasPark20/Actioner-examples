@@ -1,0 +1,23 @@
+# Actioner - LiteLLM v1.107.0 Supply Chain Attack Detection Rules (Suricata 7.x)
+# Date: 2026-10-22
+
+# SID 2200001: Detects HTTP POST to litellm.dev/healthcheck exfiltration endpoint.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfil POST to litellm.dev healthcheck"; flow:established,to_server; http.method; content:"POST"; http.host; content:"litellm.dev"; endswith; http.uri; content:"/healthcheck"; startswith; fast_pattern; classtype:trojan-activity; reference:url,www.aikido.dev/blog/litellm-compromised-infostealer-rat; metadata:author Actioner, created_at 2026-10-22; sid:2200001; rev:1;)
+
+# SID 2200002: Detects HTTP POST with the hardcoded X-Token exfiltration header.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfil X-Token Header"; flow:established,to_server; http.method; content:"POST"; http.header; content:"X-Token: XWiA8gZNa7NcX2XRoAEb"; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer; metadata:author Actioner, created_at 2026-10-22; sid:2200002; rev:1;)
+
+# SID 2200003: Detects DNS query to the attacker-controlled litellm.dev domain.
+# FIX (v2): Added endswith to anchor match; removed nocase (DNS names are case-insensitive
+# in the protocol but Suricata's dns.query buffer is already normalized to lowercase).
+alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Query to litellm.dev"; dns.query; content:"litellm.dev"; endswith; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created_at 2026-10-22; sid:2200003; rev:2;)
+
+# SID 2200004: Detects HTTP fetch to the /codepy second-stage payload path.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain C2 Fetch codepy Endpoint"; flow:established,to_server; http.uri; content:"/codepy"; startswith; fast_pattern; classtype:trojan-activity; reference:url,www.wiz.io/blog/litellm-compromised-steals-credentials; metadata:author Actioner, created_at 2026-10-22; sid:2200004; rev:1;)
+
+# SID 2200005: Detects HTTP fetch of the GitHub dead-drop domain.txt resolver.
+# CAVEAT: GitHub raw.githubusercontent.com uses HTTPS exclusively. This rule
+# requires TLS-terminating inspection (SSL/TLS proxy or MITM) to see the
+# cleartext HTTP layer. Without TLS interception, use the DNS-based SID 2200003
+# or endpoint-level detection instead.
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain GitHub Dead Drop domain.txt Fetch"; flow:established,to_server; http.uri; content:"/letters9813/pythonclient-test/main/domain.txt"; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer; metadata:author Actioner, created_at 2026-10-22; sid:2200005; rev:1;)
