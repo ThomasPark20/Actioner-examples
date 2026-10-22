@@ -640,21 +640,20 @@ rule SupplyChain_LiteLLM_CookPth : litellm supply_chain
 
 ---
 
-Detects the obfuscated privcollect credential stealer (cook.py, decoded form).
+Detects the decoded privcollect credential stealer payload (~61KB decompressed).
 Compile: yarac -- validated (exit 0).
 Confidence: high
+**Note:** The strings in this rule target the **decoded/decompressed** stealer payload, not the obfuscated `cook.py` wrapper on disk. This rule fires when the payload is decompressed (e.g., during memory scanning, sandbox analysis, or after manual extraction). Meta hashes are omitted because the on-disk cook.py hashes correspond to the obfuscated form, not the decoded strings matched here.
 
 ```yara
 rule SupplyChain_LiteLLM_CookPy_Stealer : litellm supply_chain stealer
 {
     meta:
-        description = "Detects the obfuscated cook.py privcollect credential stealer from the LiteLLM v1.107.0 supply chain attack"
+        description = "Detects the decoded privcollect credential stealer payload from the LiteLLM v1.107.0 supply chain attack. Strings target the decompressed/decoded stealer module (~61KB), not the obfuscated cook.py wrapper."
         author = "Actioner"
         date = "2026-10-22"
         reference = "https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer"
         severity = "critical"
-        hash = "9dd0a3926f96a37eb86cf1ee2310d9be93139cc4ebef3ef9e2efe9531390be25"
-        hash = "03ac2a8b752605d1d7710979c17ff18b03dd978203ba23ba97fd8ce3d6f897ea"
 
     strings:
         $s1 = "privcollect" ascii
@@ -677,7 +676,39 @@ rule SupplyChain_LiteLLM_CookPy_Stealer : litellm supply_chain stealer
 }
 ```
 
-<!-- audit: yarac validated (exit 0). Targets decompressed/decoded stealer payload. RSA key prefix and X-Token are unique to this campaign. 3 of ($s*) requires multiple config variable names for high specificity. -->
+<!-- audit: yarac validated (exit 0). FIX: Changed description from "obfuscated cook.py" to "decoded stealer payload" for accuracy. Removed meta hashes (which were for the obfuscated wrapper, not the decoded payload matched by these strings). Strings target decompressed/decoded stealer. -->
+
+---
+
+Detects the obfuscated cook.py wrapper file (on-disk form, Base64 + zlib compressed).
+Compile: yarac -- validated (exit 0).
+Confidence: high
+**Note:** Companion rule to CookPy_Stealer above. This rule matches the obfuscated single-line cook.py file as it exists on disk, before decompression.
+
+```yara
+rule SupplyChain_LiteLLM_CookPy_Obfuscated : litellm supply_chain stealer
+{
+    meta:
+        description = "Detects the obfuscated cook.py wrapper file from the LiteLLM v1.107.0 supply chain attack. This is the on-disk form that uses Base64 + zlib compression as a single-line payload."
+        author = "Actioner"
+        date = "2026-10-22"
+        reference = "https://stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer"
+        severity = "critical"
+        hash = "9dd0a3926f96a37eb86cf1ee2310d9be93139cc4ebef3ef9e2efe9531390be25"
+        hash = "03ac2a8b752605d1d7710979c17ff18b03dd978203ba23ba97fd8ce3d6f897ea"
+
+    strings:
+        $decode_pattern = "exec(compile(zlib.decompress(base64.b64decode(" ascii
+        $import_pattern = "import base64,zlib" ascii
+        $alt_import = "import zlib,base64" ascii
+        $alt_import2 = "import base64, zlib" ascii
+
+    condition:
+        filesize > 10KB and filesize < 50KB and $decode_pattern and ($import_pattern or $alt_import or $alt_import2)
+}
+```
+
+<!-- audit: yarac validated (exit 0). Companion rule for the obfuscated on-disk cook.py. Meta hashes correctly match this form. Matches the Base64+zlib decompression pattern unique to this payload's encoding. -->
 
 ---
 
