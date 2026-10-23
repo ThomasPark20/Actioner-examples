@@ -1,0 +1,31 @@
+title: PHP2Shell Exploit Scanning User-Agent
+id: 8c3f1a9b-7e4d-4b2a-9f6c-5d8e0a1b3c7f
+status: experimental
+description: >
+    Detects HTTP requests whose User-Agent matches strings seen in PHP2Shell
+    scanning and PoC tooling (php2shell-scan/109618, php2shell-109618,
+    php2shell-verify/1.0, php2shell-test/2.0.0, php-session-startup-rce-poc)
+    targeting CVE-2026-109618 and CVE-2026-109619. The User-Agent is
+    attacker-controlled and trivially changed, so absence of a hit proves nothing.
+references:
+    - https://hunt.io/blog/php2shell-cve-2026-109618-109619-open-directories
+    - https://ellio.tech/en/blog/php2shell-what-we-observed-and-what-to-do/
+    - https://blog.talosintelligence.com/two-critical-rces-in-php-core/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.initial-access
+    - attack.reconnaissance
+    - attack.t1190
+    - attack.t1595.002
+logsource:
+    category: webserver
+detection:
+    selection:
+        c-useragent|contains:
+            - 'php2shell'
+            - 'php-session-startup-rce-poc'
+    condition: selection
+falsepositives:
+    - Authorized security testing using these User-Agent strings
+level: medium
