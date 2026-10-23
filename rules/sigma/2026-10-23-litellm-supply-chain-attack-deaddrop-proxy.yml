@@ -1,0 +1,27 @@
+title: LiteLLM Supply Chain - GitHub Dead Drop Resolver Access
+id: 2f9a4b71-6c8e-43d5-a1e7-9b3d5f2c8a04
+status: experimental
+description: >
+    Detects proxy-logged requests to the attacker's GitHub dead-drop path
+    (letters9813/pythonclient-test/.../domain.txt) polled hourly by the 1.107.0 loader.
+    The fetch is HTTPS, so the URI is visible only with TLS interception or a forward proxy that logs full URLs.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-docker/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.command-and-control
+    - attack.t1102.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains|all:
+            - 'letters9813'
+            - 'pythonclient-test'
+            - 'domain.txt'
+    condition: selection
+falsepositives:
+    - Researchers fetching the IOC URL
+level: medium

@@ -1,0 +1,34 @@
+title: PHP2Shell Mirai Potassium C2 Domain DNS Query
+id: 5f8a2c1d-3e6b-4d9a-a7f0-8b4c9e2d1a3f
+status: experimental
+description: >
+    Detects DNS queries (apex or subdomain) for domains used by the Mirai
+    Potassium variant dropped after PHP2Shell exploitation: godofthunder[.]st,
+    botlesscucks[.]st and gettingheadfromduckysmom[.]st (the last is a dead config entry).
+references:
+    - https://thehackernews.com/2026/10/php2shell-exploit-attempts-hit-millions.html
+    - https://hunt.io/blog/php2shell-cve-2026-109618-109619-open-directories
+    - https://ellio.tech/en/blog/php2shell-what-we-observed-and-what-to-do/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.command-and-control
+    - attack.t1568.003
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '.godofthunder.st'
+            - '.botlesscucks.st'
+            - '.gettingheadfromduckysmom.st'
+    selection_apex:
+        QueryName:
+            - 'godofthunder.st'
+            - 'botlesscucks.st'
+            - 'gettingheadfromduckysmom.st'
+    condition: selection or selection_apex
+falsepositives:
+    - Unlikely; attacker-registered domains
+level: high

@@ -1,0 +1,23 @@
+title: PHP2Shell Mirai Potassium Staging Fetch of nfs
+id: 3b6c9e1f-2a4d-47b8-8c05-1e7f9a2d4b60
+status: experimental
+description: >
+    Detects an outbound proxy-logged request for /nfs on the Potassium loader
+    host 92.118.112[.]100 (hxxp://92.118.112[.]100/nfs), the second-stage
+    fetch observed after PHP2Shell exploitation. IP-specific; the loader may rotate.
+references:
+    - https://ellio.tech/en/blog/php2shell-what-we-observed-and-what-to-do/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.command-and-control
+    - attack.t1105
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains: '92.118.112.100/nfs'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: medium

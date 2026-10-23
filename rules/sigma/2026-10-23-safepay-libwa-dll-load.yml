@@ -1,0 +1,24 @@
+title: SafePay Ransomware Libwa DLL Load
+id: 1c3e5a7b-8d0f-4e2a-b4d6-9f1c3e5a7b8d
+status: experimental
+description: >
+    Detects loading of a DLL named Libwa*.dll, listed in CISA advisory AA26-293A as
+    a supporting DLL of the SafePay wa_3rd_party_host loader.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.defense-evasion
+    - attack.t1036.005
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        ImageLoaded|contains: '\Libwa'
+        ImageLoaded|endswith: '.dll'
+    condition: selection
+falsepositives:
+    - Unrelated software shipping a DLL with a Libwa prefix
+level: medium

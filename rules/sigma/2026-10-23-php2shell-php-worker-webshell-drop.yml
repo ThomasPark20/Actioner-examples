@@ -1,0 +1,39 @@
+title: PHP2Shell Web Shell Drop by PHP Worker
+id: 4d8f2b6a-5e1c-4c93-b7a9-0f2e6d8c1b35
+status: experimental
+description: >
+    Detects a PHP/Apache worker creating files named shell.php, shell.phtml,
+    shell.php5 or shell.php.jpg, the web shell names dropped in observed
+    PHP2Shell exploitation chains. Name-based; attackers can rename.
+references:
+    - https://hunt.io/blog/php2shell-cve-2026-109618-109619-open-directories
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.persistence
+    - attack.t1505.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_proc:
+        Image|contains:
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/lsphp'
+            - '/frankenphp'
+        # apache handled below
+    selection_apache:
+        Image|endswith:
+            - '/apache2'
+            - '/httpd'
+    selection_file:
+        TargetFilename|endswith:
+            - '/shell.php'
+            - '/shell.phtml'
+            - '/shell.php5'
+            - '/shell.php.jpg'
+    condition: (selection_proc or selection_apache) and selection_file
+falsepositives:
+    - Developer tools or CMS plugins that legitimately create a file named shell.php
+level: medium

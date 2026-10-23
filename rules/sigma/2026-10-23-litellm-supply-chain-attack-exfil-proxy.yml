@@ -1,0 +1,26 @@
+title: LiteLLM Supply Chain - Exfiltration to Lookalike Domain
+id: 8a3c1e7f-4b2d-4f6a-9e8c-1d5a7b3f2e09
+status: experimental
+description: >
+    Detects an HTTP POST to /healthcheck on litellm.dev (attacker-controlled lookalike
+    of the LiteLLM project) used by the privcollect stealer in LiteLLM 1.107.0.
+    The exfil URL is plain HTTP, so the path is visible in standard proxy logs.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-method: 'POST'
+        cs-host|endswith: 'litellm.dev'
+        c-uri|contains: '/healthcheck'
+    condition: selection
+falsepositives:
+    - None expected; litellm.dev is not the project's legitimate domain
+level: high

@@ -1,0 +1,23 @@
+title: LiteLLM Supply Chain - DNS Query for Exfiltration Domain
+id: 4d6e0b58-7a21-4c93-8f15-2b9c7e1a6d30
+status: experimental
+description: >
+    Detects DNS resolution of litellm.dev, the lookalike domain used by the LiteLLM 1.107.0
+    privcollect stealer for exfiltration. Works without TLS interception or proxy logs.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'litellm.dev'
+    condition: selection
+falsepositives:
+    - Security researchers or sandboxes resolving the IOC
+level: high

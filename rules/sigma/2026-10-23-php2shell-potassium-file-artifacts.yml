@@ -1,0 +1,27 @@
+title: PHP2Shell Mirai Potassium Dropper File Artifacts
+id: 6e1d4a7b-9c2f-4f35-a8d0-7b3c5e9f1a24
+status: experimental
+description: >
+    Detects creation of /tmp/nfs (Potassium dropper) or /dev/shm/.cache.so
+    (one-byte probe written at Potassium startup). Requires Linux file-event
+    telemetry (auditd, Sysmon for Linux, EDR).
+references:
+    - https://ellio.tech/en/blog/php2shell-what-we-observed-and-what-to-do/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.command-and-control
+    - attack.t1105
+    - attack.t1036.011
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/nfs'
+            - '/dev/shm/.cache.so'
+    condition: selection
+falsepositives:
+    - A legitimate file literally named /tmp/nfs (rare)
+level: medium
