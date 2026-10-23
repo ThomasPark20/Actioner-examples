@@ -1,0 +1,27 @@
+title: SafePay Ransomware Known Executable Hashes
+id: 8a1e3f7b-4c2d-4e9a-b8f1-6d3a5c7e9b2f
+status: experimental
+description: >
+    Detects process creation where the image hash matches an executable listed in
+    CISA advisory AA26-293A (1.exe, nxc, SharpShares.exe). Requires the Sysmon
+    Hashes field (EID 1) or equivalent EDR mapping with SHA1/SHA256 enabled.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.execution
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - '07353237350c35d6dc2c8f143b649cd07c71f62b'  # 1.exe (SHA-1)
+            - 'd711a5af5aed48a3b36b98f4fcf52809aebef7a2'  # nxc (SHA-1, NetExec; dual-use)
+            - 'bbdd3620a67aedec4b9a68b2c9cc880b6631215e129816aea19902a6f4bc6f41'  # SharpShares.exe (SHA-256)
+    condition: selection
+falsepositives:
+    - NetExec and SharpShares hashes may match authorized penetration-test tooling
+level: high

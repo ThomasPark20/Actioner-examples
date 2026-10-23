@@ -1,0 +1,23 @@
+title: SafePay Ransomware File Extension
+id: 3c5e7a9b-2f4d-6b8c-0e1a-5d9f3b7c4e6a
+status: experimental
+description: >
+    Detects creation of files with the .SafePay extension, indicating active
+    SafePay ransomware encryption as described in CISA advisory AA26-293A.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.impact
+    - attack.t1486
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.SafePay'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical

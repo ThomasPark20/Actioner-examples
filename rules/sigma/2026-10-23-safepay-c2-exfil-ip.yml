@@ -1,0 +1,28 @@
+title: SafePay Ransomware C2 and Exfiltration IP Communication
+id: 4d6f8b0c-3a5e-7c9d-1f2b-6e0a4c8d2f7b
+status: experimental
+description: >
+    Detects outbound connections to the soc.dll C2 IP and the two exfiltration IPs
+    listed in CISA advisory AA26-293A. IOCs were observed Nov 2024 - Aug 2026 and
+    may have been reassigned; use for retrospective hunting.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.command-and-control
+    - attack.exfiltration
+    - attack.t1048
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp:
+            - '88.119.167.239'
+            - '5.255.11.134'
+            - '37.10.71.188'
+    condition: selection
+falsepositives:
+    - Reassigned or shared hosting addresses since the advisory observation window
+level: medium

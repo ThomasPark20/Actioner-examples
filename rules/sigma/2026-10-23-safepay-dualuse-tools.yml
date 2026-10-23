@@ -1,0 +1,30 @@
+title: SafePay Ransomware Associated Dual-Use Tools
+id: 6f8a0c2e-7b9d-4d1f-a3c5-8e0b2d4f6a9c
+status: experimental
+description: >
+    Lower-confidence detection of dual-use tools named in CISA advisory AA26-293A
+    (NetExec nxc.exe, SharpShares.exe, ShareFinder.ps1). Triage against
+    authorized pentest activity; these are not SafePay-exclusive.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.discovery
+    - attack.t1135
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binaries:
+        - Image|endswith:
+              - '\nxc.exe'
+              - '\SharpShares.exe'
+        - OriginalFileName: 'SharpShares.exe'
+    selection_script:
+        CommandLine|contains: 'ShareFinder.ps1'
+    condition: selection_binaries or selection_script
+falsepositives:
+    - Authorized penetration testing and red team exercises
+    - Administrators auditing share exposure
+level: medium

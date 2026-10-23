@@ -1,0 +1,32 @@
+title: SafePay Ransomware Named Tool and Loader Execution
+id: 2b4d6f8a-1e3c-5a7b-9d0f-4c8e2a6b1d3f
+status: experimental
+description: >
+    Detects execution of file names called out in CISA advisory AA26-293A as SafePay
+    tooling or masquerading: dcsync.exe, DYRasWtb.exe, Socks_werfault.exe (fake
+    werfault) and the wa_3rd_party_host_*.exe loader pattern.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.credential-access
+    - attack.t1003.006
+    - attack.defense-evasion
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_names:
+        Image|endswith:
+            - '\dcsync.exe'
+            - '\DYRasWtb.exe'
+            - '\Socks_werfault.exe'
+    selection_loader:
+        Image|contains: '\wa_3rd_party_host_'
+        Image|endswith: '.exe'
+    condition: selection_names or selection_loader
+falsepositives:
+    - A legitimate tool that happens to be named dcsync.exe
+level: high

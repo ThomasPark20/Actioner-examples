@@ -1,0 +1,31 @@
+title: SafePay Ransomware Known DLL Hashes
+id: 9b2f4a8c-5d3e-4f0b-c9a2-7e4b6d8f0c3a
+status: experimental
+description: >
+    Detects image loads where the DLL hash matches a SafePay component listed in
+    CISA advisory AA26-293A (soc.dll, RunPE DLL, locker.dll variants, injected PE).
+    Requires Sysmon EID 7 with hashing enabled or equivalent EDR mapping.
+references:
+    - https://www.cisa.gov/news-events/cybersecurity-advisories/aa26-293a
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.execution
+    - attack.t1204.002
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection:
+        Hashes|contains:
+            - '921df888aaabcd828a3723f4c9f5fe8b8379c6b7067d16b2ea10152300417eae'  # soc.dll
+            - '6c1d36df94ebe367823e73ba33cfb4f40756a5e8ee1e30e8f0ae55d47e220a6a'  # RunPE DLL
+            - 'e79608cf1d6b51324c14bef8883054c1238ed5f080222cc464810e6e14adc346'  # injected PE (file type unconfirmed)
+            - '327b8b61eb446cc4f710771e44484f62b804ae3d262b57a56575053e2df67917'  # locker.dll
+            - 'a0dc80a37eb7e2716c02a94adc8df9baedec192a77bde31669faed228d9ff526'  # locker.dll variant
+            - 'b498a2683640c983bb069fa2ea9e67cef4a3797d'  # Locker.dll (SHA-1)
+            - 'bbfed53e3bb1f306f4da97d995cf4ae5b73ad081'  # locker.dll variant (SHA-1)
+    condition: selection
+falsepositives:
+    - Unlikely
+level: high
