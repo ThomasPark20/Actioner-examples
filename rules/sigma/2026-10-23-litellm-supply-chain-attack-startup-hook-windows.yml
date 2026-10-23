@@ -1,0 +1,29 @@
+title: LiteLLM Supply Chain - Malicious cook.pth/cook.py in site-packages (Windows)
+id: 7b1c9d44-0e5a-4f27-a3d8-6c2e8f4b9a15
+status: experimental
+description: >
+    Windows-path variant: detects creation of cook.pth or cook.py inside a Python site-packages
+    directory, the startup-hook files injected by the LiteLLM 1.107.0 wheels.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.persistence
+    - attack.t1546.018
+    - attack.t1195.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_dir:
+        TargetFilename|contains: '\site-packages\'
+    selection_file:
+        TargetFilename|endswith:
+            - '\cook.pth'
+            - '\cook.py'
+    condition: selection_dir and selection_file
+falsepositives:
+    - An unrelated package that ships a top-level cook.py or cook.pth (very rare)
+level: high

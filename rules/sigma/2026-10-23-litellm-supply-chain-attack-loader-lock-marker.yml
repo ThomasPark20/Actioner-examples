@@ -1,0 +1,27 @@
+title: LiteLLM Supply Chain - Loader Lock and Marker File Creation
+id: 9c2d8e14-3a5f-47b1-b6f9-4e7c1a8d5b23
+status: experimental
+description: >
+    Detects creation of /tmp/remote_code_loader.lock or the /tmp/.pc_once_ upload marker,
+    runtime artifacts specific to the malicious LiteLLM 1.107.0 payload.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+    - https://www.kodemsecurity.com/resources/litellm-supply-chain-attack-litellm-1-107-0-affected-versions-iocs-and-first-hour-response-runbook
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.execution
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_lock:
+        TargetFilename: '/tmp/remote_code_loader.lock'
+    selection_marker:
+        TargetFilename: '/tmp/.pc_once_72129118c59f5636c0bb'
+    condition: selection_lock or selection_marker
+falsepositives:
+    - Unlikely; file names are specific to this malware
+level: high

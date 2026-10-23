@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-23
-Version: DRAFT 1.0
+Version: 1.1 (revised)
 
 ## Executive Summary
 
@@ -201,7 +201,7 @@ Historical dead-drop values observed: `localhost:18909` and `test[.]test[.]com:1
 - Environment variable `PRIVCOLLECT_ACTIVE=1` set in process environment
 - Outbound HTTP POST to `/healthcheck` with `X-Token` header and `application/octet-stream` content type
 - AWS STS `GetCallerIdentity` calls from the host around installation time
-- Hourly outbound HTTP to `raw.githubusercontent.com` for dead-drop resolution
+- Hourly outbound HTTP to `raw[.]githubusercontent[.]com` for dead-drop resolution
 - Reads of `LiteLLM_CredentialsTable` and `LiteLLM_ProxyModelTable` via Prisma when `DATABASE_URL` is set
 - Files `cook.pth`, `cook.py`, `sitecustomize.py` in Python site-packages root directory
 
@@ -211,7 +211,7 @@ Historical dead-drop values observed: `localhost:18909` and `test[.]test[.]com:1
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Malicious code injected into LiteLLM's build pipeline via compromised release workflow |
 | T1528 | Steal Application Access Token | GitHub CLI OAuth tokens stolen from three engineers to trigger the release |
-| T1546 | Event Triggered Execution | `.pth` file and `sitecustomize.py` execute malicious code at every Python interpreter startup |
+| T1546.018 | Event Triggered Execution: Python Startup Hooks | `.pth` file and `sitecustomize.py` execute malicious code at every Python interpreter startup |
 | T1059.006 | Command and Scripting Interpreter: Python | Payload is Python code executed via interpreter startup hooks and `exec()` |
 | T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | Payload source is Base64-encoded and zlib-compressed |
 | T1140 | Deobfuscate/Decode Files or Information | Runtime decoding of Base64+zlib payload before execution |
@@ -221,9 +221,9 @@ Historical dead-drop values observed: `localhost:18909` and `test[.]test[.]com:1
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Extracts Chromium and Firefox login databases, cookies, autofill |
 | T1102.001 | Web Service: Dead Drop Resolver | Polls GitHub repository for C2 domain instructions |
 | T1105 | Ingress Tool Transfer | Downloads and executes remote Python code from C2 |
-| T1041 | Exfiltration Over C2 Channel | Stolen data encrypted and uploaded to attacker-controlled domain |
-| T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-256-CBC encryption of exfiltrated data |
-| T1573.002 | Encrypted Channel: Asymmetric Cryptography | RSA-4096 OAEP wrapping of session key |
+| T1041 | Exfiltration Over C2 Channel | Stolen data uploaded over HTTP POST to attacker-controlled domain |
+| T1560 | Archive Collected Data | Collected data packed into a gzip TAR archive |
+| T1020 | Automated Exfiltration | Collector uploads automatically on interpreter start |
 
 ## Impact Assessment
 
@@ -242,37 +242,35 @@ Historical dead-drop values observed: `localhost:18909` and `test[.]test[.]com:1
 Check for the presence of malicious files (do NOT use the compromised environment's Python interpreter):
 
 ```bash
-# Check for malicious files in all Python environments (use system tools, not Python)
-find / -name "cook.pth" -o -name "cook.py" -path "*/site-packages/*" 2>/dev/null
-find / -name "sitecustomize.py" -path "*/site-packages/*" -newer /tmp 2>/dev/null
+# Startup-hook files in any site-packages/dist-packages (no Python needed)
+find / \( -name cook.pth -o -name cook.py \) \( -path '*/site-packages/*' -o -path '*/dist-packages/*' \) 2>/dev/null
+# sitecustomize.py is legitimate in some environments: review, then compare SHA256 to the IOC table
+find / -name sitecustomize.py \( -path '*/site-packages/*' -o -path '*/dist-packages/*' \) -exec sha256sum {} + 2>/dev/null
 
-# Check for runtime artifacts
-ls -la /tmp/remote_code_loader.lock /tmp/.pc_once_72129118c59f5636c0bb 2>/dev/null
+# Runtime artifacts
+ls -la /tmp/remote_code_loader.lock /tmp/.pc_once_* /tmp/.pc_sq_* /tmp/.pc_e_* 2>/dev/null
 
-# Check for the detached loader process
-ps aux | grep -E 'python.*setsid|python.*/' | grep -v grep
+# Detached loader candidates: python processes whose cwd is / (review manually)
+for p in $(pgrep -x 'python[0-9.]*'); do [ "$(readlink /proc/$p/cwd)" = / ] && ps -o pid,ppid,lstart,cmd -p $p; done
 
-# Check installed litellm version (use pip show via unzip, not pip directly)
-unzip -p $(find / -name "litellm-*.dist-info" -path "*/METADATA" 2>/dev/null | head -1) | grep Version
+# Installed litellm version without invoking Python
+find / -type d -name 'litellm-1.107.0.dist-info' 2>/dev/null
 
-# Check Docker image digests
+# Docker images
 docker images --digests | grep -i litellm
 
-# Check for exfiltration in proxy/firewall logs
-grep -i 'litellm\.dev' /var/log/proxy/*.log 2>/dev/null
-grep -i 'letters9813' /var/log/proxy/*.log 2>/dev/null
-
-# Verify wheel hashes against known-bad list
-pip cache list litellm 2>/dev/null | xargs sha256sum 2>/dev/null
+# Proxy/firewall logs for IOCs
+grep -rEi 'litellm\.dev|letters9813' /var/log/proxy/ 2>/dev/null
 ```
 
 ### Remediation
 
+> Advisory, not validated: steps below follow vendor/third-party guidance and have not been tested against the payload.
+
 1. **Isolate** affected systems immediately. Do not run Python on them.
-2. **Remove** malicious files manually (not via pip):
-   - Delete `cook.pth`, `cook.py`, and `sitecustomize.py` from all `site-packages` directories
-   - Kill any orphaned Python processes with CWD `/`
-   - Remove `/tmp/remote_code_loader.lock` and `/tmp/.pc_once_*`
+2. **Contain and preserve evidence**: kill orphaned Python processes with CWD `/`, snapshot the host/volume, and capture the files above for analysis.
+   - Prefer rebuilding or reimaging over manual cleanup; do not blindly delete `sitecustomize.py`, since legitimate instrumentation may own that file and the payload may have persisted elsewhere.
+   - If manual cleanup is unavoidable, remove `cook.pth`, `cook.py`, the malicious `sitecustomize.py`, `/tmp/remote_code_loader.lock` and `/tmp/.pc_once_*`.
 3. **Pin** to LiteLLM 1.106.2 by version and hash. Use digest-pinned Docker images.
 4. **Rotate ALL credentials** that were accessible from compromised environments:
    - Cloud provider credentials (AWS, Azure, GCP)
@@ -283,7 +281,7 @@ pip cache list litellm 2>/dev/null | xargs sha256sum 2>/dev/null
    - Browser saved passwords
    - LiteLLM proxy stored credentials
 5. **Audit logs** for use of exposed credentials during and after the exposure window.
-6. **Rebuild** affected environments from clean images/backups.
+6. **Rebuild** affected environments from clean images/backups (preferred over step 2 manual cleanup).
 7. **Review** GitHub organization access, revoke all tokens, enable mandatory 2FA and branch protection.
 
 ### Long-Term Hardening
@@ -299,62 +297,96 @@ pip cache list litellm 2>/dev/null | xargs sha256sum 2>/dev/null
 
 ## Detection Rules
 
-These detections target the specific IOCs from the LiteLLM 1.107.0 supply chain compromise at PoC/advisory-specific altitude. Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; YARA rules compile and fire on constructed positive samples. `sigma check` was unavailable due to a network-blocked MITRE ATT&CK data fetch; portability was proven via `sigma convert`. Suricata rules are structural-check only (not installed).
+PoC/advisory-specific detections keyed on the 1.107.0 IOCs; no behavioral-TTP rules. Sigma converts to Splunk and CrowdStrike LogScale; YARA compiles; Suricata is uncompiled.
 
-### Sigma: LiteLLM Exfiltration to Lookalike Domain
+<!-- audit: toolchain: sigma-cli (splunk, log_scale backends; `sigma check` blocked by proxy), yarac/yara run, snort/suricata not installed. Run /actioner:setup for full toolchain. -->
 
-Detects HTTP POST to the `litellm[.]dev/healthcheck` exfiltration endpoint used by the privcollect stealer.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data 403); splunk convert exit 0; log_scale convert exit 0. Keys on the specific exfil domain+path pair. Low FP: litellm.dev is attacker-controlled, /healthcheck path alone is generic but domain scopes it. -->
+### Sigma: Exfiltration to Lookalike Domain (proxy)
+
+Flags HTTP POST to `/healthcheck` on `litellm[.]dev`, the stealer's plain-HTTP upload endpoint.
+**Status:** converts (splunk, logscale); sigma check not run · confidence: high
+<!-- audit: sigma check unavailable (MITRE data fetch blocked); splunk and log_scale convert exit 0 with --without-pipeline. Host matched by endswith; t1567 tag dropped (attacker domain, not a web service). -->
 ```yaml
 title: LiteLLM Supply Chain - Exfiltration to Lookalike Domain
 id: 8a3c1e7f-4b2d-4f6a-9e8c-1d5a7b3f2e09
 status: experimental
 description: >
-    Detects HTTP POST requests to the litellm.dev exfiltration endpoint used by
-    the malicious LiteLLM 1.107.0 supply chain package. The credential stealer
-    uploads encrypted data to /healthcheck on the lookalike domain.
+    Detects an HTTP POST to /healthcheck on litellm.dev (attacker-controlled lookalike
+    of the LiteLLM project) used by the privcollect stealer in LiteLLM 1.107.0.
+    The exfil URL is plain HTTP, so the path is visible in standard proxy logs.
 references:
     - https://socket.dev/blog/litellm-compromise
     - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
 author: Actioner
 date: 2026/10/23
 tags:
+    - attack.exfiltration
     - attack.t1041
-    - attack.t1567
 logsource:
     category: proxy
 detection:
     selection:
+        cs-method: 'POST'
+        cs-host|endswith: 'litellm.dev'
         c-uri|contains: '/healthcheck'
-        r-dns|contains: 'litellm.dev'
     condition: selection
 falsepositives:
-    - Legitimate health check endpoints on unrelated services (filter by domain)
+    - None expected; litellm.dev is not the project's legitimate domain
 level: high
 ```
 
-### Sigma: LiteLLM Dead Drop Resolver Access
+### Sigma: DNS Query for Exfiltration Domain
 
-Detects proxy traffic to the GitHub-hosted dead-drop URL used by the RAT backdoor to resolve C2 domains.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data 403); splunk convert exit 0; log_scale convert exit 0. Keys on three URI fragments specific to the attacker's dead-drop repo path. Near-zero FP risk. -->
+Flags resolution of `litellm[.]dev`; portable detection that needs no TLS interception.
+**Status:** converts (splunk, logscale); sigma check not run · confidence: high
+<!-- audit: sigma check unavailable (MITRE data fetch blocked); splunk and log_scale convert exit 0 with --without-pipeline. Added in revision per critic. -->
+```yaml
+title: LiteLLM Supply Chain - DNS Query for Exfiltration Domain
+id: 4d6e0b58-7a21-4c93-8f15-2b9c7e1a6d30
+status: experimental
+description: >
+    Detects DNS resolution of litellm.dev, the lookalike domain used by the LiteLLM 1.107.0
+    privcollect stealer for exfiltration. Works without TLS interception or proxy logs.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'litellm.dev'
+    condition: selection
+falsepositives:
+    - Security researchers or sandboxes resolving the IOC
+level: high
+```
+
+### Sigma: GitHub Dead Drop Resolver Access (proxy)
+
+Flags the `letters9813/pythonclient-test/.../domain.txt` fetch; requires TLS interception or a proxy that logs full HTTPS URLs.
+**Status:** converts (splunk, logscale); sigma check not run · confidence: medium
+<!-- audit: sigma check unavailable (MITRE data fetch blocked); splunk and log_scale convert exit 0 with --without-pipeline. Lowered from high: HTTPS path invisible without interception. DNS wording and t1105 tag removed. Dead-drop pointer returned empty body at 13:01 UTC. -->
 ```yaml
 title: LiteLLM Supply Chain - GitHub Dead Drop Resolver Access
 id: 2f9a4b71-6c8e-43d5-a1e7-9b3d5f2c8a04
 status: experimental
 description: >
-    Detects DNS queries or proxy requests to the GitHub-hosted dead drop URL used by
-    the LiteLLM 1.107.0 RAT backdoor to retrieve C2 domain instructions. The loader
-    polls raw.githubusercontent.com for letters9813/pythonclient-test/main/domain.txt hourly.
+    Detects proxy-logged requests to the attacker's GitHub dead-drop path
+    (letters9813/pythonclient-test/.../domain.txt) polled hourly by the 1.107.0 loader.
+    The fetch is HTTPS, so the URI is visible only with TLS interception or a forward proxy that logs full URLs.
 references:
     - https://socket.dev/blog/litellm-compromise
     - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-docker/
 author: Actioner
 date: 2026/10/23
 tags:
+    - attack.command-and-control
     - attack.t1102.001
-    - attack.t1105
 logsource:
     category: proxy
 detection:
@@ -365,71 +397,105 @@ detection:
             - 'domain.txt'
     condition: selection
 falsepositives:
-    - Unlikely - specific to the attacker-controlled repository path
-level: critical
+    - Researchers fetching the IOC URL
+level: medium
 ```
 
-### Sigma: LiteLLM Malicious Python Startup Hook Files
+### Sigma: Malicious cook.pth/cook.py in site-packages (Linux/macOS and Windows)
 
-Detects creation of the three malicious files (`cook.pth`, `cook.py`, `sitecustomize.py` in site-packages) dropped by the compromised package.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data 403); splunk convert exit 0; log_scale convert exit 0. cook.pth and cook.py are highly distinctive. sitecustomize.py scoped to site-packages to reduce FP (legitimate sitecustomize.py exists but is rare in production). -->
+Flags creation of `cook.pth` or `cook.py` inside site-packages/dist-packages; Linux and Windows path variants are separate rules.
+**Status:** converts (splunk, logscale); sigma check not run · confidence: medium
+<!-- audit: sigma check unavailable (MITRE data fetch blocked); splunk and log_scale convert exit 0 with --without-pipeline. Revision: sitecustomize.py clause dropped (FPs on ddtrace/OpenTelemetry; rely on hash IOCs for that file); cook.py scoped to site-packages; Windows backslash variant added; t1546.018 used. macOS telemetry would need its own product value. -->
 ```yaml
-title: LiteLLM Supply Chain - Malicious Python Startup Hook Files
+title: LiteLLM Supply Chain - Malicious cook.pth/cook.py in site-packages (Linux/macOS)
 id: 5e7b3a92-1d4f-48c6-b2e9-8f6c4a1d3b07
 status: experimental
 description: >
-    Detects creation of the malicious files dropped by the LiteLLM 1.107.0 supply chain
-    package. The payload installs cook.pth, cook.py, and a malicious sitecustomize.py
-    in the Python site-packages directory to achieve persistence via interpreter startup hooks.
+    Detects creation of cook.pth or cook.py inside a Python site-packages or dist-packages
+    directory, the startup-hook files injected by the LiteLLM 1.107.0 wheels.
 references:
     - https://socket.dev/blog/litellm-compromise
     - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
 author: Actioner
 date: 2026/10/23
 tags:
-    - attack.t1546
+    - attack.persistence
+    - attack.t1546.018
     - attack.t1195.001
 logsource:
     category: file_event
+    product: linux
 detection:
-    selection_pth:
-        TargetFilename|endswith: '/cook.pth'
-    selection_cook:
-        TargetFilename|endswith: '/cook.py'
-    selection_sitecustomize:
-        TargetFilename|contains|all:
-            - 'site-packages'
-            - 'sitecustomize.py'
-    condition: selection_pth or selection_cook or selection_sitecustomize
+    selection_dir:
+        TargetFilename|contains:
+            - '/site-packages/'
+            - '/dist-packages/'
+    selection_file:
+        TargetFilename|endswith:
+            - '/cook.pth'
+            - '/cook.py'
+    condition: selection_dir and selection_file
 falsepositives:
-    - Legitimate sitecustomize.py in site-packages (rare in production; cook.pth and cook.py are highly specific)
+    - An unrelated package that ships a top-level cook.py or cook.pth (very rare)
 level: high
 ```
 
-### Sigma: LiteLLM Loader Lock and Marker Files
+```yaml
+title: LiteLLM Supply Chain - Malicious cook.pth/cook.py in site-packages (Windows)
+id: 7b1c9d44-0e5a-4f27-a3d8-6c2e8f4b9a15
+status: experimental
+description: >
+    Windows-path variant: detects creation of cook.pth or cook.py inside a Python site-packages
+    directory, the startup-hook files injected by the LiteLLM 1.107.0 wheels.
+references:
+    - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/23
+tags:
+    - attack.persistence
+    - attack.t1546.018
+    - attack.t1195.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_dir:
+        TargetFilename|contains: '\site-packages\'
+    selection_file:
+        TargetFilename|endswith:
+            - '\cook.pth'
+            - '\cook.py'
+    condition: selection_dir and selection_file
+falsepositives:
+    - An unrelated package that ships a top-level cook.py or cook.pth (very rare)
+level: high
+```
 
-Detects creation of the remote code loader lock file and credential upload marker, both specific to this payload.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data 403); splunk convert exit 0; log_scale convert exit 0. Keys on exact file paths unique to this malware. Zero expected FP. -->
+### Sigma: Loader Lock and Marker File Creation
+
+Flags `/tmp/remote_code_loader.lock` and the `/tmp/.pc_once_*` marker, both unique to this payload.
+**Status:** converts (splunk, logscale); sigma check not run · confidence: high
+<!-- audit: sigma check unavailable (MITRE data fetch blocked); splunk and log_scale convert exit 0 with --without-pipeline. Added product: linux; tags trimmed to t1059.006. -->
 ```yaml
 title: LiteLLM Supply Chain - Loader Lock and Marker File Creation
 id: 9c2d8e14-3a5f-47b1-b6f9-4e7c1a8d5b23
 status: experimental
 description: >
-    Detects creation of the remote code loader lock file and the credential upload
-    marker file used by the malicious LiteLLM 1.107.0 payload. These files are
-    created in /tmp during execution of the supply chain malware.
+    Detects creation of /tmp/remote_code_loader.lock or the /tmp/.pc_once_ upload marker,
+    runtime artifacts specific to the malicious LiteLLM 1.107.0 payload.
 references:
     - https://socket.dev/blog/litellm-compromise
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
     - https://www.kodemsecurity.com/resources/litellm-supply-chain-attack-litellm-1-107-0-affected-versions-iocs-and-first-hour-response-runbook
 author: Actioner
 date: 2026/10/23
 tags:
+    - attack.execution
     - attack.t1059.006
-    - attack.t1546
 logsource:
     category: file_event
+    product: linux
 detection:
     selection_lock:
         TargetFilename: '/tmp/remote_code_loader.lock'
@@ -437,81 +503,67 @@ detection:
         TargetFilename: '/tmp/.pc_once_72129118c59f5636c0bb'
     condition: selection_lock or selection_marker
 falsepositives:
-    - Unlikely - file names are specific to this malware
-level: critical
+    - Unlikely; file names are specific to this malware
+level: high
 ```
 
-### Suricata: LiteLLM Exfiltration and Dead Drop Access
+### Suricata: Exfiltration to litellm.dev
 
-Detects outbound HTTP to the exfiltration endpoint and the dead-drop resolver. Scope to source trees running Python workloads.
-**Status:** compile ⚠️ uncompiled (structural check only -- suricata not installed) · confidence: high
-<!-- audit: structural review only. Both rules use dot-notation sticky buffers (http.host, http.uri, http.header, http.method). SID range 2200000+. -->
+Matches POST to `/healthcheck` on `litellm[.]dev` with the static `X-Token` header (plain HTTP).
+**Status:** ⚠️ uncompiled (structural check only) · confidence: medium
+<!-- audit: suricata not installed; structural review only. Dead-drop rule (sid 2200002) dropped per critic: fetch is HTTPS so http.host/http.uri are not visible to Suricata; proxy Sigma rule covers it. Header token is static and may rotate in variants. -->
 ```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfiltration to litellm.dev"; flow:established,to_server; http.method; content:"POST"; http.host; content:"litellm.dev"; http.uri; content:"/healthcheck"; http.header; content:"X-Token|3a 20|XWiA8gZNa7NcX2XRoAEb"; classtype:trojan-activity; reference:url,socket.dev/blog/litellm-compromise; metadata: author Actioner, created_at 2026-10-23; sid:2200001; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Dead Drop Resolver Access"; flow:established,to_server; http.host; content:"raw.githubusercontent.com"; http.uri; content:"/letters9813/pythonclient-test/"; content:"domain.txt"; classtype:trojan-activity; reference:url,socket.dev/blog/litellm-compromise; metadata: author Actioner, created_at 2026-10-23; sid:2200002; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfiltration to litellm.dev"; flow:established,to_server; http.method; content:"POST"; http.host; content:"litellm.dev"; endswith; http.uri; content:"/healthcheck"; http.header; content:"X-Token|3a 20|XWiA8gZNa7NcX2XRoAEb"; classtype:trojan-activity; reference:url,socket.dev/blog/litellm-compromise; metadata: author Actioner, created_at 2026-10-23; sid:2200001; rev:2;)
 ```
 
-### YARA: LiteLLM Malicious Payload Detection
+### YARA: Decoded Payload and Wheel Detection
 
-Detects the cook.py credential stealer, sitecustomize.py backdoor, or cook.pth startup hook by specific strings unique to this campaign.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara fired on pos_cook.txt (12-byte cook.pth content "import cook") and pos_payload.txt (file with 3+ privcollect strings). Quiet on neg_cook.txt and neg_payload.txt. Strings sourced from Socket.dev and Kodem IOC lists. -->
+First rule matches the decoded/in-memory stealer and loader only (on-disk files are Base64+zlib); second matches the malicious wheel's zip entry names.
+**Status:** compiles (yarac exit 0) · confidence: medium · sample: synthetic only, not validated on a real sample
+<!-- audit: yarac exit 0; yara fires on hand-built positives (pos.txt, pos.whl) and is quiet on negatives. Revision: removed UA+/healthcheck clause (too broad), cook.pth clause (duplicates SHA256 IOC), dead $maturin_cook branch; wheel rule keys on full zip entry names and the PK header. -->
 ```yara
-rule SupplyChain_LiteLLM_CookPayload
+rule SupplyChain_LiteLLM_CookPayload_Decoded
 {
     meta:
-        description = "Detects the malicious cook.py credential stealer or sitecustomize.py backdoor loader from the LiteLLM 1.107.0 supply chain compromise"
+        description = "LiteLLM 1.107.0 privcollect stealer / remote code loader, DECODED or in-memory form only (on-disk cook.py and sitecustomize.py are Base64+zlib and will not match)"
         author = "Actioner"
         date = "2026-10-23"
         reference = "https://socket.dev/blog/litellm-compromise"
-        severity = "critical"
+        scope = "process memory, decoded payload dumps, sandbox captures"
+        validation = "synthetic positives only; not validated on a real sample"
 
     strings:
-        $pth_content = "import cook" ascii fullword
         $env_marker = "PRIVCOLLECT_ACTIVE" ascii
         $marker_path = ".pc_once_72129118c59f5636c0bb" ascii
         $lock_path = "remote_code_loader.lock" ascii
-        $exfil_endpoint = "/healthcheck" ascii
         $exfil_header = "XWiA8gZNa7NcX2XRoAEb" ascii
         $deaddrop_repo = "letters9813/pythonclient-test" ascii
         $deaddrop_file = "domain.txt" ascii
-        $ua_string = "Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 10.0; WOW64; Trident/7.0)" ascii
 
     condition:
         filesize < 200KB and
         (
-            ($pth_content and filesize < 100) or
-            (3 of ($env_marker, $marker_path, $lock_path, $exfil_endpoint, $exfil_header)) or
-            ($deaddrop_repo and $deaddrop_file) or
-            ($env_marker and $exfil_header) or
-            ($ua_string and $exfil_endpoint)
+            2 of ($env_marker, $marker_path, $lock_path, $exfil_header) or
+            ($deaddrop_repo and $deaddrop_file)
         )
 }
 
 rule SupplyChain_LiteLLM_WheelIOCs
 {
     meta:
-        description = "Detects LiteLLM 1.107.0 malicious wheel package by structural indicators in the archive content"
+        description = "Malicious litellm-1.107.0 wheel (zip) carrying cook.pth/cook.py/sitecustomize.py under .data/purelib/"
         author = "Actioner"
         date = "2026-10-23"
         reference = "https://socket.dev/blog/litellm-compromise"
-        severity = "critical"
+        validation = "synthetic zip only; not validated on a real wheel"
 
     strings:
-        $wheel_name = "litellm-1.107.0" ascii
-        $data_dir = "litellm-1.107.0.data/purelib/" ascii
-        $cook_pth = "cook.pth" ascii
-        $cook_py = "cook.py" ascii
-        $maturin_cook = "data = \"cook\"" ascii
+        $cook_pth = "litellm-1.107.0.data/purelib/cook.pth" ascii
+        $cook_py = "litellm-1.107.0.data/purelib/cook.py" ascii
+        $sitecustomize = "litellm-1.107.0.data/purelib/sitecustomize.py" ascii
 
     condition:
-        filesize < 50MB and
-        $wheel_name and
-        (
-            ($data_dir and ($cook_pth or $cook_py)) or
-            $maturin_cook
-        )
+        uint32(0) == 0x04034b50 and filesize < 50MB and 2 of them
 }
 ```
 
@@ -519,7 +571,7 @@ rule SupplyChain_LiteLLM_WheelIOCs
 
 1. **AI infrastructure is a high-value supply chain target.** LiteLLM's role as a credential aggregator (storing API keys for dozens of AI providers) makes it an exceptionally attractive target. A single compromise can yield access to every downstream AI service.
 
-2. **GitHub CLI OAuth tokens are a critical attack surface.** The attackers bypassed branch protection, code review, and trusted publishing by stealing GitHub CLI tokens from developer machines. Organizations should audit OAuth token scopes, enforce short-lived tokens, and require hardware security keys for release workflows.
+2. **GitHub CLI OAuth tokens are a critical attack surface.** The attackers used stolen GitHub CLI tokens from developer machines to trigger and approve a release workflow, sidestepping normal release controls (which controls were bypassed is not publicly detailed). Organizations should audit OAuth token scopes, enforce short-lived tokens, and require hardware security keys for release workflows.
 
 3. **Python startup hooks are a powerful persistence mechanism.** `.pth` files and `sitecustomize.py` execute before any user code, including diagnostic tools. Defenders must inspect Python environments without invoking the interpreter — treating `.pth` file creation as a high-fidelity detection signal.
 
