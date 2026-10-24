@@ -1,0 +1,150 @@
+title: LiteLLM Supply Chain - Malicious cook.pth File Creation in Python Site-Packages
+id: 8a3e7c1b-4d2f-4e9a-b5c6-1f0d8e2a7b3c
+status: experimental
+description: >
+    Detects creation of the malicious cook.pth file in Python site-packages directories,
+    a persistence mechanism used in the LiteLLM 1.107.0 supply chain compromise to execute
+    credential-stealing code on every Python interpreter startup.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1546.018
+    - attack.t1195.001
+logsource:
+    category: file_event
+detection:
+    selection_filename:
+        TargetFilename|endswith: '/cook.pth'
+    selection_path:
+        TargetFilename|contains: 'site-packages'
+    condition: selection_filename and selection_path
+falsepositives:
+    - Legitimate Python packages named 'cook' that use .pth files (unlikely in combination with site-packages path)
+level: critical
+---
+title: LiteLLM Supply Chain - Credential Exfiltration to litellm.dev
+id: 2f4a8b6c-7e1d-4c3a-9d5f-0b2e8a1c6d4f
+status: experimental
+description: >
+    Detects network connections to the malicious litellm.dev domain used as the exfiltration
+    endpoint in the LiteLLM 1.107.0 supply chain compromise. The attacker-registered domain
+    mimics the legitimate project and receives stolen credentials via HTTP POST.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'litellm.dev'
+    condition: selection
+falsepositives:
+    - None expected; litellm.dev is an attacker-registered domain distinct from litellm.ai (the legitimate project domain)
+level: critical
+---
+title: LiteLLM Supply Chain - Stealer Marker File Creation
+id: 5c9d1e7a-3b4f-4a2e-8f6c-0d1b9a5e7c3f
+status: experimental
+description: >
+    Detects creation of the run-once marker file /tmp/.pc_once_72129118c59f5636c0bb
+    written by the LiteLLM 1.107.0 credential stealer after successful exfiltration.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1059.006
+    - attack.t1005
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '.pc_once_72129118c59f5636c0bb'
+    condition: selection
+falsepositives:
+    - None expected; highly specific marker filename
+level: critical
+---
+title: LiteLLM Supply Chain - Stealer Staging Directory Creation
+id: 7a2e4b8c-1d6f-4e5a-9c3b-2f0d7a8e1b5c
+status: experimental
+description: >
+    Detects creation of temporary staging directories with the .pc_e_ or .pc_sq_ prefix
+    used by the LiteLLM 1.107.0 credential stealer to stage collected data before exfiltration.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - '.pc_e_'
+            - '.pc_sq_'
+    condition: selection
+falsepositives:
+    - Unlikely; distinctive prefix pattern
+level: high
+---
+title: LiteLLM Supply Chain - Remote Code Loader Lock File
+id: 3e8a1c5d-9b2f-4d7e-a6c4-8f0b3d1e5a2c
+status: experimental
+description: >
+    Detects creation of /tmp/remote_code_loader.lock, the lockfile used by the LiteLLM 1.107.0
+    remote code loader to ensure single-instance execution while polling for second-stage payloads.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1105
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith: '/remote_code_loader.lock'
+    condition: selection
+falsepositives:
+    - None expected; specific to this supply chain attack's loader component
+level: critical
+---
+title: LiteLLM Supply Chain - Dead Drop Resolver Access
+id: 9c4d2e7a-5b1f-4a8e-b3c6-0d9f1a2e8b5c
+status: experimental
+description: >
+    Detects DNS queries or proxy connections to the GitHub-hosted dead drop file used by the
+    LiteLLM 1.107.0 remote code loader to resolve its second-stage C2 server address.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026/10/24
+tags:
+    - attack.t1102.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-uri|contains|all:
+            - 'letters9813'
+            - 'pythonclient-test'
+            - 'domain.txt'
+    condition: selection
+falsepositives:
+    - None expected; attacker-controlled repository (now deleted)
+level: critical

@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-24
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -329,7 +329,7 @@ These detections target the specific artifacts and network indicators from the L
 ### Sigma: Malicious cook.pth File Creation in Python Site-Packages
 Detects creation of `cook.pth` in Python `site-packages` directories, the persistence mechanism used by the LiteLLM 1.107.0 backdoor.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data fetch blocked by proxy, not a rule issue); splunk convert exit 0; log_scale convert exit 0. Keys on specific filename + path combination. FP risk: a legitimate Python package named 'cook' with a .pth file in site-packages is theoretically possible but extremely unlikely in practice. -->
+<!-- audit: sigma check failed (MITRE ATT&CK data fetch blocked by proxy, not a rule issue); splunk convert exit 0; log_scale convert exit 0. Keys on specific filename + path combination. Tag fixed from attack.t1546 to attack.t1546.018 to match MITRE mapping table (Python Startup Hooks sub-technique). FP risk: a legitimate Python package named 'cook' with a .pth file in site-packages is theoretically possible but extremely unlikely in practice. -->
 ```yaml
 title: LiteLLM Supply Chain - Malicious cook.pth File Creation in Python Site-Packages
 id: 8a3e7c1b-4d2f-4e9a-b5c6-1f0d8e2a7b3c
@@ -344,7 +344,7 @@ references:
 author: Actioner
 date: 2026/10/24
 tags:
-    - attack.t1546
+    - attack.t1546.018
     - attack.t1195.001
 logsource:
     category: file_event
@@ -516,7 +516,7 @@ level: critical
 ### Snort: LiteLLM Credential Exfiltration and Dead Drop Access
 Detects the specific HTTP POST exfiltration to `/healthcheck` with the fixed X-Token header, the dead drop resolver access, and the characteristic User-Agent + X-SHA256 header combination.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c test.conf -T exit 0 via include method (Snort 2.9.20). Rules use tcp protocol with $HTTP_PORTS and http_* sticky buffers for Snort 2.x compat. Three rules covering distinct detection angles for the exfiltration. -->
+<!-- audit: snort -c test.conf -T exit 0 via include method (Snort 2.9.20). Rules use tcp protocol with $HTTP_PORTS and http_* sticky buffers for Snort 2.x compat. Three rules covering distinct detection angles for the exfiltration. Performance note (sid:2100010): fast_pattern is on /healthcheck, a common URI path; in high-traffic environments, moving fast_pattern to the X-Token content ("XWiA8gZNa7NcX2XRoAEb") would reduce pattern-match load. Not a correctness defect — the rule fires correctly as written. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM Supply Chain Credential Exfiltration to litellm.dev"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; fast_pattern; content:"X-Token|3a 20|XWiA8gZNa7NcX2XRoAEb"; http_header; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; sid:2100010; rev:1;)
 
@@ -541,8 +541,8 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Que
 
 ### YARA: LiteLLM 1.107.0 Malicious Payload Files
 Detects the malicious `cook.pth`, `cook.py`, and `sitecustomize.py` payload files via distinctive strings including the stealer config keys, exfiltration domain/token, dead drop URL, obfuscation namespace, RSA key prefix, and database table names.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test fired on both pos_pth.txt (cook.pth content) and pos_payload.txt (stealer config strings from published source). Negative test (benign litellm import) quiet. Covers pth trigger (filesize<100), stealer config (3-of PRIVCOLLECT vars), exfil indicators (domain+token), dead drop (repo+path), obfuscation signature, database targets, and RSA key prefix. -->
+**Status:** compile ✅ compiles · confidence: high · sample: fired ✓ (reconstructed)
+<!-- audit: yarac exit 0. Positive test fired on both pos_pth.txt (cook.pth content) and pos_payload.txt (stealer config strings reconstructed from published IOCs, not real malware samples). Negative test (benign litellm import) quiet. Covers pth trigger (filesize<100), stealer config (3-of PRIVCOLLECT vars), exfil indicators (domain+token), dead drop (repo+path), obfuscation signature, database targets (now gated on $exfil_domain to avoid FP on legitimate LiteLLM source), and RSA key prefix. -->
 ```yara
 rule SupplyChain_LiteLLM_1107_Payload : supply_chain credential_stealer
 {
@@ -595,7 +595,7 @@ rule SupplyChain_LiteLLM_1107_Payload : supply_chain credential_stealer
             ($dead_drop and ($code_path or $remote_loader)) or
             ($marker) or
             ($obf_exec and $obf_namespace) or
-            ($db_table1 and $db_table2) or
+            ($db_table1 and $db_table2 and $exfil_domain) or
             ($rsa_key_prefix) or
             ($remote_loader and $code_path)
         )
