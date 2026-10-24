@@ -1,0 +1,7 @@
+# Storm-0940 / ARTEX ConnectWise Supply Chain Compromise
+# Author: Actioner | Date: 2026-10-24
+# PREREQUISITE: graph.microsoft.com is HTTPS-only. This rule requires TLS inspection
+# (SSL decryption) for HTTP-layer field matches to trigger. Without TLS interception,
+# the rule will not match.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Storm-0940 ARTEX Scripted User-Agent azure-toolkit to Microsoft Graph"; flow:established,to_server; http.user_agent; content:"azure-toolkit/"; startswith; fast_pattern; http.host; content:"graph.microsoft.com"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/; metadata:author Actioner, created_at 2026-10-24; sid:2200001; rev:1;)
