@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-24
-Version: 1.0-DRAFT
+Version: 1.1-REVISED
 
 ## Executive Summary
 
@@ -154,7 +154,6 @@ No file-level malware indicators (hashes, file paths, dropped binaries) were pub
 | T1098.003 | Account Manipulation: Additional Cloud Roles | Service principals self-assigned Exchange Administrator and Global Administrator |
 | T1087.004 | Account Discovery: Cloud Account | Graph API directory and user enumeration |
 | T1580 | Cloud Infrastructure Discovery | Graph API reconnaissance of permissions, approvals, and infrastructure |
-| T1555.006 | Credentials from Password Stores: Cloud Secrets Management Stores | Attempted access to Azure Key Vault secrets |
 | T1595 | Active Scanning | ARTEX-driven automated scanning and reconnaissance |
 | T1059 | Command and Scripting Interpreter | ARTEX framework execution via Go runtime with Python/curl scripted interactions |
 
@@ -198,7 +197,7 @@ Run these checks in your Microsoft 365 / Entra ID environment:
 
 ## Detection Rules
 
-These detections target the Storm-0940 ConnectWise supply chain compromise at PoC/advisory-specific altitude, keying on published IOC IPs, compromised application IDs, suspicious user-agents, and privilege escalation patterns. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles != fires -- verify in your pipeline.
+These detections target the Storm-0940 ConnectWise supply chain compromise at PoC/advisory-specific altitude, keying on published IOC IPs, compromised application IDs, suspicious user-agents, and privilege escalation patterns. Sigma rules compile to Splunk and CrowdStrike LogScale with caveats: Rules 3 and 4 depend on SIEM pipeline extraction of nested Azure audit log JSON fields (InitiatedBy, TargetResources); Rule 6 targets MicrosoftGraphActivityLogs, a newer log source with limited Sigma backend support. Field mappings must be verified per deployment. Compiles != fires -- verify in your pipeline.
 
 ### Sigma: ConnectWise Application Sign-In from Known IOC IPs
 Detects service principal sign-ins from the seven compromised ConnectWise application IDs originating from published Storm-0940 infrastructure IPs.
@@ -249,9 +248,9 @@ level: critical
 ```
 
 ### Sigma: ConnectWise Application Sign-In with Suspicious Scripted User-Agent
-Detects sign-ins to ConnectWise application IDs using Python, curl, or azure-toolkit user-agents associated with ARTEX automation.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. UserAgent startswith catches versioned variants (python-requests/2.31.0, curl/7.88.1, etc.). Assumes ConnectWise legitimate backend does not use these UAs. -->
+Detects sign-ins to ConnectWise application IDs using Python, curl, or azure-toolkit user-agents associated with ARTEX automation. The `azure-toolkit/` user-agent combined with a ConnectWise AppId is the highest-confidence indicator; `python-requests/` and `curl/` are common in legitimate automation and carry more false-positive risk.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. UserAgent startswith catches versioned variants (python-requests/2.31.0, curl/7.88.1, etc.). Downgraded to medium: python-requests/ and curl/ are common UAs in legitimate backend automation and monitoring tools. azure-toolkit/ is the strongest indicator. -->
 ```yaml
 title: ConnectWise Application Sign-In with Suspicious Scripted User-Agent
 id: 1f2e3d4c-5b6a-4789-8901-2345abcdef67
@@ -290,24 +289,29 @@ detection:
             - 'azure-toolkit/'
     condition: selection_app and selection_ua
 falsepositives:
-    - Legitimate ConnectWise backend services using Python or curl user-agents
+    - Legitimate ConnectWise backend services using Python or curl user-agents (common in cloud automation)
+    - Internal monitoring or backup orchestration tools using python-requests or curl with ConnectWise application delegated permissions
+    - azure-toolkit/ combined with ConnectWise AppIds is higher confidence; python-requests/ and curl/ alone are widespread
 level: high
 ```
 
-### Sigma: Service Principal Self-Assigned Privileged Directory Role
-Detects a service principal assigning itself Global Administrator, Exchange Administrator, or other privileged roles -- observed in the ConnectWise compromise for rapid privilege escalation.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. Broader than IOC-specific: any SP self-assigning privileged roles fires, not just ConnectWise apps. TargetResources contains is substring match which may FP on partial matches, but role names are distinctive enough. Medium confidence due to environment-dependent FP rate. -->
+### Sigma: ConnectWise Service Principal Self-Assigned Privileged Directory Role (TTP Supplement)
+TTP supplement (low confidence): Detects a service principal assigning a ConnectWise application service principal to a privileged directory role. Anchored to the seven compromised ConnectWise AppIds. Field-encoding caveat: `InitiatedBy` and `TargetResources` are nested JSON objects in Azure audit logs; the `|contains` modifier performs substring matching on the serialized JSON, which is pipeline-dependent and cannot reliably verify that the initiating principal is the same as the target (true self-assignment). SIEM pipelines that extract `InitiatedBy.app.servicePrincipalId` and `TargetResources[].id` into flat fields should replace the `|contains` filters with exact matches.
+**Status:** compile ✅ compiles · confidence: low
+<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. Anchored to ConnectWise AppIds per critic review. InitiatedBy|contains and TargetResources|contains operate on serialized JSON -- unreliable without pipeline extraction. Does not verify true self-assignment (initiator == target). Low confidence due to field encoding limitations. -->
 ```yaml
-title: Service Principal Self-Assigned Privileged Directory Role
+title: ConnectWise Service Principal Self-Assigned Privileged Directory Role (TTP Supplement)
 id: 7c8d9e0f-1a2b-4c3d-5e6f-7a8b9c0d1e2f
 status: experimental
 description: >
-    Detects a service principal assigning itself a privileged directory role such as
-    Global Administrator or Exchange Administrator. This behavior was observed in the
-    Storm-0940 ConnectWise supply chain compromise where Cloud Management service
-    principals self-assigned Exchange Administrator and Global Administrator roles
-    within minutes of initial access.
+    TTP supplement -- Detects a role assignment operation where a service principal adds
+    a ConnectWise Cloud Backup or Cloud Management application to a privileged directory
+    role (Global Administrator, Exchange Administrator, etc.). Observed in the Storm-0940
+    ConnectWise supply chain compromise. IMPORTANT: InitiatedBy and TargetResources are
+    nested JSON objects in Azure audit logs. The contains modifier performs substring matching
+    on the serialized representation, which is pipeline-dependent. This rule does not verify
+    true self-assignment (that the initiating SP is the same as the target SP). Deployments
+    should replace contains filters with exact field matches after pipeline extraction.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
     - https://www.bleepingcomputer.com/news/security/hackers-breach-microsoft-365-tenants-via-connectwise-supply-chain-attack/
@@ -319,36 +323,49 @@ logsource:
     product: azure
     service: auditlogs
 detection:
-    selection:
+    selection_operation:
         OperationName: 'Add member to role'
         Category: 'RoleManagement'
-    filter_self_assignment:
+    selection_initiator:
         InitiatedBy|contains: 'ServicePrincipal'
+    selection_target_app:
+        TargetResources|contains:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
+    selection_role:
         TargetResources|contains:
             - 'Global Administrator'
             - 'Exchange Administrator'
             - 'Privileged Role Administrator'
             - 'Application Administrator'
             - 'Cloud Application Administrator'
-    condition: selection and filter_self_assignment
+    condition: selection_operation and selection_initiator and selection_target_app and selection_role
 falsepositives:
-    - Automated provisioning systems that legitimately assign roles to service principals
+    - Automated provisioning systems that legitimately assign roles to ConnectWise service principals
+    - SIEM pipelines that do not extract InitiatedBy and TargetResources JSON fields may cause false positives or missed detections
 level: critical
 ```
 
 ### Sigma: OAuth Credential Addition from Storm-0940 Infrastructure
-Detects addition of new credentials (secrets/certificates) to OAuth applications from known Storm-0940 IPs, the primary persistence mechanism in this campaign.
+Detects addition of new credentials (secrets/certificates) to OAuth applications from known Storm-0940 IPs, the primary persistence mechanism in this campaign. Pipeline note: `CallerIpAddress` must be extracted from the nested `InitiatedBy` JSON object (path: `InitiatedBy.user.ipAddress` or `InitiatedBy.app.ipAddress`). This extraction is pipeline-dependent; verify the field mapping in your SIEM before deployment.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. IOC-anchored: fires only from published threat actor IPs. -->
+<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. IOC-anchored: fires only from published threat actor IPs. Changed field from InitiatedByIpAddress (non-standard) to CallerIpAddress with pipeline extraction note. Added 187.15.x.x transient VPN IPs. -->
 ```yaml
-title: Credential Addition to OAuth Application from Suspicious Source
+title: Credential Addition to OAuth Application from Storm-0940 Infrastructure
 id: 3e4f5a6b-7c8d-4e9f-0a1b-2c3d4e5f6a7b
 status: experimental
 description: >
     Detects the addition of new credentials (secrets or certificates) to OAuth applications
     originating from known Storm-0940 infrastructure IPs. This persistence technique was
     used to maintain access after the initial ConnectWise supply chain compromise, with
-    attackers adding credentials to existing applications as backdoors.
+    attackers adding credentials to existing applications as backdoors. NOTE: The
+    CallerIpAddress field must be extracted from the nested InitiatedBy JSON object
+    (InitiatedBy.user.ipAddress or InitiatedBy.app.ipAddress) by your SIEM pipeline.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -364,29 +381,34 @@ detection:
             - 'Update application - Certificates and secrets management'
             - 'Add service principal credentials'
     selection_ip:
-        InitiatedByIpAddress:
+        CallerIpAddress:
             - '144.172.64.99'
             - '144.172.64.60'
             - '144.172.64.128'
             - '144.172.94.243'
+            - '187.15.88.186'
+            - '187.15.89.186'
+            - '187.15.90.217'
     condition: selection_operation and selection_ip
 falsepositives:
-    - Legitimate credential rotation from the same IP range (unlikely)
+    - Legitimate credential rotation from the same IP range (unlikely given known Storm-0940 attribution)
 level: critical
 ```
 
-### Sigma: Password Spray from Storm-0940 Infrastructure IPs
-Detects failed sign-in attempts from the specific IPs used in the Storm-0940 cross-tenant password spray campaign.
+### Sigma: Failed Sign-In from Storm-0940 Infrastructure IP
+Detects failed sign-in attempts from the specific IPs used in the Storm-0940 cross-tenant password spray campaign. This is a per-event IOC match, not an aggregation rule; volume-based spray detection requires SIEM-native correlation on top of this base signal.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. IOC-specific: exact IP match on known spray sources. -->
+<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. IOC-specific: exact IP match on known spray sources. Renamed from "High-Volume" to remove title/logic mismatch (no aggregation). Replaced Status|contains:'Failure' with ResultType filter -- ResultType 0 is success in Azure sign-in logs, all other values indicate failure. -->
 ```yaml
-title: High-Volume Cross-Tenant Password Spray from Single IP
+title: Failed Sign-In from Storm-0940 Infrastructure IP
 id: 9d0e1f2a-3b4c-4d5e-6f7a-8b9c0d1e2f3a
 status: experimental
 description: >
-    Detects a high volume of failed sign-in attempts from a single IP address across
-    multiple accounts, consistent with the Storm-0940 cross-tenant password spray
-    campaign that peaked at 2,900 failed logons per minute from 144.172.64.99.
+    Detects failed sign-in attempts originating from known Storm-0940 infrastructure IPs
+    used in the cross-tenant password spray campaign (144.172.64.99, 144.172.94.243).
+    This rule matches individual failed sign-in events by IOC IP. For volume-based spray
+    detection, layer SIEM-native aggregation (e.g., count by IpAddress > threshold within
+    timeframe) on top of this base signal.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -397,21 +419,22 @@ logsource:
     product: azure
     service: signinlogs
 detection:
-    selection:
-        Status|contains: 'Failure'
+    selection_ip:
         IpAddress:
             - '144.172.64.99'
             - '144.172.94.243'
-    condition: selection
+    filter_success:
+        ResultType: '0'
+    condition: selection_ip and not filter_success
 falsepositives:
-    - Legitimate failed sign-in attempts from shared infrastructure
+    - Legitimate failed sign-in attempts from shared infrastructure in the same IP range
 level: high
 ```
 
 ### Sigma: Microsoft Graph API Activity from Storm-0940 Infrastructure
-Detects Graph API requests from known Storm-0940 IPs used for directory reconnaissance, permission enumeration, and privilege modification.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. Broad logsource (azure activitylogs); may need adaptation for MicrosoftGraphActivityLogs in specific SIEM. -->
+Detects Graph API requests from known Storm-0940 IPs used for directory reconnaissance, permission enumeration, and privilege modification. This rule targets `MicrosoftGraphActivityLogs`, a dedicated log source for Graph API traffic (distinct from Azure Activity Logs, which cover ARM management-plane operations). MicrosoftGraphActivityLogs requires explicit enablement in Azure diagnostic settings and has limited Sigma backend support; verify your pipeline handles the `microsoft365/microsoftgraphactivitylogs` logsource before deployment.
+**Status:** compile ✅ compiles · confidence: high (pipeline-dependent)
+<!-- audit: sigma check blocked by proxy; splunk convert 0; log_scale convert 0. Fixed logsource from azure/activitylogs (ARM plane) to microsoft365/microsoftgraphactivitylogs (Graph API plane). IPAddress is the standard field in MicrosoftGraphActivityLogs. Limited Sigma backend support for this logsource. -->
 ```yaml
 title: Microsoft Graph API Activity from Storm-0940 Infrastructure
 id: 4b5c6d7e-8f9a-4b0c-1d2e-3f4a5b6c7d8e
@@ -420,7 +443,9 @@ description: >
     Detects Microsoft Graph API requests originating from known Storm-0940 infrastructure
     IPs. The threat actor used Graph API for reconnaissance, application credential changes,
     privilege modification, and identity enumeration following the ConnectWise supply chain
-    compromise.
+    compromise. This rule targets MicrosoftGraphActivityLogs, which must be enabled in
+    Azure diagnostic settings. The logsource microsoft365/microsoftgraphactivitylogs has
+    limited Sigma backend support; verify pipeline compatibility before deployment.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -429,11 +454,11 @@ tags:
     - attack.t1087.004
     - attack.t1580
 logsource:
-    product: azure
-    service: activitylogs
+    product: microsoft365
+    service: microsoftgraphactivitylogs
 detection:
     selection:
-        IpAddress:
+        IPAddress:
             - '144.172.64.99'
             - '144.172.64.60'
             - '144.172.64.128'
@@ -449,16 +474,18 @@ level: high
 
 ### Snort: Storm-0940 ARTEX Scripted User-Agent to Microsoft Graph
 Detects outbound HTTP with the `azure-toolkit/` user-agent targeting Microsoft Graph API, the custom UA observed in ARTEX tooling.
+**Prerequisite: TLS inspection required.** `graph.microsoft.com` is HTTPS-only (port 443). This rule inspects HTTP headers, which are encrypted inside TLS. It will only fire if the sensor performs SSL/TLS decryption (e.g., via an inline SSL proxy or Snort's SSL preprocessor with key material). Without TLS inspection, the rule will not match.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: snort -c test_snort.conf -T exit 0 (Snort 2.9.20). Medium confidence: azure-toolkit UA is distinctive but could be rotated. http_header content match; no field-specific header buffer in Snort 2. -->
+<!-- audit: snort -c test_snort.conf -T exit 0 (Snort 2.9.20). Medium confidence: azure-toolkit UA is distinctive but could be rotated. http_header content match; no field-specific header buffer in Snort 2. TLS inspection mandatory -- graph.microsoft.com is HTTPS-only. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - Storm-0940 ARTEX Scripted User-Agent azure-toolkit to MS Graph"; flow:established,to_server; content:"azure-toolkit/"; http_header; fast_pattern; content:"graph.microsoft.com"; http_header; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/; metadata:author Actioner, created 2026-10-24; sid:2100001; rev:1;)
 ```
 
 ### Suricata: Storm-0940 ARTEX Scripted User-Agent to Microsoft Graph
 Detects outbound HTTP with the `azure-toolkit/` user-agent targeting Microsoft Graph API, using Suricata's `http.user_agent` sticky buffer.
+**Prerequisite: TLS inspection required.** `graph.microsoft.com` is HTTPS-only (port 443). This rule inspects HTTP-layer fields, which are encrypted inside TLS. It will only fire if Suricata is configured for TLS decryption (e.g., behind an SSL-terminating proxy or using Suricata's own TLS decryption capabilities). Without TLS inspection, the rule will not match.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0 (Suricata 7.0.3). Dot-notation buffers. Medium confidence: UA could be rotated, but combination with graph.microsoft.com host narrows FP. -->
+<!-- audit: suricata -T exit 0 (Suricata 7.0.3). Dot-notation buffers. Medium confidence: UA could be rotated, but combination with graph.microsoft.com host narrows FP. TLS inspection mandatory -- graph.microsoft.com is HTTPS-only. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Storm-0940 ARTEX Scripted User-Agent azure-toolkit to Microsoft Graph"; flow:established,to_server; http.user_agent; content:"azure-toolkit/"; startswith; fast_pattern; http.host; content:"graph.microsoft.com"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/; metadata:author Actioner, created_at 2026-10-24; sid:2200001; rev:1;)
 ```
