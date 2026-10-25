@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-25
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -247,7 +247,8 @@ sha256sum /path/to/litellm*.whl 2>/dev/null
 
 ## Detection Rules
 
-These detections target the LiteLLM 1.107.0 supply chain compromise at the PoC/advisory-specific altitude. Rules key on the distinctive artifacts from the malicious package: startup hook file hashes, the PRIVCOLLECT stealer's file paths and environment variables, network indicators (exfiltration domain and dead-drop URL), and the OpenSSL encryption staging patterns. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles-status does not mean the rule fires in your environment -- verify against your telemetry.
+<!-- revision: rule count reduced from 11 to 10 after dropping behavioral Windows recon rule -->
+10 detections (5 Sigma, 1 Snort, 2 Suricata, 2 YARA) target the LiteLLM 1.107.0 supply chain compromise at the PoC/advisory-specific altitude. Rules key on the distinctive artifacts from the malicious package: startup hook file hashes, the PRIVCOLLECT stealer's file paths and environment variables, network indicators (exfiltration domain and dead-drop URL), and the OpenSSL encryption staging patterns. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; compiles-status does not mean the rule fires in your environment -- verify against your telemetry. Rules with `product: linux` require appropriate log-source mappings (e.g., auditd, sysmon-for-linux) in each SIEM.
 
 ### Sigma: LiteLLM Malicious Startup Hook File Creation
 
@@ -326,46 +327,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: LiteLLM PRIVCOLLECT Windows Reconnaissance Sequence
-
-Detects the specific system reconnaissance command sequence spawned by the PRIVCOLLECT stealer on Windows: Python launching systeminfo, ipconfig, route, arp, and netstat.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on Python parent spawning the exact 5-command recon sequence. Slight FP risk from legitimate Python admin scripts running the same commands, but the full chain (all five from a Python parent) is distinctive. -->
-```yaml
-title: LiteLLM PRIVCOLLECT Windows Reconnaissance via Python
-id: e4c7a2f9-3b8d-4e1a-9c5f-6d2b8a4e7f1c
-status: experimental
-description: >
-    Detects Python process spawning the system reconnaissance command sequence
-    (systeminfo, ipconfig, route, arp, netstat) consistent with the PRIVCOLLECT
-    credential stealer from LiteLLM 1.107.0.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
-author: Actioner
-date: 2026-10-25
-tags:
-    - attack.t1082
-    - attack.t1016
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        ParentImage|endswith:
-            - '\python.exe'
-            - '\python3.exe'
-            - '\pythonw.exe'
-        Image|endswith:
-            - '\systeminfo.exe'
-            - '\ipconfig.exe'
-            - '\route.exe'
-            - '\arp.exe'
-            - '\netstat.exe'
-    condition: selection
-falsepositives:
-    - Python-based system administration or monitoring scripts
-level: high
-```
+<!-- revision: Windows reconnaissance rule (Sigma PRIVCOLLECT Recon via Python) dropped — behavioral OR-logic pattern fires on any single recon command from Python, not artifact-specific. -->
 
 ### Sigma: LiteLLM PRIVCOLLECT Completion Marker and Lock File Creation
 
@@ -404,6 +366,7 @@ level: critical
 Detects DNS resolution of `litellm.dev` or `www.litellm.dev`, the attacker-registered exfiltration domain used by the PRIVCOLLECT stealer.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Domain registered by attacker on Oct 13, 2026 specifically for this campaign. Not a legitimate LiteLLM domain (legitimate is litellm.ai). -->
+<!-- revision: added '.litellm.dev' entry to prevent endswith substring match on e.g. notlitellm.dev -->
 ```yaml
 title: DNS Query to LiteLLM Exfiltration Domain
 id: c8e2b5d1-9f4a-4c7e-a3b8-6d1f5e9c2a4b
@@ -424,6 +387,7 @@ detection:
     selection:
         QueryName|endswith:
             - 'litellm.dev'
+            - '.litellm.dev'
     condition: selection
 falsepositives:
     - None expected - litellm.dev is an attacker-registered domain, not a legitimate LiteLLM domain
@@ -432,9 +396,10 @@ level: critical
 
 ### Sigma: LiteLLM PRIVCOLLECT Prisma Database Query
 
-Detects Python processes using Prisma to query LiteLLM credential and model tables, consistent with the PRIVCOLLECT stealer's database exfiltration behavior.
+Detects Python processes using Prisma to query LiteLLM credential and model tables, consistent with the PRIVCOLLECT stealer's database exfiltration behavior. Requires command-line audit logging; the stealer may invoke Prisma via library call rather than subprocess, in which case this rule will not fire.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on the specific table names queried by the stealer. Medium confidence because legitimate LiteLLM admin operations may query these tables, though the combination with query_raw and os.devnull is distinctive. -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on the specific table names queried by the stealer. Medium confidence because legitimate LiteLLM admin operations may query these tables, and the stealer's Prisma invocation method (subprocess vs library) is uncertain. -->
+<!-- revision: changed product from windows to linux (LiteLLM predominantly deployed on Linux); added caveat re Prisma invocation uncertainty -->
 ```yaml
 title: LiteLLM PRIVCOLLECT Prisma Database Credential Extraction
 id: d5a3f8c1-6e2b-4d9a-b7c4-9f1e3a5d8c2b
@@ -452,12 +417,12 @@ tags:
     - attack.t1552.001
 logsource:
     category: process_creation
-    product: windows
+    product: linux
 detection:
     selection_python:
         Image|endswith:
-            - '\python.exe'
-            - '\python3.exe'
+            - '/python'
+            - '/python3'
     selection_tables:
         CommandLine|contains:
             - 'LiteLLM_CredentialsTable'
@@ -533,9 +498,10 @@ rule Supply_Chain_LiteLLM_PRIVCOLLECT_Stealer
 
 ### YARA: LiteLLM Malicious cook.pth Startup Hook
 
-Detects the malicious `cook.pth` file that triggers the PRIVCOLLECT stealer by matching its known SHA-256 hashes.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. sample: fired on pos_cookpth.txt ("import cook\n", 12 bytes). Quiet on neg_pth.txt ("import os\n"). The fullword modifier prevents partial matches. filesize < 1KB scopes to small .pth files. -->
+Detects the malicious `cook.pth` startup hook from the LiteLLM 1.107.0 compromise by matching the `import cook` string in small `.pth` files. A legitimate Python package named `cook` could produce a false positive.
+**Status:** compile ✅ compiles · confidence: medium · sample: fired ✓
+<!-- audit: yarac exit 0. sample: fired on pos_cookpth.txt ("import cook\n", 12 bytes). Quiet on neg_pth.txt ("import os\n"). The fullword modifier prevents partial matches. filesize < 1KB scopes to small .pth files. Confidence downgraded from high to medium: a legitimate `cook` package could produce a matching .pth file. -->
+<!-- revision: fixed description (was incorrectly claiming hash-based detection; rule actually matches `import cook` string + filesize constraint). Downgraded confidence from high to medium. -->
 ```yara
 rule Supply_Chain_LiteLLM_Cook_PTH
 {

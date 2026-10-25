@@ -1,0 +1,28 @@
+title: BlackX UEFI Bootkit Installer Command Line
+id: 7c3a1f8e-4d2b-4e9a-b6f1-8a3c5d7e9f01
+status: experimental
+description: >
+    Detects the BlackX UEFI bootkit installer execution with its characteristic
+    command-line pattern including the encrypted payload file and RC4 decryption key.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://www.bleepingcomputer.com/news/security/blackx-uefi-bootkit-exploits-baton-drop-flaw-to-bypass-secure-boot/
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1542.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_path:
+        Image|endswith: '\inst.exe'
+        Image|contains: '\ProgramData\Intel\'
+    selection_cmdline:
+        CommandLine|contains|all:
+            - 'PVMDIJGKAX2'
+            - 'Q46F6MDLI3RX2KV1'
+    condition: selection_path or selection_cmdline
+falsepositives:
+    - Unlikely - highly specific command-line artifacts
+level: critical

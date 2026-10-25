@@ -1,0 +1,24 @@
+title: LiteLLM PRIVCOLLECT Marker and Lock File Creation (Linux)
+id: a1f9c4e7-8d3b-4a5e-b2c6-7f1e9d3a8b5c
+status: experimental
+description: >
+    Detects creation of the PRIVCOLLECT stealer completion marker or the remote
+    code loader lock file on Linux, specific to the LiteLLM 1.107.0 compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-25
+tags:
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/.pc_once_72129118c59f5636c0bb'
+            - '/tmp/remote_code_loader.lock'
+    condition: selection
+falsepositives:
+    - None expected - filenames are specific to this malware
+level: critical

@@ -1,0 +1,27 @@
+title: BlackX Installer File Drop in ProgramData Intel Directory
+id: d1e3f5a7-2b4c-4e6d-8a0c-9f1b3d5e7a29
+status: experimental
+description: >
+    Detects file creation in C:\ProgramData\Intel\ matching BlackX bootkit
+    installer artifacts including inst.exe and the encrypted payload file.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1542.003
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\ProgramData\Intel\'
+        TargetFilename|endswith:
+            - '\inst.exe'
+            - '\PVMDIJGKAX2'
+    condition: selection
+falsepositives:
+    - Unlikely - combination of path and specific file names is highly distinctive
+level: critical

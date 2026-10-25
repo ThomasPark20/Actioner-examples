@@ -1,0 +1,34 @@
+title: LiteLLM PRIVCOLLECT Prisma Database Credential Extraction
+id: d5a3f8c1-6e2b-4d9a-b7c4-9f1e3a5d8c2b
+status: experimental
+description: >
+    Detects Python command lines referencing LiteLLM proxy database tables
+    (LiteLLM_CredentialsTable, LiteLLM_ProxyModelTable) with query_raw and
+    output suppression, consistent with the PRIVCOLLECT stealer.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-25
+tags:
+    - attack.t1005
+    - attack.t1552.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_python:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+    selection_tables:
+        CommandLine|contains:
+            - 'LiteLLM_CredentialsTable'
+            - 'LiteLLM_ProxyModelTable'
+    selection_technique:
+        CommandLine|contains:
+            - 'query_raw'
+            - 'os.devnull'
+    condition: selection_python and selection_tables and selection_technique
+falsepositives:
+    - Legitimate LiteLLM database administration scripts (unlikely to combine query_raw with output suppression)
+level: high
