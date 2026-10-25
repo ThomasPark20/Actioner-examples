@@ -1,0 +1,24 @@
+title: PHP2Shell Session Upload Progress Exploitation Attempt
+id: b3e7d1a5-4c6f-8e2d-9b0a-1f5c3d7e9a2b
+status: experimental
+description: >
+    Detects HTTP POST requests containing the PHP_SESSION_UPLOAD_PROGRESS form
+    field in the request body, the confirmed trigger for CVE-2026-109619 stale
+    global state exploitation. Requires a proxy or WAF that logs request bodies.
+references:
+    - https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1190
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-method: 'POST'
+        post_body|contains: 'PHP_SESSION_UPLOAD_PROGRESS'
+    condition: selection
+falsepositives:
+    - Legitimate PHP applications using session upload progress feature
+level: medium

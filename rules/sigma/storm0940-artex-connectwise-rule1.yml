@@ -1,0 +1,40 @@
+title: ConnectWise App Sign-in from Storm-0940 Attacker IP
+id: c7a1e3b5-4f2d-4a8e-9c6b-1d5e7f0a2b3c
+status: experimental
+description: >
+    Detects service principal sign-ins for compromised ConnectWise Cloud Backup
+    and Cloud Management application IDs from known Storm-0940 attacker IPs.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+    - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1078.004
+    - attack.t1199
+logsource:
+    product: azure
+    service: signinlogs
+detection:
+    selection_app:
+        AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
+    selection_ip:
+        IPAddress:
+            - '144.172.64.60'
+            - '144.172.64.99'
+            - '144.172.64.128'
+            - '144.172.94.243'
+            - '187.15.88.186'
+            - '187.15.89.186'
+            - '187.15.90.217'
+    condition: selection_app and selection_ip
+falsepositives:
+    - Legitimate ConnectWise operations from these IPs (unlikely given RouterHosting ASN)
+level: critical

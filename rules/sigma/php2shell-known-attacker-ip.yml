@@ -1,0 +1,27 @@
+title: PHP2Shell Known Attacker IP - Talos IOCs
+id: c4f8e2b6-5d7a-9f3e-0c1b-2a6d4e8f0b3c
+status: experimental
+description: >
+    Detects web requests from IP addresses associated with PHP2Shell exploitation
+    as published by Cisco Talos Intelligence.
+references:
+    - https://blog.talosintelligence.com/two-critical-rces-in-php-core/
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        c-ip:
+            - '5.191.140.240'
+            - '158.69.113.75'
+            - '94.154.43.149'
+            - '143.246.223.124'
+            - '45.198.224.169'
+            - '85.11.167.243'
+    condition: selection
+falsepositives:
+    - Shared hosting or VPN exit nodes reusing these IPs
+level: high

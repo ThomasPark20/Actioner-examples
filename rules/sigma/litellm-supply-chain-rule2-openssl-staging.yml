@@ -1,0 +1,31 @@
+title: LiteLLM PRIVCOLLECT OpenSSL Encryption Staging Activity
+id: b3d8e5a1-7c4f-4a2e-9f6b-8e1d3c5a7b9f
+status: experimental
+description: >
+    Detects OpenSSL command lines referencing .pc_e_ staging directories with
+    AES-256-CBC or RSA public-key encryption, consistent with the PRIVCOLLECT
+    credential stealer from the LiteLLM 1.107.0 compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-25
+tags:
+    - attack.t1027.013
+    - attack.t1041
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_openssl:
+        Image|endswith: '\openssl.exe'
+    selection_staging:
+        CommandLine|contains: '.pc_e_'
+    selection_crypto:
+        CommandLine|contains:
+            - 'enc -aes-256-cbc'
+            - 'pkeyutl -encrypt -pubin'
+            - 'rsautl -encrypt -pubin'
+    condition: selection_openssl and selection_staging and selection_crypto
+falsepositives:
+    - None expected - the .pc_e_ staging path is specific to this malware
+level: high

@@ -1,0 +1,33 @@
+title: Azure Key Vault Secret Access from Storm-0940 IP
+id: f0d4b6e8-7a5c-4dbe-cf9e-4a8b0c3d5e6f
+status: experimental
+description: >
+    Detects successful SecretGet operations in Azure Key Vault from Storm-0940
+    attacker IPs, consistent with post-compromise credential harvesting
+    from cloud secrets management stores.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1555.006
+logsource:
+    product: azure
+    service: activitylogs
+detection:
+    selection:
+        OperationName: 'SecretGet'
+        ResultType: 'Success'
+    selection_ip:
+        CallerIPAddress:
+            - '144.172.64.60'
+            - '144.172.64.99'
+            - '144.172.64.128'
+            - '144.172.94.243'
+            - '187.15.88.186'
+            - '187.15.89.186'
+            - '187.15.90.217'
+    condition: selection and selection_ip
+falsepositives:
+    - Legitimate Key Vault access from these IP addresses (unlikely given RouterHosting ASN)
+level: high

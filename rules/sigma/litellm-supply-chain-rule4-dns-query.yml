@@ -1,0 +1,24 @@
+title: DNS Query to LiteLLM Exfiltration Domain
+id: c8e2b5d1-9f4a-4c7e-a3b8-6d1f5e9c2a4b
+status: experimental
+description: >
+    Detects DNS queries to litellm.dev or www.litellm.dev, the attacker-controlled
+    exfiltration domain from the LiteLLM 1.107.0 supply chain compromise.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://thehackernews.com/2026/10/litellm-compromised-in-supply-chain.html
+author: Actioner
+date: 2026-10-25
+tags:
+    - attack.t1041
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'litellm.dev'
+            - '.litellm.dev'
+    condition: selection
+falsepositives:
+    - None expected - litellm.dev is an attacker-registered domain, not a legitimate LiteLLM domain
+level: critical

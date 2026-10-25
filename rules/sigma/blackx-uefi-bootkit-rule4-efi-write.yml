@@ -1,0 +1,33 @@
+title: Suspicious EFI File Write to System Partition
+id: b2d4f6a8-3c1e-4d7b-a5e9-1f8c0b6d2e47
+status: experimental
+description: >
+    Supplementary TTP rule: detects file creation events writing EFI binaries to the
+    EFI System Partition outside standard Windows servicing. Not BlackX-specific;
+    use alongside campaign-specific rules for triage.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://www.bleepingcomputer.com/news/security/blackx-uefi-bootkit-exploits-baton-drop-flaw-to-bypass-secure-boot/
+author: Actioner
+date: 2026/10/25
+tags:
+    - attack.t1542.003
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\EFI\'
+        TargetFilename|endswith: '.efi'
+    filter_windows_update:
+        Image|endswith:
+            - '\TiWorker.exe'
+            - '\TrustedInstaller.exe'
+            - '\poqexec.exe'
+    condition: selection and not filter_windows_update
+falsepositives:
+    - Legitimate UEFI firmware updates
+    - BitLocker provisioning
+    - Third-party boot managers (GRUB, rEFInd)
+    - Boot manager updates via Windows Update
+level: medium
