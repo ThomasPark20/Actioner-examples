@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-25
-Version: 0.1 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -204,7 +204,7 @@ No file system artifacts identified. This was a cloud-native attack operating en
    - `412dcf96-176d-4b3a-a1b0-4981ad66971e` (Partner Center)
    - `b2b55f5b-7758-4719-8d8f-88ae172e6bdb` (SharePoint Online)
 
-2. **Review Service Principal sign-ins** (not User sign-ins) for these app IDs, looking for IPs outside Microsoft/Azure ranges, specifically `144.172.64.128`.
+2. **Review Service Principal sign-ins** (not User sign-ins) for these app IDs, looking for IPs outside Microsoft/Azure ranges, specifically `144.172.64[.]128`.
 
 3. **Search Entra audit logs** for:
    - `Add member to role` operations by ConnectWise/SkyKick service principals
@@ -235,7 +235,8 @@ No file system artifacts identified. This was a cloud-native attack operating en
 
 ## Detection Rules
 
-These Sigma rules target the Storm-0940 ConnectWise supply chain attack indicators in Microsoft 365 and Azure AD audit logs: compromised ConnectWise application sign-ins from known attacker IPs, service principal self-assignment of privileged directory roles, unauthorized application credential additions, and bulk Key Vault secret access. All rules are PoC/advisory-specific (default altitude, strict leniency). Compiles does not equal fires -- verify in your environment's log pipeline.
+<!-- revision: v1.0 — fixed Rules 2-4 per critic (scoped to ConnectWise app IDs, renamed Rule 4, portability notes); defanged stray IP; aligned headings; updated intro. -->
+These Sigma rules target the Storm-0940 ConnectWise supply chain attack indicators in Microsoft 365 and Azure AD audit logs: compromised ConnectWise application sign-ins from known attacker IPs, privileged role assignments and credential additions scoped to the compromised ConnectWise application IDs, and Key Vault secret access from attacker infrastructure. Rules 1, 4, and 5 are IoC-anchored (specific altitude); Rules 2 and 3 are scoped to the compromised ConnectWise app IDs to keep them advisory-specific. Compiles does not equal fires -- verify in your environment's log pipeline.
 
 ### Sigma: ConnectWise Application Sign-in from Storm-0940 Infrastructure
 Detects service principal sign-ins for known compromised ConnectWise application IDs originating from Storm-0940 attacker IP addresses.
@@ -284,18 +285,19 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Service Principal Self-Assignment of Privileged Directory Role
-Detects a service principal adding itself to a privileged directory role (Global Administrator or Exchange Administrator), as observed in the Storm-0940 post-compromise phase.
+### Sigma: Privileged Directory Role Assignment by Compromised ConnectWise App
+Detects compromised ConnectWise service principals assigning privileged directory roles (Global Administrator or Exchange Administrator), scoped to the seven known-compromised ConnectWise application IDs.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). Keys on Entra audit log "Add member to role" with privileged role names. FP: legitimate PIM activations or vendor provisioning. Evasion: using a different principal to assign the role, or non-standard role name. -->
+<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). v1.0: scoped to ConnectWise app IDs per critic (was broad behavioral, now advisory-specific). Dropped "self-assignment" claim — Sigma cannot enforce initiating SP = target SP in nested Azure JSON. Portability: nested fields (InitiatedBy.app.appId, TargetResources.modifiedProperties.newValue) require Azure-aware pipeline for real deployment; converts syntactically to Splunk/LogScale without pipeline. FP: ConnectWise legitimate provisioning that assigns these roles (unlikely for Global Admin). -->
 ```yaml
-title: Service Principal Self-Assignment of Privileged Directory Role
+title: Privileged Directory Role Assignment by Compromised ConnectWise App
 id: d8b2f4c6-5e3a-4b9f-ad7c-2e6f8a1b3c4d
 status: experimental
 description: >
-    Detects a service principal adding itself to Global Administrator or Exchange
-    Administrator roles, as observed in the Storm-0940 ConnectWise supply chain
-    attack where compromised apps self-elevated privileges.
+    Detects compromised ConnectWise Cloud Backup and Cloud Management service
+    principals assigning Global Administrator or Exchange Administrator roles,
+    as observed in the Storm-0940 supply chain attack. Scoped to the seven
+    known-compromised ConnectWise application IDs.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
@@ -307,34 +309,42 @@ logsource:
     product: azure
     service: auditlogs
 detection:
-    selection:
+    selection_operation:
         OperationName: 'Add member to role'
         Category: 'RoleManagement'
+    selection_app:
+        InitiatedBy.app.appId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
     selection_role:
         TargetResources.modifiedProperties.newValue|contains:
             - 'Global Administrator'
             - 'Company Administrator'
             - 'Exchange Administrator'
-    condition: selection and selection_role
+    condition: selection_operation and selection_app and selection_role
 falsepositives:
-    - Legitimate Entra ID Privileged Identity Management (PIM) activations
-    - Authorized vendor provisioning workflows
+    - Legitimate ConnectWise provisioning workflows that assign privileged directory roles
 level: high
 ```
 
-### Sigma: Unauthorized Application Credential Addition by Service Principal
-Detects service principals adding new credentials (client secrets or certificates) to other applications, consistent with the Storm-0940 persistence mechanism of planting long-lived backdoor credentials.
+### Sigma: Application Credential Addition by Compromised ConnectWise App
+Detects compromised ConnectWise service principals adding credentials to applications, scoped to the seven known-compromised ConnectWise application IDs.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). Keys on credential addition audit events with Python/curl/azure-toolkit UAs from the advisory. FP: legitimate automation using Python/curl for app credential management. Scope to ConnectWise app IDs for higher precision. -->
+<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). v1.0: scoped to ConnectWise app IDs per critic (was keyed on user agents alone — too broad, python-requests/curl common in automation). Now app-ID-anchored with optional UA filter commented out. Portability: InitiatedBy.app.appId is nested JSON, requires Azure-aware pipeline for real deployment; converts syntactically without pipeline. FP: legitimate ConnectWise credential rotation (rare, should be flagged anyway). -->
 ```yaml
-title: Application Credential Addition with Suspicious User Agent
+title: Application Credential Addition by Compromised ConnectWise App
 id: e9c3a5d7-6f4b-4cae-be8d-3f7a9b2c4d5e
 status: experimental
 description: >
     Detects application credential additions (client secrets or certificates)
-    performed with user agents associated with Storm-0940 tooling
-    (Python-urllib, python-requests, curl), indicating automated credential
-    planting for persistent backdoor access.
+    initiated by compromised ConnectWise Cloud Backup and Cloud Management
+    service principals, consistent with Storm-0940 persistence mechanism
+    of planting long-lived backdoor credentials.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
     - https://www.huntress.com/blog/vendor-credential-enables-unauthorized-access
@@ -350,24 +360,27 @@ detection:
         OperationName:
             - 'Update application - Certificates and secrets management'
             - 'Add service principal credentials'
-    selection_useragent:
-        InitiatedBy.app.userAgent|contains:
-            - 'Python-urllib'
-            - 'python-requests'
-            - 'curl/'
-            - 'azure-toolkit'
-    condition: selection_operation and selection_useragent
+    selection_app:
+        InitiatedBy.app.appId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '2399d300-6fca-4e6a-a686-399fefe75b83'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - 'b78f6a77-d4e5-46fb-87e5-d1648bd02519'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+            - '412dcf96-176d-4b3a-a1b0-4981ad66971e'
+            - 'b2b55f5b-7758-4719-8d8f-88ae172e6bdb'
+    condition: selection_operation and selection_app
 falsepositives:
-    - Legitimate automation scripts that manage application credentials using Python or curl
+    - Legitimate ConnectWise credential rotation operations
 level: high
 ```
 
-### Sigma: Azure Key Vault Secret Access from Storm-0940 Infrastructure
+### Sigma: Azure Key Vault Secret Access from Storm-0940 IP
 Detects successful SecretGet operations in Azure Key Vault originating from known Storm-0940 attacker IPs, consistent with post-compromise credential harvesting.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403) -- not a rule issue. Keys on SecretGet + attacker IPs from the Microsoft advisory. FP: near-zero given RouterHosting ASN + operation intersection. Evasion: new IPs not in the list. -->
+<!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403) -- not a rule issue. v1.0: renamed title from "Bulk...Across Multiple Vaults" per critic — no bulk/multi-vault condition in logic. Keys on SecretGet + attacker IPs from the Microsoft advisory. FP: near-zero given RouterHosting ASN + operation intersection. Evasion: new IPs not in the list. -->
 ```yaml
-title: Bulk Azure Key Vault Secret Access Across Multiple Vaults
+title: Azure Key Vault Secret Access from Storm-0940 IP
 id: f0d4b6e8-7a5c-4dbe-cf9e-4a8b0c3d5e6f
 status: experimental
 description: >
@@ -402,7 +415,7 @@ falsepositives:
 level: high
 ```
 
-### Sigma: ConnectWise Application Sign-in with Anomalous User Agent
+### Sigma: ConnectWise App Sign-in with Scripted User Agent
 Detects service principal sign-ins for ConnectWise application IDs using user agents associated with scripted/automated attack tooling rather than legitimate ConnectWise SDK traffic.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: sigma convert splunk 0; log_scale 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). Keys on ConnectWise app IDs with Python/curl/azure-toolkit UAs. Legitimate ConnectWise traffic uses kiota-dotnet or Azure IPv6 ranges. FP: ConnectWise internal tooling changes, custom integrations. -->

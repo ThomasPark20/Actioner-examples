@@ -291,7 +291,7 @@ level: critical
 
 Detects OpenSSL command lines using `.pc_e_` staging directories with AES-256-CBC encryption or RSA public-key operations, consistent with the PRIVCOLLECT stealer's encryption and exfiltration routine.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on the distinctive .pc_e_ staging path prefix combined with OpenSSL crypto operations — highly specific to this payload. Legitimate openssl use with .pc_e_ paths is not expected. -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on the distinctive .pc_e_ staging path prefix combined with OpenSSL crypto operations — highly specific to this payload. Legitimate openssl use with .pc_e_ paths is not expected. -->
 ```yaml
 title: LiteLLM PRIVCOLLECT OpenSSL Encryption Staging Activity
 id: b3d8e5a1-7c4f-4a2e-9f6b-8e1d3c5a7b9f
@@ -330,7 +330,7 @@ level: high
 
 Detects the specific system reconnaissance command sequence spawned by the PRIVCOLLECT stealer on Windows: Python launching systeminfo, ipconfig, route, arp, and netstat.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on Python parent spawning the exact 5-command recon sequence. Slight FP risk from legitimate Python admin scripts running the same commands, but the full chain (all five from a Python parent) is distinctive. -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on Python parent spawning the exact 5-command recon sequence. Slight FP risk from legitimate Python admin scripts running the same commands, but the full chain (all five from a Python parent) is distinctive. -->
 ```yaml
 title: LiteLLM PRIVCOLLECT Windows Reconnaissance via Python
 id: e4c7a2f9-3b8d-4e1a-9c5f-6d2b8a4e7f1c
@@ -371,7 +371,7 @@ level: high
 
 Detects creation of the PRIVCOLLECT completion marker `/tmp/.pc_once_72129118c59f5636c0bb` or the remote code loader lock file `/tmp/remote_code_loader.lock` on Linux systems.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. The completion marker filename contains a unique hex suffix specific to this campaign. The lock filename is also distinctive. Negligible FP expected. -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. The completion marker filename contains a unique hex suffix specific to this campaign. The lock filename is also distinctive. Negligible FP expected. -->
 ```yaml
 title: LiteLLM PRIVCOLLECT Marker and Lock File Creation (Linux)
 id: a1f9c4e7-8d3b-4a5e-b2c6-7f1e9d3a8b5c
@@ -403,7 +403,7 @@ level: critical
 
 Detects DNS resolution of `litellm.dev` or `www.litellm.dev`, the attacker-registered exfiltration domain used by the PRIVCOLLECT stealer.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Domain registered by attacker on Oct 13, 2026 specifically for this campaign. Not a legitimate LiteLLM domain (legitimate is litellm.ai). -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Domain registered by attacker on Oct 13, 2026 specifically for this campaign. Not a legitimate LiteLLM domain (legitimate is litellm.ai). -->
 ```yaml
 title: DNS Query to LiteLLM Exfiltration Domain
 id: c8e2b5d1-9f4a-4c7e-a3b8-6d1f5e9c2a4b
@@ -434,7 +434,7 @@ level: critical
 
 Detects Python processes using Prisma to query LiteLLM credential and model tables, consistent with the PRIVCOLLECT stealer's database exfiltration behavior.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on the specific table names queried by the stealer. Medium confidence because legitimate LiteLLM admin operations may query these tables, though the combination with query_raw and os.devnull is distinctive. -->
+<!-- audit: sigma check skipped (env); splunk convert 0; log_scale convert 0. Keys on the specific table names queried by the stealer. Medium confidence because legitimate LiteLLM admin operations may query these tables, though the combination with query_raw and os.devnull is distinctive. -->
 ```yaml
 title: LiteLLM PRIVCOLLECT Prisma Database Credential Extraction
 id: d5a3f8c1-6e2b-4d9a-b7c4-9f1e3a5d8c2b
@@ -476,7 +476,7 @@ level: high
 
 Detects HTTP POST requests to the `/healthcheck` endpoint on `litellm.dev` with `application/octet-stream` content type, matching the PRIVCOLLECT stealer's exfiltration pattern.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -c /etc/snort/snort.conf -R ... -T exit 0. Keys on the exfiltration domain + path + content type. The combination of litellm.dev host with /healthcheck POST and octet-stream is highly distinctive. -->
+<!-- audit: snort 2.9.20 -c snort_test.conf -T exit 0 (validated with custom minimal config including classification). Keys on the exfiltration domain + path + content type. The combination of litellm.dev host with /healthcheck POST and octet-stream is highly distinctive. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM PRIVCOLLECT HTTP Exfiltration to litellm.dev"; flow:established,to_server; content:"POST"; depth:4; content:"/healthcheck"; content:"litellm.dev"; content:"application/octet-stream"; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/;)
 ```
@@ -485,7 +485,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM PR
 
 Detects HTTP POST requests to `/healthcheck` on `litellm.dev` with octet-stream content type, matching the PRIVCOLLECT exfiltration pattern.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Uses dot-notation sticky buffers. Keys on attacker-registered domain + exfiltration path + content type. -->
+<!-- audit: suricata 7.0.3 -T -S exit 0. Uses dot-notation sticky buffers. Keys on attacker-registered domain + exfiltration path + content type. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM PRIVCOLLECT HTTP Exfiltration to litellm.dev"; flow:established,to_server; http.method; content:"POST"; http.host; content:"litellm.dev"; endswith; http.uri; content:"/healthcheck"; startswith; http.content_type; content:"application/octet-stream"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created_at 2026-10-25; sid:2200101; rev:1;)
 ```
@@ -494,7 +494,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM PRIVCOLLE
 
 Detects DNS queries for `litellm.dev`, the attacker-controlled exfiltration domain.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0. Uses dns.query buffer with endswith. Domain is attacker-registered, not legitimate LiteLLM infrastructure. -->
+<!-- audit: suricata 7.0.3 -T -S exit 0. Uses dns.query buffer with endswith. Domain is attacker-registered, not legitimate LiteLLM infrastructure. -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to LiteLLM Exfiltration Domain litellm.dev"; flow:to_server; dns.query; content:"litellm.dev"; nocase; endswith; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created_at 2026-10-25; sid:2200102; rev:1;)
 ```
@@ -503,7 +503,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to LiteLLM Exfiltr
 
 Detects the malicious `cook.py` and `sitecustomize.py` files from the LiteLLM 1.107.0 compromise by matching distinctive strings: the PRIVCOLLECT identifier, completion marker path, staging directory prefix, environment variable, and exfiltration endpoint.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: file with PRIVCOLLECT_ACTIVE + .pc_once_72129118c59f5636c0bb + .pc_e_ + litellm.dev/healthcheck matched. Negative test: benign Python file did not match. Strings drawn from Microsoft's published analysis — all are distinctive to this payload. -->
+<!-- audit: yarac exit 0. sample: fired on pos_privcollect.txt (PRIVCOLLECT_ACTIVE + marker + staging + exfil_url + lock + dead_drop + tables + X-SHA256). Quiet on neg_benign.txt (clean litellm usage). Strings drawn from Microsoft's published analysis — all are distinctive to this payload. -->
 ```yara
 rule Supply_Chain_LiteLLM_PRIVCOLLECT_Stealer
 {
@@ -535,7 +535,7 @@ rule Supply_Chain_LiteLLM_PRIVCOLLECT_Stealer
 
 Detects the malicious `cook.pth` file that triggers the PRIVCOLLECT stealer by matching its known SHA-256 hashes.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: file containing "import cook" (7 bytes + newline, matching the .pth content) matched. Negative test: file with "import os" did not match. Hash-based detection is exact-match. -->
+<!-- audit: yarac exit 0. sample: fired on pos_cookpth.txt ("import cook\n", 12 bytes). Quiet on neg_pth.txt ("import os\n"). The fullword modifier prevents partial matches. filesize < 1KB scopes to small .pth files. -->
 ```yara
 rule Supply_Chain_LiteLLM_Cook_PTH
 {

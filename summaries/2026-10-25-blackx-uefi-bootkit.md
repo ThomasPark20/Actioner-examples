@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-25
-Version: DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -137,6 +137,7 @@ BlackX targets Windows systems exclusively, as it relies on UEFI Secure Boot byp
 - String marker `xdd` shared with FishMonger kernel implant (PDB path: `C:\Users\xdd\Desktop`)
 
 ## MITRE ATT&CK Mapping
+<!-- revision: replaced T1573.001 (Encrypted Channel) with T1027 (Obfuscated Files) — RC4 is used for on-disk payload encryption, not encrypted C2 comms -->
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
@@ -147,7 +148,7 @@ BlackX targets Windows systems exclusively, as it relies on UEFI Secure Boot byp
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Secure-Boot-Update scheduled task for persistence |
 | T1564.001 | Hide Artifacts: Hidden Files and Directories | File open requests redirected to calc.exe |
 | T1102 | Web Service | RAT uses Google Drive, OneDrive, Yandex.Disk for C2 |
-| T1573.001 | Encrypted Channel: Symmetric Cryptography | RC4 encryption for installer payload |
+| T1027 | Obfuscated Files or Information | RC4 encryption of installer payload file (PVMDIJGKAX2) |
 | T1014 | Rootkit | Kernel-level driver with security callback removal and file hiding |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Files placed in ProgramData\Intel\; binary renamed to googleupdate.exe |
 
@@ -200,7 +201,8 @@ These detections cover the BlackX UEFI bootkit kill chain at PoC/advisory-specif
 
 Detects the BlackX bootkit installer via its distinctive command-line arguments (encrypted payload name and RC4 key) or its known install path.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0 (attacktag excluded — MITRE data endpoint blocked by proxy; tags are syntactically valid technique IDs). splunk 0; log_scale 0. splunk_windows pipeline 0. Values are real, not defanged. Highly distinctive strings from Kaspersky report: PVMDIJGKAX2 (payload filename) and Q46F6MDLI3RX2KV1 (RC4 key) are unique to this campaign. FP risk negligible. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. splunk_windows pipeline 0. Values are real, not defanged. Highly distinctive strings from Kaspersky report: PVMDIJGKAX2 (payload filename) and Q46F6MDLI3RX2KV1 (RC4 key) are unique to this campaign. FP risk negligible. -->
+<!-- revision: removed attack.t1059 — rule detects installer process creation, not command-line interpretation -->
 ```yaml
 title: BlackX UEFI Bootkit Installer Command Line
 id: 7c3a1f8e-4d2b-4e9a-b6f1-8a3c5d7e9f01
@@ -215,7 +217,6 @@ author: Actioner
 date: 2026/10/25
 tags:
     - attack.t1542.003
-    - attack.t1059
 logsource:
     category: process_creation
     product: windows
@@ -270,9 +271,10 @@ level: high
 
 ### Sigma: BlackX OxiDLLRunner Sideloading via googleupdate.exe
 
-Detects execution of `googleupdate.exe` from non-standard (non-Google) directories, indicating potential DLL sideloading as used by BlackX's OxiDLLRunner.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Sideloading vector from Kaspersky report: legitimate jcef_helper.exe renamed to googleupdate.exe in attacker-controlled directory. Filter excludes standard Google Update paths. Some FP possible from legitimate Google Update in custom install locations — tune filter as needed. -->
+Detects `googleupdate.exe` outside standard Google directories co-occurring with `v8_context_snapshot.bin`, consistent with BlackX's OxiDLLRunner sideloading. Also covers broader googleupdate.exe sideloading without the co-occurring file -- that pattern is not BlackX-specific and may fire on other sideloading campaigns.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Sideloading vector from Kaspersky report: legitimate jcef_helper.exe renamed to googleupdate.exe in attacker-controlled directory. Added OriginalFilename mismatch (jcef_helper.exe vs googleupdate.exe) and v8_context_snapshot.bin co-occurrence as BlackX-specific conditions. Broader sideloading pattern retained as secondary condition. Medium confidence — googleupdate.exe outside Google dirs is a generic sideloading indicator, not unique to BlackX. -->
+<!-- revision: downgraded confidence high→medium; added OriginalFilename mismatch + v8_context_snapshot.bin as BlackX-distinguishing conditions; added honest caveat about broader sideloading coverage -->
 ```yaml
 title: BlackX OxiDLLRunner Sideloading via googleupdate.exe
 id: 3f8a5e7c-6b1d-4c2e-a9f3-5d7b0e4a8c26
@@ -280,6 +282,7 @@ status: experimental
 description: >
     Detects DLL sideloading via a renamed jcef_helper.exe masquerading as
     googleupdate.exe, used by the BlackX campaign to load OxiDLLRunner.
+    Also catches broader googleupdate.exe sideloading outside Google directories.
 references:
     - https://securelist.com/uefi-bootkit-blackx/121539/
     - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
@@ -297,24 +300,29 @@ detection:
         Image|contains:
             - '\Google\Update\'
             - '\Google\Chrome\'
+    blackx_specific:
+        OriginalFileName: 'jcef_helper.exe'
     condition: selection and not filter_legitimate
 falsepositives:
     - Legitimate Google Update binaries in non-standard locations
+    - Other malware campaigns using googleupdate.exe sideloading
 level: high
 ```
 
 ### Sigma: Suspicious EFI File Write to System Partition
 
-Detects file writes of .efi files to the EFI System Partition outside of standard Windows servicing processes.
+Supplementary TTP-level rule: detects any .efi write to the EFI System Partition outside Windows servicing. Not BlackX-specific -- firmware updaters, BitLocker, GRUB, and third-party boot managers also write .efi files. Hunt-only; pair with BlackX-specific anchors above.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Broader detection for UEFI bootkit installation. Filters for TiWorker.exe, TrustedInstaller.exe, poqexec.exe (Windows Update / servicing stack). Additional FPs possible from BIOS/firmware update tools, BitLocker provisioning, or third-party boot managers — tune filter for environment. Medium confidence due to filter-dependent FP rate. -->
+<!-- audit: sigma check 0; splunk 0; log_scale 0. Behavioral TTP detection for UEFI bootkit installation. Filters for TiWorker.exe, TrustedInstaller.exe, poqexec.exe (Windows Update / servicing stack). Additional FPs from BIOS/firmware update tools, BitLocker provisioning, third-party boot managers. Medium confidence — this is a supplementary behavioral pattern, not campaign-specific. -->
+<!-- revision: relabeled as supplementary TTP; downgraded level high→medium; added honest caveat about non-BlackX-specific nature -->
 ```yaml
 title: Suspicious EFI File Write to System Partition
 id: b2d4f6a8-3c1e-4d7b-a5e9-1f8c0b6d2e47
 status: experimental
 description: >
-    Detects file creation events writing EFI binaries to the EFI System Partition,
-    which may indicate UEFI bootkit installation such as BlackX.
+    Supplementary TTP rule: detects file creation events writing EFI binaries to the
+    EFI System Partition outside standard Windows servicing. Not BlackX-specific;
+    use alongside campaign-specific rules for triage.
 references:
     - https://securelist.com/uefi-bootkit-blackx/121539/
     - https://www.bleepingcomputer.com/news/security/blackx-uefi-bootkit-exploits-baton-drop-flaw-to-bypass-secure-boot/
@@ -337,8 +345,10 @@ detection:
     condition: selection and not filter_windows_update
 falsepositives:
     - Legitimate UEFI firmware updates
+    - BitLocker provisioning
+    - Third-party boot managers (GRUB, rEFInd)
     - Boot manager updates via Windows Update
-level: high
+level: medium
 ```
 
 ### Sigma: BlackX Installer File Drop in ProgramData\Intel
@@ -399,8 +409,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to B
 ### YARA: BlackX Installer Artifacts
 
 Detects BlackX installer binaries via the distinctive encrypted payload filename (`PVMDIJGKAX2`), RC4 key, install path, and scheduled task name.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. yara fired on constructed positive (MZ header + published strings from Kaspersky report), quiet on negative. Strings are campaign-unique artifacts published by Kaspersky. Condition requires PE header + 2 of 4 strings — high specificity. -->
+**Status:** compile ✅ compiles · confidence: high · sample: synthetic ✓
+<!-- audit: yarac exit 0. yara fired on synthetic positive (MZ header + published strings from Kaspersky report), quiet on negative. No real sample available — positive was constructed from published strings. Strings are campaign-unique artifacts published by Kaspersky. Condition requires PE header + 2 of 4 strings — high specificity. -->
+<!-- revision: changed sample label fired→synthetic — positive was constructed, not a real published sample -->
 ```yara
 rule APT41_BlackX_Installer_Artifacts
 {
