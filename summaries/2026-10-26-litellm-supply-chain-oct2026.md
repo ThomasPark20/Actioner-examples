@@ -299,6 +299,7 @@ level: high
 Detects DNS queries to litellm[.]dev, the PRIVCOLLECT credential exfiltration domain.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. Domain registered 2026-10-13 by the attacker. Minimal FP risk as this is an attacker-registered domain, not legitimate LiteLLM infrastructure. If the domain is sinkholed or repurposed post-incident, FP may increase. -->
+<!-- revision: corrected ATT&CK tag from attack.t1071.001 (Web Protocols) to attack.t1071.004 (DNS) to match the dns_query logsource. -->
 ```yaml
 title: LiteLLM Supply Chain - DNS Query to Exfiltration Domain
 id: 2f9b4c8e-7d1a-4e3f-b5c6-1a8d9e2f4b7c
@@ -407,6 +408,7 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN 
 
 Detects the PRIVCOLLECT exfiltration POST, DNS queries to the exfiltration domain, and access to the dead drop resolver.
 **Status:** compile ✅ compiles · confidence: high
+**Deployment note:** SIDs 2200101-2200103 fall within the Emerging Threats reserved range. Reassign to your organization's local SID range before production deployment.
 <!-- audit: suricata -T exit 0. Three rules: sid 2200101 (HTTP POST exfil with host/uri/method/content-type match), sid 2200102 (DNS query for litellm.dev), sid 2200103 (HTTP dead drop access with URI + host match). All use dot-notation sticky buffers per Suricata 7.x. -->
 ```suricata
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Credential Exfiltration to litellm.dev"; flow:established,to_server; http.method; content:"POST"; http.host; content:"litellm.dev"; http.uri; content:"/healthcheck"; startswith; http.content_type; content:"application/octet-stream"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks; metadata:author Actioner, created_at 2026-10-26; sid:2200101; rev:1;)
