@@ -1,0 +1,25 @@
+title: DNS Query to Potassium C2 Domain thunder.godofthunder.st
+id: e5f6a7b8-9c0d-4e1f-a2b3-c4d5e6f7a8b9
+status: experimental
+description: >
+    Detects DNS queries to thunder.godofthunder.st, the C2 domain used by the
+    Potassium Mirai variant observed in PHP2Shell exploitation campaigns.
+references:
+    - https://www.sophos.com/en-us/blog/proof-of-concept-exploit-released-for-php-vulnerabilities-109618-109619
+    - https://thehackernews.com/2026/10/php2shell-exploit-attempts-hit-millions.html
+author: Actioner
+date: 2026-10-26
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'thunder.godofthunder.st'
+            - 'hackattackkaboom.botlesscucks.st'
+            - 'hik.gettingheadfromduckysmom.st'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

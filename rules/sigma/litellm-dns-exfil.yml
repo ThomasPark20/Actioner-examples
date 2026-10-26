@@ -1,0 +1,24 @@
+title: LiteLLM Supply Chain - DNS Query to Exfiltration Domain
+id: 2f9b4c8e-7d1a-4e3f-b5c6-1a8d9e2f4b7c
+status: experimental
+description: >
+    Detects DNS queries to litellm.dev, the exfiltration domain used by the
+    PRIVCOLLECT credential stealer distributed via malicious LiteLLM v1.107.0
+    packages. Stolen credentials are POSTed to litellm.dev/healthcheck.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1041
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'litellm.dev'
+    condition: selection
+falsepositives:
+    - Legitimate access to litellm.dev if the domain is repurposed post-incident
+level: critical

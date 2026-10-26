@@ -1,0 +1,23 @@
+title: PHP2Shell Potassium Payload Drop to tmp
+id: b4c8e1d7-5a2f-4e9b-8d3c-6f1a0b9e7c4d
+status: experimental
+description: >
+    Detects file creation at /tmp/nfs, the drop path used by the Potassium Mirai variant
+    delivered via PHP2Shell (CVE-2026-109618/CVE-2026-109619) exploitation.
+references:
+    - https://www.sophos.com/en-us/blog/proof-of-concept-exploit-released-for-php-vulnerabilities-109618-109619
+    - https://blog.talosintelligence.com/two-critical-rces-in-php-core/
+author: Actioner
+date: 2026-10-26
+tags:
+    - attack.t1105
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename: '/tmp/nfs'
+    condition: selection
+falsepositives:
+    - Legitimate NFS-related temporary files (unlikely at this exact path)
+level: high

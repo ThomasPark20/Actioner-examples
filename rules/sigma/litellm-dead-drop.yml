@@ -1,0 +1,24 @@
+title: LiteLLM Supply Chain - Dead Drop Resolver GitHub Access
+id: 4e7a1b3c-9f2d-4a6e-8c5b-2d1f7e3a9b4c
+status: experimental
+description: >
+    Detects proxy or web log access to the GitHub-hosted dead drop resolver
+    used by the LiteLLM v1.107.0 backdoor. The malware reads domain.txt
+    from github.com/letters9813/pythonclient-test hourly.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://thehackernews.com/2026/10/litellm-compromised-in-supply-chain.html
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1102.001
+    - attack.t1105
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-uri|contains: '/letters9813/pythonclient-test'
+    condition: selection
+falsepositives:
+    - Legitimate developer access to the letters9813 GitHub user repositories
+level: high

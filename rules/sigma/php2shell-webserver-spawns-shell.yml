@@ -1,0 +1,41 @@
+title: Supplemental TTP - Web Server Spawning Shell Process
+id: 9f2a7b3c-4d1e-4f8a-b6c5-2e3d1a0f9b8c
+status: experimental
+description: >
+    Supplemental TTP detection: detects web server or PHP worker processes spawning
+    shell processes. Not specific to PHP2Shell --- fires on any web-server-to-shell
+    chain. Useful as a broad post-exploitation indicator alongside PHP2Shell-specific rules.
+references:
+    - https://blog.talosintelligence.com/two-critical-rces-in-php-core/
+    - https://www.sophos.com/en-us/blog/proof-of-concept-exploit-released-for-php-vulnerabilities-109618-109619
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+author: Actioner
+date: 2026-10-26
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/apache2'
+            - '/httpd'
+            - '/nginx'
+            - '/lsphp'
+            - '/frankenphp'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/csh'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate PHP applications that spawn shell commands (e.g., backup scripts, system monitoring)
+    - CGI scripts executed via Apache/Nginx
+level: medium

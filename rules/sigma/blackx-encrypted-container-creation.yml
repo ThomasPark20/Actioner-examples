@@ -1,0 +1,27 @@
+title: BlackX Encrypted Container or Payload File Creation
+id: 9e4b7d2c-3a1f-4c8e-b6d5-1f7a2e8c4b3d
+status: experimental
+description: >
+    Detects creation of BlackX-specific files: the RC4-encrypted container
+    PVMDIJGKAX2 or the encrypted payload v8_context_snapshot.bin in paths
+    associated with the campaign.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1027
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_container:
+        TargetFilename|endswith: '\PVMDIJGKAX2'
+    selection_payload:
+        TargetFilename|endswith: '\v8_context_snapshot.bin'
+        TargetFilename|contains: '\ProgramData\'
+    condition: selection_container or selection_payload
+falsepositives:
+    - Legitimate Chromium-based applications creating v8_context_snapshot.bin in program directories
+level: high

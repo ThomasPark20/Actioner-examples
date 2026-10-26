@@ -1,0 +1,29 @@
+title: Sign-in from Known Storm-0940 Infrastructure IP Addresses
+id: 9a2f1c8d-3e6b-4d7a-a5c0-2b9e4f8d6a1c
+status: experimental
+description: >
+    Detects sign-in events originating from IP addresses attributed to Storm-0940
+    infrastructure used in the ConnectWise supply chain compromise and associated
+    password-spray campaign (October 2026).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1078.004
+logsource:
+    product: azure
+    service: signinlogs
+detection:
+    selection_ip:
+        IPAddress:
+            - '144.172.64.99'
+            - '144.172.64.60'
+            - '144.172.64.128'
+            - '187.15.88.186'
+            - '187.15.89.186'
+            - '187.15.90.217'
+    condition: selection_ip
+falsepositives:
+    - Unlikely given direct attribution to Storm-0940 operational infrastructure
+level: critical
