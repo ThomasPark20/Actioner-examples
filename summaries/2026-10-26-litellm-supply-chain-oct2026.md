@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-26
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -170,9 +170,9 @@ The stealer is active via cook.pth + cook.py (Windows-specific wheel variant). T
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Trojanized litellm v1.107.0 pushed to PyPI, Docker Hub, and GHCR |
-| T1546.018 | Event Triggered Execution: Python Startup Hooks | cook.pth and sitecustomize.py execute at Python interpreter startup |
+| T1546 | Event Triggered Execution | cook.pth and sitecustomize.py execute at Python interpreter startup (Python .pth startup hooks; no ATT&CK sub-technique exists for this vector) |
 | T1059.006 | Command and Scripting Interpreter: Python | Backdoor downloads and executes arbitrary Python code |
-| T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | cook.py uses Base64 + zlib to hide PRIVCOLLECT payload |
+| T1027 | Obfuscated Files or Information | cook.py uses Base64 + zlib compression to hide embedded PRIVCOLLECT payload |
 | T1140 | Deobfuscate/Decode Files or Information | Runtime decompression and decoding of embedded stealer |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvests credentials from config files, dotenv, Git credentials |
 | T1552.004 | Unsecured Credentials: Private Keys | Steals SSH, GPG, TLS private keys |
@@ -256,18 +256,19 @@ These detections target the LiteLLM v1.107.0 supply chain compromise at PoC/advi
 
 ### Sigma: Malicious Python Startup Hook Files in Site-Packages
 
-Detects creation of cook.pth or cook.py in Python site-packages directories, the persistence mechanism for the PRIVCOLLECT stealer.
+Detects creation of cook.pth or cook.py in Python site-packages directories, the persistence mechanism for the PRIVCOLLECT stealer. Covers both Linux and Windows environments.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. sigma check fails due to MITRE ATT&CK data fetch blocked by proxy (not a rule issue). Keys on distinctive file names + site-packages path. FP: a legitimate "cook" package installed via pip would match; scope to environments that do not use such a package. -->
+<!-- revision: removed "or sitecustomize.py" from rule description (selection_path only matches cook.pth and cook.py). Removed product: linux to cover Windows-specific wheels documented in the attack. -->
 ```yaml
 title: LiteLLM Supply Chain - Malicious Python Startup Hook Files
 id: 8a3c1e7f-4b2d-4f6a-9e1c-3d5b7a9f2c4e
 status: experimental
 description: >
-    Detects creation of cook.pth, cook.py, or sitecustomize.py files associated
-    with the LiteLLM v1.107.0 supply chain compromise credential stealer
-    (PRIVCOLLECT). These files are placed in Python site-packages to execute
-    at interpreter startup via Python startup hooks.
+    Detects creation of cook.pth or cook.py files associated with the LiteLLM
+    v1.107.0 supply chain compromise credential stealer (PRIVCOLLECT). These
+    files are placed in Python site-packages to execute at interpreter startup
+    via Python startup hooks.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
     - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
@@ -275,15 +276,16 @@ author: Actioner
 date: 2026/10/26
 tags:
     - attack.t1195.001
-    - attack.t1546.018
+    - attack.t1546
 logsource:
     category: file_event
-    product: linux
 detection:
     selection_path:
         TargetFilename|endswith:
             - '/cook.pth'
             - '/cook.py'
+            - '\cook.pth'
+            - '\cook.py'
     selection_sitepackages:
         TargetFilename|contains: 'site-packages'
     condition: selection_path and selection_sitepackages
@@ -311,7 +313,7 @@ author: Actioner
 date: 2026/10/26
 tags:
     - attack.t1041
-    - attack.t1071.001
+    - attack.t1071.004
 logsource:
     category: dns_query
 detection:
@@ -329,14 +331,15 @@ level: critical
 Detects proxy/web log access to the GitHub-hosted dead drop used by the LiteLLM v1.107.0 backdoor to retrieve C2 server addresses.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma convert splunk 0, log_scale 0. Keys on the distinctive path /letters9813/pythonclient-test which is the attacker-controlled GitHub repo. Very low FP unless a legitimate developer accesses this specific user's repo. -->
+<!-- revision: fixed description from "DNS queries or network connections" to "proxy or web log access" — rule uses logsource: category: proxy with cs-uri, detecting HTTP proxy log entries only. -->
 ```yaml
 title: LiteLLM Supply Chain - Dead Drop Resolver GitHub Access
 id: 4e7a1b3c-9f2d-4a6e-8c5b-2d1f7e3a9b4c
 status: experimental
 description: >
-    Detects DNS queries or network connections to the GitHub-hosted dead drop
-    resolver used by the LiteLLM v1.107.0 backdoor. The malware reads
-    domain.txt from github.com/letters9813/pythonclient-test hourly.
+    Detects proxy or web log access to the GitHub-hosted dead drop resolver
+    used by the LiteLLM v1.107.0 backdoor. The malware reads domain.txt
+    from github.com/letters9813/pythonclient-test hourly.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
     - https://thehackernews.com/2026/10/litellm-compromised-in-supply-chain.html
@@ -392,6 +395,7 @@ level: critical
 
 Detects HTTP POST to the PRIVCOLLECT exfiltration endpoint and access to the GitHub dead drop resolver.
 **Status:** compile ✅ compiles · confidence: high
+**Deployment note:** SIDs 2100101-2100102 fall within the Emerging Threats reserved range (2100000-2103999). Reassign to your organization's local SID range before production deployment.
 <!-- audit: snort -c minimal.conf -T exit 0. Rule 2100101 keys on POST + /healthcheck URI + litellm.dev host + application/octet-stream content type. Rule 2100102 keys on the distinctive /letters9813/pythonclient-test URI path + raw.githubusercontent.com host. Both use distinctive multi-content anchors for low FP. -->
 ```snort
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - Credential Exfiltration to litellm.dev healthcheck"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; content:"litellm.dev"; http_header; content:"application/octet-stream"; http_header; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks;)
@@ -438,14 +442,15 @@ rule SupplyChain_LiteLLM_CookPTH_Loader
 
 ### YARA: PRIVCOLLECT Credential Stealer Payload
 
-Detects the PRIVCOLLECT credential stealer payload via characteristic strings found in cook.py and sitecustomize.py.
+Detects the PRIVCOLLECT credential stealer payload via characteristic strings found in the decoded/decompressed payload or sitecustomize.py. Note: cook.py on disk uses Base64+zlib compression, so these plaintext strings will not match the on-disk cook.py wrapper; the rule fires on decoded/decompressed content, memory dumps, or the sitecustomize.py loader which contains the strings in plaintext.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: yarac exit 0. Requires 4 of 9 distinctive strings including PRIVCOLLECT_ACTIVE identifier, lock file path, exfil domain/path, dead drop repo, marker file, and LiteLLM database table names. All strings sourced from Microsoft blog. 4-of-9 threshold balances variant coverage with FP avoidance. -->
+<!-- revision: clarified that rule matches decoded/decompressed payload or sitecustomize.py, not on-disk cook.py (which uses Base64+zlib). Added caveat about requiring decoded content or memory scanning for cook.py coverage. -->
 ```yara
 rule SupplyChain_LiteLLM_PRIVCOLLECT_Stealer
 {
     meta:
-        description = "Detects the PRIVCOLLECT credential stealer payload from the LiteLLM v1.107.0 supply chain compromise via characteristic strings"
+        description = "Detects the PRIVCOLLECT credential stealer payload from the LiteLLM v1.107.0 supply chain compromise. Matches decoded/decompressed content or sitecustomize.py; on-disk cook.py uses Base64+zlib and requires decoding or memory scan."
         author = "Actioner"
         date = "2026-10-26"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/"
