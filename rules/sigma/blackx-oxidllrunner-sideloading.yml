@@ -1,0 +1,27 @@
+title: BlackX OxiDLLRunner Sideloading via Renamed jcef_helper
+id: 2f8d6a4e-1c3b-4e7f-8d5a-9b2c6e1f3a7d
+status: experimental
+description: >
+    Detects the execution of googleupdate.exe (renamed jcef_helper.exe) used by
+    BlackX to sideload the OxiDLLRunner DLL. Matches the known MD5 hash or the
+    original filename with a suspicious parent path.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_hash:
+        Hashes|contains: 'AF8A983B9ADA07EAE1259BF2953ABD40'
+    selection_renamed:
+        OriginalFileName: 'jcef_helper.exe'
+        Image|endswith: '\googleupdate.exe'
+    condition: selection_hash or selection_renamed
+falsepositives:
+    - Legitimate JCEF helper binary in Chromium-based applications
+level: high

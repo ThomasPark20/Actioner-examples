@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-26
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -144,7 +144,7 @@ BlackX targets Windows systems with UEFI Secure Boot, specifically those where t
 | T1027 | Obfuscated Files or Information | OLLVM obfuscation of OxiDLLRunner; RC4-encrypted container |
 | T1140 | Deobfuscate/Decode Files or Information | RC4 decryption of PVMDIJGKAX2; decryption of v8_context_snapshot.bin |
 | T1102 | Web Service | Cloud storage (Google Drive, OneDrive, Yandex.Disk) used for C2 |
-| T1059.003 | Command and Scripting Interpreter: Windows Command Shell | .NET payloads executed via TEST.Class1.RunCMD |
+| T1059.003 | Command and Scripting Interpreter: Windows Command Shell | .NET payloads executed via TEST.Class1.RunCMD (sub-technique inferred from method name; may warrant parent T1059 if RunCMD invokes a CLR host rather than cmd.exe) |
 
 ## Impact Assessment
 
@@ -259,6 +259,7 @@ level: high
 Detects creation of the BlackX-specific RC4-encrypted container `PVMDIJGKAX2` or the encrypted payload `v8_context_snapshot.bin` under `ProgramData`.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. PVMDIJGKAX2 is a unique extensionless filename; v8_context_snapshot.bin is a legitimate Chromium file but scoped to ProgramData (non-standard for legitimate Chromium installs). FP: v8_context_snapshot.bin selection may match Electron apps writing to ProgramData — the PVMDIJGKAX2 selection has near-zero FP risk. -->
+<!-- revision: replaced tag T1074.001 (Local Data Staging) with T1105 (Ingress Tool Transfer) — dropping an encrypted installer payload is tool transfer, not data staging. -->
 ```yaml
 title: BlackX Encrypted Container or Payload File Creation
 id: 9e4b7d2c-3a1f-4c8e-b6d5-1f7a2e8c4b3d
@@ -273,7 +274,7 @@ author: Actioner
 date: 2026/10/26
 tags:
     - attack.t1027
-    - attack.t1074.001
+    - attack.t1105
 logsource:
     category: file_event
     product: windows
@@ -310,8 +311,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - BlackX DNS Query to C2 Domai
 ### YARA: BlackX Installer and Payload Strings
 
 Detects BlackX components via distinctive campaign strings including the encrypted container name, RC4 key, RAT command method, plugin export, and C2 domain.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: pos.txt with published strings PVMDIJGKAX2 + Q46F6MDLI3RX2KV1 + TEST.Class1.RunCMD → Bootkit_BlackX_Installer_Strings matched. neg.txt (benign text) → no match. Condition: 2 of 9 strings, covering installer, RAT, and sideloading artifacts. No PE header gate on rule 1 to catch non-PE artifacts (encrypted containers, scripts). -->
+**Status:** compile ✅ compiles · confidence: medium · sample: not available
+<!-- audit: yarac exit 0. Condition tightened per review: generic strings (0X01, 0X02, SSSR, v8_context_snapshot.bin, create_plugin) may cause FPs at "2 of them". Now requires 1 distinctive string OR 4 of any, reducing FP surface. Confidence downgraded from high to medium — no real sample available. No PE header gate to catch non-PE artifacts (encrypted containers, scripts). -->
+<!-- revision: (1) partitioned strings into distinctive and supporting; condition changed from "2 of them" to "1 of ($installer_container, $rc4_key, $rat_method, $c2_domain) or 4 of them". (2) sample label changed from "fired ✓" to "not available" — prior test used hand-crafted pos.txt. (3) confidence downgraded high→medium. -->
 ```yara
 rule Bootkit_BlackX_Installer_Strings
 {
@@ -324,20 +326,33 @@ rule Bootkit_BlackX_Installer_Strings
         tlp = "WHITE"
 
     strings:
+        // Distinctive strings — any one of these is a strong BlackX indicator
         $installer_container = "PVMDIJGKAX2" ascii wide
         $rc4_key = "Q46F6MDLI3RX2KV1" ascii wide
         $rat_method = "TEST.Class1.RunCMD" ascii wide
-        $plugin_export = "create_plugin" ascii fullword
         $c2_domain = "archivetj.com" ascii wide
+
+        // Supporting strings — individually generic, meaningful only in combination
+        $plugin_export = "create_plugin" ascii fullword
         $encrypted_payload = "v8_context_snapshot.bin" ascii wide
         $rat_suffix_sssr = "SSSR" ascii fullword
         $rat_suffix_01 = "0X01" ascii fullword
         $rat_suffix_02 = "0X02" ascii fullword
 
     condition:
-        2 of them
+        1 of ($installer_container, $rc4_key, $rat_method, $c2_domain) or
+        4 of them
 }
 
+```
+
+### YARA: BlackX OxiDLLRunner Sideload PE
+
+Detects the legitimate `jcef_helper.exe` binary (renamed `googleupdate.exe`) abused by BlackX for DLL sideloading, based on PE metadata and campaign strings.
+**Status:** compile ✅ compiles · confidence: high · sample: not tested
+<!-- audit: yarac exit 0. Keys on PE header + OriginalFileName jcef_helper.exe + at least one BlackX-specific string. FP: requires PE + OriginalFileName match + campaign string — risk low. -->
+<!-- revision: sample label set to "not tested" — only rule 1 was tested against crafted text; this rule was not independently validated against a sample. Rule logic unchanged; confidence stays high. -->
+```yara
 rule Bootkit_BlackX_OxiDLLRunner_Sideload
 {
     meta:
