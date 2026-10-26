@@ -1,0 +1,26 @@
+title: PHP2Shell Potassium Mirai Variant Execution
+id: d7e3f2a1-8b4c-4d6e-9a5f-3c2b1d0e8f7a
+status: experimental
+description: >
+    Detects execution of the Potassium Mirai variant with its characteristic
+    command line, as observed in PHP2Shell exploitation campaigns.
+references:
+    - https://www.sophos.com/en-us/blog/proof-of-concept-exploit-released-for-php-vulnerabilities-109618-109619
+    - https://thehackernews.com/2026/10/php2shell-exploit-attempts-hit-millions.html
+author: Actioner
+date: 2026-10-26
+tags:
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|endswith: './nfs php'
+    selection_alt:
+        Image|endswith: '/nfs'
+        CommandLine|contains: 'php'
+    condition: selection or selection_alt
+falsepositives:
+    - Unlikely; highly specific command pattern
+level: critical

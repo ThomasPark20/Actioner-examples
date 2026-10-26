@@ -1,0 +1,28 @@
+title: Compromised ConnectWise OAuth Application Sign-in Activity
+id: 7c3e8b4a-1f5d-4a9e-b2c6-8d0f3e7a5b19
+status: experimental
+description: >
+    Detects service principal sign-ins from ConnectWise Cloud Backup, MS Teams,
+    or MS Graph OAuth applications compromised in the October 2026 Storm-0940
+    supply chain attack. These application IDs should be disabled per Microsoft
+    and ConnectWise guidance until formal restoration instructions are issued.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1078.004
+    - attack.t1199
+logsource:
+    product: azure
+    service: signinlogs
+detection:
+    selection_app:
+        AppId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_app
+falsepositives:
+    - Legitimate ConnectWise service operations after vendor confirms remediation is complete
+level: high

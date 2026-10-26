@@ -1,0 +1,32 @@
+title: Compromised ConnectWise App Self-Assignment of Privileged Directory Role
+id: e1a3c5f8-7d2b-4e9a-b6c4-3f8d0a2e5c7b
+status: experimental
+description: >
+    Detects a ConnectWise service principal (identified by compromised app ID)
+    adding itself to a privileged directory role such as Global Administrator.
+    Storm-0940 used ConnectWise management applications to self-assign Global
+    Administrator in compromised tenants during the October 2026 supply chain
+    attack. Portability note: InitiatedBy is a nested JSON object in Azure
+    AuditLogs; the dot-path field reference requires SIEM-specific field mapping
+    or a Sigma processing pipeline that flattens the nested structure.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1098.003
+logsource:
+    product: azure
+    service: auditlogs
+detection:
+    selection_operation:
+        OperationName|contains: 'Add member to role'
+    selection_app:
+        InitiatedBy.app.appId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_operation and selection_app
+falsepositives:
+    - Legitimate ConnectWise service operations after vendor confirms remediation is complete
+level: high

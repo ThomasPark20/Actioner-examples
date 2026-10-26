@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-26
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -192,6 +192,8 @@ OAuthAppInfo
 | project AppName, OAuthAppId, ServicePrincipalId, AppStatus, PrivilegeLevel, IsAdminConsented
 ```
 
+> **Note:** IP addresses and application IDs in KQL hunting queries below are intentionally not defanged. These queries are designed for direct copy-paste into Microsoft Sentinel, Defender XDR, or other KQL-compatible SIEMs.
+
 **Review service principal sign-ins and Graph activity (Defender XDR):**
 
 ```kql
@@ -277,6 +279,16 @@ CloudKeyVaultEvents
 
 These detections target the Storm-0940 ConnectWise supply chain attack at PoC/advisory-specific altitude. The Sigma rules focus on Azure/Entra cloud audit logs where the primary detection value lies; Snort/Suricata rules cover the known attacker IPs at the network level. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale; `sigma check` could not run due to MITRE ATT&CK data fetch restrictions in this environment. Compiles does not equal fires -- verify in your pipeline with the KQL hunting queries above.
 
+<!-- revision: ARTEX-Associated Automated User-Agent rule (id b4d7e2a1-5c9f-4b3e-8a6d-1f0c2e8b7d3a) DROPPED per critic review. Reason: python-requests/2.31.0, python-requests/2.34.2, curl/7.88.1, Python-urllib/3.12 are default User-Agents from standard libraries used by virtually every Python/curl Azure automation, producing thousands of FPs per day in any enterprise. The azure-toolkit/1.0 UA alone cannot rescue the rule. The ConnectWise app ID rule and IP rule already cover the detection value for this campaign. -->
+
+<!-- revision: Service Principal Self-Assignment rule FIXED: (1) anchored to the 3 compromised ConnectWise app IDs via InitiatedBy.app.appId to maintain specific altitude; (2) replaced InitiatedBy|contains:'ServicePrincipal' with dot-path field reference for proper nested JSON access; (3) added pipeline-mapping caveat in description. -->
+
+<!-- revision: Removed T1195 tag from IP-address Sigma rule — detecting sign-ins from specific IPs is not supply chain compromise detection; retained T1078.004 only. -->
+
+<!-- revision: Added note near KQL blocks that query values are intentionally not defanged for copy-paste usability. -->
+
+<!-- revision: Added Wiz and Zscaler source note — their analyses were accessed via aggregator reporting (The Hacker News, SecurityWeek) and are not independently linked because they were shared through those channels, not as standalone public URLs. -->
+
 ### Sigma: Compromised ConnectWise OAuth Application Sign-in Activity
 
 Detects service principal sign-ins from the three ConnectWise OAuth application IDs compromised in the Storm-0940 supply chain attack.
@@ -332,7 +344,6 @@ author: Actioner
 date: 2026/10/26
 tags:
     - attack.t1078.004
-    - attack.t1195
 logsource:
     product: azure
     service: signinlogs
@@ -351,55 +362,28 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: ARTEX-Associated Automated User-Agent in Azure Service Principal Sign-in
+### Sigma: ARTEX-Associated Automated User-Agent in Azure Service Principal Sign-in -- DROPPED
 
-Detects Azure sign-in events using the specific User-Agent strings observed in ARTEX tooling and Storm-0940 operations.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked (MITRE ATT&CK data 403); splunk convert exit 0; log_scale convert exit 0. Fields: UserAgent is standard Azure SigninLogs field. Medium confidence: python-requests and curl UAs are common in legitimate automation; azure-toolkit/1.0 and the specific version combinations are more distinctive. Best paired with the ConnectWise app ID rule for higher fidelity. -->
+<!-- revision: This rule was removed during review. The User-Agent values (python-requests/2.31.0, python-requests/2.34.2, curl/7.88.1, Python-urllib/3.12) are default User-Agents from standard libraries used by virtually every Python and curl-based Azure automation, producing thousands of false positives per day in any enterprise environment. The remaining value (azure-toolkit/1.0) is insufficiently distinctive on its own. The ConnectWise app ID rule and IP-address rule already cover the detection value for this campaign without the false-positive burden. -->
+
+### Sigma: Compromised ConnectWise App Self-Assignment of Privileged Directory Role
+
+Detects a ConnectWise service principal (by compromised app ID) adding itself to a privileged directory role, as observed when Storm-0940 self-assigned Global Administrator.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check blocked (MITRE ATT&CK data 403); splunk convert exit 0; log_scale convert exit 0. Fields: OperationName is standard Azure AuditLogs field; InitiatedBy.app.appId uses dot-path notation targeting the nested JSON structure. Splunk backend renders as InitiatedBy.app.appId IN (...); LogScale renders as regex match. Portability caveat: SIEM must support dot-path field access for nested Azure AuditLogs InitiatedBy object, or use a processing pipeline that flattens it. Now anchored to the 3 compromised ConnectWise app IDs for specific altitude. Upgraded from medium to high confidence: with app ID anchoring, FPs limited to legitimate ConnectWise operations. -->
+<!-- revision: (1) Replaced generic ServicePrincipal actor filter with app-ID-specific selection using InitiatedBy.app.appId dot-path for proper nested field access. (2) Anchored to 3 compromised ConnectWise app IDs to maintain specific altitude. (3) Added pipeline-mapping caveat in description. (4) Confidence upgraded from medium to high given specificity of app ID anchoring. -->
 ```yaml
-title: ARTEX-Associated Automated User-Agent in Azure Service Principal Sign-in
-id: b4d7e2a1-5c9f-4b3e-8a6d-1f0c2e8b7d3a
-status: experimental
-description: >
-    Detects Azure service principal sign-in events using User-Agent strings
-    observed in ARTEX agentic AI framework tooling and Storm-0940 operations
-    during the ConnectWise supply chain compromise.
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
-author: Actioner
-date: 2026/10/26
-tags:
-    - attack.t1078.004
-logsource:
-    product: azure
-    service: signinlogs
-detection:
-    selection_ua:
-        UserAgent:
-            - 'Python-urllib/3.12'
-            - 'python-requests/2.31.0'
-            - 'python-requests/2.34.2'
-            - 'curl/7.88.1'
-            - 'azure-toolkit/1.0'
-    condition: selection_ua
-falsepositives:
-    - Legitimate automation scripts and developer tooling using Python requests, urllib, or curl for Azure API operations
-level: medium
-```
-
-### Sigma: Service Principal Self-Assignment of Privileged Directory Role
-
-Detects a service principal adding itself to a privileged directory role, as observed in the Storm-0940 attack where a ConnectWise management app self-assigned Global Administrator.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked (MITRE ATT&CK data 403); splunk convert exit 0; log_scale convert exit 0. Fields: OperationName and InitiatedBy are standard Azure AuditLogs fields; however, InitiatedBy is a nested JSON object in raw logs. The |contains modifier matches the string "ServicePrincipal" within the serialized field. Pipeline-specific field mapping may be needed. Medium confidence: field structure varies by SIEM normalization. -->
-```yaml
-title: Service Principal Self-Assignment of Privileged Directory Role
+title: Compromised ConnectWise App Self-Assignment of Privileged Directory Role
 id: e1a3c5f8-7d2b-4e9a-b6c4-3f8d0a2e5c7b
 status: experimental
 description: >
-    Detects a service principal adding itself to a privileged directory role
-    such as Global Administrator. Storm-0940 used a ConnectWise management
-    application to self-assign Global Administrator in compromised tenants.
+    Detects a ConnectWise service principal (identified by compromised app ID)
+    adding itself to a privileged directory role such as Global Administrator.
+    Storm-0940 used ConnectWise management applications to self-assign Global
+    Administrator in compromised tenants during the October 2026 supply chain
+    attack. Portability note: InitiatedBy is a nested JSON object in Azure
+    AuditLogs; the dot-path field reference requires SIEM-specific field mapping
+    or a Sigma processing pipeline that flattens the nested structure.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
 author: Actioner
@@ -412,11 +396,14 @@ logsource:
 detection:
     selection_operation:
         OperationName|contains: 'Add member to role'
-    selection_actor:
-        InitiatedBy|contains: 'ServicePrincipal'
-    condition: selection_operation and selection_actor
+    selection_app:
+        InitiatedBy.app.appId:
+            - '506e08f9-6e9a-4da4-942b-a099a03644ae'
+            - '24205314-2b89-4e07-a2a4-579e898a5640'
+            - '0de14c77-b9b0-4137-9360-34878a929827'
+    condition: selection_operation and selection_app
 falsepositives:
-    - Automated provisioning systems with legitimate privileged role assignments
+    - Legitimate ConnectWise service operations after vendor confirms remediation is complete
 level: high
 ```
 
@@ -424,7 +411,7 @@ level: high
 
 Detects any IP traffic to or from the three primary Storm-0940 infrastructure addresses attributed by Microsoft. Scope to environments where these IPs should never appear in network traffic.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0 with minimal config including classification.config and reference.config. Snort 2.9.20. Rules use IP header matching only; no payload inspection needed. High confidence: exact IP match on attributed infrastructure. Limited network-level applicability since the attack is cloud-native (OAuth/Graph API abuse to Microsoft endpoints), but catches any direct probing or scanning from these IPs. -->
+<!-- audit: snort -T exit 0 with minimal config including classification.config and HOME_NET. Snort 2.9.20. Rules use IP header matching only; no payload inspection needed. High confidence: exact IP match on attributed infrastructure. Limited network-level applicability since the attack is cloud-native (OAuth/Graph API abuse to Microsoft endpoints), but catches any direct probing or scanning from these IPs. -->
 ```snort
 alert ip [144.172.64.60,144.172.64.99,144.172.64.128] any -> $HOME_NET any (msg:"Actioner - Inbound Traffic from Storm-0940 Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; sid:2100001; rev:1;)
 alert ip $HOME_NET any -> [144.172.64.60,144.172.64.99,144.172.64.128] any (msg:"Actioner - Outbound Traffic to Storm-0940 Infrastructure"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise; sid:2100002; rev:1;)
@@ -462,6 +449,8 @@ No file-level indicators (hashes, string patterns, byte sequences) were publishe
 - [CyberScoop](https://cyberscoop.com/microsoft-attributes-connectwise-supply-chain-attack-china-storm-0940/) -- Attribution reporting with timeline and ConnectWise service status details
 - [The Hacker News](https://thehackernews.com/2026/10/china-linked-hackers-use-artex-ai.html) -- Supplementary reporting including Wiz, Recorded Future (TAG-217), and Zscaler findings on ARTEX configurations and extended TTPs
 - [SecurityWeek](https://www.securityweek.com/china-apt-uses-ai-pentest-tool-artex-in-connectwise-attacks/) -- Coverage of Huntress, Zscaler, and CrowdStrike supplementary analyses
+
+> **Source note:** Wiz and Zscaler supplementary analyses are cited above via the aggregator articles (The Hacker News, SecurityWeek) that reported their findings. At the time of this report, standalone public URLs for the Wiz and Zscaler analyses were not independently available; their technical details were shared through these news outlets.
 
 ---
 *Report generated by Actioner*
