@@ -1,0 +1,24 @@
+title: LiteLLM Supply Chain - Remote Code Loader Lock File Creation
+id: 6c3d9e2f-1a4b-4c8e-b7f5-9d2a1e3c5b8f
+status: experimental
+description: >
+    Detects creation of the remote code loader lock file used by the LiteLLM
+    v1.107.0 backdoor. The malware creates /tmp/remote_code_loader.lock as an
+    exclusive lock before fetching and executing attacker-supplied code.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1105
+    - attack.t1059.006
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename: '/tmp/remote_code_loader.lock'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments
+level: critical

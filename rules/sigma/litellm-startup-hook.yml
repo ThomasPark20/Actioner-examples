@@ -1,0 +1,31 @@
+title: LiteLLM Supply Chain - Malicious Python Startup Hook Files
+id: 8a3c1e7f-4b2d-4f6a-9e1c-3d5b7a9f2c4e
+status: experimental
+description: >
+    Detects creation of cook.pth or cook.py files associated with the LiteLLM
+    v1.107.0 supply chain compromise credential stealer (PRIVCOLLECT). These
+    files are placed in Python site-packages to execute at interpreter startup
+    via Python startup hooks.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.bleepingcomputer.com/news/security/litellm-release-pipeline-hacked-to-distribute-info-stealer-malware/
+author: Actioner
+date: 2026/10/26
+tags:
+    - attack.t1195.001
+    - attack.t1546
+logsource:
+    category: file_event
+detection:
+    selection_path:
+        TargetFilename|endswith:
+            - '/cook.pth'
+            - '/cook.py'
+            - '\cook.pth'
+            - '\cook.py'
+    selection_sitepackages:
+        TargetFilename|contains: 'site-packages'
+    condition: selection_path and selection_sitepackages
+falsepositives:
+    - Legitimate Python packages named 'cook' installed in site-packages
+level: high

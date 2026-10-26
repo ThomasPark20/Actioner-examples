@@ -1,0 +1,7 @@
+# LiteLLM v1.107.0 Supply Chain Compromise - Snort Rules
+# Deployment note: SIDs 2100101-2100102 are in the Emerging Threats reserved range (2100000-2103999).
+# Reassign to your organization's local SID range before production deployment.
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - Credential Exfiltration to litellm.dev healthcheck"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; content:"litellm.dev"; http_header; content:"application/octet-stream"; http_header; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"LITELLM SUPPLY CHAIN - Dead Drop Resolver Access to letters9813 Repo"; flow:established,to_server; content:"/letters9813/pythonclient-test"; http_uri; fast_pattern; content:"raw.githubusercontent.com"; http_header; sid:2100102; rev:1; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks;)
