@@ -1,0 +1,5 @@
+alert tcp $EXTERNAL_NET any -> $HOME_NET 541 (msg:"Actioner - PEERSTITCH Rogue FortiGate Serial in FGFM Traffic"; flow:established, to_server; content:"FMG-VMTM23017412"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created 2026-10-27, cve CVE-2024-47575; sid:2100020; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PEERSTITCH Staging Script Download pM.js"; flow:established, to_server; http_uri; content:"/pM.js", fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created 2026-10-27; sid:2100021; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET 8084 (msg:"Actioner - PEERSTITCH Fake ACME Server on Port 8084"; flow:established, to_server; http_uri; content:"/acme/", fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created 2026-10-27; sid:2100022; rev:1;)

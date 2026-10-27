@@ -1,0 +1,141 @@
+title: LiteLLM Supply Chain - Malicious Python Startup File Creation
+id: 8a3e7c12-4f5d-4b9e-a1c6-2d8f0e3b7a94
+status: experimental
+description: >
+    Detects creation of cook.pth or cook.py in Python site-packages
+    directories, as dropped by the compromised LiteLLM 1.107.0 wheels to
+    achieve persistence via Python startup hooks.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1195.001
+    - attack.t1546.018
+logsource:
+    category: file_event
+detection:
+    selection_path:
+        TargetFilename|contains: 'site-packages'
+    selection_filename:
+        TargetFilename|endswith:
+            - '\cook.pth'
+            - '/cook.pth'
+            - '\cook.py'
+            - '/cook.py'
+    condition: selection_path and selection_filename
+falsepositives:
+    - Legitimate Python packages that include files named cook.pth or cook.py in site-packages
+level: high
+---
+title: LiteLLM Supply Chain - DNS Query to Exfiltration Domain
+id: 1b4f9a23-6c7e-4d8f-b2a5-3e9c0f1d6b87
+status: experimental
+description: >
+    Detects DNS queries to litellm.dev, the attacker-controlled domain used
+    for credential exfiltration and C2 by the compromised LiteLLM 1.107.0
+    release. The legitimate LiteLLM project uses litellm.ai.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-docker/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'litellm.dev'
+    condition: selection
+falsepositives:
+    - Unlikely; litellm.dev is an attacker-registered lookalike domain with no legitimate use
+level: critical
+---
+title: LiteLLM Supply Chain - OpenSSL Encryption Staging Activity
+id: 2c5e8b34-7d9f-4e0a-c3b6-4f1d2a3e7c98
+status: experimental
+description: >
+    Detects OpenSSL processes with command-line arguments matching the
+    PRIVCOLLECT credential collector encryption staging pattern, which
+    uses temporary directories prefixed with .pc_e_ under /tmp.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1027.013
+    - attack.t1041
+logsource:
+    category: process_creation
+detection:
+    selection_binary:
+        Image|endswith:
+            - '/openssl'
+            - '\openssl.exe'
+    selection_staging:
+        CommandLine|contains: '.pc_e_'
+    selection_crypto:
+        CommandLine|contains:
+            - 'enc -aes-256-cbc'
+            - 'pkeyutl'
+            - 'rsautl'
+    condition: selection_binary and selection_staging and selection_crypto
+falsepositives:
+    - Highly unlikely; the .pc_e_ directory prefix is specific to the PRIVCOLLECT collector
+level: medium
+---
+title: LiteLLM Supply Chain - PRIVCOLLECT Marker File Creation
+id: 3d6f9c45-8e0a-4f1b-d4c7-5a2e3b4f8d09
+status: experimental
+description: >
+    Detects creation of the PRIVCOLLECT run-once marker file or the remote
+    code loader lock file, both written by the compromised LiteLLM 1.107.0
+    payload to coordinate execution across processes.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1546.018
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/.pc_once_72129118c59f5636c0bb'
+            - '/tmp/remote_code_loader.lock'
+    condition: selection
+falsepositives:
+    - None known; these filenames are highly specific to the PRIVCOLLECT malware
+level: critical
+---
+title: LiteLLM Supply Chain - HTTP Connection to Exfiltration Endpoint
+id: 4e7a0d56-9f1b-4a2c-e5d8-6b3f4c5a9e10
+status: experimental
+description: >
+    Detects outbound network connections to the attacker-controlled domain
+    www.litellm.dev used by the PRIVCOLLECT credential collector for
+    exfiltration in the compromised LiteLLM 1.107.0 release.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+    - https://securitylabs.datadoghq.com/articles/litellm-compromised-pypi-docker/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1041
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationHostname|endswith:
+            - 'litellm.dev'
+    condition: selection
+falsepositives:
+    - Unlikely; litellm.dev is attacker infrastructure not associated with legitimate LiteLLM services
+level: critical

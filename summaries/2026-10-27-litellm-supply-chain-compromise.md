@@ -1,9 +1,10 @@
+<!-- revision: v1.1 — (1) Sigma #1: removed "or sitecustomize.py" from description, changed attack.t1546 to attack.t1546.018; (2) Sigma #2: removed dead filter_subdomain block; (3) Sigma #3: changed level from high to medium; (4) Sigma #4: changed attack.t1546 to attack.t1546.018; (5) Snort SID:2100010: added host constraint content:"litellm.dev" for parity with Suricata equivalent. -->
 # Technical Analysis Report: LiteLLM 1.107.0 Supply Chain Compromise (2026-10-27)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-27
-Version: DRAFT 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -310,20 +311,20 @@ Five Sigma rules cover endpoint file events, DNS queries, network connections, a
 
 **Rule 1: Malicious Python Startup File Creation (cook.pth/cook.py)**
 
-Detects creation of cook.pth or cook.py in Python site-packages, as dropped by the compromised LiteLLM 1.107.0 wheels.
+Detects creation of cook.pth or cook.py in Python site-packages, as dropped by the compromised LiteLLM 1.107.0 wheels. (sitecustomize.py is excluded because it is a legitimate Python filename.)
 
 compile: pass (Splunk + LogScale) | confidence: high
 
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check could not validate due to MITRE ATT&CK data endpoint returning HTTP 403 (network restriction, not rule error). Tags: attack.t1195.001, attack.t1546. Logsource: file_event. Field TargetFilename uses contains+endswith modifiers for cross-platform path matching. FP: legitimate packages named cook.pth in site-packages are uncommon but possible. Values NOT defanged per logsource-encoding ref. -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0. sigma check could not validate due to MITRE ATT&CK data endpoint returning HTTP 403 (network restriction, not rule error). Tags: attack.t1195.001, attack.t1546.018. Logsource: file_event. Field TargetFilename uses contains+endswith modifiers for cross-platform path matching. FP: legitimate packages named cook.pth in site-packages are uncommon but possible. Values NOT defanged per logsource-encoding ref. -->
 
 ```yaml
 title: LiteLLM Supply Chain - Malicious Python Startup File Creation
 id: 8a3e7c12-4f5d-4b9e-a1c6-2d8f0e3b7a94
 status: experimental
 description: >
-    Detects creation of cook.pth, cook.py, or sitecustomize.py in Python
-    site-packages directories, as dropped by the compromised LiteLLM 1.107.0
-    wheels to achieve persistence via Python startup hooks.
+    Detects creation of cook.pth or cook.py in Python site-packages
+    directories, as dropped by the compromised LiteLLM 1.107.0 wheels to
+    achieve persistence via Python startup hooks.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
     - https://www.stepsecurity.io/blog/litellm-1-107-0-compromised-pypi-backdoored-wheels-credential-stealer
@@ -331,7 +332,7 @@ author: Actioner
 date: 2026-10-27
 tags:
     - attack.t1195.001
-    - attack.t1546
+    - attack.t1546.018
 logsource:
     category: file_event
 detection:
@@ -378,8 +379,6 @@ detection:
     selection:
         QueryName|endswith:
             - 'litellm.dev'
-    filter_subdomain:
-        QueryName|contains: '.'
     condition: selection
 falsepositives:
     - Unlikely; litellm.dev is an attacker-registered lookalike domain with no legitimate use
@@ -426,7 +425,7 @@ detection:
     condition: selection_binary and selection_staging and selection_crypto
 falsepositives:
     - Highly unlikely; the .pc_e_ directory prefix is specific to the PRIVCOLLECT collector
-level: high
+level: medium
 ```
 
 **Rule 4: PRIVCOLLECT Marker File Creation**
@@ -451,7 +450,7 @@ references:
 author: Actioner
 date: 2026-10-27
 tags:
-    - attack.t1546
+    - attack.t1546.018
     - attack.t1059.006
 logsource:
     category: file_event
@@ -605,7 +604,7 @@ compile: pass (snort -T exit 0) | confidence: high
 <!-- audit: Snort 2.9.20 validation using custom snort.conf that includes /tmp/actioner/combined_local.rules; "Snort successfully validated the configuration!" exit 0. Rules use tcp protocol with http_method, http_uri, http_header preprocessor keywords (Snort 2 compatible). SIDs 2100010-2100011. Rule 1 matches POST + /healthcheck + X-SHA256 + application/octet-stream. Rule 2 matches POST + X-Token header with the specific token value XWiA8gZNa7NcX2XRoAEb. -->
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM PRIVCOLLECT Exfiltration to litellm.dev/healthcheck"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; content:"X-SHA256"; http_header; content:"application/octet-stream"; http_header; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created 2026-10-27; sid:2100010; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM PRIVCOLLECT Exfiltration to litellm.dev/healthcheck"; flow:established,to_server; content:"POST"; http_method; content:"/healthcheck"; http_uri; content:"litellm.dev"; http_header; content:"X-SHA256"; http_header; content:"application/octet-stream"; http_header; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created 2026-10-27; sid:2100010; rev:2;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - LiteLLM PRIVCOLLECT Exfiltration X-Token Header"; flow:established,to_server; content:"POST"; http_method; content:"X-Token|3a 20|XWiA8gZNa7NcX2XRoAEb"; http_header; fast_pattern; classtype:trojan-activity; reference:url,microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created 2026-10-27; sid:2100011; rev:1;)
 ```

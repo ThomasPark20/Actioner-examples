@@ -1,3 +1,4 @@
+<!-- revision: fixed Sigma driver rule (logsource image_load->driver_load, SignatureStatus->OR Valid/Revoked), defanged archivetj.com in Immediate Detection, corrected T1027.002->T1027 (OLLVM is compile-time obfuscation not packing), added attack.t1071.004 tag to DNS Sigma rule, added TPM 2.0 caveat to hardening item 5 -->
 # Technical Analysis Report: BlackX UEFI Bootkit (2026-10-27)
 
 Prepared by: Actioner
@@ -138,7 +139,7 @@ Note: SHA256 hashes were not available in the public reporting at the time of th
 | T1071.001 | Application Layer Protocol: Web Protocols | OxiDLLRunner Rust payload communicates with archivetj[.]com over HTTP/S to fetch DLL plugins |
 | T1102 | Web Service | RAT uses Google Drive, OneDrive, and Yandex.Disk as C2 channels |
 | T1140 | Deobfuscate/Decode Files or Information | RC4 decryption of the PVMDIJGKAX2 archive and decryption of v8_context_snapshot.bin |
-| T1027.002 | Obfuscated Files or Information: Software Packing | OxiDLLRunner is obfuscated with OLLVM |
+| T1027 | Obfuscated Files or Information | OxiDLLRunner is obfuscated at compile time with OLLVM (Obfuscating LLVM), a compile-time obfuscation framework |
 
 ## Impact Assessment
 
@@ -150,7 +151,7 @@ BlackX targets a narrow set of diplomatic organizations in Central Asia, suggest
 
 1. Check for the presence of `C:\ProgramData\Intel\inst.exe` or `PVMDIJGKAX2` on endpoints
 2. Search for `googleupdate.exe` with original filename `jcef_helper.exe` in process creation logs
-3. Check DNS logs for queries to `archivetj.com`
+3. Check DNS logs for queries to `archivetj[.]com`
 4. Verify Secure Boot revocation status by checking for Event ID 1037 in the System event log (indicates revocation was applied)
 5. Audit loaded kernel drivers for the certificate serial `0bcdf5e0da32d68900b8b7638459d072`
 
@@ -159,7 +160,7 @@ BlackX targets a narrow set of diplomatic organizations in Central Asia, suggest
 1. **Apply DBX revocation**: Follow Microsoft KB5025885 to complete the Secure Boot revocation process (set registry flag, run Secure-Boot-Update task, verify Event ID 1037)
 2. **Clean EFI System Partition**: If compromise is confirmed, rebuild the EFI System Partition from known-good media
 3. **Reinstall from clean media**: UEFI bootkits survive OS reinstallation; a clean firmware flash or EFI partition rebuild is required
-4. **Block C2**: Add `archivetj.com` to DNS blocklists and proxy deny lists
+4. **Block C2**: Add `archivetj[.]com` to DNS blocklists and proxy deny lists
 5. **Revoke compromised credentials**: Assume all credentials on infected systems are compromised
 6. **Audit cloud storage**: Review Google Drive, OneDrive, and Yandex.Disk API access for unusual file patterns (suffixes 0X01-0X06, SSSR tags)
 
@@ -169,7 +170,7 @@ BlackX targets a narrow set of diplomatic organizations in Central Asia, suggest
 2. Monitor for Event ID 1037 to confirm revocation is applied fleet-wide
 3. Implement kernel driver allowlisting policies (WDAC/HVCI)
 4. Enable Sysmon with driver-load logging (Event ID 6) and image-load logging (Event ID 7)
-5. Monitor EFI System Partition integrity with Measured Boot and TPM attestation
+5. Monitor EFI System Partition integrity with Measured Boot and TPM attestation (note: requires TPM 2.0 hardware and firmware-level configuration; verify endpoint fleet support before deploying, as many older systems lack TPM 2.0 or have it disabled in firmware)
 
 ## Detection Rules
 
@@ -380,6 +381,7 @@ author: Actioner
 date: 2026-10-27
 tags:
     - attack.t1071.001
+    - attack.t1071.004
 logsource:
     category: dns_query
 detection:
@@ -395,9 +397,9 @@ level: high
 ### Sigma: BlackX Driver with Wenjiang Certificate
 
 Detects loading of a driver signed with the revoked Wenjiang District certificate associated with the BlackX kernel driver.
-compile: validated | confidence: medium (depends on Sysmon image_load logging capturing signature details; Signature field may not contain this value in all configurations)
+compile: validated | confidence: medium (depends on Sysmon driver_load logging capturing signature details; Signature field may not contain this value in all configurations)
 
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; uses image_load category which maps to Sysmon EID 7; Signature field contains certificate subject; SignatureStatus check for Valid may miss cases where the CRL has propagated and status shows Revoked; behavioral rule dependent on Sysmon configuration -->
+<!-- audit: sigma convert --without-pipeline -t splunk exit 0; uses driver_load category which maps to Sysmon EID 6; Signature field contains certificate subject; SignatureStatus OR covers both Valid (pre-CRL propagation) and Revoked (post-CRL propagation); behavioral rule dependent on Sysmon configuration -->
 
 ```yaml
 title: BlackX Malicious Driver Loading with Revoked Wenjiang Certificate
@@ -416,14 +418,17 @@ tags:
     - attack.t1553.006
     - attack.t1562.001
 logsource:
-    category: image_load
+    category: driver_load
     product: windows
 detection:
     selection:
         Signed: 'true'
-        SignatureStatus: 'Valid'
         Signature|contains: 'Wenjiang'
-    condition: selection
+    selection_status_valid:
+        SignatureStatus: 'Valid'
+    selection_status_revoked:
+        SignatureStatus: 'Revoked'
+    condition: selection and (selection_status_valid or selection_status_revoked)
 falsepositives:
     - Other software legitimately signed by this entity, though the certificate is revoked
 level: high

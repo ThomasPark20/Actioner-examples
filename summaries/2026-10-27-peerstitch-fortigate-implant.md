@@ -1,9 +1,10 @@
+<!-- revision: v1.1 — fixed YARA ARM64 offset (18→16); dropped Suricata SID 2100013 (generic .js on port 8085, excessive FP); fixed Sigma rogue-device logsource to product:fortinet/service:fortimanager and tightened selection_localhost; downgraded Sigma auto-script level critical→high; added backend-pipeline caveats to all Sigma rules; corrected Suricata SID 2100012 audit note re port specificity; added config-dependency notes to remediation items -->
 # Technical Analysis Report: PEERSTITCH FortiGate Implant (CVE-2024-47575)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-27
-Version: DRAFT 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -216,13 +217,13 @@ ls -la /tmp/apache2/conf/md-acme.conf
 3. **Factory Reset:** Deploy a fresh or reinitialized FortiManager from known-clean offline-sourced configurations
 4. **Credential Rotation:** Rotate ALL credentials: admin passwords, VPN PSKs, certificates, private keys, TACACS/LDAP/RADIUS secrets, SNMP community strings, routing protocol passwords, wireless keys
 5. **Device Audit:** Enumerate all FortiGate devices and alert on any previously unseen device names or serials
-6. **Memory Forensics:** Check all managed FortiGates for anonymous RWX regions in miglogd/iked process maps
+6. **Memory Forensics:** Check all managed FortiGates for anonymous RWX regions in miglogd/iked process maps *(config-dependent: requires FortiGate CLI shell access, which may not be available in all deployment models or firmware versions)*
 
 ### Long-Term Hardening
 
 1. **Deny unknown devices:** `config system global; set fgfm-deny-unknown enable; end` (FortiManager 7.0.12+/7.2.5+/7.4.3+)
 2. **Local-in policies:** Whitelist only known FortiGate IPs for port 541 access
-3. **Custom certificates:** Set `fgfm-ca-cert` and enable `fgfm-cert-exclusive` to require a custom CA for FGFM
+3. **Custom certificates:** Set `fgfm-ca-cert` and enable `fgfm-cert-exclusive` to require a custom CA for FGFM *(config-dependent: requires existing PKI infrastructure with a private CA; not applicable to environments using only Fortinet default certificates)*
 4. **Network segmentation:** Restrict management-plane access to dedicated out-of-band management networks
 5. **Baseline device inventory:** Implement daily FortiGate device enumeration with alerting on new additions
 
@@ -269,7 +270,7 @@ rule APT_Linux_PEERSTITCH_FortiGate_Implant
 
     condition:
         $elf at 0 and
-        $arm64 at 18 and
+        $arm64 at 16 and
         filesize < 5MB and
         (
             ($proc_mem and $miglogd and $iked) or
@@ -312,6 +313,8 @@ rule APT_Linux_PEERSTITCH_Staging_Scripts
 
 Detects registration of unauthorized devices on FortiManager, including known malicious serial numbers from the PEERSTITCH campaign.
 
+> **Backend pipeline required:** This rule uses `msg|contains` which assumes your SIEM backend maps FortiManager syslog message fields to the `msg` field. A custom pipeline or parser (e.g., FortiManager syslog-to-Sigma field mapping) is required for this rule to fire.
+
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0; sigma convert -t log_scale exit 0). Targets FortiManager event logs. Rogue serial match is high-fidelity; generic unregistered-device match may produce FP on legitimate device onboarding. -->
 
 compile: pass | confidence: medium (behavioral) / high (serial-specific)
@@ -333,11 +336,13 @@ date: 2026-10-27
 tags:
     - attack.t1190
 logsource:
-    category: firewall
+    product: fortinet
+    service: fortimanager
 detection:
     selection_unregistered:
-        msg|contains: 'Unregistered device'
-        msg|contains: 'add succeeded'
+        msg|contains|all:
+            - 'Unregistered device'
+            - 'add succeeded'
     selection_serial:
         msg|contains:
             - 'FMG-VMTM23017412'
@@ -345,8 +350,10 @@ detection:
             - 'FGVMEVWG8YMT3R63'
     selection_localhost:
         msg|contains|all:
-            - 'device'
+            - 'Unregistered'
             - 'localhost'
+    # Note: selection_serial is high-fidelity (known-bad serials); selection_unregistered
+    # and selection_localhost are behavioral and may fire on legitimate device onboarding.
     condition: selection_unregistered or selection_serial or selection_localhost
 falsepositives:
     - Legitimate new FortiGate device registrations on FortiManager
@@ -356,6 +363,8 @@ level: high
 ### Sigma: FortiOS Auto-Script Path Traversal (CVE-2025-61624)
 
 Detects path traversal sequences in FortiOS auto-script objects used to deploy the PEERSTITCH loader.
+
+> **Backend pipeline required:** This rule uses `msg|contains` which assumes your SIEM backend maps FortiOS CLI audit log fields to the `msg` field. A custom pipeline or parser is required for this rule to fire.
 
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0; sigma convert -t log_scale exit 0). Path traversal in auto-script is highly specific to exploitation; extremely low FP rate expected. -->
 
@@ -389,12 +398,14 @@ detection:
     condition: selection_autoscript or selection_specific_paths
 falsepositives:
     - Extremely unlikely in legitimate FortiOS operations
-level: critical
+level: high
 ```
 
 ### Sigma: Network Connection to PEERSTITCH C2 Infrastructure
 
 Detects connections to known PEERSTITCH/CL-STA-0954/UNC5820 IP addresses.
+
+> **Backend pipeline required:** This rule uses `dst_ip` which assumes your SIEM backend maps firewall log destination IP fields accordingly. Most Sigma firewall backends handle this natively, but verify your pipeline includes the mapping.
 
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0; sigma convert -t log_scale exit 0). IOC-based rule; IPs may be reassigned to legitimate services after infrastructure takedown. Uses real (not defanged) IPs per logsource-encoding spec. -->
 
@@ -441,6 +452,8 @@ level: high
 
 Detects anti-forensic commands observed during the PEERSTITCH campaign.
 
+> **Backend pipeline required:** This rule uses `msg|contains` which assumes your SIEM backend maps FortiOS syslog or CLI audit log fields to the `msg` field. A custom pipeline or parser is required for this rule to fire.
+
 <!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0; sigma convert -t log_scale exit 0). Behavioral detection; killall of logging daemons and crashlog clear are uncommon but may occur during authorized maintenance. -->
 
 compile: pass | confidence: medium (behavioral)
@@ -477,16 +490,15 @@ level: high
 
 Network-level rules for detecting FGFM exploitation traffic, staging server communications, and fake ACME C2.
 
-<!-- audit: compile-status=pass (suricata -T -S exit 0). SID 2100010 matches known rogue serial in FGFM traffic on TCP/541 (high fidelity). SID 2100012-2100014 target staging HTTP traffic on non-standard ports; lower fidelity as /pM.js or /acme/ paths could appear in legitimate traffic on standard ports, but non-standard ports 8084/8085 improve specificity. -->
+<!-- revision: dropped Suricata SID 2100013 (generic .js on port 8085) per critic — excessive FP risk -->
+<!-- audit: compile-status=pass (suricata -T -S exit 0). SID 2100010 matches known rogue serial in FGFM traffic on TCP/541 (high fidelity). SID 2100012 matches the specific URI /pM.js on any port (no port constraint — relies on URI specificity alone). SID 2100014 targets /acme/ on non-standard port 8084. -->
 
-compile: pass | confidence: high (SID 2100010) / medium (SID 2100012-2100014)
+compile: pass | confidence: high (SID 2100010) / medium (SID 2100012, 2100014)
 
 ```
 alert tcp $EXTERNAL_NET any -> $HOME_NET 541 (msg:"Actioner - PEERSTITCH Rogue FGFM Connection to FortiManager TCP/541"; flow:established,to_server; content:"FMG-VMTM23017412"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created_at 2026-10-27, cve CVE-2024-47575; sid:2100010; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PEERSTITCH Staging Script Download (pM.js)"; flow:established,to_server; http.uri; content:"/pM.js"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created_at 2026-10-27; sid:2100012; rev:1;)
-
-alert http $HOME_NET any -> $EXTERNAL_NET 8085 (msg:"Actioner - PEERSTITCH HTTP Staging Server Port 8085"; flow:established,to_server; http.uri; content:".js"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created_at 2026-10-27; sid:2100013; rev:1;)
 
 alert http $HOME_NET any -> $EXTERNAL_NET 8084 (msg:"Actioner - PEERSTITCH Fake ACME Server Communication Port 8084"; flow:established,to_server; http.uri; content:"/acme/"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/fortimanager-cve-2024-47575-peerstitch-malware/; metadata:author Actioner, created_at 2026-10-27; sid:2100014; rev:1;)
 ```
