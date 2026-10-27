@@ -1,0 +1,142 @@
+title: BlackX UEFI Bootkit Installer Execution
+id: a3c7e1b4-9f2d-4a6e-8b5c-1d7f0e3a2c9b
+status: experimental
+description: >
+    Detects execution of the BlackX UEFI bootkit installer (inst.exe) from the
+    ProgramData\Intel directory with the characteristic encrypted payload argument
+    and RC4 key, as observed in the APT41 campaign targeting Central Asian diplomats.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://www.bleepingcomputer.com/news/security/blackx-uefi-bootkit-exploits-baton-drop-flaw-to-bypass-secure-boot/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1542.003
+    - attack.t1140
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_path:
+        Image|endswith: '\inst.exe'
+        Image|contains: '\ProgramData\Intel\'
+    selection_args:
+        CommandLine|contains|all:
+            - 'PVMDIJGKAX2'
+            - 'Q46F6MDLI3RX2KV1'
+    condition: selection_path or selection_args
+falsepositives:
+    - Unlikely; the file name and arguments are specific to this campaign
+level: critical
+---
+title: BlackX DLL Sideloading via Renamed jcef_helper.exe
+id: b4d8f2c5-0a3e-5b7f-9c6d-2e801f4b3d0c
+status: experimental
+description: >
+    Detects potential DLL sideloading activity associated with the BlackX bootkit
+    campaign. The legitimate jcef_helper.exe is renamed to googleupdate.exe and
+    used to sideload the OxiDLLRunner malicious DLL.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1574.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        OriginalFileName: 'jcef_helper.exe'
+        Image|endswith: '\googleupdate.exe'
+    condition: selection
+falsepositives:
+    - Legitimate software that renames jcef_helper.exe is unlikely but possible in Chromium-derived applications
+level: high
+---
+title: BlackX C2 DNS Query to archivetj.com
+id: c5e903d6-1b4f-4c8a-ad7e-3f902a5c4e1d
+status: experimental
+description: >
+    Detects DNS queries to archivetj.com, the C2 domain used by the OxiDLLRunner
+    Rust payload component of the BlackX UEFI bootkit campaign attributed to APT41.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://www.bleepingcomputer.com/news/security/blackx-uefi-bootkit-exploits-baton-drop-flaw-to-bypass-secure-boot/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1071.001
+    - attack.t1071.004
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'archivetj.com'
+    condition: selection
+falsepositives:
+    - Legitimate access to archivetj.com is unlikely but cannot be fully excluded
+level: high
+---
+title: BlackX Malicious Driver Loading with Revoked Wenjiang Certificate
+id: d6f004e7-2c5a-4d9b-9e8f-4a0a3b6d5f2e
+status: experimental
+description: >
+    Detects loading of a driver signed with the revoked certificate issued to
+    Wenjiang District Mingyu Network Technology Service Studio, associated with
+    the BlackX bootkit kernel driver used for security product tampering.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1553.006
+    - attack.t1562.001
+logsource:
+    category: driver_load
+    product: windows
+detection:
+    selection:
+        Signed: 'true'
+        Signature|contains: 'Wenjiang'
+    selection_status_valid:
+        SignatureStatus: 'Valid'
+    selection_status_revoked:
+        SignatureStatus: 'Revoked'
+    condition: selection and (selection_status_valid or selection_status_revoked)
+falsepositives:
+    - Other software legitimately signed by this entity, though the certificate is revoked
+level: high
+---
+title: BlackX Bootkit File Drop in ProgramData Intel Directory
+id: e7a105f8-3d6b-4e0c-af9a-5b1a4c7e6a3f
+status: experimental
+description: >
+    Detects creation of files associated with the BlackX bootkit installer in the
+    C:\ProgramData\Intel directory, including the installer, encrypted payload,
+    and sideloading components.
+references:
+    - https://securelist.com/uefi-bootkit-blackx/121539/
+author: Actioner
+date: 2026-10-27
+tags:
+    - attack.t1542.003
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: '\ProgramData\Intel\'
+    selection_files:
+        TargetFilename|endswith:
+            - '\inst.exe'
+            - '\PVMDIJGKAX2'
+            - '\v8_context_snapshot.bin'
+    condition: selection_path and selection_files
+falsepositives:
+    - Legitimate Intel software installations in ProgramData\Intel may create executables
+level: medium

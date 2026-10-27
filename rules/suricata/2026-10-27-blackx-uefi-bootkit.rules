@@ -1,0 +1,1 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - BlackX UEFI Bootkit C2 DNS Query to archivetj.com"; flow:to_server; dns.query; content:"archivetj.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,securelist.com/uefi-bootkit-blackx/121539/; metadata:author Actioner, created_at 2026-10-27; sid:2100201; rev:1;)

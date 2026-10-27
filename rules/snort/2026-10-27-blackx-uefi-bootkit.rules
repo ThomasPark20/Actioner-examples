@@ -1,0 +1,1 @@
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - BlackX UEFI Bootkit C2 DNS Query to archivetj.com"; flow:to_server; content:"|09|archivetj|03|com|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,securelist.com/uefi-bootkit-blackx/121539/; metadata:author Actioner, created 2026-10-27; sid:2100101; rev:1;)
