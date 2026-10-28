@@ -1,0 +1,3 @@
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Node2Shell Scanner User-Agent (node2shell-check)"; flow:established,to_server; http_header; content:"node2shell-check"; fast_pattern; classtype:network-scan; reference:url,ellio.tech/en/blog/node2shell-cve-2026-111497-rce-on-stock-nodejs-builds/; reference:cve,2026-111497; sid:2100101; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"ACTIONER Node2Shell Potential Exploit - Large Brotli POST to Server"; flow:established,to_server; http_method; content:"POST"; http_header; content:"Content-Encoding"; content:"br"; distance:0; within:20; classtype:attempted-admin; reference:url,www.imperva.com/blog/node2shell-from-brotli-data-to-remote-code-execution/; reference:cve,2026-111497; sid:2100102; rev:1;)

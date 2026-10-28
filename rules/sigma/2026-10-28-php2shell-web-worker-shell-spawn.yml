@@ -48,4 +48,4 @@ detection:
 falsepositives:
     - Image processing libraries that invoke external tools
     - PHP applications that legitimately call system commands
-level: medium
+level: high

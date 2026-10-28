@@ -1,0 +1,23 @@
+title: BlackX OxiDLLRunner Sideloading via Fake Google Update
+id: 2c8f5a1d-7b3e-4d9c-a6f2-1e4b8c3d5a7f
+status: experimental
+description: Detects DLL sideloading of the OxiDLLRunner payload via a renamed jcef_helper.exe binary masquerading as googleupdate.exe, a known BlackX UEFI bootkit technique.
+references:
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+    - https://blog.netmanageit.com/blackx-uefi-bootkit-central-asia-diplomatic-targets/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1574.002
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        OriginalFileName: 'jcef_helper.exe'
+        Image|endswith: '\googleupdate.exe'
+    condition: selection
+falsepositives:
+    - Legitimate jcef_helper.exe renamed to googleupdate.exe is extremely unlikely
+level: high

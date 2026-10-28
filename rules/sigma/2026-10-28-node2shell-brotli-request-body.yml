@@ -1,0 +1,22 @@
+title: Inbound HTTP Request With Brotli Content-Encoding
+id: f7a1d3b5-9e2c-4f8a-b6d4-1c5e7a9f2b3d
+status: experimental
+description: Detects inbound HTTP POST requests carrying Content-Encoding br, which is unusual for client-to-server traffic and is the delivery vector for CVE-2026-111497 (Node2Shell) exploitation against Node.js, Express, and Brotli-decoding services. Note - cs-header-content-encoding is not a standard Sigma field; deployment requires a custom field mapping in your Sigma pipeline to the proxy or WAF field that captures the Content-Encoding request header.
+references:
+    - https://www.imperva.com/blog/node2shell-from-brotli-data-to-remote-code-execution/
+    - https://ellio.tech/en/blog/node2shell-cve-2026-111497-rce-on-stock-nodejs-builds/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1190
+logsource:
+    category: proxy
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_encoding:
+        cs-header-content-encoding|contains: 'br'
+    condition: selection_method and selection_encoding
+falsepositives:
+    - Legitimate applications that accept Brotli-compressed uploads (uncommon)
+level: medium

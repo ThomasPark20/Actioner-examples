@@ -1,0 +1,20 @@
+title: Node2Shell Scanner User-Agent Detection
+id: 8c3e4f2a-1b7d-4e9a-a5c8-3d2f6e8b9c1a
+status: experimental
+description: Detects HTTP requests from the node2shell-check scanner tool that fingerprints hosts capable of Brotli decompression, a precursor to CVE-2026-111497 exploitation.
+references:
+    - https://ellio.tech/en/blog/node2shell-cve-2026-111497-rce-on-stock-nodejs-builds/
+    - https://www.securityweek.com/cisa-warns-of-node2shell-exploitation-as-honeypots-log-attack-attempts/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1595.002
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-useragent|contains: 'node2shell-check'
+    condition: selection
+falsepositives:
+    - Authorized security scanning using the node2shell-check tool
+level: high
