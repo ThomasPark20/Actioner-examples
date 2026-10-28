@@ -1,0 +1,23 @@
+title: PHP2Shell B8RAT User-Agent Detected
+id: 4e9f2a1b-7d3c-4b8e-a6f5-1c0d9e8f7b2a
+status: experimental
+description: >
+    Detects HTTP requests with the B8RAT/1.0 User-Agent string, a known client
+    associated with the PHP serialization-based variant of PHP2Shell exploitation
+    targeting CVE-2026-109619.
+references:
+    - https://www.socnova.com/php-detection.html
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-useragent|startswith: 'B8RAT/'
+    condition: selection
+falsepositives:
+    - Unlikely - B8RAT is not a legitimate user agent
+level: critical
