@@ -1,0 +1,51 @@
+title: PHP2Shell Post-Exploitation - PHP Web Worker Spawning Shell or Download Tool
+id: 7a3c1e4b-9f2d-4a6e-8b7c-5d1e0f3a2c9b
+status: experimental
+description: >
+    Detects PHP web workers (php-fpm, php-cgi, apache2, httpd, lsphp, frankenphp)
+    spawning shells, download tools, or interpreters, indicating successful PHP2Shell
+    exploitation (CVE-2026-109618/CVE-2026-109619) or other PHP-based RCE.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+    - https://blog.talosintelligence.com/two-critical-rces-in-php-core/
+    - https://www.socnova.com/php-detection.html
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1059.004
+    - attack.t1190
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent_sapi:
+        ParentImage|endswith:
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php-fcgi'
+            - '/lsphp'
+            - '/frankenphp'
+    selection_parent_webserver:
+        ParentImage|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/litespeed'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/curl'
+            - '/wget'
+            - '/python3'
+            - '/python'
+            - '/perl'
+            - '/nc'
+            - '/ncat'
+            - '/socat'
+    condition: (selection_parent_sapi or selection_parent_webserver) and selection_child
+falsepositives:
+    - Image processing libraries that invoke external tools
+    - PHP applications that legitimately call system commands
+level: high

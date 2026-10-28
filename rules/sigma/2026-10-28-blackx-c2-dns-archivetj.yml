@@ -1,0 +1,23 @@
+title: BlackX C2 Domain Resolution - archivetj.com
+id: 4f2a8c3d-1e6b-4d7a-9c5f-3b8e2d1a6c4f
+status: experimental
+description: Detects DNS resolution of archivetj.com, the known C2 domain used by the BlackX UEFI bootkit Rust-based payload for plugin delivery.
+references:
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+    - https://blog.netmanageit.com/blackx-uefi-bootkit-central-asia-diplomatic-targets/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName|endswith:
+            - 'archivetj.com'
+    condition: selection
+falsepositives:
+    - Legitimate access to archivetj.com is unlikely in most enterprise environments
+level: critical

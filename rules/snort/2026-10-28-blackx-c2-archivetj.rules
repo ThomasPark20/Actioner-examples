@@ -1,0 +1,1 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - BlackX UEFI Bootkit C2 Communication to archivetj.com"; flow:established,to_server; content:"archivetj.com"; http_header; fast_pattern; classtype:trojan-activity; reference:url,thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html; metadata:author Actioner, created 2026-10-28; sid:2100301; rev:1;)

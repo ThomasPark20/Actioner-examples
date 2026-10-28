@@ -1,0 +1,27 @@
+title: BlackX Bootkit Staging File Creation
+id: 9e1d4b6a-3c7f-4a2e-8d5b-0f6c9a1e3b8d
+status: experimental
+description: Detects creation of BlackX-specific staging files in the ProgramData\Intel directory, including the encrypted payload container and the encrypted Rust payload.
+references:
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+    - https://blog.netmanageit.com/blackx-uefi-bootkit-central-asia-diplomatic-targets/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1542.003
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_payload:
+        TargetFilename|endswith:
+            - '\ProgramData\Intel\PVMDIJGKAX2'
+            - '\ProgramData\Intel\inst.exe'
+    selection_rust:
+        TargetFilename|endswith: '\v8_context_snapshot.bin'
+        TargetFilename|contains: '\ProgramData\Intel\'
+    condition: selection_payload or selection_rust
+falsepositives:
+    - The extensionless file name PVMDIJGKAX2 is unique to BlackX
+level: high

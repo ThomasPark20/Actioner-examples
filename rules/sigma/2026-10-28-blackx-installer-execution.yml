@@ -1,0 +1,26 @@
+title: BlackX UEFI Bootkit Installer Execution
+id: 7a3e1b4c-9d2f-4e8a-b1c5-6f3d8e2a9b7c
+status: experimental
+description: Detects execution of the BlackX bootkit installer inst.exe from its known staging path with the RC4-encrypted payload file as argument.
+references:
+    - https://thehackernews.com/2026/10/blackx-uefi-bootkit-bypasses-secure.html
+    - https://blog.netmanageit.com/blackx-uefi-bootkit-central-asia-diplomatic-targets/
+author: Actioner
+date: 2026/10/28
+tags:
+    - attack.t1542.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_path:
+        Image|endswith: '\inst.exe'
+        Image|contains: '\ProgramData\Intel\'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'PVMDIJGKAX2'
+            - 'Q46F6MDLI3RX2KV1'
+    condition: selection_path and selection_cmdline
+falsepositives:
+    - Unlikely - both the path and argument strings are highly specific to BlackX
+level: critical
