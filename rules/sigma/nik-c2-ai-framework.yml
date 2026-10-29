@@ -1,0 +1,159 @@
+title: NIK C2 - Suspicious csrss.exe in TEMP Directory
+id: 5a5d757a-4188-482a-9de9-641d8954fa2d
+status: experimental
+description: >
+    Detects a process named csrss.exe executing from a user TEMP directory,
+    a technique used by the NIK C2 framework which renames its agent binary
+    to csrss.exe and stages it in %TEMP%.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1036
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_image:
+        Image|endswith: '\csrss.exe'
+    selection_temp:
+        Image|contains:
+            - '\AppData\Local\Temp\'
+            - '\Windows\Temp\'
+    condition: selection_image and selection_temp
+falsepositives:
+    - Unlikely in production; csrss.exe should only run from System32
+level: high
+---
+title: NIK C2 - Fodhelper UAC Bypass via Registry Modification
+id: e519f100-7e58-4737-9477-98e18b4547e6
+status: experimental
+description: >
+    Detects registry modification of the ms-settings shell open command key
+    used by the NIK C2 framework to perform UAC bypass via fodhelper.exe.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1548.002
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Software\Classes\ms-settings\Shell\Open\command'
+    condition: selection
+falsepositives:
+    - Legitimate modification of ms-settings handler, which is rare
+level: high
+---
+title: NIK C2 - SystemLock Registry Run Key Persistence
+id: b3e6dbb5-d74c-4262-8165-abc15bb42c13
+status: experimental
+description: >
+    Detects creation of a Run registry value named SystemLock, used by the
+    NIK C2 framework for persistence via the HKCU Run key.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\SystemLock'
+    condition: selection
+falsepositives:
+    - Custom enterprise software using "SystemLock" as a run key name
+level: high
+---
+title: NIK C2 - mshta.exe Executing HTML from TEMP Directory
+id: 0a72b67d-582d-461a-ae7c-6c67f86c4eb3
+status: experimental
+description: >
+    Detects mshta.exe executing an HTML file from TEMP, matching the NIK C2
+    ransomware lock-screen delivery via lock_screen.html and lock_start.bat.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1218.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith: '\mshta.exe'
+    selection_arg:
+        CommandLine|contains:
+            - '\AppData\Local\Temp\'
+    selection_html:
+        CommandLine|endswith:
+            - '.html'
+            - '.hta'
+    condition: selection_binary and selection_arg and selection_html
+falsepositives:
+    - Legitimate HTA applications deployed via TEMP (uncommon)
+    - Enterprise HTA installers from SCCM packages or line-of-business applications
+level: medium
+---
+title: NIK C2 - browserdata.zip Staging in TEMP
+id: 21523d66-212a-4224-9d8e-9fc98c090fb6
+status: experimental
+description: >
+    Detects creation of browserdata.zip in the TEMP directory, an artifact
+    of the NIK C2 credential-theft module that collects browser data for
+    exfiltration.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1555.003
+    - attack.t1005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\browserdata.zip'
+        TargetFilename|contains: '\Temp\'
+    condition: selection
+falsepositives:
+    - Browser backup utilities that use this exact filename
+level: high
+---
+title: NIK C2 - Wi-Fi Password Harvesting via netsh
+id: 24f31260-ff01-40aa-8d57-aba51a38ee58
+status: experimental
+description: >
+    Detects the netsh wlan command sequence used by the NIK C2 framework
+    to enumerate Wi-Fi profiles and extract saved passwords in cleartext.
+references:
+    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1082
+    - attack.t1005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'netsh'
+            - 'wlan'
+            - 'show'
+            - 'key=clear'
+    condition: selection
+falsepositives:
+    - IT administrators auditing Wi-Fi configurations
+    - Penetration testers and red-team operators
+level: medium
