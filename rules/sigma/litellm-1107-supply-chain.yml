@@ -1,0 +1,141 @@
+title: LiteLLM Supply Chain - Malicious Python Startup Files in Site-Packages
+id: c3a7e1b2-4f8d-4e9a-b6c1-2d5f8a0e3b7c
+status: experimental
+description: >
+    Detects creation of cook.pth or cook.py in Python site-packages directories,
+    consistent with the LiteLLM 1.107.0 supply chain compromise that plants
+    Python startup hooks for credential theft.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1195.001
+    - attack.t1546
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: 'site-packages'
+        TargetFilename|endswith:
+            - '\cook.pth'
+            - '/cook.pth'
+            - '\cook.py'
+            - '/cook.py'
+    condition: selection
+falsepositives:
+    - Development environments with custom .pth files named cook.pth (unlikely)
+level: high
+---
+title: LiteLLM Supply Chain - PRIVCOLLECT_ACTIVE Environment Variable
+id: d4b8f2c3-5a9e-4f0b-c7d2-3e6a9b1f4c8d
+status: experimental
+description: >
+    Detects processes launched with the PRIVCOLLECT_ACTIVE environment variable
+    visible on the command line, used by the LiteLLM 1.107.0 malicious payload
+    as a re-entrance guard during credential collection. Note: this rule only
+    fires when the variable appears on the command line (e.g., env-prefixed
+    invocations); the malware sets it via os.environ, which is not recorded
+    by standard Sysmon EID 1 or Windows 4688 command-line auditing. Full
+    coverage requires EDR telemetry that captures the process environment block.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1059.006
+    - attack.t1552.001
+logsource:
+    category: process_creation
+detection:
+    selection:
+        CommandLine|contains: 'PRIVCOLLECT_ACTIVE'
+    condition: selection
+falsepositives:
+    - None known
+level: high
+---
+title: LiteLLM Supply Chain - OpenSSL Staging in Temp Directories
+id: e5c9a3d4-6b0f-4a1c-d8e3-4f7b0c2a5d9e
+status: experimental
+description: >
+    Detects process creation involving OpenSSL commands referencing the .pc_e_
+    staging directory pattern in /tmp, used by the LiteLLM 1.107.0 malicious
+    payload for RSA key wrapping of exfiltrated credentials.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1027.013
+    - attack.t1560.001
+logsource:
+    category: process_creation
+detection:
+    selection_openssl:
+        CommandLine|contains: 'openssl'
+    selection_staging:
+        CommandLine|contains: '.pc_e_'
+    condition: selection_openssl and selection_staging
+falsepositives:
+    - None known; the .pc_e_ directory naming pattern is specific to this malware
+level: critical
+---
+title: LiteLLM Supply Chain - Python Database Credential Extraction
+id: f6d0b4e5-7c1a-4b2d-e9f4-5a8c1d3b6e0f
+status: experimental
+description: >
+    Detects Python one-liner executions querying LiteLLM proxy database tables
+    (LiteLLM_CredentialsTable or LiteLLM_ProxyModelTable), which indicates
+    the credential harvesting stage of the LiteLLM 1.107.0 supply chain attack.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1059.006
+    - attack.t1005
+logsource:
+    category: process_creation
+detection:
+    selection_python:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+            - '\python.exe'
+            - '\python3.exe'
+        CommandLine|contains: '-c'
+    selection_tables:
+        CommandLine|contains:
+            - 'LiteLLM_CredentialsTable'
+            - 'LiteLLM_ProxyModelTable'
+    condition: selection_python and selection_tables
+falsepositives:
+    - Legitimate LiteLLM proxy administration scripts (should be reviewed)
+level: high
+---
+title: LiteLLM Supply Chain - Remote Code Loader Lock File Creation
+id: a7e1c5f6-8d2b-4c3e-f0a5-6b9d2e4c7f1a
+status: experimental
+description: >
+    Detects creation of the remote_code_loader.lock file in /tmp, which serves
+    as a mutex for the LiteLLM 1.107.0 malicious remote code loading mechanism
+    that fetches and executes additional payloads.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
+author: Actioner
+date: 2026-10-29
+tags:
+    - attack.t1105
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/tmp/remote_code_loader.lock'
+            - '\Temp\remote_code_loader.lock'
+    condition: selection
+falsepositives:
+    - None known; this filename is specific to the LiteLLM 1.107.0 malware
+level: critical

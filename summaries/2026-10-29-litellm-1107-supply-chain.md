@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-10-29
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -27,7 +27,7 @@ LiteLLM is an open-source Python library and proxy server that provides a unifie
 
 ## Root Cause: Supply Chain Injection via Python Startup Hooks
 
-The attacker compromised the LiteLLM build/publish pipeline and injected three malicious files into the distributed wheel archives. Python's `.pth` file mechanism causes `cook.pth` to execute code at interpreter startup (before any user code runs), which loads `cook.py`. A secondary persistence mechanism via `sitecustomize.py` ensures execution even if `.pth` processing is disabled. This leverages a legitimate Python feature (T1546.018 -- Event Triggered Execution) as an execution vector, making it invisible to standard application-level monitoring. The Hacker News reported that the initial access to the publishing pipeline started with a leaked LiteLLM master key.
+The attacker compromised the LiteLLM build/publish pipeline and injected three malicious files into the distributed wheel archives. Python's `.pth` file mechanism causes `cook.pth` to execute code at interpreter startup (before any user code runs), which loads `cook.py`. A secondary persistence mechanism via `sitecustomize.py` ensures execution even if `.pth` processing is disabled. This leverages a legitimate Python feature (T1546 -- Event Triggered Execution) as an execution vector, making it invisible to standard application-level monitoring. The Hacker News reported that the initial access to the publishing pipeline started with a leaked LiteLLM master key.
 
 ## Technical Analysis of the Malicious Payload
 
@@ -150,20 +150,19 @@ The attack used a multi-stage C2 architecture:
 - HTTP POST to `/healthcheck` with `application/octet-stream` Content-Type and `X-SHA256` header
 - File creation of `cook.pth`, `cook.py`, or `sitecustomize.py` in Python site-packages
 - DNS queries for `litellm[.]dev`
-- Outbound HTTP to GitHub raw content (`raw.githubusercontent.com/letters9813/`)
+- Outbound HTTP to GitHub raw content (`raw[.]githubusercontent[.]com/letters9813/`)
 
 ## MITRE ATT&CK Mapping
 
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.001 | Supply Chain Compromise: Compromise Software Dependencies and Development Tools | Malicious code injected into LiteLLM 1.107.0 PyPI wheels |
-| T1546.018 | Event Triggered Execution: .pth File Execution | cook.pth and sitecustomize.py execute at Python startup |
+| T1546 | Event Triggered Execution | cook.pth and sitecustomize.py execute at Python startup (.pth file abuse is not yet cataloged as an ATT&CK sub-technique) |
 | T1059.006 | Command and Scripting Interpreter: Python | Python used as the execution environment for the payload |
 | T1027.013 | Obfuscated Files or Information: Encrypted/Encoded File | AES-256-CBC encryption of exfiltrated data |
-| T1140 | Deobfuscate/Decode Files or Information | RSA-OAEP key wrapping and AES decryption at attacker side |
+| T1560.001 | Archive Collected Data: Archive via Utility | Harvested credentials bundled as gzip tar archive (hdr.json, data.bin, key.bin) before exfiltration |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Harvesting .env, .aws/credentials, .gitconfig, etc. |
 | T1552.004 | Unsecured Credentials: Private Keys | Collection of SSH keys, GPG keys |
-| T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | Targeting AWS/Azure/GCP credential files |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Chromium/Firefox credential database extraction |
 | T1082 | System Information Discovery | Host enumeration during collection |
 | T1016 | System Network Configuration Discovery | Network information gathered alongside credentials |
@@ -221,7 +220,7 @@ pip cache list litellm 2>/dev/null
    - Rotate Kubernetes service account tokens and kubeconfig credentials
    - Rotate Docker registry credentials
    - Invalidate and re-issue all `.env` secrets
-4. **Audit:** Review logs for outbound connections to `litellm.dev` or `raw.githubusercontent.com/letters9813/` to confirm exfiltration occurred.
+4. **Audit:** Review logs for outbound connections to `litellm[.]dev` or `raw[.]githubusercontent[.]com/letters9813/` to confirm exfiltration occurred.
 5. **Container images:** Rebuild any container images that included `litellm==1.107.0`.
 
 ### Long-Term Hardening
@@ -230,34 +229,36 @@ pip cache list litellm 2>/dev/null
 - Use a private PyPI mirror with package scanning (e.g., Artifactory, Nexus with vulnerability policies)
 - Monitor for unexpected `.pth` file creation in Python site-packages directories
 - Implement outbound network monitoring for unexpected domains from Python-heavy environments
-- Consider using Python's `-S` flag or `PYTHONNOUSERSITE` in production to disable site-packages customization hooks where possible
+- Use virtual environment isolation with integrity monitoring for `.pth` files; consider `.pth` file allowlisting in hardened environments
 - Deploy endpoint detection for the specific behavioral indicators (PRIVCOLLECT_ACTIVE, .pc_e_ staging)
 
 ## Detection Rules
 
-Five Sigma rules, two Suricata rules, three YARA rules, and two Snort rules cover the filesystem artifacts, process-level behaviors, and network exfiltration patterns of this supply chain compromise. All rules were validated against their respective compilers; Snort rules are structural only as Snort is not installed in the validation environment.
+Five Sigma rules, two Suricata rules, three YARA rules, and two Snort rules cover the filesystem artifacts, process-level behaviors, and network exfiltration patterns of this supply chain compromise. All rules were validated against their respective compilers (sigma convert, suricata -T, yarac); Snort rules are structural only as Snort is not installed in the validation environment.
 
 ### Sigma: Malicious Python Startup Files in Site-Packages
 
-Detects creation of cook.pth, cook.py, or sitecustomize.py in Python site-packages directories.
+Detects creation of cook.pth or cook.py in Python site-packages directories.
 
-compile: pass (sigma convert splunk + logscale) | confidence: high
+<!-- revision: removed sitecustomize.py (legitimate Python mechanism used by coverage, instrumentation tools); downgraded confidence to medium -->
+
+compile: pass (sigma convert splunk + logscale) | confidence: medium
 
 ```yaml
 title: LiteLLM Supply Chain - Malicious Python Startup Files in Site-Packages
 id: c3a7e1b2-4f8d-4e9a-b6c1-2d5f8a0e3b7c
 status: experimental
 description: >
-    Detects creation of cook.pth, cook.py, or sitecustomize.py in Python
-    site-packages directories, consistent with the LiteLLM 1.107.0 supply
-    chain compromise that plants Python startup hooks for credential theft.
+    Detects creation of cook.pth or cook.py in Python site-packages directories,
+    consistent with the LiteLLM 1.107.0 supply chain compromise that plants
+    Python startup hooks for credential theft.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
 author: Actioner
 date: 2026-10-29
 tags:
     - attack.t1195.001
-    - attack.t1546.018
+    - attack.t1546
 logsource:
     category: file_event
 detection:
@@ -268,22 +269,21 @@ detection:
             - '/cook.pth'
             - '\cook.py'
             - '/cook.py'
-            - '\sitecustomize.py'
-            - '/sitecustomize.py'
     condition: selection
 falsepositives:
-    - Legitimate Python packages that install sitecustomize.py hooks (rare)
     - Development environments with custom .pth files named cook.pth (unlikely)
 level: high
 ```
 
-<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale; sigma check blocked by proxy (MITRE ATT&CK data download 403); file_event category is cross-platform; TargetFilename uses both \ and / separators for Windows/Linux coverage; sitecustomize.py may FP in niche instrumentation packages (coverage, sitecustomize-entrypoints) -->
+<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale; sigma check blocked by proxy (MITRE ATT&CK data download 403); file_event category is cross-platform; TargetFilename uses both \ and / separators for Windows/Linux coverage -->
 
 ### Sigma: PRIVCOLLECT_ACTIVE Environment Variable
 
-Detects processes launched with the PRIVCOLLECT_ACTIVE re-entrance guard environment variable.
+Detects processes launched with the PRIVCOLLECT_ACTIVE re-entrance guard environment variable visible on the command line.
 
-compile: pass (sigma convert splunk + logscale) | confidence: high
+<!-- revision: downgraded confidence to low and level to high; CommandLine|contains cannot capture env vars set programmatically via os.environ — requires EDR-specific telemetry beyond standard Sysmon to detect the env var in the process environment block -->
+
+compile: pass (sigma convert splunk + logscale) | confidence: low
 
 ```yaml
 title: LiteLLM Supply Chain - PRIVCOLLECT_ACTIVE Environment Variable
@@ -291,8 +291,12 @@ id: d4b8f2c3-5a9e-4f0b-c7d2-3e6a9b1f4c8d
 status: experimental
 description: >
     Detects processes launched with the PRIVCOLLECT_ACTIVE environment variable
-    set, which is used by the LiteLLM 1.107.0 malicious payload as a
-    re-entrance guard during credential collection.
+    visible on the command line, used by the LiteLLM 1.107.0 malicious payload
+    as a re-entrance guard during credential collection. Note: this rule only
+    fires when the variable appears on the command line (e.g., env-prefixed
+    invocations); the malware sets it via os.environ, which is not recorded
+    by standard Sysmon EID 1 or Windows 4688 command-line auditing. Full
+    coverage requires EDR telemetry that captures the process environment block.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/
 author: Actioner
@@ -308,10 +312,10 @@ detection:
     condition: selection
 falsepositives:
     - None known
-level: critical
+level: high
 ```
 
-<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale; PRIVCOLLECT_ACTIVE is a unique string with no known legitimate use; CommandLine|contains will match both `PRIVCOLLECT_ACTIVE=1` in env-prefixed commands and references in scripts; requires command-line auditing to be enabled (Sysmon EID 1 or Windows 4688 with command line) -->
+<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale; PRIVCOLLECT_ACTIVE is a unique string with no known legitimate use; CommandLine|contains will match env-prefixed commands and references in scripts but NOT os.environ-set variables; requires command-line auditing to be enabled (Sysmon EID 1 or Windows 4688 with command line); EDR-specific telemetry needed for full coverage -->
 
 ### Sigma: OpenSSL Staging in Temp Directories
 
@@ -333,7 +337,7 @@ author: Actioner
 date: 2026-10-29
 tags:
     - attack.t1027.013
-    - attack.t1140
+    - attack.t1560.001
 logsource:
     category: process_creation
 detection:
@@ -451,6 +455,7 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - LiteLLM Supply Chain DNS Que
 ```
 
 <!-- audit: validated suricata -T exit 0; dns.query with endswith matches litellm.dev and any subdomain (www.litellm.dev); domain is attacker-controlled not the legitimate litellm.ai; nocase for resilience -->
+<!-- caveat: IOC shelf life — litellm.dev may be sinkholed, re-registered, or taken down over time; periodically verify domain ownership before treating alerts as active C2 -->
 
 ### YARA: LiteLLM cook.py Credential Stealer
 
@@ -483,11 +488,12 @@ rule SupplyChain_LiteLLM_CookPy_Credential_Stealer
         $s11 = "hdr.json" ascii
 
     condition:
-        filesize < 500KB and 5 of them
+        filesize < 1MB and 5 of them
 }
 ```
 
-<!-- audit: yarac compiled exit 0; 5-of-11 threshold balances detection vs FP; strings are highly specific to this payload; filesize < 500KB scopes to Python scripts not large binaries; data.bin/key.bin/hdr.json alone are generic but combined with PRIVCOLLECT/cook-specific strings are precise -->
+<!-- revision: changed filesize < 500KB to < 1MB; report states payload is ~500KB which is right at the 500KB boundary -->
+<!-- audit: yarac compiled exit 0; 5-of-11 threshold balances detection vs FP; strings are highly specific to this payload; filesize < 1MB scopes to Python scripts not large binaries; data.bin/key.bin/hdr.json alone are generic but combined with PRIVCOLLECT/cook-specific strings are precise -->
 
 ### YARA: PRIVCOLLECT Staging Patterns
 
@@ -532,7 +538,9 @@ rule SupplyChain_LiteLLM_PRIVCOLLECT_Strings
 
 Detects files containing RSA public keys alongside PRIVCOLLECT-related credential wrapping context.
 
-compile: pass (yarac exit 0) | confidence: medium
+<!-- revision: removed ($aes and $oaep) standalone branch — it fired on crypto tutorials and any hybrid encryption tool; now requires at least one $priv* string; downgraded confidence to low -->
+
+compile: pass (yarac exit 0) | confidence: low
 
 ```yara
 rule SupplyChain_LiteLLM_RSA_PublicKey_Fragment
@@ -542,7 +550,7 @@ rule SupplyChain_LiteLLM_RSA_PublicKey_Fragment
         author = "Actioner"
         date = "2026-10-29"
         reference = "https://www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/"
-        severity = "high"
+        severity = "medium"
 
     strings:
         $rsa_begin = "-----BEGIN PUBLIC KEY-----" ascii
@@ -550,17 +558,15 @@ rule SupplyChain_LiteLLM_RSA_PublicKey_Fragment
         $priv1 = "PRIVCOLLECT_ACTIVE" ascii
         $priv2 = "remote_code_loader" ascii
         $priv3 = ".pc_e_" ascii
-        $aes = "AES" ascii
-        $oaep = "OAEP" ascii
 
     condition:
-        filesize < 500KB and
+        filesize < 1MB and
         $rsa_begin and $rsa_end and
-        (1 of ($priv*) or ($aes and $oaep))
+        1 of ($priv*)
 }
 ```
 
-<!-- audit: yarac compiled exit 0; RSA key + PRIVCOLLECT marker is highly specific; RSA key + AES + OAEP without PRIVCOLLECT is broader but contextually relevant for crypto wrapping in Python scripts; medium confidence due to potential FP with legitimate crypto code that happens to use AES+OAEP+embedded pubkey -->
+<!-- audit: yarac compiled exit 0; RSA key + PRIVCOLLECT marker is specific; removed $aes/$oaep strings and their standalone branch that would FP on legitimate crypto code; low confidence as an RSA pubkey with one $priv* string is still a broad net -->
 
 ### Snort: HTTP POST Exfiltration to /healthcheck
 
@@ -569,10 +575,11 @@ Detects the credential exfiltration HTTP POST pattern.
 compile: uncompiled (Snort not installed) | confidence: high
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfiltration POST to /healthcheck"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/healthcheck"; http_header; content:"application/octet-stream"; content:"X-SHA256"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created 2026-10-29; sid:2100201; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - LiteLLM Supply Chain Exfiltration POST to /healthcheck"; flow:established,to_server; http_method; content:"POST"; http_uri; content:"/healthcheck"; http_header; content:"application/octet-stream"; content:"X-SHA256"; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/10/23/inside-the-litellm-1-107-0-supply-chain-compromise-credential-theft-through-python-startup-hooks/; metadata:author Actioner, created 2026-10-29; sid:2100201; rev:1;)
 ```
 
-<!-- audit: structural check only; Snort 3 underscore sticky buffers (http_method, http_uri, http_header); http service in header; flow established to_server; all options semicolon-terminated; sid/rev present -->
+<!-- revision: removed space in flow:established,to_server -->
+<!-- audit: structural check only; Snort 3 underscore sticky buffers (http_method, http_uri, http_header); http service in header; flow established,to_server; all options semicolon-terminated; sid/rev present -->
 
 ### Snort: DNS Query for litellm.dev
 

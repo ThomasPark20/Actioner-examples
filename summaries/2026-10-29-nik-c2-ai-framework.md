@@ -1,9 +1,9 @@
 # Technical Analysis Report: NIK C2 AI-Enabled Framework (2026-10-29)
 
-Prepared by: Actioner (DRAFT)
+Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-10-29
-Version: 0.1-draft
+Version: 1.0
 
 ## Executive Summary
 
@@ -38,7 +38,7 @@ The initial access vector for NIK C2 deployments has not been publicly documente
 The NIK C2 agent is a Go-compiled PE binary built on the panel server under `/opt/nik_panel/data/build_<hash>/main.go`. Upon execution, the agent:
 
 - Renames itself to `csrss.exe` in `%TEMP%` to masquerade as the legitimate Windows Critical Service Process (T1036)
-- Copies itself to `%appdata%\Roaming\Microsoft\Network` for persistence
+- Copies itself to `%APPDATA%\Microsoft\Network` for persistence
 - Establishes persistence via the `HKCU\...\Run` registry value named `SystemLock`
 - Logs `[NIK] Starting` on initialization
 - May also appear as `svchost.exe` or `simvol.exe`
@@ -134,7 +134,7 @@ The NIK C2 agent is a Go-compiled PE binary built on the panel server under `/op
 | Platform | Path | Hash (SHA256) | Description |
 |----------|------|---------------|-------------|
 | Windows | %TEMP%\csrss.exe | See ClamAV sig below | NIK C2 agent (renamed) |
-| Windows | %appdata%\Roaming\Microsoft\Network\ | -- | Persistence copy of agent |
+| Windows | %APPDATA%\Microsoft\Network\ | -- | Persistence copy of agent |
 | Windows | %TEMP%\mbr_backup.bin | -- | MBR backup (ransomware module) |
 | Windows | %TEMP%\lock_screen.html | -- | Lock screen HTML payload |
 | Windows | %TEMP%\lock_start.bat | -- | Lock screen launcher |
@@ -171,7 +171,6 @@ The NIK C2 agent is a Go-compiled PE binary built on the panel server under `/op
 |-----|-----------|-------------------|
 | T1071.001 | Application Layer Protocol: Web Protocols | WebSocket over TLS for all C2 traffic; OpenAI API calls |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | AES-256-GCM encryption of C2 payloads |
-| T1008 | Fallback Channels | Multiple C2 endpoints under /api/c2/ |
 | T1059.001 | Command and Scripting Interpreter: PowerShell | PowerShell raw disk read, AMSI patch |
 | T1059.003 | Command and Scripting Interpreter: Windows Command Shell | cmd.exe for recon (systeminfo, netsh) |
 | T1047 | Windows Management Instrumentation | wmic os get lastbootuptime |
@@ -184,7 +183,6 @@ The NIK C2 agent is a Go-compiled PE binary built on the panel server under `/op
 | T1564.003 | Hide Artifacts: Hidden Window | Console window hiding |
 | T1622 | Debugger Evasion | IsDebuggerPresent, CheckRemoteDebuggerPresent |
 | T1555.003 | Credentials from Password Stores: Credentials from Web Browsers | Browser credential theft |
-| T1539 | Steal Web Session Cookie | Browser cookie exfiltration |
 | T1528 | Steal Application Access Token | Discord token theft |
 | T1056.001 | Input Capture: Keylogging | Keylogger module |
 | T1082 | System Information Discovery | systeminfo, wmic, Wi-Fi enumeration |
@@ -233,7 +231,7 @@ Test-Path "$env:APPDATA\Microsoft\Network\csrss.exe"
 3. **Remove Persistence:**
    - Delete `HKCU\...\Run\SystemLock` registry value
    - Delete `HKCU\Software\Classes\ms-settings\Shell\Open\command` if present
-   - Remove agent binary from `%appdata%\Roaming\Microsoft\Network\`
+   - Remove agent binary from `%APPDATA%\Microsoft\Network\`
 4. **Credential Rotation:** Rotate all browser-saved passwords, Discord tokens, cryptocurrency wallet keys, and Wi-Fi passwords on affected hosts
 5. **MBR Verification:** If `mbr_backup.bin` exists, verify MBR integrity with `bcdedit /enum` and consider restoring from backup
 6. **Scan for Variants:** Use the YARA rule below and ClamAV signature `Win.Trojan.GoDiscorder-10060526-0` to scan enterprise-wide
@@ -243,12 +241,12 @@ Test-Path "$env:APPDATA\Microsoft\Network\csrss.exe"
 - Deploy Sysmon with configuration monitoring process creation, registry events, network connections, and DNS queries
 - Block or alert on `mshta.exe` execution from user-writable directories via application control policies
 - Monitor for processes resolving `api.openai.com` from hosts without sanctioned AI tooling
-- Enforce UAC at "Always Notify" level and monitor for fodhelper.exe abuse patterns
+- Monitor the `ms-settings` registry key for unauthorized modification (Rule 2); use AppLocker/WDAC to block fodhelper.exe execution; remove local-admin rights from end-user accounts where possible
 - Consider blocking or alerting on outbound WebSocket connections to newly registered or low-reputation domains
 
 ## Detection Rules
 
-The rules below target NIK C2-specific artifacts at the **specific** altitude (PoC/advisory-level indicators) with **strict** leniency (tight matching to minimize false positives). Seven Sigma rules cover endpoint behaviors, one YARA rule covers binary artifacts, four Suricata rules cover network indicators, and three Snort rules provide equivalent network coverage where Suricata is unavailable. The main caveat: the Sigma `sigma check` ATT&CK tag validator could not run due to a network restriction in the build environment; tags were manually verified against the MITRE ATT&CK framework.
+The rules below target NIK C2-specific artifacts at the **specific** altitude (PoC/advisory-level indicators) with **strict** leniency (tight matching to minimize false positives). Six Sigma rules cover endpoint behaviors, one YARA rule covers binary artifacts, four Suricata rules cover network indicators, and three Snort rules provide equivalent network coverage where Suricata is unavailable. The main caveat: the Sigma `sigma check` ATT&CK tag validator could not run due to a network restriction in the build environment; tags were manually verified against the MITRE ATT&CK framework.
 
 ### Sigma Rules
 
@@ -258,7 +256,8 @@ Detects a process named csrss.exe executing from a user TEMP directory, a hallma
 
 **Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** high
 
-<!-- Audit: sigma check passed (0 errors, 0 issues, attacktag validator excluded due to network 403 on MITRE ATT&CK data fetch). sigma convert --without-pipeline -t splunk produced valid SPL. sigma convert --without-pipeline -t log_scale produced valid LogScale query. Field names (Image) match Sysmon process_creation schema. Values use real paths, not defanged. Tags attack.t1036 and attack.t1059.001 are valid technique IDs. -->
+<!-- Audit: sigma check passed (0 errors, 0 issues, attacktag validator excluded due to network 403 on MITRE ATT&CK data fetch). sigma convert --without-pipeline -t splunk produced valid SPL. sigma convert --without-pipeline -t log_scale produced valid LogScale query. Field names (Image) match Sysmon process_creation schema. Values use real paths, not defanged. Tag attack.t1036 is correct for masquerading. -->
+<!-- revision: removed attack.t1059.001 (not masquerading), removed unreachable filter_legit clause (selection_temp already constrains to \Temp\, so C:\Windows\System32\ startswith can never match) -->
 
 ```yaml
 title: NIK C2 - Suspicious csrss.exe in TEMP Directory
@@ -274,7 +273,6 @@ author: Actioner
 date: 2026-10-29
 tags:
     - attack.t1036
-    - attack.t1059.001
 logsource:
     category: process_creation
     product: windows
@@ -285,9 +283,7 @@ detection:
         Image|contains:
             - '\AppData\Local\Temp\'
             - '\Windows\Temp\'
-    filter_legit:
-        Image|startswith: 'C:\Windows\System32\'
-    condition: selection_image and selection_temp and not filter_legit
+    condition: selection_image and selection_temp
 falsepositives:
     - Unlikely in production; csrss.exe should only run from System32
 level: high
@@ -363,9 +359,10 @@ level: high
 
 Detects mshta.exe executing an HTML/HTA file from a TEMP directory, matching the NIK C2 ransomware lock-screen delivery via lock_screen.html.
 
-**Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** high
+**Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** medium
 
 <!-- Audit: sigma check passed (0 errors, 0 issues). sigma convert successful. Tag attack.t1218.005 correct for mshta proxy execution. CommandLine field matches Sysmon process_creation. Requires both TEMP path and .html/.hta extension to reduce FPs. -->
+<!-- revision: downgraded from high to medium confidence; legitimate enterprise HTA installers (SCCM packages, LOB apps) may trigger this rule -->
 
 ```yaml
 title: NIK C2 - mshta.exe Executing HTML from TEMP Directory
@@ -396,7 +393,8 @@ detection:
     condition: selection_binary and selection_arg and selection_html
 falsepositives:
     - Legitimate HTA applications deployed via TEMP (uncommon)
-level: high
+    - Enterprise HTA installers from SCCM packages or line-of-business applications
+level: medium
 ```
 
 #### 5. NIK C2 - browserdata.zip Staging in TEMP
@@ -435,58 +433,16 @@ falsepositives:
 level: high
 ```
 
-#### 6. NIK C2 - Outbound Connection to OpenAI API from Non-AI Application
+<!-- Dropped: OpenAI API DNS query detection (formerly Rule 6) — pure behavioral/TTP rule not appropriate at specific altitude; enormous FP surface in any organization using AI tools. -->
 
-Detects DNS queries to api.openai.com from processes not typically associated with AI tooling, which may indicate NIK C2's AI module running on a compromised host.
-
-**Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** medium
-
-<!-- Audit: sigma check passed (0 errors, 0 issues). sigma convert successful. Logsource dns_query/windows maps to Sysmon EID 22. Filter list covers common legitimate AI callers. Medium confidence because legitimate applications not in the filter list may trigger this. Tag attack.t1071.001 correct for web protocol communication. -->
-
-```yaml
-title: NIK C2 - Outbound Connection to OpenAI API from Non-AI Application
-id: c2aac28f-d9fa-43f1-8aa1-0dc02d1f70e3
-status: experimental
-description: >
-    Detects network connections to api.openai.com from processes not
-    typically associated with AI tooling, which may indicate NIK C2
-    AI-assisted command generation running on a compromised host.
-references:
-    - https://blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/
-author: Actioner
-date: 2026-10-29
-tags:
-    - attack.t1071.001
-logsource:
-    category: dns_query
-    product: windows
-detection:
-    selection:
-        QueryName: 'api.openai.com'
-    filter_legit:
-        Image|endswith:
-            - '\python.exe'
-            - '\python3.exe'
-            - '\node.exe'
-            - '\Code.exe'
-            - '\cursor.exe'
-            - '\copilot-agent.exe'
-    condition: selection and not filter_legit
-falsepositives:
-    - Custom enterprise applications calling OpenAI API directly
-    - Development tools or IDE plugins using OpenAI
-level: medium
-```
-
-Environments with widespread AI tool usage will need to expand the filter list.
-
-#### 7. NIK C2 - Wi-Fi Password Harvesting via netsh
+#### 6. NIK C2 - Wi-Fi Password Harvesting via netsh
 
 Detects the `netsh wlan show profile ... key=clear` command sequence used by NIK C2 to extract saved Wi-Fi passwords.
 
-**Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** high
+**Status:** ✅ compiles (sigma check + convert splunk/log_scale) | **Confidence:** medium
 
 <!-- Audit: sigma check passed (0 errors, 0 issues). sigma convert successful. CommandLine contains|all ensures all four tokens are present in one command line. Tag attack.t1082 for system info discovery, attack.t1005 for local data. Logsource process_creation/windows correct. -->
+<!-- revision: downgraded from high to medium confidence; this is a generic pen-test technique (not NIK-specific) also used by legitimate IT auditing -->
 
 ```yaml
 title: NIK C2 - Wi-Fi Password Harvesting via netsh
@@ -515,12 +471,13 @@ detection:
     condition: selection
 falsepositives:
     - IT administrators auditing Wi-Fi configurations
-level: high
+    - Penetration testers and red-team operators
+level: medium
 ```
 
 ### Suricata Rules
 
-#### 8. NIK C2 - DNS Query to C2 Domain
+#### 7. NIK C2 - DNS Query to C2 Domain
 
 Detects DNS queries for the NIK C2 domain total-sitevv[.]lol.
 
@@ -532,19 +489,22 @@ Detects DNS queries for the NIK C2 domain total-sitevv[.]lol.
 alert dns $HOME_NET any -> any any (msg:"Actioner - NIK C2 DNS Query to total-sitevv.lol"; flow:to_server; dns.query; content:"total-sitevv.lol"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created_at 2026-10-29; sid:2100101; rev:1;)
 ```
 
-#### 9. NIK C2 - WebSocket C2 Endpoint Access
+#### 8. NIK C2 - WebSocket C2 Endpoint Access
 
 Detects HTTP requests to the /api/c2/ws WebSocket endpoint used by NIK C2 for command-and-control.
 
 **Status:** ✅ compiles (suricata -T exit 0) | **Confidence:** high
 
-<!-- Audit: Validated with suricata -T. Protocol http with http.uri dot-notation buffer. Content matches specific URI path. SID 2100102. -->
+<!-- Audit: Validated with suricata -T. Protocol http with http.uri dot-notation buffer. Content matches specific URI path. SID 2100102. Destination scoped to known C2 IP. -->
+<!-- revision: added dest_ip scoping to 87.120.196.120 to reduce FP surface; without IP scoping this would be medium confidence since "/api/c2/ws" is a generic path -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 WebSocket Endpoint /api/c2/ws"; flow:established,to_server; http.uri; content:"/api/c2/ws"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created_at 2026-10-29; sid:2100102; rev:1;)
+alert http $HOME_NET any -> 87.120.196.120 any (msg:"Actioner - NIK C2 WebSocket Endpoint /api/c2/ws"; flow:established,to_server; http.uri; content:"/api/c2/ws"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created_at 2026-10-29; sid:2100102; rev:2;)
 ```
 
-#### 10. NIK C2 - TLS Certificate Subject CN=nik-panel
+> **FP caveat:** Without the destination IP constraint, `/api/c2/ws` is a generic URI pattern that may match legitimate APIs. If the C2 migrates to a new IP, broaden the destination but expect false positives and downgrade to medium confidence.
+
+#### 9. NIK C2 - TLS Certificate Subject CN=nik-panel
 
 Detects TLS connections where the server certificate subject contains CN=nik-panel, the distinctive certificate used by the NIK C2 panel.
 
@@ -556,7 +516,7 @@ Detects TLS connections where the server certificate subject contains CN=nik-pan
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 TLS Certificate CN nik-panel"; flow:established,to_server; tls.cert_subject; content:"CN=nik-panel"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created_at 2026-10-29; sid:2100103; rev:1;)
 ```
 
-#### 11. NIK C2 - TLS SNI to C2 Domain
+#### 10. NIK C2 - TLS SNI to C2 Domain
 
 Detects TLS connections with SNI set to total-sitevv[.]lol.
 
@@ -570,7 +530,7 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 TLS SNI to 
 
 ### Snort 3 Rules
 
-#### 12. NIK C2 - DNS Query to C2 Domain (Snort)
+#### 11. NIK C2 - DNS Query to C2 Domain (Snort)
 
 Detects DNS queries for total-sitevv[.]lol using DNS wire-format label matching.
 
@@ -582,19 +542,20 @@ Detects DNS queries for total-sitevv[.]lol using DNS wire-format label matching.
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - NIK C2 DNS Query to total-sitevv.lol"; flow:to_server; content:"|0e|total-sitevv|03|lol|00|", nocase, fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created 2026-10-29; sid:2100201; rev:1;)
 ```
 
-#### 13. NIK C2 - WebSocket C2 Endpoint Access (Snort)
+#### 12. NIK C2 - WebSocket C2 Endpoint Access (Snort)
 
 Detects HTTP requests to the /api/c2/ URI path prefix used by NIK C2 for all command-and-control endpoints.
 
 **Status:** ⚠️ uncompiled (Snort not installed; structural check only) | **Confidence:** high
 
-<!-- Audit: Structural review: protocol http (Snort service keyword), flow established/to_server, http_uri sticky buffer (underscore notation for Snort 3), content "/api/c2/". SID 2100202. No Suricata-only keywords. -->
+<!-- Audit: Structural review: protocol http (Snort service keyword), flow established/to_server, http_uri sticky buffer (underscore notation for Snort 3), content "/api/c2/". SID 2100202. No Suricata-only keywords. Destination scoped to known C2 IP. -->
+<!-- revision: added dest_ip scoping to 87.120.196.120 to match Suricata rule #9 treatment; keeps high confidence with scoping -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 WebSocket C2 Endpoint Access"; flow:established, to_server; http_uri; content:"/api/c2/", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created 2026-10-29; sid:2100202; rev:1;)
+alert http $HOME_NET any -> 87.120.196.120 any (msg:"Actioner - NIK C2 WebSocket C2 Endpoint Access"; flow:established, to_server; http_uri; content:"/api/c2/", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/nik-c2-new-ai-enabled-framework/; metadata:author Actioner, created 2026-10-29; sid:2100202; rev:2;)
 ```
 
-#### 14. NIK C2 - TLS ClientHello to C2 Domain (Snort)
+#### 13. NIK C2 - TLS ClientHello to C2 Domain (Snort)
 
 Detects TLS ClientHello messages containing the SNI total-sitevv[.]lol by matching the domain string in the handshake payload.
 
@@ -608,7 +569,7 @@ alert ssl $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 TLS ClientH
 
 ### YARA Rule
 
-#### 15. NIK C2 Agent Binary Detection
+#### 14. NIK C2 Agent Binary Detection
 
 Detects NIK C2 agent PE binaries via distinctive strings including the build path, log marker, AES cryptographic material, C2 endpoints, and staging file references.
 
@@ -668,7 +629,7 @@ rule Malware_NIK_C2_Agent : trojan rat
 
 4. **WebSocket over TLS on 443 evades basic network monitoring.** The use of standard HTTPS port with WebSocket upgrade makes the C2 traffic indistinguishable from legitimate web traffic without TLS inspection or endpoint-level visibility. Organizations relying solely on perimeter network monitoring will miss this traffic.
 
-5. **Classic UAC bypass techniques remain effective.** The fodhelper.exe UAC bypass is well-documented but still effective against default Windows configurations. Enforcing "Always Notify" UAC settings and monitoring the `ms-settings` registry key remain critical defensive measures.
+5. **Classic UAC bypass techniques remain effective.** The fodhelper.exe UAC bypass is well-documented but still effective against default Windows configurations. Note that "Always Notify" UAC does not defend against the fodhelper auto-elevate vector. Effective mitigations are: monitoring the `ms-settings` registry key (Rule 2), blocking fodhelper.exe with AppLocker/WDAC, and removing local-admin rights from end-user accounts.
 
 ## Sources
 
