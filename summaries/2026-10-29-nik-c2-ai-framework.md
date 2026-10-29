@@ -522,7 +522,7 @@ level: high
 
 #### 8. NIK C2 - DNS Query to C2 Domain
 
-Detects DNS queries for the NIK C2 domain total-sitevv.lol.
+Detects DNS queries for the NIK C2 domain total-sitevv[.]lol.
 
 **Status:** ✅ compiles (suricata -T exit 0) | **Confidence:** high
 
@@ -558,7 +558,7 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 TLS Certifi
 
 #### 11. NIK C2 - TLS SNI to C2 Domain
 
-Detects TLS connections with SNI set to total-sitevv.lol.
+Detects TLS connections with SNI set to total-sitevv[.]lol.
 
 **Status:** ✅ compiles (suricata -T exit 0) | **Confidence:** high
 
@@ -572,7 +572,7 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 TLS SNI to 
 
 #### 12. NIK C2 - DNS Query to C2 Domain (Snort)
 
-Detects DNS queries for total-sitevv.lol using DNS wire-format label matching.
+Detects DNS queries for total-sitevv[.]lol using DNS wire-format label matching.
 
 **Status:** ⚠️ uncompiled (Snort not installed; structural check only) | **Confidence:** high
 
@@ -596,7 +596,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - NIK C2 WebSocket 
 
 #### 14. NIK C2 - TLS ClientHello to C2 Domain (Snort)
 
-Detects TLS ClientHello messages containing the SNI total-sitevv.lol by matching the domain string in the handshake payload.
+Detects TLS ClientHello messages containing the SNI total-sitevv[.]lol by matching the domain string in the handshake payload.
 
 **Status:** ⚠️ uncompiled (Snort not installed; structural check only) | **Confidence:** high
 
