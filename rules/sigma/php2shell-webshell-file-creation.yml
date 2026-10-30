@@ -1,0 +1,25 @@
+title: PHP2Shell Webshell at PAN-OS change_password.php
+id: 7c3a91d4-e8b2-4f6a-a1c9-3d5e7f0b2a84
+status: experimental
+description: >
+    Detects file creation or modification of the specific webshell path used
+    in the PHP2Shell campaign against PAN-OS devices. The attacker planted a
+    103-byte PHP root webshell at /unauth/php/change_password.php.
+references:
+    - https://dreamgroup.com/blog/chained-php2shell-exploit-roots-25-servers
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+author: Actioner
+date: 2026-10-30
+tags:
+    - attack.t1505.003
+    - attack.t1190
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/unauth/php/change_password.php'
+    condition: selection
+falsepositives:
+    - Legitimate PAN-OS firmware updates that write to this path
+level: high

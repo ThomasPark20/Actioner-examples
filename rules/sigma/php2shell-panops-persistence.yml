@@ -1,0 +1,26 @@
+title: PHP2Shell Persistence Directory .panops on PAN-OS
+id: 2b8f6e1a-d4c7-4a3e-9f51-6c0d8b2e5a73
+status: experimental
+description: >
+    Detects file creation within the /usr/local/lib/.panops/ hidden directory
+    used by the PHP2Shell campaign for persistence on compromised PAN-OS
+    devices. Scripts in this directory are launched via a systemd service
+    and rc.local boot hook.
+references:
+    - https://dreamgroup.com/blog/chained-php2shell-exploit-roots-25-servers
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+author: Actioner
+date: 2026-10-30
+tags:
+    - attack.t1543.002
+    - attack.t1505.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: '/usr/local/lib/.panops/'
+    condition: selection
+falsepositives:
+    - Unknown - this is a hidden directory specific to the PHP2Shell campaign
+level: critical
