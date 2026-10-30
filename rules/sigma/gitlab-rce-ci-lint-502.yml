@@ -1,0 +1,31 @@
+title: GitLab CI Lint Endpoint HTTP 502 Indicating Worker Crash (CVE-2026-97229)
+id: 7c3a91e8-4b2f-4d1a-b5e7-9f8c6d0a3e12
+status: experimental
+description: >
+    Detects HTTP 502 responses from the GitLab CI lint REST API endpoint, which is
+    the host-visible signature of a Puma worker killed by a hostile regular expression
+    exploiting the Onigmo integer overflow (CVE-2026-97229). The crashing request may
+    be absent from Rails logs, making the web server access log the authoritative
+    crash detection point.
+references:
+    - https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-4-2-released/#cve-2026-97229---integer-overflow-issue-in-cicd-regular-expression-compiler-impacts-gitlab-ceee
+    - https://www.rapid7.com/blog/post/etr-cve-2026-97229-critical-unauthenticated-remote-code-execution-in-gitlab/
+    - https://www.rapid7.com/blog/post/ra-gitlab-ci-cd-regex-integer-overflow-technical-analysis-cve-2026-97229/
+    - https://alpinelinux.org/posts/GitLab-security-incident-CVE-2026-97229.html
+author: Actioner
+date: 2026/10/30
+tags:
+    - attack.t1190
+    - attack.t1499.004
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: 'ci/lint'
+    selection_status:
+        sc-status: 502
+    condition: selection_uri and selection_status
+falsepositives:
+    - Instance-wide outages or restarts causing 502 errors across many routes simultaneously
+    - OS OOM killer terminating a Puma worker during unrelated memory pressure
+level: medium

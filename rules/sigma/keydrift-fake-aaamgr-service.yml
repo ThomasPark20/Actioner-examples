@@ -1,0 +1,28 @@
+title: KeyDrift Fake aaamgr Runit Service on SD-WAN Validator
+id: 5c9e2a13-f8d4-4b67-a3e1-7d6c8f9b0e54
+status: experimental
+description: >
+    Detects creation of files under /etc/sv/aaamgr/ which indicates the
+    KeyDrift aaamgrd packed loader masquerading as a legitimate aaamgr
+    service. On Cisco SD-WAN Validators, the real aaamgr is a Python package
+    and does not run as a compiled runit service. A compiled binary or
+    service directory at this path is a strong indicator of KeyDrift
+    compromise.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+    - https://thehackernews.com/2026/10/hackers-exploited-cisco-sd-wan-flaw-to.html
+author: Actioner
+date: 2026/10/30
+tags:
+    - attack.t1036.004
+    - attack.t1543
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|startswith: '/etc/sv/aaamgr/'
+    condition: selection
+falsepositives:
+    - Cisco SD-WAN software updates that legitimately modify the /etc/sv/ directory structure
+level: high

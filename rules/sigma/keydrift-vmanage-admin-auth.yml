@@ -1,0 +1,30 @@
+title: CVE-2026-20127 Exploitation - vmanage-admin Public Key Authentication
+id: 2e7b4c91-d5f3-48a6-9c1e-6b8a3d7f5e02
+status: experimental
+description: >
+    Detects public key authentication as the vmanage-admin account on Cisco
+    Catalyst SD-WAN controllers, which is the primary indicator of
+    CVE-2026-20127 exploitation. The advisory states that 'Accepted publickey
+    for vmanage-admin' entries from unexpected IPs in auth.log indicate
+    compromise. This account should not authenticate via publickey from
+    external or unrecognized sources.
+references:
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-sdwan-rpa-EHchtZk
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+author: Actioner
+date: 2026/10/30
+tags:
+    - attack.t1190
+    - attack.t1078
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        SyslogMessage|contains|all:
+            - 'Accepted publickey'
+            - 'vmanage-admin'
+    condition: selection
+falsepositives:
+    - Legitimate automated management tasks authenticating as vmanage-admin via publickey from known controller IPs
+level: medium

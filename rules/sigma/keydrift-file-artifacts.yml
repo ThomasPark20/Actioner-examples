@@ -1,0 +1,30 @@
+title: KeyDrift Malware File Artifacts on Cisco SD-WAN
+id: 8a3d1f7e-c4b2-4e9a-b6d8-1f3e5a7c9d2b
+status: experimental
+description: >
+    Detects creation of files associated with the KeyDrift malware framework
+    deployed by UAT-11473 on Cisco Catalyst SD-WAN controllers. The paths
+    /var/tmp/vdaemon.bin (LittleFilch encrypted output), /var/tmp/vdaemon.conf
+    (LittleFilch send settings), and /tmp/system-vdaemon (PID list written by
+    conf_sshd) are unique to this malware.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+    - https://sec.cloudapps.cisco.com/security/center/content/CiscoSecurityAdvisory/cisco-sa-sdwan-rpa-EHchtZk
+author: Actioner
+date: 2026/10/30
+tags:
+    - attack.t1074.001
+    - attack.t1005
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/var/tmp/vdaemon.bin'
+            - '/var/tmp/vdaemon.conf'
+            - '/tmp/system-vdaemon'
+    condition: selection
+falsepositives:
+    - Legitimate Cisco SD-WAN vdaemon processes do not create these specific files
+level: high

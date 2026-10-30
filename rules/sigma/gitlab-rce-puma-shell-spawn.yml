@@ -1,0 +1,38 @@
+title: Shell Process Spawned by GitLab Puma Worker as Git User (CVE-2026-97229 Post-Exploitation)
+id: 2d5f8a1b-9c3e-4076-a8d4-6b7e0f2c1d93
+status: experimental
+description: >
+    Detects a shell process (sh, bash, dash) spawned as a child of a Puma worker
+    process running under the git user account on a GitLab server. This is the
+    post-exploitation indicator for CVE-2026-97229 where the attacker achieves
+    command execution as the git user (uid 998) through the Onigmo regex integer
+    overflow in CI/CD configuration processing. Companion TTP rule: pair with
+    the CI lint-specific rules for higher fidelity.
+references:
+    - https://www.rapid7.com/blog/post/ra-gitlab-ci-cd-regex-integer-overflow-technical-analysis-cve-2026-97229/
+    - https://docs.gitlab.com/releases/patches/patch-release-gitlab-19-4-2-released/#cve-2026-97229---integer-overflow-issue-in-cicd-regular-expression-compiler-impacts-gitlab-ceee
+author: Actioner
+date: 2026/10/30
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent_image:
+        ParentImage|endswith: '/puma'
+    selection_parent_cmdline:
+        ParentCommandLine|contains: 'puma'
+    selection_shell:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+    selection_user:
+        User: 'git'
+    condition: (selection_parent_image or selection_parent_cmdline) and selection_shell and selection_user
+falsepositives:
+    - Legitimate GitLab background jobs or hooks that spawn shell processes under the git user through Puma
+    - Deployments where the Puma binary is /usr/bin/ruby with puma in the command line
+level: medium

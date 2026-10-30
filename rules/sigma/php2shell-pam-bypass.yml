@@ -1,0 +1,34 @@
+title: PAM Configuration Modified for Authentication Bypass
+id: 4e9d1c7a-f3b5-4826-8a0f-1d6c5e9b7f32
+status: experimental
+description: >
+    Detects modification of critical PAM configuration files (su, sudo,
+    common-auth). The Fragnesia privilege escalation (CVE-2026-46300) used
+    in the PHP2Shell attack chain overwrites /etc/pam.d/su to escalate from
+    nobody to root. This rule fires on any write to these PAM paths and does
+    not inspect file content.
+references:
+    - https://dreamgroup.com/blog/chained-php2shell-exploit-roots-25-servers
+    - https://www.bleepingcomputer.com/news/security/cisa-warns-of-fragnesia-linux-flaw-chained-in-php2shell-attacks/
+author: Actioner
+date: 2026-10-30
+tags:
+    - attack.t1556
+    - attack.t1068
+logsource:
+    category: file_change
+    product: linux
+detection:
+    selection_path:
+        TargetFilename|startswith: '/etc/pam.d/'
+    selection_content:
+        TargetFilename|endswith:
+            - '/su'
+            - '/sudo'
+            - '/common-auth'
+    condition: selection_path and selection_content
+falsepositives:
+    - Legitimate PAM configuration changes by system administrators
+    - Package manager updates to PAM modules
+    - Configuration management tools (Ansible, Puppet, Chef)
+level: medium
