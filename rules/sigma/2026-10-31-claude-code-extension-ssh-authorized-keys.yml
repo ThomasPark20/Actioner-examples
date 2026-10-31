@@ -1,0 +1,30 @@
+title: SSH Authorized Keys Modification by Node.js Process
+id: 2e531d9d-6ec5-420c-9f72-b0c21bf4d3d8
+status: experimental
+description: >
+    Detects a Node.js process modifying SSH authorized_keys files.
+    The trojanized Claude Code extension (v2.1.313) runs inside the
+    Node.js extension host and appends an attacker-controlled Ed25519
+    key to authorized_keys for persistent SSH access.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1098.004
+logsource:
+    category: file_event
+detection:
+    selection_path:
+        TargetFilename|endswith:
+            - '/.ssh/authorized_keys'
+            - '\.ssh\authorized_keys'
+            - '\administrators_authorized_keys'
+    selection_process:
+        Image|endswith:
+            - '/node'
+            - '\node.exe'
+    condition: selection_path and selection_process
+falsepositives:
+    - Legitimate Node.js-based SSH key management tools
+level: high

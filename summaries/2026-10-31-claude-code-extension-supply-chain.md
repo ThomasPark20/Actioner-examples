@@ -1,3 +1,4 @@
+<!-- revision: v1.1 2026-10-31 — renamed SSH authorized_keys rule title to "by Node.js Process", downgraded confidence to medium; upgraded Windows schtask rule confidence to high; added /node and \node.exe to SSH reverse tunnel ParentImage; removed attack.t1059.004 tag from persistence file rule; dropped YARA tunnel-key rule (noise on dev machines); fixed defanging-convention note to acknowledge live values in rules and remediation. -->
 # Technical Analysis Report: Trojanized Claude Code Extension Supply Chain Attack (2026-10-31)
 
 Prepared by: Actioner
@@ -114,9 +115,7 @@ The reverse tunnel uses `ssh -N -R '*:0:localhost:22'` which requests the remote
 
 ## Indicators of Compromise (IOCs)
 
-> **Defanging Convention:** All IOCs in this report use defanged notation to prevent accidental resolution or click-through:
-> - URLs: `hxxp://` replacing `http://`
-> - IP addresses: `[.]` replacing dots (e.g., `134[.]209[.]82[.]225`)
+> **Defanging Convention:** IOCs in prose and tables use defanged notation (`hxxp://`, `[.]`) to prevent accidental resolution. Detection rules and remediation commands use live (non-defanged) values so they can be deployed or run as-is.
 
 ### Package / Software Level
 
@@ -272,7 +271,7 @@ ss -tnp | grep "134.209.82.225"
 
 ## Detection Rules
 
-Six Sigma rules, two YARA rules, three Suricata rules, and two Snort rules cover the primary IOCs and behavioral patterns from this attack. All rules are advisory-specific (strict scope) to minimize false positives. The Sigma rules cover network connections to the C2 IP, SSH authorized_keys modification by Node.js, macOS LaunchAgent persistence, Windows scheduled task creation, reverse SSH tunnel spawned from a code editor, and persistence file creation. Note: `sigma check` ATT&CK tag validation was skipped due to proxy-blocked MITRE data endpoint, but all rules passed all other validators (0 errors, 0 issues) and successfully converted to Splunk and LogScale backends.
+Six Sigma rules, one YARA rule, three Suricata rules, and two Snort rules cover the primary IOCs and behavioral patterns from this attack. All rules are advisory-specific (strict scope) to minimize false positives. The Sigma rules cover network connections to the C2 IP, SSH authorized_keys modification by Node.js, macOS LaunchAgent persistence, Windows scheduled task creation, reverse SSH tunnel spawned from a code editor, and persistence file creation. Note: `sigma check` ATT&CK tag validation was skipped due to proxy-blocked MITRE data endpoint, but all rules passed all other validators (0 errors, 0 issues) and successfully converted to Splunk and LogScale backends.
 
 ### Sigma: Network Connection to C2 IP
 
@@ -310,22 +309,22 @@ falsepositives:
 level: high
 ```
 
-### Sigma: SSH Authorized Keys Modification by Node.js
+### Sigma: SSH Authorized Keys Modification by Node.js Process
 
 Detects a Node.js process (the extension host) modifying SSH authorized_keys files, consistent with the malware's SSH key injection behavior.
-compile: sigma check pass (0 errors) + sigma convert splunk/log_scale pass | confidence: high (IOC-specific)
+compile: sigma check pass (0 errors) + sigma convert splunk/log_scale pass | confidence: medium (behavioral)
 
-<!-- audit: Behavioral rule scoped to Node.js writing authorized_keys. sigma check -x attacktag: 0 errors, 0 issues. sigma convert --without-pipeline -t splunk: exit 0. sigma convert --without-pipeline -t log_scale: exit 0. Covers both Unix and Windows authorized_keys paths. -->
+<!-- audit: Behavioral rule scoped to Node.js writing authorized_keys. Does not match svc-telemetry key content. sigma check -x attacktag: 0 errors, 0 issues. sigma convert --without-pipeline -t splunk: exit 0. sigma convert --without-pipeline -t log_scale: exit 0. Covers both Unix and Windows authorized_keys paths. -->
 
 ```yaml
-title: SSH Authorized Keys Modification with svc-telemetry Key
+title: SSH Authorized Keys Modification by Node.js Process
 id: 2e531d9d-6ec5-420c-9f72-b0c21bf4d3d8
 status: experimental
 description: >
-    Detects file modification events targeting SSH authorized_keys files
-    where the svc-telemetry key comment is written. The trojanized Claude Code
-    extension (v2.1.313) appends an attacker-controlled Ed25519 key with the
-    comment svc-telemetry to authorized_keys for persistent SSH access.
+    Detects a Node.js process modifying SSH authorized_keys files.
+    The trojanized Claude Code extension (v2.1.313) runs inside the
+    Node.js extension host and appends an attacker-controlled Ed25519
+    key to authorized_keys for persistent SSH access.
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
 author: Actioner
@@ -387,9 +386,9 @@ level: critical
 ### Sigma: Windows Scheduled Task "SysMon" Persistence
 
 Detects creation of the masquerading scheduled task used for Windows persistence.
-compile: sigma check pass (0 errors) + sigma convert splunk/log_scale pass | confidence: medium (behavioral)
+compile: sigma check pass (0 errors) + sigma convert splunk/log_scale pass | confidence: high (artifact-specific)
 
-<!-- audit: Process-creation rule matching schtasks.exe with both SysMon task name and smt.cmd reference. sigma check -x attacktag: 0 errors, 0 issues. sigma convert --without-pipeline -t splunk: exit 0. sigma convert --without-pipeline -t log_scale: exit 0. Behavioral combination is specific but relies on command-line logging being enabled. -->
+<!-- audit: Process-creation rule matching schtasks.exe with both SysMon task name and smt.cmd reference. The AND of "SysMon" + "smt.cmd" is artifact-specific, upgraded to high. sigma check -x attacktag: 0 errors, 0 issues. sigma convert --without-pipeline -t splunk: exit 0. sigma convert --without-pipeline -t log_scale: exit 0. Requires command-line logging. -->
 
 ```yaml
 title: Malicious Claude Code Extension Windows Scheduled Task Persistence
@@ -460,6 +459,8 @@ detection:
             - '\cursor.exe'
             - '/code'
             - '\Code.exe'
+            - '/node'
+            - '\node.exe'
     condition: selection_cmd and selection_parent
 falsepositives:
     - Legitimate SSH tunneling extensions in VS Code or Cursor (rare and should be audited)
@@ -487,7 +488,6 @@ references:
 author: Actioner
 date: 2026-10-31
 tags:
-    - attack.t1059.004
     - attack.t1547.001
 logsource:
     category: file_event
@@ -550,36 +550,6 @@ rule SupplyChain_ClaudeCode_Backdoor_Loader
         $stk_pattern and
         3 of ($tunnel_flag1, $tunnel_flag2, $tunnel_target, $persist_mac, $persist_file1, $persist_file2) and
         1 of ($env_pattern*, $ipify, $git_email)
-}
-```
-
-### YARA: SSH Tunnel Private Key Detection
-
-Detects small OpenSSH private key files matching the dropped tunnel identity key pattern.
-compile: yarac exit 0 | confidence: medium (structural match, not hash-specific)
-
-<!-- audit: yarac exit 0. Matches small (<1KB) files with OpenSSH private key header at offset 0 and footer present. Low specificity without the actual key material; labeled medium. The hash 7e0a52... is the specific sample but key content is redacted in sources. -->
-
-```yara
-rule SupplyChain_ClaudeCode_Tunnel_Key
-{
-    meta:
-        description = "Detects the SSH tunnel private key file dropped by the trojanized Claude Code extension backdoor"
-        author = "Actioner"
-        date = "2026-10-31"
-        reference = "https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/"
-        hash = "7e0a52885fadee05544a9e99eb18c792bec05900a5e1a66d68f8383decb0e278"
-        severity = "high"
-        tlp = "WHITE"
-
-    strings:
-        $header = "-----BEGIN OPENSSH PRIVATE KEY-----" ascii
-        $footer = "-----END OPENSSH PRIVATE KEY-----" ascii
-
-    condition:
-        filesize < 1KB and
-        $header at 0 and
-        $footer
 }
 ```
 

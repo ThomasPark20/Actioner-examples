@@ -1,0 +1,37 @@
+title: Suspicious SSH Reverse Tunnel from Code Editor Process
+id: 5f935114-0e4a-4ddc-8231-2cd3af1eec6f
+status: experimental
+description: >
+    Detects SSH reverse tunnel commands spawned by code editor processes,
+    consistent with the trojanized Claude Code extension (v2.1.313) behavior.
+    The malware uses ssh -N -R to establish a reverse tunnel forwarding to
+    localhost port 22 for persistent remote access.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1572
+logsource:
+    category: process_creation
+detection:
+    selection_cmd:
+        CommandLine|contains|all:
+            - 'ssh'
+            - '-N'
+            - '-R'
+            - 'localhost:22'
+    selection_parent:
+        ParentImage|endswith:
+            - '/Cursor'
+            - '\Cursor.exe'
+            - '/cursor'
+            - '\cursor.exe'
+            - '/code'
+            - '\Code.exe'
+            - '/node'
+            - '\node.exe'
+    condition: selection_cmd and selection_parent
+falsepositives:
+    - Legitimate SSH tunneling extensions in VS Code or Cursor (rare and should be audited)
+level: medium

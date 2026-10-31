@@ -1,0 +1,24 @@
+title: Malicious Claude Code Extension macOS LaunchAgent Persistence
+id: 8348d219-f1e5-4f2d-b19a-036c4440d688
+status: experimental
+description: >
+    Detects the creation of the com.apple.sysmond.plist LaunchAgent used by
+    the trojanized Claude Code extension (v2.1.313) for persistence on macOS.
+    The plist is named to impersonate an Apple system daemon and configured
+    with RunAtLoad and KeepAlive to maintain a reverse SSH tunnel.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1543.004
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith: '/Library/LaunchAgents/com.apple.sysmond.plist'
+    condition: selection
+falsepositives:
+    - Apple does not ship a LaunchAgent by this name; false positives are unlikely
+level: critical

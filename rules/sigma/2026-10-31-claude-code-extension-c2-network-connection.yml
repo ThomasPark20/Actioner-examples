@@ -1,0 +1,26 @@
+title: Network Connection to Claude Code Extension Backdoor C2 IP
+id: c2577d3c-fed4-4ee9-8b76-2ebca6b159d9
+status: experimental
+description: >
+    Detects outbound network connections to IP address 134.209.82.225,
+    the C2 server used by the trojanized Claude Code VS Code extension
+    (v2.1.313) distributed via the Cursor marketplace on Oct 29, 2026.
+    Connections to this IP indicate potential reverse SSH tunnel or
+    HTTP beacon activity from the malicious extension.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+    - https://www.bleepingcomputer.com/news/security/malicious-claude-code-extension-on-cursor-planted-ssh-backdoors/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1572
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '134.209.82.225'
+    condition: selection
+falsepositives:
+    - Legitimate services hosted on this IP prior to the attack (unlikely given known malicious use)
+level: high

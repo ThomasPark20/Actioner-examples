@@ -1,0 +1,27 @@
+title: Claude Code Extension Backdoor Persistence File Creation
+id: 53bd12a6-10a1-499e-a1a8-9cee1f0ac41a
+status: experimental
+description: >
+    Detects creation of hidden persistence scripts (.smt, .smtk, smt.cmd)
+    in the user config directory, used by the trojanized Claude Code
+    extension (v2.1.313) to maintain reverse SSH tunnel access. These files
+    contain the SSH tunnel retry logic and tunnel identity key.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1547.001
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/.config/.smt'
+            - '/.config/.smtk'
+            - '\.config\smt.cmd'
+            - '\.config\smtk'
+    condition: selection
+falsepositives:
+    - Unlikely; these hidden filenames in the config directory are specific to this threat
+level: high

@@ -1,0 +1,27 @@
+title: Malicious Claude Code Extension Windows Scheduled Task Persistence
+id: 6e3ed496-a9d4-4714-a46d-ccb85c3b91cf
+status: experimental
+description: >
+    Detects the creation of a Windows scheduled task named SysMon that
+    references smt.cmd, used by the trojanized Claude Code extension
+    (v2.1.313) for persistence. The task is created requesting SYSTEM
+    privileges to maintain a reverse SSH tunnel.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - 'SysMon'
+            - 'smt.cmd'
+    condition: selection
+falsepositives:
+    - Unlikely; the combination of SysMon task name referencing smt.cmd is specific to this threat
+level: high
