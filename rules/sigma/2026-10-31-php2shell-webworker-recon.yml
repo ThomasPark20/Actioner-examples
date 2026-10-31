@@ -1,0 +1,53 @@
+title: Web Worker Process Executing Recon Commands
+id: 7a3b1c4d-5e6f-4a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects PHP or web server worker processes spawning common reconnaissance
+    commands indicative of post-exploitation activity following web application
+    RCE exploitation. Attackers use these commands to enumerate the compromised
+    host before lateral movement or persistence.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+    - https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w
+    - https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
+    - https://security.paloaltonetworks.com/CVE-2026-109618
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1082
+    - attack.t1049
+    - attack.t1033
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php-fcgi'
+            - '/frankenphp'
+            - '/lsphp'
+            - '/lshttpd'
+            - '/litespeed'
+            - '/sw-engine'
+    selection_recon:
+        Image|endswith:
+            - '/whoami'
+            - '/id'
+            - '/uname'
+            - '/hostname'
+            - '/netstat'
+            - '/ss'
+            - '/ps'
+            - '/env'
+            - '/printenv'
+            - '/getent'
+    condition: selection_parent and selection_recon
+falsepositives:
+    - Legitimate web applications that execute system commands for monitoring
+    - Nagios, Zabbix, or similar monitoring agents invoked via CGI
+    - cPanel, Plesk, or hosting panel maintenance scripts
+level: low

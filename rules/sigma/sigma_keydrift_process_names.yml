@@ -1,0 +1,28 @@
+title: KeyDrift Malware Component Process Execution
+id: 880fa943-a1f2-42d3-b576-d25db08728cb
+status: experimental
+description: >
+    Detects execution of KeyDrift-specific process names on Linux systems. rsshd is the
+    PolyFlame injector that uses ptrace to inject into vdaemon. conf_sshd is the launcher
+    script that enumerates vdaemon PIDs. aaamgrd is a packed PolyFlame loader masquerading
+    as the legitimate Cisco aaamgr service.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1055.008
+    - attack.t1036.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith:
+            - '/rsshd'
+            - '/conf_sshd'
+            - '/aaamgrd'
+    condition: selection
+falsepositives:
+    - Unlikely - these binary names are specific to KeyDrift malware components
+level: critical

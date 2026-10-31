@@ -1,0 +1,27 @@
+title: KeyDrift Malware Staging File Creation on SD-WAN Device
+id: 40e71f36-7e4e-408a-b9ca-7d8c44dcf8dd
+status: experimental
+description: >
+    Detects creation of files associated with the KeyDrift malware framework on Cisco
+    SD-WAN devices. LittleFilch stages encrypted keying material at /var/tmp/vdaemon.bin
+    and reads exfil config from /var/tmp/vdaemon.conf. conf_sshd writes PID lists to
+    /tmp/system-vdaemon.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1074.001
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection:
+        TargetFilename:
+            - '/var/tmp/vdaemon.bin'
+            - '/var/tmp/vdaemon.conf'
+            - '/tmp/system-vdaemon'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments - these file paths are specific to KeyDrift
+level: critical

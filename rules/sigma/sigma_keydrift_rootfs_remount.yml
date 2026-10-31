@@ -1,0 +1,27 @@
+title: Remount of rootfs.rw as Executable on SD-WAN Device
+id: b9d779f0-c005-4601-881b-1aa661e77a25
+status: experimental
+description: >
+    Detects remounting of /rootfs.rw with executable permissions on Cisco SD-WAN devices.
+    The KeyDrift trojanized sshd runit script remounts this partition to enable execution
+    of malicious binaries. This is abnormal on production SD-WAN controllers.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1562.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'mount'
+            - 'rootfs.rw'
+    filter_readonly:
+        CommandLine|contains: 'remount,ro'
+    condition: selection and not filter_readonly
+falsepositives:
+    - Legitimate SD-WAN firmware upgrade processes that temporarily remount filesystems
+level: high

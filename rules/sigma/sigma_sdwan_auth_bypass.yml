@@ -1,0 +1,26 @@
+title: Cisco SD-WAN CVE-2026-20127 Authentication Bypass - vmanage-admin Login
+id: 1cb419c1-28e4-4d3c-a561-240e634b0f5f
+status: experimental
+description: >
+    Detects successful SSH public key authentication as vmanage-admin on Cisco SD-WAN
+    controllers, which may indicate exploitation of CVE-2026-20127 authentication bypass.
+    This internal account should not authenticate from external or unknown IP addresses.
+references:
+    - https://blog.talosintelligence.com/uat-11473-keydrift/
+    - https://www.bleepingcomputer.com/news/security/hackers-exploit-cisco-sd-wan-flaw-to-deploy-custom-keydrift-malware/
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        SyslogMessage|contains|all:
+            - 'Accepted publickey'
+            - 'for vmanage-admin'
+    condition: selection
+falsepositives:
+    - Legitimate automated SD-WAN management operations using the vmanage-admin account
+level: high

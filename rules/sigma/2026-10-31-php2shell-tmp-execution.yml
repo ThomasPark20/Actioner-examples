@@ -1,0 +1,44 @@
+title: Executable Staged in Temp Directory by Web Worker
+id: 1e7f5a8b-9c0d-4e2f-3a4b-5c6d7e8f9a0b
+status: experimental
+description: >
+    Detects PHP or web server worker processes making files executable in
+    temporary directories (/tmp, /var/tmp, /dev/shm, /run/shm) using chmod.
+    This pattern indicates an attacker staging and preparing payloads for
+    execution after initial web application RCE compromise.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+    - https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w
+    - https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1222.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php-fcgi'
+            - '/frankenphp'
+            - '/lsphp'
+            - '/lshttpd'
+            - '/litespeed'
+            - '/sw-engine'
+    selection_chmod:
+        Image|endswith: '/chmod'
+        CommandLine|contains:
+            - '/tmp/'
+            - '/var/tmp/'
+            - '/dev/shm/'
+            - '/run/shm/'
+    condition: selection_parent and selection_chmod
+falsepositives:
+    - Web applications that legitimately create temporary executable scripts
+    - PHP-based build or deployment tools
+level: medium
