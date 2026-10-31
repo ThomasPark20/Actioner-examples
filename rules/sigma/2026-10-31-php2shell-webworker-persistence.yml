@@ -1,0 +1,52 @@
+title: Web Worker Process Establishing Persistence
+id: 0d6e4f7a-8b9c-4d1e-2f3a-4b5c6d7e8f9a
+status: experimental
+description: >
+    Detects PHP or web server worker processes spawning commands associated
+    with persistence establishment such as crontab modification, SSH
+    authorized_keys manipulation, or systemd service creation. This pattern
+    is consistent with post-exploitation activity following web application
+    RCE exploitation.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/
+    - https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w
+    - https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp
+author: Actioner
+date: 2026-10-31
+tags:
+    - attack.t1053.003
+    - attack.t1098.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php-fcgi'
+            - '/frankenphp'
+            - '/lsphp'
+            - '/lshttpd'
+            - '/litespeed'
+            - '/sw-engine'
+    selection_persistence_cron:
+        Image|endswith: '/crontab'
+    selection_persistence_keys:
+        CommandLine|contains: 'authorized_keys'
+    selection_persistence_systemd:
+        CommandLine|contains:
+            - 'systemctl enable'
+            - '/etc/systemd/system/'
+            - '/lib/systemd/system/'
+    selection_persistence_user:
+        Image|endswith:
+            - '/useradd'
+            - '/adduser'
+    condition: selection_parent and (selection_persistence_cron or selection_persistence_keys or selection_persistence_systemd or selection_persistence_user)
+falsepositives:
+    - Web-based system administration panels (cPanel, Plesk, Webmin)
+    - Legitimate web applications managing cron jobs or SSH keys
+level: medium
