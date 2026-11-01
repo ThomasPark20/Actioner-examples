@@ -1,0 +1,8 @@
+# VOLTA Infostealer - Suricata Rules
+# NOTE: SID 2200001 uses http.host which requires TLS inspection/decryption for HTTPS traffic.
+# SNI inspection (without decryption) works only on TLS 1.2 and below, or before ECH is negotiated.
+# In environments without TLS interception, consider a tls.sni-based variant instead.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA OpenRouter API Chat Completions Request"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata: author Actioner, created_at 2026-11-01; sid:2200001; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA LLM Prompt Forensic Analyst Keyword"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"forensic intelligence analyst"; http.host; content:"openrouter.ai"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata: author Actioner, created_at 2026-11-01; sid:2200002; rev:1;)

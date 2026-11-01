@@ -149,7 +149,7 @@ All exfiltration goes to a Telegram channel configured at build time. No attacke
 
 | Technique ID | Technique Name | VOLTA Behavior |
 |-------------|----------------|----------------|
-| T1059 | Command and Scripting Interpreter | Execution of PE payload |
+| T1204.002 | User Execution: Malicious File | Victim executes PE binary |
 | T1555.003 | Credentials from Web Browsers | Chromium/Firefox password and cookie theft |
 | T1539 | Steal Web Session Cookie | Browser cookie harvesting |
 | T1528 | Steal Application Access Token | Discord, Microsoft OAuth token theft |
@@ -186,7 +186,7 @@ All exfiltration goes to a Telegram channel configured at build time. No attacke
 1. **File artifacts** -- Monitor for creation of `volta_debug.txt`, `Identity_Report.txt`, `AI_Analysis.txt`, or ZIP files prefixed with `volta_` in `%APPDATA%` and temp directories
 2. **Headless Chrome abuse** -- Alert on `chrome.exe` or `msedge.exe` launched with `--headless` by non-browser parent processes
 3. **Anomalous AI API traffic** -- Non-browser processes making HTTPS POST requests to `openrouter[.]ai`
-4. **Wi-Fi credential dumping** -- `netsh wlan show profile` with `key=clear` from unexpected processes
+4. **Wi-Fi credential dumping** -- Processes calling `WlanGetProfileList` API to enumerate saved Wi-Fi profiles and extract plaintext passwords
 5. **Telegram exfiltration** -- Non-browser processes making API calls to `api.telegram.org`
 
 ### Remediation
@@ -196,7 +196,7 @@ All exfiltration goes to a Telegram channel configured at build time. No attacke
 - Revoke and regenerate crypto wallet seeds if any wallet files were present
 - Review Telegram, Discord, and email sessions for unauthorized access
 - Implement application control policies restricting `--headless` Chrome launches to approved automation tools
-- Monitor for unauthorized OpenRouter API usage from enterprise networks
+- Monitor for unauthorized OpenRouter API usage from enterprise networks (**Note:** blocking `openrouter[.]ai` or `api.telegram.org` is an interim measure only -- VOLTA's builder model means operators can substitute different exfiltration endpoints in new builds)
 
 ---
 
