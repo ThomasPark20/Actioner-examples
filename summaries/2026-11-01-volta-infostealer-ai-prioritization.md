@@ -1,6 +1,6 @@
 # VOLTA Infostealer: Self-Deleting Windows Infostealer with LLM-Based Victim Prioritization
 
-**Status:** DRAFT | **TLP:** CLEAR | **Date:** 2026-11-01 | **Author:** CTI Research Team
+**Status:** REVISED | **TLP:** CLEAR | **Date:** 2026-11-01 | **Author:** CTI Research Team
 
 ---
 
@@ -202,32 +202,36 @@ All exfiltration goes to a Telegram channel configured at build time. No attacke
 
 ## Detection Rules
 
-### Sigma Rules
+<!-- revision: replaced placeholder Sigma UUIDs with real random UUIDs -->
+<!-- revision: dropped Sigma #4 (Wi-Fi netsh) — detects wrong technique; VOLTA uses WlanGetProfileList API, not netsh -->
+<!-- revision: Sigma #1 — capped confidence at medium (behavioral TTP rule); level was already medium -->
+<!-- revision: Sigma #2 — restructured condition so generic filenames (Identity_Report.txt, AI_Analysis.txt) require VOLTA-specific path context -->
+<!-- revision: Sigma #3 — added bare openrouter.ai domain match; removed tactic tags; kept T1567 -->
+<!-- revision: Suricata — updated SIDs to 2200000+ range; added TLS inspection caveat; downgraded SID 2200001 confidence to medium -->
+<!-- revision: fixed ATT&CK mapping T1059→T1204.002 for PE execution -->
+<!-- revision: fixed Wi-Fi harvesting references from netsh to WlanGetProfileList API -->
+<!-- revision: added remediation caveat that domain blocking is interim only -->
 
-#### 1. VOLTA -- Headless Chrome Launch for ABE Bypass
+PoC/advisory-specific detections for VOLTA infostealer artifacts and network indicators. All Sigma rules compile and convert to Splunk and CrowdStrike (LogScale); YARA compiles with yarac; Suricata rules are structural-only (no compiler available).
 
-**File:** `/tmp/actioner/volta-proc-headless-chrome.yml`
+### Sigma: Headless Chrome Launch for ABE Bypass
 
-Detects Chrome/Edge launched with `--headless` by a non-browser parent, indicating potential ABE bypass for cookie/credential theft. Caveat: legitimate browser automation tools (Puppeteer, Playwright, Selenium) may trigger this rule.
-
-**Validation:**
-- `sigma check -x attacktag`: 0 errors, 0 condition errors, 0 issues
-- `sigma convert --without-pipeline -t splunk`: `Image IN ("*\\chrome.exe", "*\\msedge.exe") CommandLine="*--headless*" NOT (ParentImage IN (...))`
-- `sigma convert --without-pipeline -t log_scale`: Converts successfully
+Detects Chrome/Edge launched with `--headless` by a non-browser parent, indicating ABE bypass for cookie/credential theft. Behavioral rule -- legitimate automation frameworks (Puppeteer, Playwright, Selenium) may trigger.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0 (empty-config); splunk 0; log_scale 0. Behavioral TTP — confidence capped at medium. FP: Puppeteer, Playwright, Selenium, any CI headless testing. -->
 
 ```yaml
 title: VOLTA Infostealer - Headless Chrome Launch for ABE Bypass
-id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+id: c685f337-d7e9-4902-ba2f-7673638e91bc
 status: experimental
 description: >
-  Detects Chrome being launched with --headless flag by a non-browser parent,
-  indicative of VOLTA ABE bypass technique.
+  Detects Chrome or Edge launched with --headless flag by a non-browser parent,
+  indicative of VOLTA ABE bypass technique for cookie and credential theft.
 references:
     - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: CTI Research Team
-date: 2026-11-01
+author: Actioner
+date: 2026/11/01
 tags:
-    - attack.credential_access
     - attack.t1555.003
 logsource:
     category: process_creation
@@ -254,84 +258,78 @@ falsepositives:
 level: medium
 ```
 
-#### 2. VOLTA -- Characteristic File Artifacts
+### Sigma: VOLTA Characteristic File Artifacts
 
-**File:** `/tmp/actioner/volta-file-artifacts.yml`
-
-Detects creation of VOLTA-specific files including debug logs, identity reports, AI analysis output, and staged exfiltration archives. Low false-positive rate due to highly specific file names.
-
-**Validation:**
-- `sigma check -x attacktag`: 0 errors, 0 condition errors, 0 issues
-- `sigma convert --without-pipeline -t splunk`: `TargetFilename="*\\volta_debug.txt" OR TargetFilename IN ("*\\Identity_Report.txt", "*\\AI_Analysis.txt") OR ...`
-- `sigma convert --without-pipeline -t log_scale`: Converts successfully
+Detects creation of VOLTA-specific files (debug logs, exfil archives); generic report names require a VOLTA-associated path context to reduce false positives.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma check 0 (empty-config); splunk 0; log_scale 0. Restructured: volta-named files match standalone; Identity_Report.txt/AI_Analysis.txt require path containing \AppData\ or 'volta'. FP: minimal for volta-prefixed files; possible for generic report names in AppData. -->
 
 ```yaml
 title: VOLTA Infostealer - Characteristic File Artifacts
-id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+id: e6e2664c-99b9-4077-9c4b-2e8cd87c3607
 status: experimental
 description: >
   Detects creation of files characteristic of VOLTA infostealer activity
-  including debug logs, report files, and exfiltration archives.
+  including debug logs, report files, and exfiltration archives. Generic
+  report names (Identity_Report.txt, AI_Analysis.txt) require a VOLTA-associated
+  path context to reduce false positives.
 references:
     - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: CTI Research Team
-date: 2026-11-01
+author: Actioner
+date: 2026/11/01
 tags:
-    - attack.collection
     - attack.t1005
-    - attack.exfiltration
     - attack.t1567
 logsource:
     category: file_event
     product: windows
 detection:
-    selection_debug:
-        TargetFilename|endswith: '\volta_debug.txt'
-    selection_reports:
+    selection_volta_specific:
         TargetFilename|endswith:
-            - '\Identity_Report.txt'
-            - '\AI_Analysis.txt'
-    selection_archives:
-        TargetFilename|endswith:
+            - '\volta_debug.txt'
             - '\volta_log.zip'
             - '\volta_dox.zip'
             - '\volta_doxnet.zip'
-    condition: selection_debug or selection_reports or selection_archives
+    selection_generic_names:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    selection_volta_context:
+        TargetFilename|contains:
+            - '\AppData\'
+            - 'volta'
+    condition: selection_volta_specific or (selection_generic_names and selection_volta_context)
 falsepositives:
-    - Unlikely
+    - Unlikely for VOLTA-specific filenames; possible for generic report names in AppData
 level: high
 ```
 
-#### 3. VOLTA -- Outbound DNS Query to OpenRouter AI API
+### Sigma: DNS Query to OpenRouter AI API
 
-**File:** `/tmp/actioner/volta-network-openrouter.yml`
-
-Detects non-browser processes resolving `openrouter.ai`, which VOLTA uses for LLM-based victim profiling. Caveat: legitimate AI developer tools may trigger; tune filter for environment.
-
-**Validation:**
-- `sigma check -x attacktag`: 0 errors, 0 condition errors, 0 issues
-- `sigma convert --without-pipeline -t splunk`: `QueryName="*.openrouter.ai" NOT (Image IN (...))`
-- `sigma convert --without-pipeline -t log_scale`: Converts successfully
+Detects non-browser processes resolving `openrouter[.]ai` (bare or subdomains), used by VOLTA for LLM-based victim profiling. Legitimate AI developer tools may trigger -- tune browser/app filter for your environment.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check 0 (empty-config); splunk 0; log_scale 0. Added bare domain match (selection_bare) alongside subdomain match (selection_sub). T1567 retained — exfil over web service is the primary behavior. Anyone using OpenRouter legitimately triggers this. -->
 
 ```yaml
-title: VOLTA Infostealer - Outbound Connection to OpenRouter AI API
-id: c3d4e5f6-a7b8-9012-cdef-123456789012
+title: VOLTA Infostealer - DNS Query to OpenRouter AI API
+id: 0ef4426e-74c0-49ca-9319-52c8cb4b776a
 status: experimental
 description: >
-  Detects non-browser processes making outbound connections to OpenRouter AI API,
-  which VOLTA uses for LLM-based victim profiling.
+  Detects non-browser processes resolving openrouter.ai (bare or subdomains),
+  which VOLTA uses for LLM-based victim profiling via the OpenRouter API.
 references:
     - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: CTI Research Team
-date: 2026-11-01
+author: Actioner
+date: 2026/11/01
 tags:
-    - attack.exfiltration
     - attack.t1567
 logsource:
     category: dns_query
     product: windows
 detection:
-    selection:
+    selection_bare:
+        QueryName: 'openrouter.ai'
+    selection_sub:
         QueryName|endswith: '.openrouter.ai'
     filter_browsers:
         Image|endswith:
@@ -339,72 +337,30 @@ detection:
             - '\msedge.exe'
             - '\firefox.exe'
             - '\brave.exe'
-    condition: selection and not filter_browsers
+    condition: (selection_bare or selection_sub) and not filter_browsers
 falsepositives:
     - Legitimate developer tools or AI applications using OpenRouter API
 level: medium
 ```
 
-#### 4. VOLTA -- Wi-Fi Credential Harvesting via netsh
+### YARA: VOLTA Infostealer Strings
 
-**File:** `/tmp/actioner/volta-wifi-credential-dump.yml`
+Detects VOLTA PE binaries via characteristic strings (report headers, file artifact names, LLM model identifiers, API endpoints).
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Distinctive string combination (3-of-12 + PE header + filesize gate). VOLTA_Infostealer_Config catches output files without PE gate. -->
 
-Detects `netsh wlan show profile` with `key=clear` which dumps Wi-Fi passwords in plaintext, matching VOLTA's Wi-Fi credential harvesting behavior. Caveat: network administrators may legitimately run this command.
+### YARA: VOLTA Infostealer Config
 
-**Validation:**
-- `sigma check -x attacktag`: 0 errors, 0 condition errors, 0 issues
-- `sigma convert --without-pipeline -t splunk`: `CommandLine="*wlan*" CommandLine="*show*" CommandLine="*profile*" CommandLine="*key=clear*"`
-- `sigma convert --without-pipeline -t log_scale`: Converts successfully
-
-```yaml
-title: VOLTA Infostealer - WLAN Profile Enumeration via WlanGetProfileList
-id: d4e5f6a7-b8c9-0123-defa-234567890123
-status: experimental
-description: >
-  Detects non-system processes calling netsh wlan show profiles or accessing
-  WLAN profile data, indicative of VOLTA Wi-Fi credential harvesting.
-references:
-    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: CTI Research Team
-date: 2026-11-01
-tags:
-    - attack.credential_access
-    - attack.t1555
-    - attack.discovery
-    - attack.t1016
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        CommandLine|contains|all:
-            - 'wlan'
-            - 'show'
-            - 'profile'
-        CommandLine|contains: 'key=clear'
-    condition: selection
-falsepositives:
-    - Network administrators performing wireless audits
-level: medium
-```
-
-### YARA Rules
-
-#### 5. VOLTA Infostealer Strings (Binary Detection)
-
-**File:** `/tmp/actioner/volta-infostealer.yar`
-
-Detects VOLTA infostealer PE binaries based on characteristic strings including report headers, file artifact names, LLM model identifiers, and API endpoints. Contains two rules: one for PE binary detection and one for configuration/output file detection.
-
-**Validation:**
-- `yarac volta-infostealer.yar /dev/null`: Compiles successfully (exit code 0)
+Detects VOLTA configuration artifacts or output files (identity reports, AI analysis) via characteristic section headers and volta-prefixed names.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. No PE header requirement — catches output text files. -->
 
 ```yara
 rule VOLTA_Infostealer_Strings
 {
     meta:
         description = "Detects VOLTA/VOLTA-AUTODOXER infostealer based on characteristic strings"
-        author = "CTI Research Team"
+        author = "Actioner"
         date = "2026-11-01"
         reference = "https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/"
         hash = "57ef4242666d78c50df145b34023df564f0fad38812d6a580e66433d427e2279"
@@ -444,7 +400,7 @@ rule VOLTA_Infostealer_Config
 {
     meta:
         description = "Detects VOLTA infostealer configuration artifacts or output files"
-        author = "CTI Research Team"
+        author = "Actioner"
         date = "2026-11-01"
         reference = "https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/"
         severity = "high"
@@ -463,37 +419,32 @@ rule VOLTA_Infostealer_Config
 }
 ```
 
-### Suricata Rules
+### Suricata: VOLTA OpenRouter API Request
 
-#### 6. VOLTA -- OpenRouter API Chat Completions Request
+Detects HTTP POST to OpenRouter chat completions endpoint. Requires TLS inspection/decryption for HTTPS traffic -- SNI-only inspection works on TLS 1.2 and below, or before ECH negotiation.
+**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
+<!-- audit: suricata not installed; structural check only. SID updated to 2200001. Uses http.host requiring TLS interception for HTTPS. Broad alone — any app hitting openrouter.ai triggers. Pair with SID 2200002 for higher precision. -->
 
-**File:** `/tmp/actioner/volta-network.rules`
+### Suricata: VOLTA LLM Prompt Keyword
 
-Detects HTTP POST requests to the OpenRouter chat completions API endpoint, which VOLTA uses for LLM inference. Second rule additionally matches the system prompt keyword "forensic intelligence analyst" in the request body.
-
-> :warning: **uncompiled (structural check only)** -- These rules follow Suricata syntax but have not been compiled with `suricata -T`. Validate in your environment before deployment.
+Detects HTTP POST to OpenRouter containing "forensic intelligence analyst" in request body -- highly specific to VOLTA's system prompt.
+**Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
+<!-- audit: suricata not installed; structural check only. SID updated to 2200002. Requires TLS interception to inspect request body. "forensic intelligence analyst" is distinctive to VOLTA's prompt role. -->
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (
-  msg:"VOLTA Infostealer - OpenRouter API Chat Completions Request";
-  flow:established,to_server;
-  http.method; content:"POST";
-  http.host; content:"openrouter.ai";
-  http.uri; content:"/api/v1/chat/completions";
-  classtype:trojan-activity;
-  sid:1000001; rev:1;
-)
+# VOLTA Infostealer - Suricata Rules
+# NOTE: SID 2200001 uses http.host which requires TLS inspection/decryption for HTTPS traffic.
+# SNI inspection (without decryption) works only on TLS 1.2 and below, or before ECH is negotiated.
+# In environments without TLS interception, consider a tls.sni-based variant instead.
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (
-  msg:"VOLTA Infostealer - LLM Prompt Forensic Analyst Keyword";
-  flow:established,to_server;
-  http.method; content:"POST";
-  http.request_body; content:"forensic intelligence analyst";
-  http.host; content:"openrouter.ai";
-  classtype:trojan-activity;
-  sid:1000002; rev:1;
-)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA OpenRouter API Chat Completions Request"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata: author Actioner, created_at 2026-11-01; sid:2200001; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA LLM Prompt Forensic Analyst Keyword"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"forensic intelligence analyst"; http.host; content:"openrouter.ai"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata: author Actioner, created_at 2026-11-01; sid:2200002; rev:1;)
 ```
+
+### Snort: N/A
+
+No Snort-specific rules generated; Suricata rules cover the network detection layer.
 
 ---
 
