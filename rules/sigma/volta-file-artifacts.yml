@@ -1,0 +1,37 @@
+title: VOLTA Infostealer - Characteristic File Artifacts
+id: e6e2664c-99b9-4077-9c4b-2e8cd87c3607
+status: experimental
+description: >
+  Detects creation of files characteristic of VOLTA infostealer activity
+  including debug logs, report files, and exfiltration archives. Generic
+  report names (Identity_Report.txt, AI_Analysis.txt) require a VOLTA-associated
+  path context to reduce false positives.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026/11/01
+tags:
+    - attack.t1005
+    - attack.t1567
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_volta_specific:
+        TargetFilename|endswith:
+            - '\volta_debug.txt'
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    selection_generic_names:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    selection_volta_context:
+        TargetFilename|contains:
+            - '\AppData\'
+            - 'volta'
+    condition: selection_volta_specific or (selection_generic_names and selection_volta_context)
+falsepositives:
+    - Unlikely for VOLTA-specific filenames; possible for generic report names in AppData
+level: high
