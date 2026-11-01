@@ -1,0 +1,30 @@
+title: Ivanti Connect Secure welcome.cgi X-DSCGI-PATH Targeting Upload Handler or Tmp Path (CVE-2026-104935)
+id: 9d4b8f02-e5f3-4c0b-c024-2b3d4e5f6a78
+status: experimental
+description: >
+    Detects requests to the Ivanti Connect Secure welcome.cgi endpoint that
+    reference wu.cgi (upload handler) or the runtime tmp directory in the
+    X-DSCGI-PATH header, indicative of the file-write race condition used in
+    the CVE-2026-104935 exploit chain. Requires proxy or WAF logs with custom
+    field mapping for request headers (see Rule 1 notes).
+references:
+    - https://www.volexity.com/blog/2026/10/13/a-series-of-unauthenticated-events-chained-exploitation-of-ivanti-connect-secure-zero-days/
+    - https://cipherssecurity.com/ivanti-connect-secure-cve-2026-111357/
+author: Actioner
+date: 2026/10/31
+tags:
+    - attack.t1190
+    - cve.2026.104935
+logsource:
+    category: proxy
+detection:
+    selection_uri:
+        c-uri|contains: '/dana-na/auth/url_default/welcome.cgi'
+    selection_wu:
+        cs-header|contains: 'wu.cgi'
+    selection_tmp:
+        cs-header|contains: '/home/runtime/tmp/'
+    condition: selection_uri and (selection_wu or selection_tmp)
+falsepositives:
+    - Legitimate Ivanti Connect Secure file upload operations through the SMB handler (unlikely from external sources)
+level: high
