@@ -1,0 +1,24 @@
+title: VOLTA Infostealer Debug Log File Creation
+id: b3e7a1c4-9f2d-4e8a-b6c1-5d0e3f8a2b7c
+status: experimental
+description: >
+    Detects creation of volta_debug.txt in the user's AppData\Roaming directory,
+    a timestamped harvest log written by the VOLTA infostealer during credential
+    and session theft operations.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1005
+    - attack.t1119
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\AppData\Roaming\volta_debug.txt'
+    condition: selection
+falsepositives:
+    - Legitimate software named Volta (e.g., the Volta JavaScript tool manager) does not write to this path
+level: high

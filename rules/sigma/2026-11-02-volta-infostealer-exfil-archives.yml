@@ -1,0 +1,27 @@
+title: VOLTA Infostealer Staged Exfiltration Archives
+id: c5e9f3a6-2d4c-4b0a-9f8e-7c3d1a0b4e2f
+status: experimental
+description: >
+    Detects creation of ZIP archives with names matching VOLTA's three-stage
+    exfiltration pattern (volta_log.zip, volta_dox.zip, volta_doxnet.zip)
+    used to package stolen credentials, victim profiles, and network
+    enrichment data.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1560.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    condition: selection
+falsepositives:
+    - Unlikely; these file names are specific to the VOLTA infostealer
+level: critical

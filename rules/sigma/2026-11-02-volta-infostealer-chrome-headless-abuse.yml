@@ -1,0 +1,41 @@
+title: VOLTA Infostealer Chrome Headless ABE Bypass
+id: a4d8f2e5-1c3b-4a9f-8e7d-6b2c0f9a3d1e
+status: experimental
+description: >
+    Detects Chrome or Chromium launched with --headless by a non-browser parent
+    process, a technique used by VOLTA to bypass App-Bound Encryption and
+    extract cookies and saved credentials from Chromium-based browsers.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+            - '\chromium.exe'
+            - '\brave.exe'
+    selection_headless:
+        CommandLine|contains: '--headless'
+    filter_browser_parent:
+        ParentImage|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+            - '\chromium.exe'
+            - '\brave.exe'
+            - '\setup.exe'
+            - '\update.exe'
+            - '\GoogleUpdate.exe'
+            - '\MicrosoftEdgeUpdate.exe'
+    condition: selection_binary and selection_headless and not filter_browser_parent
+falsepositives:
+    - Automated browser testing frameworks (Selenium, Puppeteer, Playwright)
+    - CI/CD pipelines running headless browser tests
+    - Developers running headless Chrome for screenshot or PDF generation
+level: medium

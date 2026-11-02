@@ -1,0 +1,30 @@
+title: VOLTA Infostealer OpenRouter API DNS Query
+id: d6f0a4b7-3e5d-4c1b-a0f9-8d4e2b1c5f3a
+status: experimental
+description: >
+    Detects DNS queries to openrouter.ai from non-browser processes. VOLTA
+    sends stolen victim data to the OpenRouter LLM API for AI-driven triage
+    and prioritization. Legitimate developer use of the OpenRouter API exists
+    but is uncommon outside AI/ML tooling.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'openrouter.ai'
+    filter_browsers:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+            - '\firefox.exe'
+            - '\brave.exe'
+    condition: selection and not filter_browsers
+falsepositives:
+    - AI/ML development tools and IDE plugins that use the OpenRouter API
+    - Python or Node.js scripts making legitimate OpenRouter API calls
+level: medium
