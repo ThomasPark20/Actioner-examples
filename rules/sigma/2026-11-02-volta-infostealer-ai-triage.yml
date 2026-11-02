@@ -1,0 +1,86 @@
+title: VOLTA Infostealer - Chrome Headless Execution from Suspicious Parent
+id: 3c8a1d5e-7f2b-4a9c-b6e0-9d4f1a3c8b5e
+status: experimental
+description: >
+    Detects Chrome or Chromium launched in headless mode from a suspicious
+    parent process, consistent with VOLTA infostealer's automated credential
+    harvesting from browser profiles.
+references:
+    - https://blog.talosintelligence.com/volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_chrome:
+        Image|endswith:
+            - '\chrome.exe'
+            - '\chromium.exe'
+        CommandLine|contains: '--headless'
+    filter_expected_parents:
+        ParentImage|endswith:
+            - '\explorer.exe'
+            - '\svchost.exe'
+            - '\services.exe'
+            - '\chrome.exe'
+            - '\msedge.exe'
+    condition: selection_chrome and not filter_expected_parents
+falsepositives:
+    - Automated testing frameworks launching headless Chrome
+    - CI/CD pipelines running browser-based tests
+level: medium
+---
+title: VOLTA Infostealer - Debug Log and Identity Report File Creation
+id: 9b2e4f7a-1d3c-48e6-a5b0-6c8d3e1f9a7b
+status: experimental
+description: >
+    Detects creation of files matching VOLTA infostealer's distinctive output
+    naming conventions including volta_debug.txt, Identity_Report.txt, and
+    AI_Analysis.txt used for AI-powered credential triage results.
+references:
+    - https://blog.talosintelligence.com/volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1119
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\volta_debug.txt'
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    condition: selection
+falsepositives:
+    - Development or testing environments using similar filenames (unlikely with this combination)
+level: critical
+---
+title: VOLTA Infostealer - Exfiltration Archive Creation
+id: 1e4b7c9d-5a2f-48e3-b6d0-8c3a1f5e7d9b
+status: experimental
+description: >
+    Detects creation of ZIP archives matching VOLTA infostealer's naming
+    pattern volta_*.zip, used to stage stolen credentials and AI analysis
+    results for exfiltration.
+references:
+    - https://blog.talosintelligence.com/volta-infostealer/
+author: Actioner
+date: 2026-11-02
+tags:
+    - attack.t1560.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\volta_'
+        TargetFilename|endswith: '.zip'
+    condition: selection
+falsepositives:
+    - Legitimate software using volta prefix in archive names (unlikely)
+level: high
