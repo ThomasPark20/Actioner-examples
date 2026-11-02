@@ -5,7 +5,7 @@ description: Detects creation of a Windows scheduled task named SysMon that exec
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
 author: Actioner
-date: 2026/11/02
+date: 2026-11-02
 tags:
     - attack.t1053.005
 logsource:
