@@ -1,0 +1,22 @@
+title: SSH Key Injection with svc-telemetry Comment
+id: 8a3e1f7c-4b2d-4e9a-b6c8-1d5f3a9e7b02
+status: experimental
+description: Detects command-line activity that writes an SSH public key with the distinctive svc-telemetry comment to authorized_keys, consistent with the malicious Claude Code extension SSH backdoor.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026/11/02
+tags:
+    - attack.t1098.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains|all:
+            - 'authorized_keys'
+            - 'svc-telemetry'
+    condition: selection
+falsepositives:
+    - Legitimate SSH key management that coincidentally uses the svc-telemetry comment (extremely unlikely)
+level: critical
