@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-03
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -267,7 +267,6 @@ author: Actioner
 date: 2026/11/03
 tags:
     - attack.t1572
-    - attack.t1098.004
 logsource:
     category: process_creation
     product: linux
@@ -408,7 +407,6 @@ author: Actioner
 date: 2026/11/03
 tags:
     - attack.t1572
-    - attack.t1098.004
 logsource:
     category: file_event
 detection:
