@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-03
-Version: DRAFT 1.0
+Version: FINAL 1.0
 
 ## Executive Summary
 
@@ -35,7 +35,7 @@ VOLTA performs broad credential and data harvesting across multiple application 
 - **Browsers:** Chromium-based browser passwords, cookies, saved payment cards, and autofill data. Includes an App-Bound Encryption bypass to extract tokens protected by Chrome's newer credential protection mechanism. Firefox and Thunderbird data are also targeted.
 - **Email clients:** Outlook data and Gmail access via stolen session tokens, with targeted searches for purchase receipts from Amazon, DoorDash, Uber Eats, Grubhub, Walmart, and PayPal to corroborate home address.
 - **Messaging:** Discord, Telegram, and Slack session tokens and workspace data.
-- **Gaming:** Steam, Battle.net, and Roblox sessions. Roblox inventory is valued via Rolimons.com.
+- **Gaming:** Steam, Battle.net, and Roblox sessions. Roblox inventory is valued via Rolimons[.]com.
 - **Crypto wallets:** Wallet seed phrases copied, plus an embedded cracker that attempts to break wallet passwords on-device.
 - **Cloud and developer credentials:** SSH keys, cloud-provider credentials, Microsoft OAuth tokens.
 - **System data:** Wi-Fi passwords (via `WlanGetProfileList`), screenshots, device location, signs of iPhone backups.
@@ -45,7 +45,7 @@ VOLTA performs broad credential and data harvesting across multiple application 
 
 The defining feature of VOLTA is its AI profiling pipeline:
 
-- **Endpoint:** `POST` to `openrouter.ai/api/v1/chat/completions` using hand-built JSON (no SDK).
+- **Endpoint:** `POST` to `openrouter[.]ai/api/v1/chat/completions` using hand-built JSON (no SDK).
 - **Model chain:** Default `anthropic/claude-opus-4.6`, fallback `moonshotai/kimi-k2`, then `google/gemini-2.5-flash`.
 - **Refusal detection:** Scans LLM responses for phrases like "I can't" and "I'm not able" to trigger fallback.
 - **Temperature:** 0.2 (deterministic, consistent output).
@@ -140,7 +140,7 @@ VOLTA's AI-driven triage mechanism significantly increases the efficiency of cre
 ### Immediate Detection
 
 - **File artifact search:** Look for `volta_debug.txt` in `%APPDATA%` directories across all endpoints. Its presence indicates active or recent VOLTA compromise.
-- **Network monitoring:** Alert on outbound HTTPS POST requests to `openrouter.ai/api/v1/chat/completions`, particularly from non-development endpoints.
+- **Network monitoring:** Alert on outbound HTTPS POST requests to `openrouter[.]ai/api/v1/chat/completions`, particularly from non-development endpoints.
 - **Process monitoring:** Alert on Chrome launched with `--headless` from unexpected parent processes.
 - **Archive detection:** Monitor for creation of files named `volta_log.zip`, `volta_dox.zip`, or `volta_doxnet.zip`.
 
@@ -160,11 +160,15 @@ VOLTA's AI-driven triage mechanism significantly increases the efficiency of cre
 - Store credentials in hardware-backed keystores (TPM, hardware security keys) rather than browser password managers.
 - Enable phishing-resistant MFA on all high-value accounts.
 - Monitor for environment variable enumeration of `OPENAI_API_KEY` and similar API key patterns.
-- Consider DNS-level blocking of `openrouter.ai` on non-development endpoints.
+- Consider DNS-level blocking of `openrouter[.]ai` on non-development endpoints.
 
 ## Detection Rules
 
-These detections target VOLTA infostealer file artifacts, network communication with the OpenRouter LLM API, and binary-level strings. PoC/advisory-specific altitude (strict); Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify each rule in your pipeline.
+Five rules ship below (2 Sigma, 1 Snort, 1 Suricata, 1 YARA), targeting VOLTA-specific file artifacts, LLM prompt content strings, and binary-level indicators. PoC/advisory-specific altitude (strict); Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. Compiles does not equal fires -- verify each rule in your pipeline.
+
+**Network rules require TLS inspection.** The Snort and Suricata content-match rules inspect HTTP request bodies. Because VOLTA communicates with the OpenRouter API over HTTPS, these rules will only fire if your sensor sits behind a TLS-decrypting proxy or inline appliance. Without TLS inspection, rely on the Sigma and YARA rules.
+
+**Dropped during review (3 rules):** A Sigma proxy rule for any OpenRouter API call, a Snort rule for OpenRouter API POST with model identifier, and its Suricata equivalent were removed. All three fired on legitimate OpenRouter API usage and were not specific to VOLTA at the advisory-specific altitude.
 
 ### Sigma: VOLTA Infostealer File Artifacts on Disk
 
@@ -200,9 +204,9 @@ detection:
             - '\volta_log.zip'
             - '\volta_dox.zip'
             - '\volta_doxnet.zip'
-    condition: selection_debug or selection_reports or selection_archives
+    condition: selection_debug or (selection_reports and (selection_debug or selection_archives)) or selection_archives
 falsepositives:
-    - Unlikely - file names are highly specific to the VOLTA malware family
+    - Unlikely when co-occurrence condition is met; Identity_Report.txt and AI_Analysis.txt alone are generic -- the rule requires them alongside a volta-prefixed file
 level: high
 ```
 
@@ -238,66 +242,20 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: VOLTA Infostealer OpenRouter LLM API Call
-
-Detects proxy/web log traffic to the OpenRouter LLM chat completions endpoint, used by VOLTA for AI-driven victim profiling. Scope to non-development endpoints to reduce false positives.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check blocked by proxy; splunk convert exit 0; log_scale convert exit 0. Legitimate developer use of OpenRouter is a known FP source; scoping guidance provided. -->
-```yaml
-title: VOLTA Infostealer OpenRouter LLM API Call
-id: 2a4f8e6c-91d3-4b7a-c5e0-7f2d1a3b8c94
-status: experimental
-description: >
-    Detects network connections to the OpenRouter API endpoint used by VOLTA infostealer
-    to submit stolen victim data for AI-driven profiling and prioritization.
-references:
-    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: Actioner
-date: 2026/11/03
-tags:
-    - attack.t1567
-logsource:
-    category: proxy
-detection:
-    selection:
-        c-uri|contains: '/api/v1/chat/completions'
-        r-dns|contains: 'openrouter.ai'
-    condition: selection
-falsepositives:
-    - Legitimate use of the OpenRouter LLM API service by developers or applications
-level: medium
-```
-
-### Snort: VOLTA Infostealer OpenRouter LLM API POST
-
-Detects HTTP POST to the OpenRouter chat completions endpoint carrying the VOLTA default model identifier (`anthropic/claude-opus-4.6`) in the request body.
-**Status:** compile ⚠️ uncompiled (structural check only) · confidence: medium
-<!-- audit: snort binary not available in this environment. Structural check: correct http service, sticky buffers (http_method, http_uri, http_header, http_client_body), flow, sid 2100001, all semicolons present. -->
-```snort
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter LLM API POST"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/api/v1/chat/completions", fast_pattern; http_header; content:"openrouter.ai"; http_client_body; content:"anthropic/claude-opus-4.6"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created 2026-11-03; sid:2100001; rev:1;)
-```
-
 ### Snort: VOLTA Infostealer LLM Victim Profiling Request
 
 Detects HTTP POST to any chat completions API carrying the VOLTA report header string "WALLET VAULTS CRACKED" in the request body.
+**Prerequisite:** Requires TLS inspection (e.g., SSL/TLS decryption proxy or MITM appliance) to inspect HTTPS request bodies. Without TLS inspection, this rule will not fire because the OpenRouter API traffic is encrypted.
 **Status:** compile ⚠️ uncompiled (structural check only) · confidence: high
 <!-- audit: snort binary not available. Structural check: correct http service, sticky buffers (http_method, http_uri, http_client_body), flow, sid 2100002, all semicolons present. "WALLET VAULTS CRACKED" is highly distinctive and specific to VOLTA's LLM prompt template. -->
 ```snort
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer LLM Victim Profiling Request"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/api/v1/chat/completions"; http_client_body; content:"WALLET VAULTS CRACKED", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created 2026-11-03; sid:2100002; rev:1;)
 ```
 
-### Suricata: VOLTA Infostealer OpenRouter LLM API POST
-
-Detects HTTP POST to `openrouter.ai` at the chat completions endpoint with the VOLTA default model identifier in the request body.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Uses dot-notation sticky buffers (http.method, http.host, http.uri, http.request_body). Legitimate developer OpenRouter use is a known FP; model identifier in body adds specificity. -->
-```suricata
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter LLM API POST"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; fast_pattern; http.request_body; content:"anthropic/claude-opus-4.6"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-03; sid:2200001; rev:1;)
-```
-
 ### Suricata: VOLTA Infostealer LLM Victim Profiling Request
 
 Detects HTTP POST to any chat completions endpoint carrying the distinctive VOLTA prompt string "WALLET VAULTS CRACKED" in the request body.
+**Prerequisite:** Requires TLS inspection (e.g., SSL/TLS decryption proxy or MITM appliance) to inspect HTTPS request bodies. Without TLS inspection, this rule will not fire because the OpenRouter API traffic is encrypted.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0. "WALLET VAULTS CRACKED" is a hardcoded report header unique to VOLTA's LLM system prompt. No known benign use of this string in HTTP request bodies. -->
 ```suricata
@@ -308,7 +266,7 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer
 
 Detects the VOLTA infostealer PE binary via characteristic report headers, LLM prompt fragments, file artifacts, API endpoint, and model identifiers.
 **Status:** compile ✅ compiles · confidence: high · sample: constructed
-<!-- audit: yarac exit 0. yara positive test: fired on constructed sample carrying source-published strings (WALLET VAULTS CRACKED, WHAT THEY'RE WORTH, THEIR OPSEC, volta_debug.txt, Identity_Report.txt, AI_Analysis.txt, openrouter.ai endpoint). Negative test: quiet on benign file. Condition requires PE header + filesize < 50MB + threshold combination of distinctive string groups. Strings sourced from Cisco Talos blog. -->
+<!-- audit: yarac exit 0. yara positive test: fired on constructed sample carrying source-published strings. Negative test: quiet on benign file. Condition requires PE header + filesize < 50MB + threshold combination of distinctive string groups. Fourth branch (2 of ($model*) and 1 of ($refusal*)) removed during review because $refusal1 = "I can't" and $refusal2 = "I'm not able" are too common in benign binaries. Strings sourced from Cisco Talos blog. -->
 ```yara
 rule Malware_VOLTA_Infostealer_Strings
 {
@@ -333,8 +291,6 @@ rule Malware_VOLTA_Infostealer_Strings
         $file5 = "volta_log.zip" ascii wide
         $file6 = "volta_doxnet.zip" ascii wide
         $api1 = "openrouter.ai/api/v1/chat/completions" ascii wide
-        $refusal1 = "I can't" ascii wide
-        $refusal2 = "I'm not able" ascii wide
         $model1 = "anthropic/claude-opus-4.6" ascii wide
         $model2 = "moonshotai/kimi-k2" ascii wide
         $model3 = "google/gemini-2.5-flash" ascii wide
@@ -345,8 +301,7 @@ rule Malware_VOLTA_Infostealer_Strings
         (
             3 of ($report*) or
             (2 of ($file*) and 1 of ($api*)) or
-            (1 of ($prompt*) and 1 of ($model*)) or
-            (2 of ($model*) and 1 of ($refusal*))
+            (1 of ($prompt*) and 1 of ($model*))
         )
 }
 ```
