@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-03
-Version: DRAFT
+Version: FINAL
 
 ## Executive Summary
 
@@ -142,13 +142,13 @@ UTA0576 employed extensive anti-forensic measures:
 | T1068 | Exploitation for Privilege Escalation | dsinvoked broker DSCache manipulation for root execution |
 | T1059.004 | Unix Shell | Bash script execution as intermediate stage in the exploit chain |
 | T1059.006 | Python | Memory-resident Python payload for privilege escalation and post-exploitation tools |
-| T1055 | Process Injection | In-memory patching of libdsplibs.so via /proc/self/mem |
+| T1055.009 | Proc Memory | In-memory patching of cgi-server's own libdsplibs.so via /proc/self/mem to modify DSCache (note: self-modification, not injection into a separate process; mapping is imperfect but /proc/*/mem technique aligns with T1055.009) |
 | T1040 | Network Sniffing | Renamed tcpdump capturing LDAP, HTTP, FTP, and telnet credentials |
 | T1558.003 | Kerberoasting | Custom Kerberoasting tool (mk.py) deployed for credential harvesting |
 | T1110.003 | Password Spraying | sp_run.py password spraying against AD accounts |
-| T1003 | OS Credential Dumping | Extraction of credentials from captured network traffic and appliance storage |
-| T1552.004 | Private Keys | Targeted extraction of LAPS passwords and BitLocker recovery keys from AD |
-| T1070.001 | Clear Windows Event Logs | Selective deletion of debuglog and audit.log entries (Linux equivalent) |
+| T1003 | OS Credential Dumping | Extraction of cached credentials and usernames from appliance storage (e.g., auth logs parsed into /tmp/pu.txt); network traffic credential capture covered under T1040 |
+| T1552 | Unsecured Credentials | Targeted LDAP queries extracting LAPS passwords, BitLocker recovery keys, userPassword/unixUserPassword attributes from AD |
+| T1070.002 | Clear Linux or Mac System Logs | Selective deletion of debuglog and audit.log entries on the Linux-based ICS appliance |
 | T1070.004 | File Deletion | Self-deletion of exploit payloads, Python scripts, and result files |
 | T1036.005 | Match Legitimate Name or Location | Renamed tcpdump to dsstatmond to masquerade as a legitimate process |
 
@@ -214,6 +214,7 @@ references:
 author: Actioner
 date: 2026/11/03
 tags:
+    - attack.initial_access
     - attack.t1190
 logsource:
     category: firewall
@@ -223,7 +224,7 @@ detection:
     condition: selection
 falsepositives:
     - Legitimate traffic to the Evoxt VPS hosting provider IP range
-level: high
+level: medium
 ```
 
 ### Snort: Ivanti ICS Exploit Chain X-DSCGI-PATH to wu.cgi
@@ -274,6 +275,7 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Ivanti ICS Exploi
 
 Detects log files or memory regions containing the distinctive X-DSCGI-PATH request header routing to the wu.cgi upload handler, evidence of CVE-2026-104935 exploitation.
 **Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**FP note:** May fire on threat intelligence documents that quote the exploit header; scope scans to appliance artifacts and network captures.
 <!-- audit: yarac exit 0. Positive sample (constructed from published header string): fired. Negative sample (benign HTTP request): quiet. String sourced from Volexity's published YARA rule (rule_id 13503). Scan context: file (web logs, packet captures) and memory. -->
 
 ```yara
