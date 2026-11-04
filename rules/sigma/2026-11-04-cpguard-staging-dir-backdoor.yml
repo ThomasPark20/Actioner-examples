@@ -1,0 +1,28 @@
+title: cPGuard Supply Chain Attack - Staging Directory and Backdoor File Creation
+id: 7a3e1d4b-9c2f-4e8a-b5d6-1f0a3c7e9b2d
+status: experimental
+description: >
+  Detects creation of files associated with the cPGuard/OpsShield supply chain attack
+  (Nov 2, 2026), including the backdoor shell and staging directory artifacts.
+references:
+  - https://www.opsshield.com/cpguard-security-incident-nov-2026/
+  - https://thehackernews.com/2026/11/cpguard-supply-chain-attack.html
+author: CTI Analyst
+date: 2026-11-04
+tags:
+  - attack.t1195.002
+  - attack.t1059.004
+logsource:
+  category: file_event
+  product: linux
+detection:
+  selection_staging:
+    TargetFilename|startswith: '/var/tmp/.cpg91511'
+  selection_backdoor:
+    TargetFilename: '/var/tmp/.cpg91511_sh'
+  selection_loot:
+    TargetFilename: '/var/tmp/.cpg91511/loot.tgz'
+  condition: selection_staging or selection_backdoor or selection_loot
+falsepositives:
+  - Unlikely - highly specific artifact paths unique to this attack
+level: critical

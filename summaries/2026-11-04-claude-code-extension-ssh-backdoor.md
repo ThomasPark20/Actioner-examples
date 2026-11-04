@@ -1,7 +1,7 @@
 # Malicious Claude Code-Branded Cursor Extension with Persistent SSH Backdoor
 
 **Date:** 2026-11-04  
-**Status:** DRAFT  
+**Status:** FINAL  
 **TLP:** CLEAR  
 **Actioner Report ID:** ACT-2026-1104-001
 
@@ -108,6 +108,8 @@ The command-and-control server at 134[.]209[.]82[.]225 (DigitalOcean) listens on
 | T1572 | Protocol Tunneling | SSH reverse tunnel to C2 for persistent remote access |
 | T1053.003 | Scheduled Task/Job: Cron | Linux crontab @reboot persistence; macOS LaunchAgent |
 | T1053.005 | Scheduled Task/Job: Scheduled Task | Windows scheduled task "SysMon" persistence |
+| T1082 | System Information Discovery | Collects hostname, OS type, CPU architecture, home/working directory |
+| T1033 | System Owner/User Discovery | Collects username, git email, environment variable names |
 
 ---
 
@@ -143,15 +145,15 @@ The command-and-control server at 134[.]209[.]82[.]225 (DigitalOcean) listens on
 Detects modification of authorized_keys with the backdoor's distinctive SSH key comment. Cross-reference with C2 IP connections for higher confidence.
 <!-- audit: svc-telemetry is the SSH key comment injected by the backdoor. May fire on legitimate keys named identically; cross-reference with C2 IP 134.209.82.225 for high confidence. -->
 
-> **Compile status:** PASS (sigma convert to Splunk and LogScale) | **Confidence:** High
+> **Compile status:** PASS (sigma convert to Splunk and LogScale; re-validated after logsource/condition fix) | **Confidence:** Medium
 
 ```yaml
 title: SSH Authorized Keys Modification with svc-telemetry Comment
 id: 3a7c1e2d-5f8b-4a91-b6e3-9d4f7c8a2b10
 status: experimental
 description: >
-  Detects modification of SSH authorized_keys file with the svc-telemetry key comment,
-  as observed in the malicious Claude Code extension backdoor (Oct 2026).
+  Detects process execution that writes to SSH authorized_keys with the svc-telemetry
+  key comment, as observed in the malicious Claude Code extension backdoor (Oct 2026).
 references:
   - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
 author: Actioner
@@ -159,14 +161,14 @@ date: 2026-11-04
 tags:
   - attack.t1098.004
 logsource:
-  category: file_event
+  category: process_creation
   product: linux
 detection:
-  selection:
-    TargetFilename|endswith: '.ssh/authorized_keys'
-  keywords:
+  selection_target:
+    CommandLine|contains: 'authorized_keys'
+  filter_comment:
     CommandLine|contains: 'svc-telemetry'
-  condition: selection or keywords
+  condition: selection_target and filter_comment
 falsepositives:
   - Legitimate automation using the exact key comment name svc-telemetry
 level: high
@@ -242,8 +244,8 @@ level: critical
 
 #### 4. Network Connection to Claude Code Backdoor C2 IP
 
-Detects any network connection to the C2 IP. IP-based detection has a limited shelf life; combine with behavioral rules.
-<!-- audit: IP-based detection; will break when the actor rotates infrastructure. Combine with behavioural rules for longer shelf-life. -->
+Detects any network connection to the C2 IP. IP-based detection has a limited shelf life; combine with behavioral rules. **Note:** This rule targets Windows `network_connection` logs only. For Linux and macOS coverage, deploy equivalent rules using firewall logs (iptables/nftables), auditd `connect` syscall events, or EDR network telemetry matching `DestinationIp: 134.209.82.225`.
+<!-- audit: IP-based detection; will break when the actor rotates infrastructure. Combine with behavioural rules for longer shelf-life. Windows-only logsource; Linux/macOS gap noted in rule description. -->
 
 > **Compile status:** PASS (sigma convert to Splunk and LogScale) | **Confidence:** High (time-limited)
 
@@ -306,8 +308,8 @@ level: high
 
 #### 6. Crontab Modification with .smt Reference for Persistence
 
-Detects crontab modifications referencing the `.smt` backdoor script. May need tuning if legitimate tools use `.smt` files in cron.
-<!-- audit: Triggers on crontab invocations where the command line contains .smt. May need tuning if legitimate tools use .smt extension files in cron. -->
+Detects crontab modifications referencing the `.smt` backdoor script. May need tuning if legitimate tools use `.smt` files in cron. **Caveat:** If the malware pipes the crontab entry via stdin (e.g., `echo "..." | crontab -`), the `.smt` string will not appear in the process CommandLine and this rule will not fire. Supplement with file-integrity monitoring on the user's crontab spool file or auditd watches on `/var/spool/cron/`.
+<!-- audit: Triggers on crontab invocations where the command line contains .smt. Pipe-via-stdin blind spot documented. May need tuning if legitimate tools use .smt extension files in cron. -->
 
 > **Compile status:** PASS (sigma convert to Splunk and LogScale) | **Confidence:** Medium
 
@@ -318,6 +320,9 @@ status: experimental
 description: >
   Detects crontab modifications that reference the .smt backdoor script,
   a Linux persistence mechanism used by the malicious Claude Code extension.
+  Note: if the crontab entry is piped via stdin (e.g. echo ... | crontab -),
+  the .smt string will not appear in CommandLine; supplement with file-integrity
+  monitoring on /var/spool/cron/ for full coverage.
 references:
   - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
 author: Actioner
@@ -330,9 +335,9 @@ logsource:
 detection:
   selection:
     Image|endswith: '/crontab'
-  keywords:
+  filter_smt:
     CommandLine|contains: '.smt'
-  condition: selection and keywords
+  condition: selection and filter_smt
 falsepositives:
   - Legitimate cron jobs referencing files with .smt in their path
 level: high
@@ -376,13 +381,13 @@ rule Malicious_Claude_Code_Extension_SSH_Backdoor
 
 ### Snort Rule
 
-Detects HTTP GET requests to the C2 beacon endpoint. Effective only while the C2 IP is active.
-<!-- audit: The rule matches HTTP GET to /beacon on the C2 IP:port. If the beacon switches to POST or HTTPS, this rule will miss. Consider adding a POST variant. -->
+Detects HTTP POST requests to the C2 beacon endpoint carrying recon data. Effective only while the C2 IP is active.
+<!-- audit: The rule matches HTTP POST to /beacon on the C2 IP:port. If the beacon switches to HTTPS or changes method, this rule will miss. -->
 
-> **Compile status:** PASS (snort -T) | **Confidence:** High (time-limited)
+> **Compile status:** PASS (snort -T; re-validated after GET-to-POST fix) | **Confidence:** High (time-limited)
 
 ```
-alert tcp $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; content:"GET"; http_method; content:"/beacon"; http_uri; classtype:trojan-activity; sid:2100001; rev:1;)
+alert tcp $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; content:"POST"; http_method; content:"/beacon"; http_uri; classtype:trojan-activity; sid:2100001; rev:2;)
 ```
 
 ### Suricata Rules
@@ -390,10 +395,10 @@ alert tcp $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Back
 Two rules: one for the HTTP beacon callback, one for SSH tunnel establishment to the C2 IP.
 <!-- audit: The SSH tunnel rule (sid:2200002) is broad — any SSH to the C2 IP fires it. This is intentional for this PoC-specific IOC set but would need scoping in environments with legitimate SSH to DigitalOcean. -->
 
-> **Compile status:** PASS (suricata -T) | **Confidence:** High (time-limited)
+> **Compile status:** PASS (suricata -T; re-validated after GET-to-POST fix) | **Confidence:** High (time-limited)
 
 ```
-alert http $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; http.method; content:"GET"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:2200001; rev:1;)
+alert http $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:2200001; rev:2;)
 
 alert tcp $HOME_NET any -> 134.209.82.225 22 (msg:"Actioner - Claude Code Backdoor SSH Reverse Tunnel to C2"; flow:established,to_server; classtype:trojan-activity; sid:2200002; rev:1;)
 ```
@@ -407,3 +412,5 @@ alert tcp $HOME_NET any -> 134.209.82.225 22 (msg:"Actioner - Claude Code Backdo
 - [MITRE ATT&CK T1572 - Protocol Tunneling](https://attack.mitre.org/techniques/T1572/)
 - [MITRE ATT&CK T1053.003 - Scheduled Task/Job: Cron](https://attack.mitre.org/techniques/T1053/003/)
 - [MITRE ATT&CK T1053.005 - Scheduled Task/Job: Scheduled Task](https://attack.mitre.org/techniques/T1053/005/)
+- [MITRE ATT&CK T1082 - System Information Discovery](https://attack.mitre.org/techniques/T1082/)
+- [MITRE ATT&CK T1033 - System Owner/User Discovery](https://attack.mitre.org/techniques/T1033/)

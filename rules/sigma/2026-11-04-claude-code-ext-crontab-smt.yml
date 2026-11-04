@@ -1,0 +1,27 @@
+title: Crontab Modification with .smt Reference for Persistence
+id: a2c4e6f8-1b3d-4a5c-9e7f-0d2b4c6a8e13
+status: experimental
+description: >
+  Detects crontab modifications that reference the .smt backdoor script,
+  a Linux persistence mechanism used by the malicious Claude Code extension.
+  Note: if the crontab entry is piped via stdin (e.g. echo ... | crontab -),
+  the .smt string will not appear in CommandLine; supplement with file-integrity
+  monitoring on /var/spool/cron/ for full coverage.
+references:
+  - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-11-04
+tags:
+  - attack.t1053.003
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection:
+    Image|endswith: '/crontab'
+  filter_smt:
+    CommandLine|contains: '.smt'
+  condition: selection and filter_smt
+falsepositives:
+  - Legitimate cron jobs referencing files with .smt in their path
+level: high

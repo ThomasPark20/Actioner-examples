@@ -1,0 +1,26 @@
+title: cPGuard Supply Chain Attack - Malicious Update Script Execution
+id: 2b8f6e1a-4d3c-5a7b-9e0f-8c2d1b6a4f3e
+status: experimental
+description: >
+  Detects execution of the malicious cPGuard update script cpguard-v58812-i91511.sh
+  distributed via the compromised OpsShield update channel on Nov 2, 2026.
+references:
+  - https://www.opsshield.com/cpguard-security-incident-nov-2026/
+  - https://thehackernews.com/2026/11/cpguard-supply-chain-attack.html
+author: CTI Analyst
+date: 2026-11-04
+tags:
+  - attack.t1195.002
+  - attack.t1059.004
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_script_name:
+    CommandLine|contains: 'cpguard-v58812-i91511.sh'
+  selection_script_image:
+    Image|endswith: '/cpguard-v58812-i91511.sh'
+  condition: selection_script_name or selection_script_image
+falsepositives:
+  - Unlikely - highly specific malicious script name
+level: critical

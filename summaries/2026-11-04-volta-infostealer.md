@@ -1,6 +1,6 @@
 # VOLTA Infostealer (VOLTA-AUTODOXER) -- Technical Analysis & Detection Rules
 
-**Status:** DRAFT  
+**Status:** REVISED  
 **Date:** 2026-11-04  
 **Analyst:** Actioner  
 **TLP:** CLEAR
@@ -94,8 +94,8 @@ The executable deletes itself after execution (T1070.004), leaving only `volta_d
 | Path / Filename | Description |
 |---|---|
 | `%APPDATA%\volta_debug.txt` | Timestamped harvest log |
-| `Identity_Report.txt` | Serialized victim dossier (JSON) |
-| `AI_Analysis.txt` | LLM output report |
+| `Identity_Report.txt` | Serialized victim dossier (JSON) -- **lower confidence**: generic filename, treat as supporting indicator only alongside volta_* artifacts |
+| `AI_Analysis.txt` | LLM output report -- **lower confidence**: generic filename, treat as supporting indicator only alongside volta_* artifacts |
 | `volta_log.zip` | Stage 1 exfil archive |
 | `volta_dox.zip` | Stage 2 exfil archive |
 | `volta_doxnet.zip` | Stage 3 exfil archive |
@@ -128,7 +128,6 @@ The executable deletes itself after execution (T1070.004), leaving only `volta_d
 | Unsecured Credentials: Credentials In Files | T1552.001 | SSH keys, VPN configs, gcloud configs |
 | Unsecured Credentials: Private Keys | T1552.004 | SSH private keys, crypto wallet keys |
 | Data from Local System | T1005 | Broad local data collection |
-| Screen Capture | T1113 | (Referenced in Talos mapping) |
 | Email Collection: Remote Email Collection | T1114.002 | Gmail receipt searches |
 | Deobfuscate/Decode Files or Information | T1140 | Config decryption via SHA-256 derived key |
 | Indicator Removal: File Deletion | T1070.004 | Self-deletion after execution |
@@ -138,57 +137,14 @@ The executable deletes itself after execution (T1070.004), leaving only `volta_d
 
 ## Detection Rules
 
-### Sigma: Suspicious Chrome Headless Launch (Process Creation)
+This section provides **6 detection rules** across 4 formats: 2 Sigma (file artifacts, network), 1 YARA (binary detection), 1 Snort (HTTP POST), and 2 Suricata (TLS SNI + HTTP POST).
 
-Detects Chrome launched with `--headless` from a non-standard parent process, a technique VOLTA uses for App-Bound Encryption bypass. Tune `ParentImage` filter to match legitimate headless Chrome usage in your environment.
-<!-- audit: Compile: sigma convert to Splunk + LogScale both succeeded. MITRE tag check unavailable (offline). Confidence: medium-high; headless Chrome is used legitimately by dev/CI tools. -->
-
-**Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale) | **Confidence:** Medium-High
-
-```yaml
-title: Suspicious Chrome Headless Launch Potentially Related to VOLTA Infostealer
-id: 3a7c8e1f-5b2d-4f9a-a1e3-6d8c2b4f0e7a
-status: experimental
-description: >
-  Detects Chrome launched with --headless flag from a non-standard parent process,
-  a technique used by VOLTA infostealer to bypass App-Bound Encryption.
-references:
-  - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
-author: Actioner
-date: 2026-11-04
-tags:
-  - attack.t1555.003
-logsource:
-  category: process_creation
-  product: windows
-detection:
-  selection_child:
-    Image|endswith: '\chrome.exe'
-    CommandLine|contains: '--headless'
-  filter_parent_legitimate:
-    ParentImage|endswith:
-      - '\chrome.exe'
-      - '\explorer.exe'
-      - '\cmd.exe'
-      - '\powershell.exe'
-      - '\code.exe'
-      - '\node.exe'
-      - '\java.exe'
-      - '\jenkins.exe'
-  condition: selection_child and not filter_parent_legitimate
-falsepositives:
-  - Automated testing frameworks using headless Chrome
-  - Enterprise RPA tools
-  - Developer tooling
-level: high
-```
-
----
+<!-- revision: dropped "Suspicious Chrome Headless Launch" — behavioral/TTP rule at specific altitude, high FP in CI/Puppeteer/Selenium environments -->
 
 ### Sigma: VOLTA File Artifact Creation (File Event)
 
-Detects creation of files with names specific to the VOLTA infostealer workflow. Filenames are highly distinctive; false positives are unlikely.
-<!-- audit: Compile: sigma convert to Splunk + LogScale both succeeded. Confidence: high; filenames are unique to this malware family. Identity_Report.txt and AI_Analysis.txt are generic but combined with volta_* names the pattern is strong. -->
+Detects creation of files with the `volta_` prefix specific to the VOLTA infostealer workflow. Generic filenames (`Identity_Report.txt`, `AI_Analysis.txt`) are also associated with this family but are excluded from standalone detection due to false-positive risk; they should be treated as supporting indicators only when observed alongside `volta_*` artifacts.
+<!-- audit: Compile: sigma convert to Splunk + LogScale both succeeded (rev 2). Confidence: high; volta_* filenames are unique to this family. Generic filenames removed from condition per review. -->
 
 **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale) | **Confidence:** High
 
@@ -197,8 +153,12 @@ title: VOLTA Infostealer File Artifact Creation
 id: 8f4b2c6e-1d3a-4e7f-b5c9-2a0d8e6f4b1c
 status: experimental
 description: >
-  Detects creation of files associated with the VOLTA infostealer harvest and
-  exfiltration workflow, including debug logs, analysis outputs, and ZIP archives.
+  Detects creation of files with the 'volta_' prefix associated with the VOLTA
+  infostealer harvest and exfiltration workflow, including debug logs and ZIP
+  archives. Note: generic filenames Identity_Report.txt and AI_Analysis.txt are
+  also associated with this family but are excluded from standalone detection
+  due to high false-positive risk; they should be treated as supporting
+  indicators only when observed alongside volta_* artifacts.
 references:
   - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
 author: Actioner
@@ -211,18 +171,14 @@ logsource:
 detection:
   selection_debug:
     TargetFilename|endswith: '\volta_debug.txt'
-  selection_identity:
-    TargetFilename|endswith: '\Identity_Report.txt'
-  selection_ai:
-    TargetFilename|endswith: '\AI_Analysis.txt'
   selection_zip:
     TargetFilename|endswith:
       - '\volta_log.zip'
       - '\volta_dox.zip'
       - '\volta_doxnet.zip'
-  condition: selection_debug or selection_identity or selection_ai or selection_zip
+  condition: selection_debug or selection_zip
 falsepositives:
-  - Unlikely -- filenames are highly specific to this malware family
+  - Unlikely -- filenames contain the 'volta_' prefix specific to this malware family
 level: critical
 ```
 
@@ -230,8 +186,8 @@ level: critical
 
 ### Sigma: Non-Browser Process Connecting to OpenRouter AI (Network)
 
-Detects network connections to openrouter[.]ai from processes that are not web browsers, which may indicate VOLTA or similar LLM-abusing malware. Baseline legitimate developer/API usage.
-<!-- audit: Compile: sigma convert to Splunk + LogScale both succeeded. Confidence: medium; OpenRouter is a legitimate API service. Rule value is in detecting non-browser processes reaching it. -->
+Detects network connections to openrouter[.]ai from processes that are not web browsers, which may indicate VOLTA or similar LLM-abusing malware. Baseline legitimate developer/API usage; expect false positives from Python, Node.js, and curl-based API clients.
+<!-- audit: Compile: sigma convert to Splunk + LogScale both succeeded (rev 2). Confidence: medium; OpenRouter is a legitimate API service. Level lowered to medium per review; expanded FP notes. -->
 
 **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale) | **Confidence:** Medium
 
@@ -266,7 +222,9 @@ detection:
   condition: selection and not filter_browsers
 falsepositives:
   - Developer tools or scripts legitimately using the OpenRouter API
-level: high
+  - Python, Node.js, or curl-based API clients (python.exe, node.exe, curl.exe)
+  - CI/CD pipelines or automation frameworks interacting with OpenRouter services
+level: medium
 ```
 
 ---
@@ -319,28 +277,31 @@ rule VOLTA_Infostealer
 
 ### Snort: VOLTA HTTP POST to OpenRouter API
 
-Detects HTTP POST requests to the OpenRouter chat completions endpoint with the generic Mozilla/5.0 User-Agent characteristic of VOLTA's hand-assembled requests. Caveat: will not fire on HTTPS/TLS-encrypted traffic without SSL inspection.
-<!-- audit: Compile: snort -T succeeded via minimal config with classification.config. SID 2100001 in assigned range. Confidence: medium; requires HTTP visibility (not HTTPS). -->
+Detects HTTP POST requests to the OpenRouter chat completions endpoint with a bare `Mozilla/5.0` User-Agent (no browser token suffix), characteristic of VOLTA's hand-assembled HTTP requests. **Caveat:** VOLTA uses HTTPS to openrouter[.]ai; this rule requires SSL/TLS inspection (decrypted HTTP) to fire. Without SSL inspection, use the companion Suricata TLS SNI rule (SID 2200001).
+<!-- audit: Compile: snort -T succeeded (rev 2). UA content anchored to "User-Agent: Mozilla/5.0\r\n" to avoid matching all browser UAs. Confidence lowered to low per review; requires SSL inspection. -->
 
-**Compile:** PASS (snort -T) | **Confidence:** Medium
+**Compile:** PASS (snort -T) | **Confidence:** Low
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - HTTP POST to OpenRouter AI API"; flow:established,to_server; content:"POST"; http_method; content:"openrouter.ai"; http_header; content:"/api/v1/chat/completions"; http_uri; content:"Mozilla/5.0"; http_header; classtype:trojan-activity; sid:2100001; rev:1;)
+# Caveat: Requires SSL/TLS inspection. VOLTA uses HTTPS to openrouter.ai.
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - HTTP POST to OpenRouter AI API"; flow:established,to_server; content:"POST"; http_method; content:"openrouter.ai"; http_header; content:"/api/v1/chat/completions"; http_uri; content:"User-Agent|3a 20|Mozilla/5.0|0d 0a|"; http_header; classtype:trojan-activity; sid:2100001; rev:2;)
 ```
 
 ---
 
 ### Suricata: VOLTA TLS SNI and HTTP Detection (2 rules)
 
-Two complementary rules: (1) TLS SNI detection for openrouter[.]ai connections regardless of decryption, and (2) HTTP-layer detection for decrypted traffic matching the VOLTA request pattern. The TLS SNI rule is the more broadly useful of the two.
-<!-- audit: Compile: suricata -T succeeded for both rules. SIDs 2200001-2200002 in assigned range. Confidence: medium for TLS SNI (broad -- any openrouter.ai connection), medium-high for HTTP rule (more specific). -->
+Two complementary rules: (1) TLS SNI detection for openrouter[.]ai connections regardless of decryption, and (2) HTTP-layer detection for decrypted traffic matching the VOLTA request pattern with a bare `Mozilla/5.0` User-Agent. The TLS SNI rule is the more broadly useful of the two; the HTTP rule requires SSL inspection.
+<!-- audit: Compile: suricata -T succeeded for both rules (SID 2200002 rev 2). SIDs 2200001-2200002 in assigned range. UA content anchored in SID 2200002. Confidence: medium for TLS SNI, medium for HTTP rule. -->
 
-**Compile:** PASS (suricata -T) | **Confidence:** Medium / Medium-High
+**Compile:** PASS (suricata -T) | **Confidence:** Medium / Medium
 
 ```
+# SID 2200001: TLS SNI detection -- works without TLS decryption
 alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer TLS SNI to OpenRouter AI"; tls.sni; content:"openrouter.ai"; endswith; nocase; classtype:trojan-activity; sid:2200001; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer HTTP POST to OpenRouter Chat API"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; http.header; content:"Mozilla/5.0"; classtype:trojan-activity; sid:2200002; rev:1;)
+# SID 2200002: HTTP POST detection -- requires SSL/TLS inspection
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer HTTP POST to OpenRouter Chat API"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; http.header; content:"User-Agent|3a 20|Mozilla/5.0|0d 0a|"; classtype:trojan-activity; sid:2200002; rev:2;)
 ```
 
 ---
@@ -352,4 +313,4 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer
 
 ---
 
-*This report was produced in DRAFT mode by Actioner on 2026-11-04. All detection rules have been compiler-validated. Review false-positive baselines before production deployment.*
+*This report was produced by Actioner on 2026-11-04 and revised following peer review. All detection rules have been compiler-validated (sigma convert, yarac, snort -T, suricata -T). Review false-positive baselines before production deployment.*

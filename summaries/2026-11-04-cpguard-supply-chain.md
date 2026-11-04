@@ -127,14 +127,16 @@ An entry referencing versions 5.88.12 through 5.88.19 confirms the malicious upd
 
 ## Detection Rules
 
-### Sigma Rules
+<!-- revision: dropped Sigma "Sensitive File Access by cPGuard Process" — behavioral rule incompatible with specific altitude, material FP risk. Dropped "Suspicious Archive Creation in Hidden /var/tmp Directory" — behavioral catch-all, no incremental value over artifact-specific rules. -->
+
+### Sigma Rules (3 rules)
 
 #### Rule 1: Staging Directory and Backdoor File Creation
 
 Detects creation of files at the published attack artifact paths. High-fidelity due to distinctive hidden directory and file naming.
 <!-- audit: keys on /var/tmp/.cpg91511* paths from advisory; no hash IOCs; unique naming convention virtually eliminates FP -->
 
-- **File:** `/tmp/actioner/sigma_cpguard_file_creation.yml`
+- **File:** `rules/sigma/2026-11-04-cpguard-staging-dir-backdoor.yml`
 - **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale)
 - **Confidence:** High
 
@@ -174,7 +176,7 @@ level: critical
 Detects execution of the specific malicious script filename pushed through the compromised update channel.
 <!-- audit: exact filename from advisory; no hash; unique script name prefix+suffix pattern -->
 
-- **File:** `/tmp/actioner/sigma_cpguard_script_exec.yml`
+- **File:** `rules/sigma/2026-11-04-cpguard-malicious-script-exec.yml`
 - **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale)
 - **Confidence:** High
 
@@ -207,52 +209,12 @@ falsepositives:
 level: critical
 ```
 
-#### Rule 3: Sensitive File Access by cPGuard Process
-
-Detects cPGuard-related processes accessing /etc/shadow or /etc/passwd, indicating credential harvesting. Caveat: legitimate cPGuard scanning may trigger this — tune per environment.
-<!-- audit: behavioral rule; cpguard processes reading shadow is abnormal for security product; tuning may be needed -->
-
-- **File:** `/tmp/actioner/sigma_cpguard_shadow_access.yml`
-- **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale)
-- **Confidence:** Medium
-
-```yaml
-title: cPGuard Supply Chain Attack - Sensitive File Access by cPGuard Process
-id: 3c9a7f2b-5e4d-6b8c-a1e0-9d3f2c7b5a4e
-status: experimental
-description: >
-  Detects access to /etc/shadow or /etc/passwd by processes related to cPGuard,
-  indicating potential credential harvesting as part of the supply chain attack.
-references:
-  - https://www.opsshield.com/cpguard-security-incident-nov-2026/
-  - https://thehackernews.com/2026/11/cpguard-supply-chain-attack.html
-author: CTI Analyst
-date: 2026-11-04
-tags:
-  - attack.t1003.008
-  - attack.t1005
-logsource:
-  category: file_access
-  product: linux
-detection:
-  selection_process:
-    Image|contains: 'cpguard'
-  selection_files:
-    TargetFilename:
-      - '/etc/shadow'
-      - '/etc/passwd'
-  condition: selection_process and selection_files
-falsepositives:
-  - Legitimate cPGuard security scanning operations may access these files
-level: high
-```
-
-#### Rule 4: Loot Archive Creation in Staging Directory
+#### Rule 3: Loot Archive Creation in Staging Directory
 
 Detects tar/gzip activity targeting the known attack staging directory.
 <!-- audit: combines archiver process with exact staging path; minimal FP surface -->
 
-- **File:** `/tmp/actioner/sigma_cpguard_loot_archive.yml`
+- **File:** `rules/sigma/2026-11-04-cpguard-loot-archive.yml`
 - **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale)
 - **Confidence:** High
 
@@ -287,59 +249,14 @@ falsepositives:
 level: critical
 ```
 
-#### Rule 5: Suspicious Archive Creation in Hidden /var/tmp Directory
-
-Broader behavioral rule detecting archive creation in hidden directories under /var/tmp. Caveat: may require tuning to exclude known benign tools.
-<!-- audit: behavioral catch-all; hidden dirs in /var/tmp are uncommon for archiving; .snap/.java filtered; medium confidence due to FP potential -->
-
-- **File:** `/tmp/actioner/sigma_cpguard_hidden_dir_archive.yml`
-- **Compile:** PASS (sigma convert --without-pipeline -t splunk, -t log_scale)
-- **Confidence:** Medium
-
-```yaml
-title: Suspicious Archive Creation in Hidden /var/tmp Directory
-id: 5e1c9b4d-7a6f-8d0e-c3a2-1f5b4e9d7c6a
-status: experimental
-description: >
-  Detects tar or gzip archive creation within hidden directories under /var/tmp,
-  a behavioral pattern observed in the cPGuard supply chain attack for staging
-  collected data before exfiltration.
-references:
-  - https://www.opsshield.com/cpguard-security-incident-nov-2026/
-  - https://thehackernews.com/2026/11/cpguard-supply-chain-attack.html
-author: CTI Analyst
-date: 2026-11-04
-tags:
-  - attack.t1560.001
-  - attack.t1074.001
-logsource:
-  category: process_creation
-  product: linux
-detection:
-  selection_archiver:
-    Image|endswith:
-      - '/tar'
-      - '/gzip'
-  selection_hidden_tmp:
-    CommandLine|contains: '/var/tmp/.'
-  filter_known:
-    CommandLine|contains:
-      - '/var/tmp/.snap'
-      - '/var/tmp/.java'
-  condition: selection_archiver and selection_hidden_tmp and not filter_known
-falsepositives:
-  - Backup tools or package managers using hidden directories in /var/tmp
-level: high
-```
-
-### YARA Rules
+### YARA Rules (2 rules)
 
 #### Rule 1: cPGuard Supply Chain Attack Artifacts (Composite)
 
 Matches files containing the distinctive attack identifiers combined with credential file references. Requires the attack-specific strings plus evidence of credential targeting.
 <!-- audit: composite rule requiring attack-specific + credential strings; low FP; no hashes available -->
 
-- **File:** `/tmp/actioner/yara_cpguard_supply_chain.yar` (rule: `cpguard_supply_chain_attack_artifacts`)
+- **File:** `rules/yara/2026-11-04-cpguard-supply-chain-artifacts.yar`
 - **Compile:** PASS (yarac)
 - **Sample Match:** PASS (pos.txt matched both rules)
 - **Confidence:** High
@@ -349,7 +266,7 @@ Matches files containing the distinctive attack identifiers combined with creden
 Simpler rule matching any of the three most distinctive artifact strings. Useful for broad scanning.
 <!-- audit: any-of-three rule; each string is unique to this attack; high confidence for initial triage -->
 
-- **File:** `/tmp/actioner/yara_cpguard_supply_chain.yar` (rule: `cpguard_malicious_script_strings`)
+- **File:** `rules/yara/2026-11-04-cpguard-malicious-script-strings.yar`
 - **Compile:** PASS (yarac)
 - **Sample Match:** PASS (pos.txt matched)
 - **Confidence:** High

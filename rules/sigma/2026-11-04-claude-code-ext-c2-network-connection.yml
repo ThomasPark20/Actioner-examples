@@ -1,0 +1,25 @@
+title: Network Connection to Claude Code Backdoor C2 IP
+id: 4f6a8c2e-7d9b-4e1f-a3c5-2b0d8e6f4a72
+status: experimental
+description: >
+  Detects network connections to 134.209.82.225, the command-and-control IP
+  used by the malicious Claude Code extension SSH backdoor.
+  Note: This rule targets Windows network_connection logs only. For Linux and macOS
+  coverage, deploy equivalent rules using firewall logs, auditd connect syscall events,
+  or EDR network telemetry matching DestinationIp 134.209.82.225.
+references:
+  - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-11-04
+tags:
+  - attack.t1572
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationIp: '134.209.82.225'
+  condition: selection
+falsepositives:
+  - IP may be reassigned to legitimate DigitalOcean customers after takedown
+level: critical
