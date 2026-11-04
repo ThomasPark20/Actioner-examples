@@ -1,0 +1,1 @@
+alert tcp $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; content:"POST"; http_method; content:"/beacon"; http_uri; classtype:trojan-activity; sid:2100001; rev:2;)

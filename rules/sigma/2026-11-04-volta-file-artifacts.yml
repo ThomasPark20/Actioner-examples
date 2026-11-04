@@ -1,0 +1,31 @@
+title: VOLTA Infostealer File Artifact Creation
+id: 8f4b2c6e-1d3a-4e7f-b5c9-2a0d8e6f4b1c
+status: experimental
+description: >
+  Detects creation of files with the 'volta_' prefix associated with the VOLTA
+  infostealer harvest and exfiltration workflow, including debug logs and ZIP
+  archives. Note: generic filenames Identity_Report.txt and AI_Analysis.txt are
+  also associated with this family but are excluded from standalone detection
+  due to high false-positive risk; they should be treated as supporting
+  indicators only when observed alongside volta_* artifacts.
+references:
+  - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-04
+tags:
+  - attack.t1005
+logsource:
+  category: file_event
+  product: windows
+detection:
+  selection_debug:
+    TargetFilename|endswith: '\volta_debug.txt'
+  selection_zip:
+    TargetFilename|endswith:
+      - '\volta_log.zip'
+      - '\volta_dox.zip'
+      - '\volta_doxnet.zip'
+  condition: selection_debug or selection_zip
+falsepositives:
+  - Unlikely -- filenames contain the 'volta_' prefix specific to this malware family
+level: critical

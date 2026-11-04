@@ -1,0 +1,24 @@
+title: SSH Authorized Keys Modification with svc-telemetry Comment
+id: 3a7c1e2d-5f8b-4a91-b6e3-9d4f7c8a2b10
+status: experimental
+description: >
+  Detects process execution that writes to SSH authorized_keys with the svc-telemetry
+  key comment, as observed in the malicious Claude Code extension backdoor (Oct 2026).
+references:
+  - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+author: Actioner
+date: 2026-11-04
+tags:
+  - attack.t1098.004
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_target:
+    CommandLine|contains: 'authorized_keys'
+  filter_comment:
+    CommandLine|contains: 'svc-telemetry'
+  condition: selection_target and filter_comment
+falsepositives:
+  - Legitimate automation using the exact key comment name svc-telemetry
+level: high

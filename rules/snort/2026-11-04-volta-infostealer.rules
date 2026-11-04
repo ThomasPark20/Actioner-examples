@@ -1,0 +1,5 @@
+# VOLTA Infostealer - HTTP POST to OpenRouter AI API
+# Caveat: VOLTA uses HTTPS (TLS-encrypted) traffic to openrouter.ai. This rule
+# will only fire on environments with SSL/TLS inspection (decrypted HTTP).
+# Without SSL inspection, use the companion Suricata TLS SNI rule (SID 2200001).
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - HTTP POST to OpenRouter AI API"; flow:established,to_server; content:"POST"; http_method; content:"openrouter.ai"; http_header; content:"/api/v1/chat/completions"; http_uri; content:"User-Agent|3a 20|Mozilla/5.0|0d 0a|"; http_header; classtype:trojan-activity; sid:2100001; rev:2;)

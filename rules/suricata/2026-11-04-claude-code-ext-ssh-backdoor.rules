@@ -1,0 +1,3 @@
+alert http $HOME_NET any -> 134.209.82.225 8099 (msg:"Actioner - Claude Code Backdoor HTTP Beacon to C2"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:2200001; rev:2;)
+
+alert tcp $HOME_NET any -> 134.209.82.225 22 (msg:"Actioner - Claude Code Backdoor SSH Reverse Tunnel to C2"; flow:established,to_server; classtype:trojan-activity; sid:2200002; rev:1;)

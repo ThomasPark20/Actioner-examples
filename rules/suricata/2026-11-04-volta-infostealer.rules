@@ -1,0 +1,9 @@
+# VOLTA Infostealer - Suricata Detection Rules
+
+# SID 2200001: TLS SNI detection for openrouter.ai connections
+# Works without TLS decryption; fires on any TLS handshake to openrouter.ai
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer TLS SNI to OpenRouter AI"; tls.sni; content:"openrouter.ai"; endswith; nocase; classtype:trojan-activity; sid:2200001; rev:1;)
+
+# SID 2200002: HTTP POST to OpenRouter chat completions API
+# Requires TLS decryption / SSL inspection to match on HTTP layer
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer HTTP POST to OpenRouter Chat API"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; http.header; content:"User-Agent|3a 20|Mozilla/5.0|0d 0a|"; classtype:trojan-activity; sid:2200002; rev:2;)

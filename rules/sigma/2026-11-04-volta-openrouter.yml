@@ -1,0 +1,33 @@
+title: Non-Browser Process Connecting to OpenRouter AI API
+id: c2e9d4a7-6f1b-4c3e-8a5d-0b7f2e8c1d3a
+status: experimental
+description: >
+  Detects network connections to openrouter.ai from processes other than
+  known web browsers, which may indicate VOLTA infostealer LLM-based
+  victim analysis or similar abuse of the OpenRouter API.
+references:
+  - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026-11-04
+tags:
+  - attack.t1567
+logsource:
+  category: network_connection
+  product: windows
+detection:
+  selection:
+    DestinationHostname|endswith: 'openrouter.ai'
+  filter_browsers:
+    Image|endswith:
+      - '\chrome.exe'
+      - '\firefox.exe'
+      - '\msedge.exe'
+      - '\brave.exe'
+      - '\opera.exe'
+      - '\iexplore.exe'
+  condition: selection and not filter_browsers
+falsepositives:
+  - Developer tools or scripts legitimately using the OpenRouter API
+  - Python, Node.js, or curl-based API clients (python.exe, node.exe, curl.exe)
+  - CI/CD pipelines or automation frameworks interacting with OpenRouter services
+level: medium
