@@ -1,7 +1,7 @@
 # cPGuard/OpsShield Supply Chain Attack -- Technical Analysis (DRAFT)
 
 **Date:** 2026-11-05
-**Status:** DRAFT -- Advisory-specific / PoC altitude
+**Status:** FINAL -- Advisory-specific / PoC altitude
 **TLP:** CLEAR
 **Author:** Actioner
 
@@ -110,7 +110,6 @@ The attacker retrieved 32 files from the licensing server, each corresponding to
 | IP | `94[.]183[.]188[.]91` |
 | Domain | `manage[.]opsshield[.]com` (billing portal -- compromised, not malicious infrastructure) |
 | User-Agent | `cPGuard/5.88.11` (spoofed) |
-| URL Pattern | `*_rx.php` (exfiltration receiver) |
 
 ### File System Artifacts -- Customer Servers
 
@@ -232,7 +231,7 @@ Detects file creation at paths specific to the cPGuard supply chain payload. Cov
 
 ```yaml
 title: cPGuard Supply Chain Attack - Malicious File Artifacts
-id: 8a3e2f1c-7b4d-4e9a-b5c6-d8f0a1e2c3b4
+id: 4b42e414-adbf-4f6a-999d-1f3c46492b07
 status: experimental
 description: Detects file creation or access patterns associated with the cPGuard/OpsShield supply chain compromise of November 2026, including backdoor shells, staging directories, and persistence mechanisms.
 references:
@@ -276,7 +275,7 @@ Detects file creation at masqueraded paths used by the Go implant and gsocket ba
 
 ```yaml
 title: cPGuard Supply Chain Attack - Go Implant and Gsocket Backdoor Paths
-id: 1d4e5f6a-7b8c-9d0e-f1a2-b3c4d5e6f7a8
+id: 4e76cdaf-f7fb-4cdf-8366-3b187ce7e7b9
 status: experimental
 description: Detects file creation at paths used by the Go implant and gsocket backdoor deployed on OpsShield internal servers during the cPGuard supply chain compromise.
 references:
@@ -325,7 +324,7 @@ Detects process execution from binary paths used by the Go implant and gsocket b
 
 ```yaml
 title: cPGuard Supply Chain Attack - Masqueraded Process Names
-id: 2e5f6a7b-8c9d-0e1f-a2b3-c4d5e6f7a8b9
+id: b11b6619-0ab2-4f06-93ba-0696d7b03952
 status: experimental
 description: Detects process execution with names matching the kernel thread masquerading used by the Go implant and gsocket backdoor in the cPGuard/OpsShield supply chain attack.
 references:
@@ -363,13 +362,13 @@ level: high
 ### Sigma Rule 4: Sensitive File Collection Pattern
 
 Detects archive creation in the campaign-specific staging directory.
-<!-- audit: Narrow scope: only fires on the unique loot.tgz or .cpg91511 strings. Broader sensitive-file-read patterns were excluded as too noisy for PoC altitude. -->
+<!-- audit: Narrow scope: fires on the unique .cpg91511 staging-directory string. The generic "loot.tgz" was removed per review to avoid false positives on unrelated red-team or pentesting artifacts. -->
 
 ```yaml
 title: cPGuard Supply Chain Attack - Sensitive File Collection Pattern
-id: 3f6a7b8c-9d0e-1f2a-b3c4-d5e6f7a8b9c0
+id: 3151ee68-5139-41df-9bde-529afcae17e8
 status: experimental
-description: Detects a shell process reading multiple sensitive files targeted by the cPGuard supply chain attack payload, including shadow, SSH keys, and MySQL config, followed by archive creation.
+description: Detects a shell process reading multiple sensitive files targeted by the cPGuard supply chain attack payload, including shadow, SSH keys, and MySQL config, followed by archive creation in the campaign-specific staging directory.
 references:
     - https://opsshield.com/notice/cpguard-update-channel-compromise.html
     - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
@@ -382,9 +381,8 @@ logsource:
     product: linux
     category: process_creation
 detection:
-    selection_archive:
+    selection_staging:
         CommandLine|contains:
-            - 'loot.tgz'
             - '.cpg91511'
     selection_tar_staging:
         Image|endswith:
@@ -392,25 +390,25 @@ detection:
             - '/usr/bin/tar'
         CommandLine|contains:
             - '/var/tmp/.cpg91511'
-    condition: selection_archive or selection_tar_staging
+    condition: selection_staging or selection_tar_staging
 falsepositives:
     - Forensic investigators analyzing the incident artifacts
 level: high
 ```
 
-**Compile status:** ✅ compiles (sigma check pass, sigma convert to Splunk pass) | **Confidence:** medium
-<!-- audit: The string loot.tgz in /var/tmp/.cpg91511/ is unique to this campaign. -->
+**Compile status:** ✅ compiles (sigma convert to Splunk pass) | **Confidence:** medium
+<!-- audit: Removed standalone loot.tgz match per review. The .cpg91511 string is unique to this campaign. -->
 
 ---
 
 ### Sigma Rule 5: Web Shell and Probe File Detection
 
 Detects creation of web shell and probe files matching the naming convention used during initial access.
-<!-- audit: The _rx.php pattern is broader and may generate false positives in some web applications. Probe filenames are distinctive. -->
+<!-- audit: The _rx.php pattern was removed per review as too broad for advisory-specific altitude. Probe filenames are campaign-specific and distinctive. -->
 
 ```yaml
 title: cPGuard Supply Chain Attack - Web Shell and Probe File Detection
-id: 4a7b8c9d-0e1f-2a3b-c4d5-e6f7a8b9c0d1
+id: 61dd21d3-af7c-4270-b7c7-62ad770a45e2
 status: experimental
 description: Detects creation of web shell and probe files matching the naming convention used during initial access to OpsShield billing infrastructure.
 references:
@@ -430,17 +428,14 @@ detection:
             - 'i90573_probe.txt'
             - 'i90573_sh.php'
             - 'i90573_x.php'
-    selection_rx_pattern:
-        TargetFilename|endswith:
-            - '_rx.php'
-    condition: selection_probes or selection_rx_pattern
+    condition: selection_probes
 falsepositives:
-    - Web applications that legitimately use filenames ending in _rx.php
-level: medium
+    - Unlikely; probe filenames contain campaign-specific numeric identifiers
+level: high
 ```
 
-**Compile status:** ✅ compiles (sigma check pass, sigma convert to Splunk pass) | **Confidence:** medium
-<!-- audit: Probe filenames are high confidence individually. The _rx.php endpoint pattern adds coverage but has uncertain false positive rate. Rule level set to medium accordingly. -->
+**Compile status:** ✅ compiles (sigma convert to Splunk pass) | **Confidence:** medium
+<!-- audit: Removed _rx.php pattern per review (too broad). Remaining probe filenames are campaign-specific. Level raised to high. -->
 
 ---
 
@@ -470,7 +465,7 @@ rule cpguard_malicious_update_script
         $cron_dir = "/var/tmp/.i93677" ascii
 
     condition:
-        uint32(0) == 0x68732123 and 3 of them
+        uint16(0) == 0x2123 and 3 of them
         or any of ($script_name, $backdoor_path, $cron_persist) and filesize < 500KB
 }
 
@@ -522,7 +517,7 @@ rule cpguard_webshell_probes
 - `cpguard_go_implant_artifacts`: low (no binary hashes available; string overlap possible)
 - `cpguard_webshell_probes`: medium (distinctive probe identifiers)
 
-<!-- audit: YARA compiled with yarac to /dev/null, exit code 0. Rule cpguard_malicious_update_script uses the shebang magic (#!/sh = 0x68732123 in little-endian) as a file type filter. -->
+<!-- audit: YARA compiled with yarac to /dev/null, exit code 0. Rule cpguard_malicious_update_script uses the shebang magic (#! = 0x2123 in little-endian) as a file type filter to match any shebang-prefixed script. -->
 
 ---
 
@@ -533,17 +528,17 @@ Network detection for C2 IP, spoofed user-agent, exfiltration URL pattern, and m
 ```
 alert tcp $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Spoofed User-Agent cPGuard/5.88.11"; flow:established,to_server; content:"cPGuard/5.88.11"; http_header; classtype:trojan-activity; sid:2026110501; rev:1;)
 alert tcp $HOME_NET any -> 94.183.188.91 any (msg:"MALWARE cPGuard Supply Chain - C2 IP 94.183.188.91"; flow:established,to_server; classtype:trojan-activity; sid:2026110502; rev:1;)
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE cPGuard Supply Chain - Exfil Receiver URL Pattern _rx.php"; flow:established,to_server; content:"_rx.php"; http_uri; classtype:trojan-activity; sid:2026110503; rev:1;)
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE cPGuard Supply Chain - Malicious Script Download cpguard-v58812-i91511"; flow:established,to_server; content:"cpguard-v58812-i91511"; http_uri; classtype:trojan-activity; sid:2026110504; rev:1;)
 ```
 
 **Compile status:** ✅ compiles (`snort -T` exit 0, "Snort successfully validated the configuration!") | **Confidence:**
 - SID 2026110501 (User-Agent): medium (distinctive spoofed UA but could match legitimate older cPGuard clients)
 - SID 2026110502 (C2 IP): medium (single IP; may be reassigned)
-- SID 2026110503 (Exfil URL): low (broad pattern `_rx.php` may match legitimate applications)
 - SID 2026110504 (Script download): medium (campaign-specific string)
 
-<!-- audit: Validated with snort 2.9.20 using minimal config with $HOME_NET, $EXTERNAL_NET, $HTTP_PORTS defined. -->
+*SID 2026110503 (`_rx.php` exfil URL pattern) was dropped per review as too broad for advisory-specific altitude.*
+
+<!-- audit: Validated with snort 2.9.20 using minimal config with $HOME_NET, $EXTERNAL_NET, $HTTP_PORTS defined. SID 2026110503 removed: _rx.php pattern too broad. -->
 
 ---
 
@@ -554,17 +549,17 @@ Network detection using Suricata dot-notation sticky buffers.
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Spoofed User-Agent cPGuard/5.88.11"; flow:established,to_server; http.user_agent; content:"cPGuard/5.88.11"; classtype:trojan-activity; sid:2026110601; rev:1;)
 alert tcp $HOME_NET any -> 94.183.188.91 any (msg:"MALWARE cPGuard Supply Chain - C2 IP 94.183.188.91"; flow:established,to_server; classtype:trojan-activity; sid:2026110602; rev:1;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Exfil Receiver URL Pattern _rx.php"; flow:established,to_server; http.uri; content:"_rx.php"; classtype:trojan-activity; sid:2026110603; rev:1;)
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Malicious Script Download cpguard-v58812-i91511"; flow:established,to_server; http.uri; content:"cpguard-v58812-i91511"; classtype:trojan-activity; sid:2026110604; rev:1;)
 ```
 
 **Compile status:** ✅ compiles (`suricata -T -S` exit 0, "Configuration provided was successfully loaded. Exiting.") | **Confidence:**
 - SID 2026110601 (User-Agent): medium
 - SID 2026110602 (C2 IP): medium
-- SID 2026110603 (Exfil URL): low
 - SID 2026110604 (Script download): medium
 
-<!-- audit: Validated with Suricata 7.0.3. -->
+*SID 2026110603 (`_rx.php` exfil URL pattern) was dropped per review as too broad for advisory-specific altitude.*
+
+<!-- audit: Validated with Suricata 7.0.3. SID 2026110603 removed: _rx.php pattern too broad. -->
 
 ---
 
@@ -578,4 +573,15 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain
 
 ---
 
-*This is a DRAFT report. All detection rules are at PoC/advisory-specific altitude with strict leniency. Rules should be tested against local telemetry before production deployment.*
+*This is a FINAL report (14 detection rules: 5 Sigma, 3 YARA, 3 Snort, 3 Suricata). All detection rules are at PoC/advisory-specific altitude with strict leniency. Rules should be tested against local telemetry before production deployment.*
+
+### Revision Notes
+
+The following changes were applied during review:
+
+- **Sigma Rule 4** (`selection_archive`): Removed standalone `loot.tgz` match as too generic; retained `.cpg91511` campaign-specific string.
+- **Sigma Rule 5** (`selection_rx_pattern`): Removed `_rx.php` filename-endswith pattern as too broad for advisory-specific altitude; retained campaign-specific probe filenames. Rule level raised from medium to high.
+- **All 5 Sigma rules**: Regenerated rule IDs with proper random UUIDs (originals were sequential/patterned).
+- **YARA** (`cpguard_malicious_update_script`): Fixed magic byte check from `uint32(0) == 0x68732123` (matched `#!sh\0`, incorrect) to `uint16(0) == 0x2123` (matches any `#!` shebang). Fixed corresponding audit comment.
+- **Snort SID 2026110503** (`_rx.php` exfil URL pattern): Dropped as too broad for advisory-specific altitude.
+- **Suricata SID 2026110603** (`_rx.php` exfil URL pattern): Dropped as too broad for advisory-specific altitude.
