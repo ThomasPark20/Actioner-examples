@@ -1,0 +1,31 @@
+title: cPGuard Supply Chain Attack - Malicious File Artifacts
+id: 4b42e414-adbf-4f6a-999d-1f3c46492b07
+status: experimental
+description: Detects file creation or access patterns associated with the cPGuard/OpsShield supply chain compromise of November 2026, including backdoor shells, staging directories, and persistence mechanisms.
+references:
+    - https://www.bleepingcomputer.com/news/security/hackers-hijack-cpguard-autoupdate-to-deploy-backdoor-steal-data/
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://opsshield.com/notice/cpguard-update-channel-compromise.html
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+    - attack.t1053.003
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection_backdoor:
+        TargetFilename|contains:
+            - '/var/tmp/.cpg91511_sh'
+            - '/var/tmp/.cpg91511/'
+            - '/var/tmp/.i93677/'
+            - '/etc/cron.d/i93677'
+    selection_scripts:
+        TargetFilename|contains:
+            - 'cpguard-v58812-i91511'
+    condition: selection_backdoor or selection_scripts
+falsepositives:
+    - Legitimate cPGuard forensic investigation activity
+level: high

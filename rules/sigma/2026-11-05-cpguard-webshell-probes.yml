@@ -1,0 +1,25 @@
+title: cPGuard Supply Chain Attack - Web Shell and Probe File Detection
+id: 61dd21d3-af7c-4270-b7c7-62ad770a45e2
+status: experimental
+description: Detects creation of web shell and probe files matching the naming convention used during initial access to OpsShield billing infrastructure.
+references:
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1505.003
+    - attack.t1190
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection_probes:
+        TargetFilename|endswith:
+            - 'i90248_probe.txt'
+            - 'i90573_probe.txt'
+            - 'i90573_sh.php'
+            - 'i90573_x.php'
+    condition: selection_probes
+falsepositives:
+    - Unlikely; probe filenames contain campaign-specific numeric identifiers
+level: high

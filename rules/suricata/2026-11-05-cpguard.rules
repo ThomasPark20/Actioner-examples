@@ -1,0 +1,3 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Spoofed User-Agent cPGuard/5.88.11"; flow:established,to_server; http.user_agent; content:"cPGuard/5.88.11"; classtype:trojan-activity; sid:2026110601; rev:1;)
+alert tcp $HOME_NET any -> 94.183.188.91 any (msg:"MALWARE cPGuard Supply Chain - C2 IP 94.183.188.91"; flow:established,to_server; classtype:trojan-activity; sid:2026110602; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE cPGuard Supply Chain - Malicious Script Download cpguard-v58812-i91511"; flow:established,to_server; http.uri; content:"cpguard-v58812-i91511"; classtype:trojan-activity; sid:2026110604; rev:1;)

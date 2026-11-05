@@ -1,0 +1,29 @@
+title: cPGuard Supply Chain Attack - Masqueraded Process Names
+id: b11b6619-0ab2-4f06-93ba-0696d7b03952
+status: experimental
+description: Detects process execution with names matching the kernel thread masquerading used by the Go implant and gsocket backdoor in the cPGuard/OpsShield supply chain attack.
+references:
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1036.005
+    - attack.t1014
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_gsocket_proc:
+        Image|endswith: '/usr/bin/defunct'
+    selection_go_implant_proc:
+        Image|endswith:
+            - '/usr/sbin/pythno3'
+            - '/usr/lib/libgdi.so.0.8.2'
+    selection_by_cmdline:
+        CommandLine|contains:
+            - 'cpguard-v58812-i91511'
+    condition: selection_gsocket_proc or selection_go_implant_proc or selection_by_cmdline
+falsepositives:
+    - Unlikely; binary paths are distinctive typosquats
+level: high
