@@ -1,0 +1,36 @@
+title: cPGuard Supply Chain Attack - Go Implant and Gsocket Backdoor Paths
+id: 4e76cdaf-f7fb-4cdf-8366-3b187ce7e7b9
+status: experimental
+description: Detects file creation at paths used by the Go implant and gsocket backdoor deployed on OpsShield internal servers during the cPGuard supply chain compromise.
+references:
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1036.005
+    - attack.t1543.002
+logsource:
+    product: linux
+    category: file_event
+detection:
+    selection_gsocket:
+        TargetFilename|endswith:
+            - '/usr/bin/defunct'
+            - '/lib/systemd/system/defunct.service'
+            - '/lib/systemd/system/defunct.dat'
+    selection_go_implant:
+        TargetFilename|endswith:
+            - '/usr/sbin/pythno3'
+            - '/usr/sbin/netstat.cfg'
+            - '/etc/profile.d/bash.cfg'
+            - '/usr/lib/system.mark'
+            - '/usr/lib/libgdi.so.0.8.2'
+            - '/boot/system.pub'
+    selection_antidt:
+        TargetFilename|endswith:
+            - '/etc/profile.d/gateway.sh'
+    condition: selection_gsocket or selection_go_implant or selection_antidt
+falsepositives:
+    - Unlikely; paths are distinctive masquerading artifacts
+level: high

@@ -1,0 +1,21 @@
+title: Malicious Claude Code Extension - sysmon.cmd in Windows Startup Folder
+id: 0cd4e7ab-8d9f-0e1a-b2c3-d4e5f6a7b8c9
+status: experimental
+description: Detects creation of sysmon.cmd in the Windows Startup folder, a persistence fallback used by the malicious Claude Code Cursor extension.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+    - https://cursor.com/blog/claude-code-extension-security-notice
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_startup:
+        TargetFilename|endswith: '\Start Menu\Programs\Startup\sysmon.cmd'
+    condition: selection_startup
+falsepositives:
+    - Legitimate batch scripts named sysmon.cmd in the Startup folder are uncommon; verify contents
+level: high

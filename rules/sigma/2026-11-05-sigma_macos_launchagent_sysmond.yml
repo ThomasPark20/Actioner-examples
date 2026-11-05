@@ -1,0 +1,21 @@
+title: Malicious Claude Code Extension - com.apple.sysmond LaunchAgent
+id: 7fa1b4de-5a6c-7b8d-e9f0-a1b2c3d4e5f6
+status: experimental
+description: Detects creation of a macOS LaunchAgent plist impersonating Apple sysmond service, used for persistence by the malicious Claude Code Cursor extension.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+    - https://cursor.com/blog/claude-code-extension-security-notice
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1547.011
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection_plist:
+        TargetFilename|endswith: '/Library/LaunchAgents/com.apple.sysmond.plist'
+    condition: selection_plist
+falsepositives:
+    - No legitimate Apple LaunchAgent uses this exact path in the user Library directory
+level: critical

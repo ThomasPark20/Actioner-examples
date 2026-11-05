@@ -1,0 +1,29 @@
+title: cPGuard Supply Chain Attack - Sensitive File Collection Pattern
+id: 3151ee68-5139-41df-9bde-529afcae17e8
+status: experimental
+description: Detects a shell process reading multiple sensitive files targeted by the cPGuard supply chain attack payload, including shadow, SSH keys, and MySQL config, followed by archive creation in the campaign-specific staging directory.
+references:
+    - https://opsshield.com/notice/cpguard-update-channel-compromise.html
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1005
+    - attack.t1560.001
+logsource:
+    product: linux
+    category: process_creation
+detection:
+    selection_staging:
+        CommandLine|contains:
+            - '.cpg91511'
+    selection_tar_staging:
+        Image|endswith:
+            - '/bin/tar'
+            - '/usr/bin/tar'
+        CommandLine|contains:
+            - '/var/tmp/.cpg91511'
+    condition: selection_staging or selection_tar_staging
+falsepositives:
+    - Forensic investigators analyzing the incident artifacts
+level: high

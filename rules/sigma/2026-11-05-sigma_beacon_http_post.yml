@@ -1,0 +1,21 @@
+title: Malicious Claude Code Extension - HTTP Beacon to Attacker Server
+id: 1de5f8bc-9e0a-1f2b-c3d4-e5f6a7b8c9d0
+status: experimental
+description: Detects outbound HTTP connection to the known attacker beacon endpoint used for host reconnaissance exfiltration by the malicious Claude Code extension.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+    - https://cursor.com/blog/claude-code-extension-security-notice
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection_beacon:
+        c-uri|contains: '/beacon'
+        dst_ip: '134.209.82.225'
+    condition: selection_beacon
+falsepositives:
+    - Unlikely; this IP and endpoint combination is confirmed attacker infrastructure
+level: critical
