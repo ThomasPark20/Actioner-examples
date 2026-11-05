@@ -1,7 +1,7 @@
 # Malicious Claude Code-Branded Cursor Extension with Persistent SSH Backdoor
 
 **Date:** 2026-11-05
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** CLEAR
 **Author:** Actioner
 
@@ -125,23 +125,19 @@ Host reconnaissance data sent via HTTP POST to the beacon endpoint:
 
 ## Detection Rules
 
-### Sigma Rules (9 rules)
+### Sigma Rules (7 rules)
 
 All rules validated via `sigma convert -t splunk --without-pipeline` (exit 0) and structural YAML validation (all required fields present).
 
 | Rule File | Title | Technique | Confidence | Compile Status |
 |-----------|-------|-----------|------------|----------------|
 | `sigma_malicious_claude_extension_hash.yml` | File Hash Detection | T1195.002 | HIGH | PASS |
-| `sigma_svc_telemetry_ssh_key.yml` | svc-telemetry SSH Key in Authorized Keys | T1098.004 | HIGH | PASS |
 | `sigma_sysmon_scheduled_task.yml` | SysMon Scheduled Task Creation | T1053.005 | HIGH | PASS |
 | `sigma_macos_launchagent_sysmond.yml` | com.apple.sysmond LaunchAgent | T1547.011 | HIGH | PASS |
 | `sigma_reverse_ssh_tunnel.yml` | Reverse SSH Tunnel to Attacker IP | T1572 | HIGH | PASS |
 | `sigma_smt_persistence_files.yml` | Persistence Script File Creation (.smt/.smtk) | T1547.001 | HIGH | PASS |
 | `sigma_startup_sysmon_cmd.yml` | sysmon.cmd in Windows Startup Folder | T1547.001 | HIGH | PASS |
 | `sigma_beacon_http_post.yml` | HTTP Beacon to Attacker Server | T1041 | HIGH | PASS |
-| `sigma_ssh_reverse_tunnel_pattern.yml` | SSH Reverse Tunnel with StrictHostKeyChecking Disabled | T1572 | MEDIUM | PASS |
-
-> **Note on confidence:** Hash-based and IP-based rules are HIGH confidence (specific to this threat). The behavioral SSH tunnel pattern rule (`sigma_ssh_reverse_tunnel_pattern.yml`) is MEDIUM confidence due to potential overlap with legitimate SSH usage in development environments.
 
 ### YARA Rules (4 rules)
 
@@ -154,7 +150,7 @@ Compiled with `yarac` (exit 0) and validated against test data.
 | `Malicious_Claude_Code_Persistence_Script` | Tunnel retry shell/batch persistence scripts | MEDIUM | PASS |
 | `Malicious_Claude_Code_SSH_Private_Key` | Dropped tunnel private key with svc-telemetry-tun comment | HIGH | PASS |
 
-### Suricata Rules (3 rules)
+### Suricata Rules (2 rules)
 
 Validated with `suricata -T` (exit 0).
 
@@ -162,23 +158,20 @@ Validated with `suricata -T` (exit 0).
 |-----|-------------|------------|----------------|
 | 2026110501 | HTTP Beacon POST to attacker C2 (134[.]209[.]82[.]225:8099/beacon) | HIGH | PASS |
 | 2026110502 | SSH connection to attacker infrastructure (134[.]209[.]82[.]225:22) | HIGH | PASS |
-| 2026110503 | Beacon exfiltration containing svc-telemetry marker | MEDIUM | PASS |
 
 ## Rule File Locations
 
-All rules are located in `/tmp/actioner/`:
+All rules are located in `rules/` subdirectories:
 
-- `/tmp/actioner/sigma_malicious_claude_extension_hash.yml`
-- `/tmp/actioner/sigma_svc_telemetry_ssh_key.yml`
-- `/tmp/actioner/sigma_sysmon_scheduled_task.yml`
-- `/tmp/actioner/sigma_macos_launchagent_sysmond.yml`
-- `/tmp/actioner/sigma_reverse_ssh_tunnel.yml`
-- `/tmp/actioner/sigma_smt_persistence_files.yml`
-- `/tmp/actioner/sigma_startup_sysmon_cmd.yml`
-- `/tmp/actioner/sigma_beacon_http_post.yml`
-- `/tmp/actioner/sigma_ssh_reverse_tunnel_pattern.yml`
-- `/tmp/actioner/yara_malicious_claude_extension.yar`
-- `/tmp/actioner/suricata_malicious_claude_extension.rules`
+- `rules/sigma/2026-11-05-sigma_malicious_claude_extension_hash.yml`
+- `rules/sigma/2026-11-05-sigma_sysmon_scheduled_task.yml`
+- `rules/sigma/2026-11-05-sigma_macos_launchagent_sysmond.yml`
+- `rules/sigma/2026-11-05-sigma_reverse_ssh_tunnel.yml`
+- `rules/sigma/2026-11-05-sigma_smt_persistence_files.yml`
+- `rules/sigma/2026-11-05-sigma_startup_sysmon_cmd.yml`
+- `rules/sigma/2026-11-05-sigma_beacon_http_post.yml`
+- `rules/yara/2026-11-05-yara_malicious_claude_extension.yar`
+- `rules/suricata/2026-11-05-suricata_malicious_claude_extension.rules`
 
 ## Remediation Guidance
 
@@ -200,8 +193,7 @@ All rules are located in `/tmp/actioner/`:
 - The SSH tunnel required admin/root privileges on macOS and Windows, which most victims lacked, so the tunnel usually failed. However, the SSH key planting and host reconnaissance still executed.
 - Environment variable **names** were exfiltrated but **not values**; however, credential rotation is still advised given the SSH key compromise vector.
 - Uninstalling the extension does NOT remove persistence artifacts. Manual cleanup or remediation scripts are required.
-- The behavioral SSH tunnel pattern rule has elevated false-positive risk in CI/CD and development environments.
 
 ---
 
-*Draft generated 2026-11-05 by Actioner. All network IOCs are defanged. All sources verified via direct fetch.*
+*Finalized 2026-11-05 by Actioner. All network IOCs are defanged. All sources verified via direct fetch. 13 detection rules (7 Sigma, 4 YARA, 2 Suricata).*

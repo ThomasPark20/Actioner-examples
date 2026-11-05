@@ -1,0 +1,10 @@
+# Malicious Claude Code Cursor Extension - Suricata Rules
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+# Author: Actioner
+# Date: 2026-11-05
+
+# Rule 1: HTTP beacon POST to attacker server
+alert http $HOME_NET any -> 134.209.82.225 8099 (msg:"MALWARE Malicious Claude Code Extension - HTTP Beacon to Attacker C2"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/beacon"; classtype:trojan-activity; sid:2026110501; rev:1; metadata:created_at 2026_11_05, updated_at 2026_11_05;)
+
+# Rule 2: SSH connection to attacker infrastructure
+alert ssh $HOME_NET any -> 134.209.82.225 22 (msg:"MALWARE Malicious Claude Code Extension - SSH Tunnel to Attacker Server"; flow:established,to_server; classtype:trojan-activity; sid:2026110502; rev:1; metadata:created_at 2026_11_05, updated_at 2026_11_05;)

@@ -1,0 +1,26 @@
+title: Malicious Claude Code Extension - Reverse SSH Tunnel to Attacker Infrastructure
+id: 8ab2c5ef-6b7d-8c9e-f0a1-b2c3d4e5f6a7
+status: experimental
+description: Detects SSH or autossh process execution with reverse tunnel arguments targeting the known attacker IP address used by the malicious Claude Code extension.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/10/30/inside-malicious-claude-code-branded-cursor-extension-persistent-ssh-backdoor/
+    - https://cursor.com/blog/claude-code-extension-security-notice
+author: Actioner
+date: 2026/11/05
+tags:
+    - attack.t1572
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_ssh_cmd:
+        Image|endswith:
+            - '\ssh.exe'
+            - '/ssh'
+            - '/autossh'
+        CommandLine|contains:
+            - '134.209.82.225'
+    condition: selection_ssh_cmd
+falsepositives:
+    - Unlikely; this IP is confirmed attacker infrastructure
+level: critical
