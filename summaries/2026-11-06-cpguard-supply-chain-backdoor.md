@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-06
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
@@ -136,7 +136,8 @@ A cron job was installed at `/etc/cron.d/i93677` with supporting files in `/var/
 | T1053.003 | Scheduled Task/Job: Cron | Persistence via /etc/cron.d/i93677 scheduled task |
 | T1548.001 | Abuse Elevation Control Mechanism: Setuid and Setgid | Hidden setuid-root shell binary at /var/tmp/.cpg91511_sh |
 | T1560.001 | Archive Collected Data: Archive via Utility | Credential data archived as loot.tgz using tar/gzip before exfiltration |
-| T1041 | Exfiltration Over C2 Channel | Archived data exfiltrated to 94.183.188.91 |
+| T1041 | Exfiltration Over C2 Channel | Archived data exfiltrated to 94.183.188[.]91 |
+<!-- revision: defanged IP in ATT&CK table (was bare 94.183.188.91). -->
 
 ## Impact Assessment
 
@@ -224,7 +225,6 @@ author: Actioner
 date: 2026-11-06
 tags:
     - attack.t1074.001
-    - attack.t1560.001
 logsource:
     category: file_event
     product: linux
@@ -240,6 +240,7 @@ level: critical
 ```
 
 <!-- audit: validated via sigma convert --without-pipeline -t splunk (output: TargetFilename IN ("*/var/tmp/.cpg91511/*", "*/var/tmp/.cpg91511_sh*")) and -t log_scale. No encoding or FP-evasion concerns; path strings are campaign-unique IOCs. -->
+<!-- revision: removed attack.t1560.001 tag — rule detects file creation (staging), not archiving; T1074.001 alone is accurate. -->
 
 ### Sigma: Cron Persistence via i93677
 
@@ -320,20 +321,20 @@ level: critical
 
 <!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale. AND logic between staging path and sensitive file reference eliminates FPs; requires process_creation logging (auditd or osquery). -->
 
-### Sigma: Setuid Root Backdoor in /var/tmp
+### Sigma: Setuid Root Backdoor Shell
 
-Detects chmod with setuid bit being applied to any file under /var/tmp, consistent with the backdoor shell deployment.
+Detects `chmod +s` targeting the campaign-specific backdoor shell path `/var/tmp/.cpg91511`.
 
-Compile: Splunk ✅, LogScale ✅ | Confidence: **medium**
+Compile: Splunk ✅, LogScale ✅ | Confidence: **high**
 
 ```yaml
 title: cPGuard Supply Chain Attack - Setuid Root Backdoor Shell
 id: 15dcdf03-1779-4f3b-bfd0-104403d6e471
 status: experimental
 description: >
-    Detects creation of the hidden setuid-root shell at /var/tmp/.cpg91511_sh
-    deployed by the cPGuard supply chain attack as a persistent backdoor,
-    or chmod commands setting the setuid bit on files in /var/tmp/.
+    Detects chmod commands setting the setuid bit on the hidden backdoor shell
+    /var/tmp/.cpg91511_sh deployed by the cPGuard supply chain attack as a
+    persistent root-level backdoor.
 references:
     - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
     - https://manage.opsshield.com
@@ -349,14 +350,15 @@ detection:
         Image|endswith: '/chmod'
         CommandLine|contains|all:
             - '+s'
-            - '/var/tmp/'
+            - '/var/tmp/.cpg91511'
     condition: selection_chmod_setuid
 falsepositives:
-    - Legitimate setuid operations on files in /var/tmp are extremely rare.
+    - Unlikely. The path is specific to this attack campaign.
 level: critical
 ```
 
-<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale. Broader than the campaign-specific path but still high-signal: setuid in /var/tmp is near-universally malicious. Medium confidence because +s can appear as substring in other arguments, though AND with /var/tmp/ mitigates this. -->
+<!-- audit: validated via sigma convert --without-pipeline -t splunk and -t log_scale. Artifact-specific path match; confidence upgraded to high now that detection keys on campaign path, not any /var/tmp/ file. -->
+<!-- revision: narrowed CommandLine|contains from '/var/tmp/' to '/var/tmp/.cpg91511' per critic verdict — resolves altitude mismatch. Description and confidence aligned. -->
 
 ### YARA: Malicious cPGuard Update Script Content
 
@@ -415,10 +417,11 @@ Alerts on any outbound IP traffic to the known attacker address 94.183.188[.]91.
 Compile: suricata -T ✅ | Confidence: **high**
 
 ```
-alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound Traffic to Attacker IP 94.183.188.91"; flow:to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-06, mitre_attack T1041; sid:2100100; rev:1;)
+alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound Traffic to Attacker IP 94.183.188.91"; flow:to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-06, mitre_attack T1041; sid:9000001; rev:1;)
 ```
 
 <!-- audit: validated via suricata -T -S (exit 0, "Configuration provided was successfully loaded"). IP-based rule; confidence is high while the IP remains attacker-controlled but will decay as the IP is reassigned or rotated. Single-IP match with no content inspection keeps engine overhead minimal. -->
+<!-- revision: moved SID from 2100100 (Emerging Threats reserved range) to 9000001 (local/custom range). -->
 
 ## Lessons Learned
 

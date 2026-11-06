@@ -1,0 +1,27 @@
+title: cPGuard Supply Chain Attack - Setuid Root Backdoor Shell
+id: 15dcdf03-1779-4f3b-bfd0-104403d6e471
+status: experimental
+description: >
+    Detects chmod commands setting the setuid bit on the hidden backdoor shell
+    /var/tmp/.cpg91511_sh deployed by the cPGuard supply chain attack as a
+    persistent root-level backdoor.
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://manage.opsshield.com
+author: Actioner
+date: 2026-11-06
+tags:
+    - attack.t1548.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_chmod_setuid:
+        Image|endswith: '/chmod'
+        CommandLine|contains|all:
+            - '+s'
+            - '/var/tmp/.cpg91511'
+    condition: selection_chmod_setuid
+falsepositives:
+    - Unlikely. The path is specific to this attack campaign.
+level: critical

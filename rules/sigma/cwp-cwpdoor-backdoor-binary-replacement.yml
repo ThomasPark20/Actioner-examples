@@ -1,0 +1,30 @@
+title: CWP Backdoor Binary Replacement via File Modification
+id: 9b5d2e4c-1a3f-4e7b-c8d0-4a2e6b3f1d92
+status: experimental
+description: >-
+  Detects file modification events targeting the cwpsrv binary path, consistent
+  with the CWP backdoor installer replacing the legitimate binary. The installer
+  backs up the original as cwpsrv.prev-<timestamp> before dropping the
+  backdoored version.
+references:
+  - https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/
+  - https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html
+author: Actioner
+date: 2026/11/06
+tags:
+  - attack.t1505.003
+  - attack.t1070.006
+logsource:
+  category: file_event
+  product: linux
+detection:
+  selection_binary:
+    TargetFilename|startswith: '/usr/local/cwpsrv/bin/cwpsrv'
+  filter_logs:
+    TargetFilename|endswith:
+      - '.log'
+      - '.pid'
+  condition: selection_binary and not filter_logs
+falsepositives:
+  - Legitimate CWP software updates modifying the cwpsrv binary
+level: medium

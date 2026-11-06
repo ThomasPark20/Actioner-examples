@@ -1,0 +1,33 @@
+title: CWP Backdoor Installer Script Execution
+id: 7a4c1e3b-8d2f-4f5a-b6e9-3c1d7a5e2f80
+status: experimental
+description: >-
+  Detects execution of the cwpsrv_update.sh installer script used to deploy the
+  CWP (Control Web Panel) Linux backdoor ("cwpdoor"). The script replaces the
+  legitimate cwpsrv binary with a backdoored version that responds to hidden
+  HTTP headers for command execution.
+references:
+  - https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/
+  - https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html
+author: Actioner
+date: 2026/11/06
+tags:
+  - attack.t1036
+  - attack.t1505.003
+logsource:
+  category: process_creation
+  product: linux
+detection:
+  selection_script:
+    CommandLine|contains: 'cwpsrv_update.sh'
+  selection_curl:
+    Image|endswith:
+      - '/curl'
+      - '/wget'
+    CommandLine|contains:
+      - '136.0.141.71'
+      - '/static/cwpsrv'
+  condition: selection_script or selection_curl
+falsepositives:
+  - Legitimate CWP updates from official sources (verify download origin)
+level: high

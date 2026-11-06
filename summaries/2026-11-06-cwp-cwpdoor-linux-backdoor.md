@@ -3,7 +3,8 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-11-06
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
+<!-- revision: v1.1 — applied critic verdicts: dropped Unix Socket Sigma rule (fails concreteness/altitude), replaced T1027→T1205, fixed XLab blog URL to specific article, moved Suricata SIDs to local/custom range 9000101-9000103. -->
 
 ## Executive Summary
 
@@ -62,7 +63,8 @@ This backdoor is Linux-only, targeting servers running CWP. The `cwpsrv` binary 
 
 - **Timestomping (T1070.006):** The installer resets file timestamps on the replaced binary to match the original, hiding the modification from `ls -la` and basic forensic timelines.
 - **Log suppression:** Backdoor-triggered requests are never written to the CWP access log, making HTTP-level detection impossible from server logs alone.
-- **Signature-gated activation (T1027):** The backdoor only activates when the request carries a valid timestamp and cryptographic signature in the `X-Ngx-Integrity` headers, preventing accidental triggering or discovery by scanners sending random headers.
+- **Signature-gated activation (T1205):** The backdoor only activates when the request carries a valid timestamp and cryptographic signature in the `X-Ngx-Integrity` headers, functioning as a traffic signaling mechanism that prevents accidental triggering or discovery by scanners sending random headers.
+<!-- revision: T1027 (Obfuscation) replaced with T1205 (Traffic Signaling) — cryptographic signature gating is access control over C2 activation, not obfuscation. -->
 - **Zero AV detections:** At the time of disclosure, all three artifacts (installer + two binaries) had zero detections on VirusTotal.
 - **Backup deletion:** The installer's backup file (`cwpsrv.prev-*`) may be deleted post-installation to remove evidence of the original binary.
 
@@ -112,7 +114,8 @@ This backdoor is Linux-only, targeting servers running CWP. The `cwpsrv` binary 
 | T1036 | Masquerading | Installer script `cwpsrv_update.sh` disguised as a legitimate CWP version update |
 | T1070.006 | Indicator Removal: Timestomp | Installer resets file timestamps on the replaced binary to match the original |
 | T1505.003 | Server Software Component: Web Shell | Modified `cwpsrv` binary acts as a web shell, executing commands received via HTTP headers |
-| T1027 | Obfuscated Files or Information | Backdoor activation gated behind cryptographic signature verification in custom headers |
+| T1205 | Traffic Signaling | Backdoor activation gated behind cryptographic signature verification in custom headers; acts as a traffic-signaling gate for C2 |
+<!-- revision: T1027→T1205 — signature gating is traffic signaling, not obfuscation. -->
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 commands delivered via HTTPS requests with custom headers to the CWP panel port |
 
 ## Impact Assessment
@@ -164,7 +167,7 @@ If the `X-Ngx-Integrity` string is present or the Unix socket exists, the server
 
 ## Detection Rules
 
-These rules target the CWP backdoor's durable artifacts at PoC/advisory-specific altitude with strict leniency: the installer script name and download server IP (Sigma process creation), the cwpsrv binary path (Sigma file events), the unique backdoor strings in the binary (YARA), and network traffic to the staging IP plus the characteristic HTTP header and URI patterns (Suricata). The one caveat that matters: the `X-Ngx-Integrity` header detection (Suricata SID 2200903) inspects the raw HTTP header buffer and will only fire if traffic to the CWP port is routed through the sensor -- most CWP panels use HTTPS, so TLS inspection or a sensor on the server itself is required.
+These rules target the CWP backdoor's durable artifacts at PoC/advisory-specific altitude with strict leniency: the installer script name and download server IP (Sigma process creation), the cwpsrv binary path (Sigma file events), the unique backdoor strings in the binary (YARA), and network traffic to the staging IP plus the characteristic HTTP header and URI patterns (Suricata). The one caveat that matters: the `X-Ngx-Integrity` header detection (Suricata SID 9000103) inspects the raw HTTP header buffer and will only fire if traffic to the CWP port is routed through the sensor -- most CWP panels use HTTPS, so TLS inspection or a sensor on the server itself is required.
 
 ### Sigma: CWP Backdoor Installer Script Execution
 Detects execution of `cwpsrv_update.sh` or download activity targeting the backdoor staging server `136.0.141[.]71` and the `/static/cwpsrv` URI path.
@@ -180,7 +183,7 @@ description: >-
   legitimate cwpsrv binary with a backdoored version that responds to hidden
   HTTP headers for command execution.
 references:
-  - https://blog.xlab.qianxin.com/
+  - https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/
   - https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html
 author: Actioner
 date: 2026/11/06
@@ -220,7 +223,7 @@ description: >-
   backs up the original as cwpsrv.prev-<timestamp> before dropping the
   backdoored version.
 references:
-  - https://blog.xlab.qianxin.com/
+  - https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/
   - https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html
 author: Actioner
 date: 2026/11/06
@@ -243,41 +246,7 @@ falsepositives:
 level: medium
 ```
 
-### Sigma: CWP Backdoor Unix Socket Inspection
-Detects execution of socket inspection commands searching for the `integrity` keyword, consistent with the XLab-recommended detection check or the backdoor's own `ngx_http_integrity_helper` socket activity.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: altitude=advisory detection command. `sigma check` exit 1 due to offline D3FEND API only. `sigma convert --without-pipeline -t splunk` exit 0 => Image IN ("*/ss","*/netstat") CommandLine="*integrity*"; `-t log_scale` exit 0. Informational level because this rule fires when a defender runs the recommended check as well as when an attacker probes. Medium confidence: the keyword "integrity" in a socket listing is not unique to this backdoor (other software may use it), but in the context of a CWP server it is a strong indicator. -->
-```yaml
-title: CWP Backdoor Unix Socket Detection via ss Command
-id: 3e6f1a7d-4b2c-4d8e-a9f1-5c3d8e2a7b40
-status: experimental
-description: >-
-  Detects execution of socket inspection commands (ss, netstat) combined with
-  the keyword "integrity", consistent with defenders or the backdoor itself
-  interacting with the ngx_http_integrity_helper Unix socket used by the
-  CWP backdoor for command relay.
-references:
-  - https://blog.xlab.qianxin.com/
-  - https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html
-author: Actioner
-date: 2026/11/06
-tags:
-  - attack.t1505.003
-  - attack.t1071.001
-logsource:
-  category: process_creation
-  product: linux
-detection:
-  selection:
-    Image|endswith:
-      - '/ss'
-      - '/netstat'
-    CommandLine|contains: 'integrity'
-  condition: selection
-falsepositives:
-  - Administrators running the recommended XLab detection command
-level: informational
-```
+<!-- revision: DROPPED "Sigma: CWP Backdoor Unix Socket Inspection" — detects defenders running ss/netstat with "integrity" in args, not the backdoor itself; "integrity" is too generic; T1071.001 was misapplied. Fails concreteness and altitude. -->
 
 ### YARA: Backdoored cwpsrv Binary Detection
 Detects the CWP backdoored `cwpsrv` binary by matching both the `X-Ngx-Integrity` custom header string and the `ngx_http_integrity_helper` Unix socket name within an ELF binary, neither of which exists in legitimate CWP builds.
@@ -290,7 +259,7 @@ rule Backdoor_CWP_CWPDoor_Strings
         description = "Detects the CWP (Control Web Panel) backdoored cwpsrv binary by characteristic strings: the X-Ngx-Integrity custom header prefix and the ngx_http_integrity_helper Unix socket name. Both are unique to the backdoor and not present in legitimate CWP builds."
         author = "Actioner"
         date = "2026-11-06"
-        reference = "https://blog.xlab.qianxin.com/"
+        reference = "https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/"
         severity = "critical"
         tlp = "WHITE"
 
@@ -318,7 +287,7 @@ rule Backdoor_CWP_CWPDoor_Installer
         description = "Detects the cwpsrv_update.sh installer script used to deploy the CWP backdoor. Matches on the combination of the download server IP, backdoored binary filenames, and shell script markers."
         author = "Actioner"
         date = "2026-11-06"
-        reference = "https://blog.xlab.qianxin.com/"
+        reference = "https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/"
         severity = "high"
         tlp = "WHITE"
 
@@ -341,12 +310,13 @@ rule Backdoor_CWP_CWPDoor_Installer
 
 ### Suricata: CWP Backdoor Network Detection (3 rules)
 Three rules covering: (1) any traffic to the download server IP `136.0.141[.]71`, (2) HTTP requests to the `/static/cwpsrv` URI path used to download backdoored artifacts, and (3) HTTP requests containing the `X-Ngx-Integrity` header used for backdoor command delivery.
-**Status:** compile ✅ compiles · confidence: high (SID 2200901), high (SID 2200902), medium (SID 2200903)
-<!-- audit: `suricata -T -S /tmp/actioner/cwpdoor.rules -l /tmp/actioner` exit 0, "Configuration provided was successfully loaded. Exiting." All three rules: balanced parentheses, unique SIDs (2200901-2200903), dot-notation sticky buffers (http.uri, http.header), flow directives present, required fields (msg/sid/rev) present. SID 2200901: IP-based rule, high confidence (source-published staging IP). SID 2200902: URI pattern match on /static/cwpsrv, high confidence (unique to this campaign). SID 2200903: header inspection for X-Ngx-Integrity in raw HTTP header buffer, medium confidence because TLS inspection is required to see inside HTTPS traffic to the CWP port; without it the rule is blind. The header name is unique enough to be a strong indicator when visible. -->
+**Status:** compile ✅ compiles · confidence: high (SID 9000101), high (SID 9000102), medium (SID 9000103)
+<!-- audit: `suricata -T -S /tmp/actioner/cwpdoor.rules -l /tmp/actioner` exit 0. SIDs 9000101-9000103 (local/custom range). dot-notation sticky buffers, flow directives, required fields present. SID 9000101: IP-based, high confidence (source-published staging IP). SID 9000102: URI pattern, high confidence (unique to campaign). SID 9000103: header inspection for X-Ngx-Integrity, medium confidence (TLS inspection required for HTTPS). -->
+<!-- revision: SIDs moved from ET reserved range (2200901-2200903) to local/custom range (9000101-9000103). -->
 ```suricata
-alert ip $HOME_NET any -> 136.0.141.71 any (msg:"Actioner - CWP Backdoor Download Server Contact (136.0.141.71)"; flow:to_server; reference:url,blog.xlab.qianxin.com; classtype:trojan-activity; sid:2200901; rev:1; metadata:author Actioner, created_at 2026-11-06;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CWP Backdoor Installer or Binary Download URI"; flow:established,to_server; http.uri; content:"/static/cwpsrv"; fast_pattern; reference:url,blog.xlab.qianxin.com; classtype:trojan-activity; sid:2200902; rev:1; metadata:author Actioner, created_at 2026-11-06;)
-alert http any any -> $HOME_NET any (msg:"Actioner - CWP Backdoor X-Ngx-Integrity Header in HTTP Request"; flow:established,to_server; http.header; content:"X-Ngx-Integrity"; fast_pattern; reference:url,blog.xlab.qianxin.com; classtype:web-application-attack; sid:2200903; rev:1; metadata:author Actioner, created_at 2026-11-06;)
+alert ip $HOME_NET any -> 136.0.141.71 any (msg:"Actioner - CWP Backdoor Download Server Contact (136.0.141.71)"; flow:to_server; reference:url,blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/; classtype:trojan-activity; sid:9000101; rev:1; metadata:author Actioner, created_at 2026-11-06;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - CWP Backdoor Installer or Binary Download URI"; flow:established,to_server; http.uri; content:"/static/cwpsrv"; fast_pattern; reference:url,blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/; classtype:trojan-activity; sid:9000102; rev:1; metadata:author Actioner, created_at 2026-11-06;)
+alert http any any -> $HOME_NET any (msg:"Actioner - CWP Backdoor X-Ngx-Integrity Header in HTTP Request"; flow:established,to_server; http.header; content:"X-Ngx-Integrity"; fast_pattern; reference:url,blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/; classtype:web-application-attack; sid:9000103; rev:1; metadata:author Actioner, created_at 2026-11-06;)
 ```
 
 ## Lessons Learned
@@ -355,7 +325,8 @@ This backdoor demonstrates the danger of trusting update mechanisms that operate
 
 ## Sources
 
-- [QiAnXin XLab Blog](https://blog.xlab.qianxin.com/) — primary research: backdoor discovery, technical analysis, IOCs, and detection commands
+- [QiAnXin XLab — CWPdoor: The Invisible Backdoor Living Inside Control Web Panel](https://blog.xlab.qianxin.com/cwpdoor-the-invisible-backdoor-living-inside-control-web-panel/) — primary research: backdoor discovery, technical analysis, IOCs, and detection commands
+<!-- revision: replaced root blog URL with specific article link. -->
 - [The Hacker News — Hackers Hide Linux Backdoor in Control Web Panel](https://thehackernews.com/2026/11/hackers-hide-linux-backdoor-in-control.html) — public disclosure coverage, corroborates IOCs and technical details
 
 ---
