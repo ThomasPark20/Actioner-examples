@@ -1,0 +1,26 @@
+title: cPGuard Supply Chain Attack - Cron Persistence via i93677
+id: 44aaa84c-84eb-4750-ab49-079d4a276102
+status: experimental
+description: >
+    Detects creation of the malicious cron job /etc/cron.d/i93677 and the
+    associated persistence directory /var/tmp/.i93677/ dropped by the cPGuard
+    supply chain attack for maintaining access on compromised Linux servers.
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://manage.opsshield.com
+author: Actioner
+date: 2026-11-06
+tags:
+    - attack.t1053.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_cron:
+        TargetFilename|endswith: '/cron.d/i93677'
+    selection_persist_dir:
+        TargetFilename|contains: '/var/tmp/.i93677/'
+    condition: selection_cron or selection_persist_dir
+falsepositives:
+    - Unlikely. The cron job name and hidden directory are specific to this campaign.
+level: critical
