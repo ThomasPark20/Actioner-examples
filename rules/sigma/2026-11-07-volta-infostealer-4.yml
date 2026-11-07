@@ -1,0 +1,26 @@
+title: VOLTA Infostealer - Process Self-Deletion After Credential Harvest
+id: d4f6a1b5-0c7e-4d2a-e9f4-5a1b8c3d6e0f
+status: experimental
+description: >
+    Detects a process deleting its own executable, a self-defense technique
+    used by VOLTA infostealer to remove forensic evidence after execution
+    completes.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner CTI
+date: 2026-11-07
+tags:
+    - attack.defense_evasion
+    - attack.t1070.004
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\9BY0tjwOc3ut.exe'
+            - '\yLP9m5J3i2Aw.exe'
+    condition: selection
+falsepositives:
+    - Unlikely; these filenames are unique to known VOLTA samples
+level: critical

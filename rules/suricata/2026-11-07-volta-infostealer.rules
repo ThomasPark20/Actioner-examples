@@ -1,0 +1,19 @@
+# VOLTA Infostealer - Suricata Rules
+# Reference: https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+# Author: Actioner CTI
+# Date: 2026-11-07
+
+# Rule 1: Detect OpenRouter API chat completions request from non-browser process
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - OpenRouter API Chat Completions Request"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/v1/chat/completions"; http.host; content:"openrouter.ai"; classtype:trojan-activity; sid:2026110801; rev:1;)
+
+# Rule 2: Detect VOLTA LLM model string in HTTP request body
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - LLM Model String in Request Body"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.request_body; content:"anthropic/claude-opus"; classtype:trojan-activity; sid:2026110802; rev:1;)
+
+# Rule 3: Detect VOLTA archive filename in HTTP upload
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - Exfiltration Archive in Upload"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"volta_dox.zip"; nocase; classtype:trojan-activity; sid:2026110803; rev:1;)
+
+# Rule 4: Detect DNS query for OpenRouter (broader coverage for TLS-encrypted traffic)
+alert dns $HOME_NET any -> any any (msg:"VOLTA Infostealer - DNS Query for OpenRouter AI API"; dns.query; content:"openrouter.ai"; nocase; classtype:trojan-activity; sid:2026110804; rev:1;)
+
+# Rule 5: Detect VOLTA zip filename patterns in any TCP traffic
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - Staged Exfil Archive volta_log.zip"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"volta_log.zip"; nocase; classtype:trojan-activity; sid:2026110805; rev:1;)

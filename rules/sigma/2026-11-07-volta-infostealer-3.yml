@@ -1,0 +1,36 @@
+title: VOLTA Infostealer - Debug Log and Exfil Archive Creation
+id: c3e5f0a4-9b6d-4c1f-d8e3-4f0a7b2c5d9e
+status: experimental
+description: >
+    Detects creation of files matching VOLTA infostealer artifact naming
+    conventions, including its debug log (volta_debug.txt), victim report
+    files, and staged exfiltration archives (volta_log.zip, volta_dox.zip,
+    volta_doxnet.zip).
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner CTI
+date: 2026-11-07
+tags:
+    - attack.collection
+    - attack.t1560.001
+    - attack.exfiltration
+    - attack.t1567
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_debug:
+        TargetFilename|endswith: '\volta_debug.txt'
+    selection_archives:
+        TargetFilename|endswith:
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    selection_reports:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    condition: selection_debug or selection_archives or selection_reports
+falsepositives:
+    - Unlikely; these filenames are specific to VOLTA infostealer
+level: critical

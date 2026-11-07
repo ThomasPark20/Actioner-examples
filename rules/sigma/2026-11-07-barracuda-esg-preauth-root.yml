@@ -1,0 +1,42 @@
+title: Barracuda ESG Pre-Auth Root Chain Exploitation Attempt (CVE-2026-116606 / CVE-2026-111560)
+id: a3f7c1e2-9b04-4d8e-b6a1-2c5d8f0e3a7b
+status: experimental
+description: >
+    Detects HTTP POST requests to the Barracuda ESG CGI endpoint /cgi-mod/index.cgi
+    containing password change parameters (new_password, retype_password) or backup
+    upload parameters (pu_bayesian_upload) that indicate exploitation of the pre-auth
+    authorization bypass (CVE-2026-116606) and command injection (CVE-2026-111560) chain.
+references:
+    - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
+    - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
+    - https://github.com/watchtowrlabs/watchTowr-vs-Barracuda-RCE-CVE-2026-116606-CVE-2026-111560
+author: Actioner CTI Pipeline
+date: 2026-11-07
+modified: 2026-11-07
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - attack.execution
+    - attack.t1059.004
+    - attack.privilege_escalation
+    - attack.t1068
+    - cve.2026-116606
+    - cve.2026-111560
+logsource:
+    category: webserver
+    service: barracuda
+detection:
+    selection_endpoint:
+        cs-uri-stem|contains: '/cgi-mod/index.cgi'
+        cs-method: 'POST'
+    selection_auth_bypass:
+        cs-body|contains|all:
+            - 'new_password'
+            - 'retype_password'
+    selection_backup_upload:
+        cs-body|contains: 'pu_bayesian_upload'
+    condition: selection_endpoint and (selection_auth_bypass or selection_backup_upload)
+falsepositives:
+    - Legitimate administrator password changes via the Barracuda ESG web interface (should correlate with authenticated sessions)
+    - Legitimate backup restore operations performed by administrators
+level: high

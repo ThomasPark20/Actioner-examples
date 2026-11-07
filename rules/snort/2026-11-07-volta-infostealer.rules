@@ -1,0 +1,16 @@
+# VOLTA Infostealer - Snort Rules
+# Reference: https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+# Author: Actioner CTI
+# Date: 2026-11-07
+
+# Rule 1: Detect OpenRouter API chat completions request (potential VOLTA C2/exfil)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - OpenRouter API Chat Completions Request"; flow:established,to_server; content:"POST"; http_method; content:"/api/v1/chat/completions"; http_uri; content:"openrouter.ai"; http_header; classtype:trojan-activity; sid:2026110701; rev:1;)
+
+# Rule 2: Detect VOLTA LLM model string in HTTP payload (anthropic/claude-opus model reference)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - LLM Model Identifier in HTTP Body"; flow:established,to_server; content:"POST"; http_method; content:"anthropic/claude-opus"; http_client_body; content:"openrouter.ai"; http_header; classtype:trojan-activity; sid:2026110702; rev:1;)
+
+# Rule 3: Detect VOLTA victim assessment output section headers in HTTP traffic
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - AI Assessment Output Markers"; flow:established,to_server; content:"WHAT THEY|27|RE WORTH"; content:"THEIR OPSEC"; distance:0; classtype:trojan-activity; sid:2026110703; rev:1;)
+
+# Rule 4: Detect VOLTA exfiltration archive filenames in HTTP traffic
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - Exfiltration Archive Name in Traffic"; flow:established,to_server; content:"volta_dox.zip"; nocase; classtype:trojan-activity; sid:2026110704; rev:1;)
