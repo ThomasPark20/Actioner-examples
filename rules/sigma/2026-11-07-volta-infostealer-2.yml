@@ -1,32 +1,26 @@
-title: VOLTA Infostealer - Suspicious OpenRouter API Connection
-id: b2d4e9f3-8a5c-4b0e-c7d2-3e9f6a1b4c8d
+title: VOLTA Infostealer - Known Sample Filename Deletion
+id: d4f6a1b5-0c7e-4d2a-e9f4-5a1b8c3d6e0f
 status: experimental
 description: >
-    Detects outbound network connections to the OpenRouter AI API from
-    non-browser processes. VOLTA infostealer uses OpenRouter to send stolen
-    victim data to LLMs for monetization assessment.
+    Detects deletion of files matching known VOLTA infostealer sample names.
+    Coverage is limited to two observed filenames; the builder randomizes names
+    per build, so future samples will not match.
 references:
     - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
 author: Actioner CTI
 date: 2026-11-07
 tags:
-    - attack.exfiltration
-    - attack.t1567
+    - attack.t1070.004
 logsource:
-    category: dns_query
+    category: file_delete
     product: windows
 detection:
     selection:
-        QueryName|endswith: 'openrouter.ai'
-    filter_main_browser:
-        Image|endswith:
-            - '\chrome.exe'
-            - '\firefox.exe'
-            - '\msedge.exe'
-            - '\brave.exe'
-            - '\opera.exe'
-    condition: selection and not filter_main_browser
+        TargetFilename|endswith:
+            - '\9BY0tjwOc3ut.exe'
+            - '\yLP9m5J3i2Aw.exe'
+    condition: selection
 falsepositives:
-    - Legitimate AI-powered desktop applications using OpenRouter
-    - Developer tools and IDE extensions calling OpenRouter API
-level: medium
+    - Unlikely; these filenames are unique to known VOLTA samples
+level: high
+<!-- revision: retitled from "Process Self-Deletion After Credential Harvest" (rule does not verify self-deletion); level critical->high; confidence low (builder randomizes filenames) -->

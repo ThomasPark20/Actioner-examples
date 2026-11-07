@@ -1,8 +1,8 @@
-# VOLTA Infostealer (VOLTA-AUTODOXER) -- DRAFT Technical Analysis
+# VOLTA Infostealer (VOLTA-AUTODOXER) -- Technical Analysis
 
 | Field | Value |
 |---|---|
-| **Report Status** | DRAFT |
+| **Report Status** | FINAL |
 | **Date** | 2026-11-07 |
 | **Threat** | VOLTA / VOLTA-AUTODOXER Infostealer |
 | **Severity** | High |
@@ -236,7 +236,7 @@ The LLM integration allows operators to efficiently triage large volumes of stol
 
 1. **Headless Chrome from non-standard parents:** Alert on `chrome.exe --headless` launched by processes other than Chrome itself or Chrome updater
 2. **VOLTA file artifacts:** Hunt for `volta_debug.txt`, `volta_*.zip`, `Identity_Report.txt`, `AI_Analysis.txt` on endpoints
-3. **OpenRouter API traffic from non-browser processes:** Correlate DNS queries or TLS connections to `openrouter.ai` with process telemetry
+3. **OpenRouter API traffic from non-browser processes:** Correlate DNS queries or TLS connections to `openrouter[.]ai` with process telemetry
 4. **Known sample hash:** Deploy SHA-256 `57ef4242666d78c50df145b34023df564f0fad38812d6a580e66433d427e2279`
 5. **Self-deleting executables:** Monitor for processes that delete their own binary after execution
 
@@ -248,8 +248,8 @@ The LLM integration allows operators to efficiently triage large volumes of stol
 4. **Migrate cryptocurrency** from any wallet whose seed phrase was stored in plaintext or on the affected system
 5. **Revoke and regenerate SSH keys** and cloud API credentials
 6. **Change Wi-Fi passwords** for all networks the affected host connected to
-7. **Implement application control** to block unknown executables and restrict headless Chrome launches
-8. **Deploy egress monitoring** tied to process identity to detect unauthorized API calls to AI services and messaging platforms
+7. **Implement application control** to block unknown executables and restrict headless Chrome launches (where supported by endpoint tooling)
+8. **Deploy egress monitoring** tied to process identity to detect unauthorized API calls to AI services and messaging platforms (where supported by endpoint tooling)
 
 ---
 

@@ -53,7 +53,7 @@ rule VOLTA_Infostealer_APIConfig
         uint16(0) == 0x5A4D and
         filesize < 50MB and
         (
-            $api_endpoint or
+            ($api_endpoint and 1 of ($model*, $persona)) or
             (2 of ($model*) and any of ($refusal*)) or
             ($persona and any of ($model*))
         )

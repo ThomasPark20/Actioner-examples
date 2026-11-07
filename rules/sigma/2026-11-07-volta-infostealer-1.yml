@@ -1,32 +1,36 @@
-title: VOLTA Infostealer - Headless Chrome ABE Bypass
-id: a1f3c8d2-7e4b-4a9f-b6c1-2d8e5f0a3b7c
+title: VOLTA Infostealer - Debug Log and Exfil Archive Creation
+id: c3e5f0a4-9b6d-4c1f-d8e3-4f0a7b2c5d9e
 status: experimental
 description: >
-    Detects Chrome launched in headless mode by a non-standard parent process,
-    a technique used by VOLTA infostealer to bypass App-Bound Encryption and
-    extract browser credentials.
+    Detects creation of files matching VOLTA infostealer artifact naming
+    conventions, including its debug log (volta_debug.txt) and staged
+    exfiltration archives (volta_log.zip, volta_dox.zip, volta_doxnet.zip).
+    Generic report filenames (Identity_Report.txt, AI_Analysis.txt) fire only
+    when co-occurring with a volta-prefixed artifact.
 references:
     - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
 author: Actioner CTI
 date: 2026-11-07
 tags:
-    - attack.credential_access
-    - attack.t1555.003
+    - attack.t1560.001
+    - attack.t1567
 logsource:
-    category: process_creation
+    category: file_event
     product: windows
 detection:
-    selection:
-        Image|endswith: '\chrome.exe'
-        CommandLine|contains: '--headless'
-    filter_main_parent:
-        ParentImage|endswith:
-            - '\chrome.exe'
-            - '\GoogleUpdate.exe'
-            - '\setup.exe'
-    condition: selection and not filter_main_parent
+    selection_debug:
+        TargetFilename|endswith: '\volta_debug.txt'
+    selection_archives:
+        TargetFilename|endswith:
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    selection_reports:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    condition: selection_debug or selection_archives or (selection_reports and (selection_debug or selection_archives))
 falsepositives:
-    - Legitimate automated browser testing frameworks
-    - CI/CD pipelines using headless Chrome
-    - Web scraping tools run by administrators
+    - Unlikely for volta-prefixed filenames; generic report names require co-occurrence
 level: high
+<!-- revision: level critical->high; selection_reports now requires co-occurrence with volta-prefixed artifacts per critic finding (generic names alone no longer fire) -->
