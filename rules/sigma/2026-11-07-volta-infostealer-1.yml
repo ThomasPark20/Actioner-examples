@@ -33,4 +33,4 @@ detection:
 falsepositives:
     - Unlikely for volta-prefixed filenames; generic report names require co-occurrence
 level: high
-<!-- revision: level critical->high; selection_reports now requires co-occurrence with volta-prefixed artifacts per critic finding (generic names alone no longer fire) -->
+# revision: level critical->high; selection_reports now requires co-occurrence with volta-prefixed artifacts

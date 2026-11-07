@@ -255,140 +255,155 @@ The LLM integration allows operators to efficiently triage large volumes of stol
 
 ## Detection Rules
 
+These detections target VOLTA-specific file artifacts, binary strings, and network exfiltration patterns at PoC/advisory-specific altitude. All HTTP-content network rules require TLS inspection; without it, only DNS-based detection applies (none retained -- see dropped-rule notes). Compiles does not equal fires -- verify in your pipeline.
+
+<!-- revision: 9 rules dropped (2 Sigma, 4 Snort, 3 Suricata) for excessive FP on legitimate services or TTP-level breadth. Remaining rules tightened per critic verdict. -->
+
 ### Sigma Rules
 
-#### Rule 1: VOLTA Infostealer -- Headless Chrome ABE Bypass
+<!-- revision: dropped Sigma #1 "Headless Chrome ABE Bypass" -- behavioral/TTP, fires on any headless Chrome from non-standard parent (Selenium, Puppeteer, CI/CD); not artifact-specific at strict altitude. -->
+<!-- revision: dropped Sigma #2 "Suspicious OpenRouter API Connection" -- DNS query to legitimate public API; any dev tool or AI app calling OpenRouter fires this; filter excludes only five browsers. -->
+
+#### Rule 1: VOLTA Infostealer -- Debug Log and Exfil Archive Creation
+Detects creation of VOLTA-prefixed file artifacts (`volta_debug.txt`, `volta_*.zip`); generic report names fire only when co-occurring with a volta-prefixed file.
+**Status:** compile ✅ compiles (Splunk + LogScale convert exit 0) · confidence: high (volta-prefixed filenames)
+<!-- audit: sigma check fails on MITRE ATT&CK network fetch (403), not rule syntax. splunk/log_scale convert exit 0. Level lowered critical->high. selection_reports now conjunctive with selection_debug|selection_archives to prevent generic-name-only firing. -->
 - **File:** `rules/sigma/2026-11-07-volta-infostealer-1.yml`
-- **Compile Status:** ✅ Compiles (converts to Splunk and LogScale; `sigma check` failed due to network connectivity to MITRE ATT&CK, not rule syntax)
-- **Confidence:** High
-- **MITRE:** T1555.003
-- **Audit Comment:** Behavioral rule. May fire on legitimate browser automation (Selenium, Puppeteer). Tune `filter_main_parent` to include approved testing frameworks.
 
 ```yaml
+title: VOLTA Infostealer - Debug Log and Exfil Archive Creation
+id: c3e5f0a4-9b6d-4c1f-d8e3-4f0a7b2c5d9e
+status: experimental
+description: >
+    Detects creation of files matching VOLTA infostealer artifact naming
+    conventions, including its debug log (volta_debug.txt) and staged
+    exfiltration archives (volta_log.zip, volta_dox.zip, volta_doxnet.zip).
+    Generic report filenames (Identity_Report.txt, AI_Analysis.txt) fire only
+    when co-occurring with a volta-prefixed artifact.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner CTI
+date: 2026-11-07
+tags:
+    - attack.t1560.001
+    - attack.t1567
+logsource:
+    category: file_event
+    product: windows
 detection:
-    selection:
-        Image|endswith: '\chrome.exe'
-        CommandLine|contains: '--headless'
-    filter_main_parent:
-        ParentImage|endswith:
-            - '\chrome.exe'
-            - '\GoogleUpdate.exe'
-            - '\setup.exe'
-    condition: selection and not filter_main_parent
+    selection_debug:
+        TargetFilename|endswith: '\volta_debug.txt'
+    selection_archives:
+        TargetFilename|endswith:
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    selection_reports:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    condition: selection_debug or selection_archives or (selection_reports and (selection_debug or selection_archives))
+falsepositives:
+    - Unlikely for volta-prefixed filenames; generic report names require co-occurrence
+level: high
 ```
 
-#### Rule 2: VOLTA Infostealer -- Suspicious OpenRouter API Connection
+#### Rule 2: VOLTA Infostealer -- Known Sample Filename Deletion
+Detects deletion of two known VOLTA sample filenames; builder randomizes names so future-build coverage is near-zero.
+**Status:** compile ✅ compiles (Splunk + LogScale convert exit 0) · confidence: low
+<!-- audit: sigma check fails on MITRE ATT&CK network fetch (403), not rule syntax. splunk/log_scale convert exit 0. Retitled from "Process Self-Deletion After Credential Harvest" (rule does not verify self-deletion). Level critical->high. Confidence low -- exact IOC with no future-build coverage. -->
 - **File:** `rules/sigma/2026-11-07-volta-infostealer-2.yml`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** Medium
-- **MITRE:** T1567
-- **Audit Comment:** DNS-based rule. OpenRouter is a legitimate service; this rule will fire on non-browser processes querying the domain. Correlate with other VOLTA indicators before escalating. Consider allowlisting known AI-powered applications.
 
 ```yaml
+title: VOLTA Infostealer - Known Sample Filename Deletion
+id: d4f6a1b5-0c7e-4d2a-e9f4-5a1b8c3d6e0f
+status: experimental
+description: >
+    Detects deletion of files matching known VOLTA infostealer sample names.
+    Coverage is limited to two observed filenames; the builder randomizes names
+    per build, so future samples will not match.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner CTI
+date: 2026-11-07
+tags:
+    - attack.t1070.004
+logsource:
+    category: file_delete
+    product: windows
 detection:
     selection:
-        QueryName|endswith: 'openrouter.ai'
-    filter_main_browser:
-        Image|endswith:
-            - '\chrome.exe'
-            - '\firefox.exe'
-            - '\msedge.exe'
-            - '\brave.exe'
-            - '\opera.exe'
-    condition: selection and not filter_main_browser
+        TargetFilename|endswith:
+            - '\9BY0tjwOc3ut.exe'
+            - '\yLP9m5J3i2Aw.exe'
+    condition: selection
+falsepositives:
+    - Unlikely; these filenames are unique to known VOLTA samples
+level: high
 ```
-
-#### Rule 3: VOLTA Infostealer -- Debug Log and Exfil Archive Creation
-- **File:** `rules/sigma/2026-11-07-volta-infostealer-3.yml`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **MITRE:** T1560.001, T1567
-- **Audit Comment:** Advisory-specific filenames with very low false positive potential. The `volta_debug.txt` artifact is distinctive. The `Identity_Report.txt` and `AI_Analysis.txt` names are more generic; consider requiring co-occurrence with other VOLTA indicators in production.
-
-#### Rule 4: VOLTA Infostealer -- Known Sample Filename Deletion
-- **File:** `rules/sigma/2026-11-07-volta-infostealer-4.yml`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High (for known samples); Low (coverage of future builds)
-- **MITRE:** T1070.004
-- **Audit Comment:** Targets only the two known VOLTA filenames. Builder-generated samples will use different names. Supplement with behavioral rules.
 
 ### YARA Rules
 
 #### Rule 1: VOLTA_Infostealer_Strings
-- **File:** `rules/yara/2026-11-07-volta-infostealer.yar`
-- **Compile Status:** ✅ Compiles (`yarac` exit 0)
-- **Confidence:** High
-- **Audit Comment:** Matches on VOLTA-specific artifact names and report section headers. PE header check (`MZ`) and filesize cap reduce false positives. The "WALLET VAULTS CRACKED" string alone is high-confidence.
+Detects VOLTA by characteristic artifact names and report section headers in PE binaries.
+**Status:** compile ✅ compiles (`yarac` exit 0) · confidence: high
+<!-- audit: yarac exit 0. PE header + filesize cap. "WALLET VAULTS CRACKED" alone is high-confidence. No changes from draft. -->
 
 #### Rule 2: VOLTA_Infostealer_APIConfig
-- **File:** `rules/yara/2026-11-07-volta-infostealer.yar`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **Audit Comment:** Matches on OpenRouter API endpoint and LLM model identifier strings specific to VOLTA's fallback chain. Unlikely to match legitimate software. The combination of 2+ model strings with refusal detection phrases is distinctive.
+Detects VOLTA by OpenRouter API config and LLM model strings; `$api_endpoint` now requires co-occurrence with a model or persona string.
+**Status:** compile ✅ compiles (`yarac` exit 0) · confidence: high
+<!-- audit: yarac exit 0. Fixed: $api_endpoint alone previously matched any binary embedding the OpenRouter SDK. Now requires co-occurrence with $model* or $persona. Audit comment "unlikely to match legitimate software" corrected. -->
+<!-- revision: condition tightened -- $api_endpoint requires 1 of ($model*, $persona) to co-occur -->
 
 #### Rule 3: VOLTA_Infostealer_WiFiHarvest
-- **File:** `rules/yara/2026-11-07-volta-infostealer.yar`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** Medium
-- **Audit Comment:** WlanGetProfileList is used by legitimate Wi-Fi management tools. This rule requires co-occurrence with VOLTA-specific strings to reduce false positives. Medium confidence due to the broader use of the API.
+Detects VOLTA Wi-Fi harvesting by WlanGetProfileList co-occurring with volta-prefixed strings.
+**Status:** compile ✅ compiles (`yarac` exit 0) · confidence: medium
+<!-- audit: yarac exit 0. WlanGetProfileList used by legitimate Wi-Fi tools; volta-string co-occurrence reduces FP. No changes from draft. -->
+
+All YARA rules in: `rules/yara/2026-11-07-volta-infostealer.yar`
 
 ### Snort Rules
 
-#### Rule 1: VOLTA -- OpenRouter API Chat Completions Request (SID 2026110701)
-- **File:** `rules/snort/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles (Snort 2.9.20 validation passed)
-- **Confidence:** Medium
-- **Audit Comment:** Detects POST to OpenRouter chat completions. Will fire on any application using the OpenRouter API. Best deployed as a hunt/alert rule, not a block. Correlate with other VOLTA network indicators.
+> **TLS caveat:** VOLTA exfiltrates to Telegram over HTTPS. All HTTP-content Snort rules below require TLS inspection to be effective; without it they will not fire on encrypted exfiltration traffic.
 
-#### Rule 2: VOLTA -- LLM Model Identifier in HTTP Body (SID 2026110702)
-- **File:** `rules/snort/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** Medium
-- **Audit Comment:** Requires both the "anthropic/claude-opus" model string in the body and "openrouter.ai" in headers. Higher specificity than Rule 1, but legitimate OpenRouter users may also specify this model.
+<!-- revision: dropped SID 2026110701 "OpenRouter API Chat Completions" -- generic OpenRouter detection; any app using the service fires it; TLS blind. -->
+<!-- revision: dropped SID 2026110702 "LLM Model Identifier in HTTP Body" -- not VOLTA-exclusive; legitimate OpenRouter users specify the same model; TLS blind. -->
 
-#### Rule 3: VOLTA -- AI Assessment Output Markers (SID 2026110703)
-- **File:** `rules/snort/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **Audit Comment:** Matches VOLTA's unique assessment section headers in traffic. Very low false positive rate. Note: if VOLTA uses TLS (likely), this rule requires TLS inspection or will only catch unencrypted exfil.
+#### Rule 1: VOLTA -- AI Assessment Output Markers (SID 2026110703)
+Detects VOLTA's unique assessment section headers ("WHAT THEY'RE WORTH" + "THEIR OPSEC") co-occurring in outbound traffic. Requires TLS inspection.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: Snort 2.9.20. Content match on two VOLTA-specific section headers. Downgraded from high to medium: rule is VOLTA-specific but non-functional without TLS inspection (Telegram HTTPS). -->
+<!-- revision: confidence high->medium (TLS blindness caveat) -->
 
-#### Rule 4: VOLTA -- Exfiltration Archive Name (SID 2026110704)
-- **File:** `rules/snort/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **Audit Comment:** Matches "volta_dox.zip" in outbound traffic. Highly specific. Requires TLS inspection for encrypted exfil channels.
+#### Rule 2: VOLTA -- Exfiltration Archive Name (SID 2026110704)
+Detects "volta_dox.zip" in outbound HTTP traffic. Requires TLS inspection.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: Snort 2.9.20. Highly specific filename. Downgraded from high to medium: non-functional without TLS inspection. -->
+<!-- revision: confidence high->medium (TLS blindness caveat) -->
+
+All Snort rules in: `rules/snort/2026-11-07-volta-infostealer.rules`
 
 ### Suricata Rules
 
-#### Rule 1: VOLTA -- OpenRouter API Chat Completions (SID 2026110801)
-- **File:** `rules/suricata/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles (Suricata 7.0.3 validation passed)
-- **Confidence:** Medium
-- **Audit Comment:** Uses Suricata HTTP sticky buffers. Same correlation caveat as Snort Rule 1.
+> **TLS caveat:** VOLTA exfiltrates to Telegram over HTTPS. All HTTP-content Suricata rules below require TLS inspection to be effective.
 
-#### Rule 2: VOLTA -- LLM Model String in Request Body (SID 2026110802)
-- **File:** `rules/suricata/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** Medium
-- **Audit Comment:** Matches model identifier in HTTP request body via sticky buffer. Higher fidelity than DNS-only detection.
+<!-- revision: dropped SID 2026110801 "OpenRouter API Chat Completions" -- generic OpenRouter detection; not VOLTA-specific. -->
+<!-- revision: dropped SID 2026110802 "LLM Model String in Request Body" -- not VOLTA-exclusive; legitimate OpenRouter users specify the same model. -->
+<!-- revision: dropped SID 2026110804 "DNS Query for OpenRouter" -- bare DNS query to legitimate service; misclassified as trojan-activity. -->
 
-#### Rule 3: VOLTA -- Exfiltration Archive in Upload (SID 2026110803)
-- **File:** `rules/suricata/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **Audit Comment:** Matches "volta_dox.zip" in HTTP request body. Highly specific to VOLTA exfiltration.
+#### Rule 1: VOLTA -- Exfiltration Archive volta_dox.zip in Upload (SID 2026110803)
+Detects "volta_dox.zip" in HTTP POST request body. Requires TLS inspection.
+**Status:** compile ✅ compiles (Suricata 7.0.3 exit 0) · confidence: medium
+<!-- audit: suricata -T exit 0. VOLTA-specific filename. Downgraded from high to medium: non-functional without TLS inspection (Telegram HTTPS). -->
+<!-- revision: confidence high->medium (TLS blindness caveat); msg prefix corrected to "Actioner - " per spec -->
 
-#### Rule 4: VOLTA -- DNS Query for OpenRouter (SID 2026110804)
-- **File:** `rules/suricata/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** Low
-- **Audit Comment:** Broad DNS-level detection. OpenRouter is a legitimate service. Use as a hunt signal, not a detection. Must be correlated with endpoint telemetry.
+#### Rule 2: VOLTA -- Staged Exfil Archive volta_log.zip (SID 2026110805)
+Detects "volta_log.zip" in HTTP POST request body. Requires TLS inspection.
+**Status:** compile ✅ compiles (Suricata 7.0.3 exit 0) · confidence: medium
+<!-- audit: suricata -T exit 0. VOLTA-specific initial exfil archive name. Downgraded from high to medium: non-functional without TLS inspection. -->
+<!-- revision: confidence high->medium (TLS blindness caveat); msg prefix corrected to "Actioner - " per spec -->
 
-#### Rule 5: VOLTA -- Staged Exfil Archive volta_log.zip (SID 2026110805)
-- **File:** `rules/suricata/2026-11-07-volta-infostealer.rules`
-- **Compile Status:** ✅ Compiles
-- **Confidence:** High
-- **Audit Comment:** Matches the initial exfiltration archive name. Same TLS inspection requirement applies.
+All Suricata rules in: `rules/suricata/2026-11-07-volta-infostealer.rules`
 
 ---
 
@@ -406,4 +421,4 @@ detection:
 
 ---
 
-*Report generated 2026-11-07 by Actioner CTI pipeline. DRAFT -- pending peer review.*
+*Report generated 2026-11-07 by Actioner CTI pipeline. Revised 2026-11-07 after peer review.*

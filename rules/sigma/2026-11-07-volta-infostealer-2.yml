@@ -23,4 +23,4 @@ detection:
 falsepositives:
     - Unlikely; these filenames are unique to known VOLTA samples
 level: high
-<!-- revision: retitled from "Process Self-Deletion After Credential Harvest" (rule does not verify self-deletion); level critical->high; confidence low (builder randomizes filenames) -->
+# revision: retitled from "Process Self-Deletion After Credential Harvest"; level critical->high; confidence low
