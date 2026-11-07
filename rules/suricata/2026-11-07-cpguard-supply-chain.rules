@@ -9,14 +9,11 @@ alert ip any any -> 94.183.188.91 any (msg:"CPGUARD SUPPLY-CHAIN Outbound connec
 
 alert ip 94.183.188.91 any -> any any (msg:"CPGUARD SUPPLY-CHAIN Inbound connection from known attacker IP 94.183.188.91"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110802; rev:1;)
 
-# Detect fake cPGuard User-Agent used by the attacker
-alert http any any -> any any (msg:"CPGUARD SUPPLY-CHAIN Fake cPGuard 5.88.11 User-Agent"; flow:to_server,established; http.user_agent; content:"cPGuard/5.88.11"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110803; rev:1;)
+# Detect fake cPGuard User-Agent paired with attacker IP (revision: added destination IP constraint; legitimate cPGuard 5.88.11 installations produce the same UA; downgraded to Low)
+alert http any any -> 94.183.188.91 any (msg:"CPGUARD SUPPLY-CHAIN Fake cPGuard 5.88.11 User-Agent to attacker IP"; flow:to_server,established; http.user_agent; content:"cPGuard/5.88.11"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110803; rev:2;)
 
-# Detect exfiltration via _rx.php endpoints
-alert http any any -> any any (msg:"CPGUARD SUPPLY-CHAIN Exfiltration via _rx.php endpoint"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"_rx.php"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110804; rev:1;)
+# DROPPED: SID 2026110804 (_rx.php exfiltration endpoint) - too generic; any PHP app with a receive/reaction endpoint matches. Not production-ready under strict leniency.
+# DROPPED: SID 2026110806 (loot.tgz in URI) - "loot.tgz" is common in gaming, CTF, and pentesting contexts. Not distinctive enough for production use.
 
 # Detect cpguard malicious update script name in HTTP traffic
 alert http any any -> any any (msg:"CPGUARD SUPPLY-CHAIN Malicious update script download cpguard-v58812-i91511"; flow:to_server,established; http.uri; content:"cpguard-v58812-i91511"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110805; rev:1;)
-
-# Detect loot.tgz exfiltration
-alert http any any -> any any (msg:"CPGUARD SUPPLY-CHAIN Exfiltration of loot.tgz archive"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"loot.tgz"; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; classtype:trojan-activity; sid:2026110806; rev:1;)

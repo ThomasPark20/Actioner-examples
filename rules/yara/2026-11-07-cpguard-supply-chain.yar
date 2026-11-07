@@ -73,6 +73,7 @@ rule CPGuard_Backdoor_Shell
         all of them
 }
 
+/* revision: added ELF magic check and raised threshold from 2-of to 3-of; downgraded confidence to Medium per critic (individual strings like "defunct" are common) */
 rule CPGuard_GSocket_Backdoor
 {
     meta:
@@ -80,7 +81,7 @@ rule CPGuard_GSocket_Backdoor
         author = "Actioner CTI"
         date = "2026-11-07"
         reference = "https://opsshield.com/notice/security-incident-disclosure-servermanage.html"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $service_name = "defunct.service" ascii
@@ -89,7 +90,8 @@ rule CPGuard_GSocket_Backdoor
         $fake_process = "slub_flushwq" ascii
 
     condition:
-        2 of them
+        uint32(0) == 0x464C457F and  /* ELF magic */
+        3 of them
 }
 
 rule CPGuard_Go_Implant

@@ -1,6 +1,6 @@
 # cPGuard Update Channel Supply Chain Attack
 
-**Report Status:** DRAFT  
+**Report Status:** FINAL  
 **Date:** 2026-11-07  
 **TLP:** CLEAR  
 **Author:** Actioner CTI  
@@ -278,9 +278,9 @@ The attack achieved root-level access on approximately 2,950 servers through a t
 
 | Rule Title | Compile Status | Confidence | Notes |
 |---|---|---|---|
-| cPGuard Supply Chain Attack - Malicious Update Script Artifacts | ✅ compiles | **High** | File-event detection for all known malicious file paths including customer-side and infrastructure artifacts. Very low false-positive risk due to highly specific paths. |
+| cPGuard Supply Chain Attack - Malicious Update Script Artifacts | ✅ compiles | **High** | File-event detection for all known malicious file paths. Note: `/etc/profile.d/gateway.sh` and `/usr/bin/defunct` are individually less distinctive; gateway.sh could be a legitimate network-config script. |
 | cPGuard Supply Chain Attack - Malicious Script Execution | ✅ compiles | **High** | Process-creation detection for malicious script names and disguised implant processes. |
-| cPGuard Supply Chain Attack - Credential Harvesting Behavior | ✅ compiles | **Medium** | Behavioral detection combining /etc/shadow, SSH key, or MySQL credential access with staging directory activity. May trigger on legitimate security auditing tools that read /etc/shadow while writing to /var/tmp. |
+| cPGuard Supply Chain Attack - Credential Harvesting Behavior | ✅ compiles | **Medium** | Behavioral detection combining /etc/shadow, SSH key, or MySQL credential access with staging directory activity. **Config-dependent:** requires auditd (or equivalent) configured to log file-read events; most Linux deployments lack this out of the box. |
 
 **Validation:** Successfully converted to Splunk and LogScale via `sigma convert --without-pipeline`. The `sigma check` command failed due to inability to fetch MITRE ATT&CK data in the validation environment (network restriction), not due to rule syntax errors.
 
@@ -294,7 +294,7 @@ The attack achieved root-level access on approximately 2,950 servers through a t
 |---|---|---|---|
 | CPGuard_Malicious_Update_Script | ✅ compiles | **High** | Detects the malicious shell scripts by script names, file paths, and credential harvesting patterns. Requires shebang header. |
 | CPGuard_Backdoor_Shell | ✅ compiles | **High** | Detects the setuid-root backdoor ELF binary by path strings. |
-| CPGuard_GSocket_Backdoor | ✅ compiles | **High** | Detects the gsocket backdoor by service name, binary path, and fake process name. |
+| CPGuard_GSocket_Backdoor | ✅ compiles | **Medium** | Detects the gsocket backdoor by service name, binary path, and fake process name. Revised: added ELF magic check and raised threshold from 2-of to 3-of; "defunct" alone is a common English word. |
 | CPGuard_Go_Implant | ✅ compiles | **High** | Detects the Go-based implant ELF binary by its distinctive file paths (typosquatted names). |
 | CPGuard_Webshell_Artifacts | ✅ compiles | **Medium** | Detects web shells by the i9xxxx naming pattern. Slightly broader matching. |
 | CPGuard_Hiding_Script | ✅ compiles | **Medium** | Detects the process-hiding shell script by combining gateway.sh path with tool names and fake process names. |
@@ -309,12 +309,12 @@ The attack achieved root-level access on approximately 2,950 servers through a t
 |---|---|---|---|---|
 | 2026110701 | Outbound connection to attacker IP 94.183.188[.]91 | ✅ compiles | **High** | Direct IOC match. Will become stale when infrastructure changes. |
 | 2026110702 | Inbound connection from attacker IP 94.183.188[.]91 | ✅ compiles | **High** | Direct IOC match. |
-| 2026110703 | Fake cPGuard/5.88.11 User-Agent | ✅ compiles | **Medium** | Detects the specific fake UA string; limited shelf life. |
-| 2026110704 | POST to _rx.php exfiltration endpoint | ✅ compiles | **Medium** | Detects the exfiltration URL pattern. May match legitimate PHP endpoints ending in _rx.php. |
+| 2026110703 | Fake cPGuard/5.88.11 User-Agent to attacker IP | ✅ compiles | **Low** | Revised: paired UA with destination IP 94.183.188[.]91; legitimate cPGuard 5.88.11 installations produce the same UA string, so UA alone is high-FP. |
 | 2026110705 | Malicious update script name in HTTP traffic | ✅ compiles | **High** | Detects the distinctive cpguard-v58812-i91511 string in URI. |
-| 2026110706 | Exfiltration of loot.tgz archive | ✅ compiles | **Medium** | POST request with loot.tgz in URI. Generic filename could cause FPs in other contexts. |
 
-**Validation:** Successfully validated via `snort -T`.
+<!-- revision: DROPPED SID 2026110704 (_rx.php) and SID 2026110706 (loot.tgz) — too generic for production use under strict leniency. _rx.php matches any PHP receive/reaction endpoint; loot.tgz is common in gaming/CTF/pentesting. -->
+
+**Validation:** Successfully validated via `snort -T`. Two rules dropped during revision (SIDs 2026110704 and 2026110706).
 
 ### Suricata Rules
 
@@ -324,12 +324,12 @@ The attack achieved root-level access on approximately 2,950 servers through a t
 |---|---|---|---|---|
 | 2026110801 | Outbound connection to attacker IP 94.183.188[.]91 | ✅ compiles | **High** | Direct IOC match. |
 | 2026110802 | Inbound connection from attacker IP 94.183.188[.]91 | ✅ compiles | **High** | Direct IOC match. |
-| 2026110803 | Fake cPGuard/5.88.11 User-Agent | ✅ compiles | **Medium** | Uses sticky buffer http.user_agent. |
-| 2026110804 | POST to _rx.php exfiltration endpoint | ✅ compiles | **Medium** | Uses sticky buffers http.method and http.uri. |
+| 2026110803 | Fake cPGuard/5.88.11 User-Agent to attacker IP | ✅ compiles | **Low** | Revised: paired UA with destination IP 94.183.188[.]91; legitimate cPGuard 5.88.11 installations produce the same UA string. |
 | 2026110805 | Malicious update script name in HTTP traffic | ✅ compiles | **High** | Distinctive string match in http.uri. |
-| 2026110806 | Exfiltration of loot.tgz archive | ✅ compiles | **Medium** | POST with loot.tgz in URI. |
 
-**Validation:** Successfully validated via `suricata -T`.
+<!-- revision: DROPPED SID 2026110804 (_rx.php) and SID 2026110806 (loot.tgz) — same as Snort: too generic for production use under strict leniency. -->
+
+**Validation:** Successfully validated via `suricata -T`. Two rules dropped during revision (SIDs 2026110804 and 2026110806).
 
 ---
 

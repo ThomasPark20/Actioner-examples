@@ -14,15 +14,10 @@ author: Actioner CTI
 date: 2026-11-07
 modified: 2026-11-07
 tags:
-    - attack.execution
     - attack.t1059.004
-    - attack.persistence
     - attack.t1053.003
-    - attack.privilege-escalation
     - attack.t1548.001
-    - attack.credential-access
     - attack.t1003
-    - attack.supply-chain
     - attack.t1195.002
 logsource:
     category: file_event
@@ -57,7 +52,7 @@ detection:
             - '/etc/profile.d/gateway.sh'
     condition: 1 of selection_*
 falsepositives:
-    - Unlikely - file paths are highly specific to this attack
+    - Unlikely for most paths; /etc/profile.d/gateway.sh could be a legitimate network-configuration script and /usr/bin/defunct is a generic binary name - these individual paths are less distinctive than the compound selections
 level: critical
 ---
 title: cPGuard Supply Chain Attack - Malicious Script Execution
@@ -74,9 +69,7 @@ author: Actioner CTI
 date: 2026-11-07
 modified: 2026-11-07
 tags:
-    - attack.execution
     - attack.t1059.004
-    - attack.supply-chain
     - attack.t1195.002
 logsource:
     category: process_creation
@@ -119,12 +112,12 @@ author: Actioner CTI
 date: 2026-11-07
 modified: 2026-11-07
 tags:
-    - attack.credential-access
     - attack.t1003
     - attack.t1552.004
-    - attack.collection
     - attack.t1005
 logsource:
+    # NOTE: file_access on Linux requires auditd (or equivalent) configured to log file-read events.
+    # Most deployments do not have this out of the box. This rule is config-dependent.
     category: file_access
     product: linux
 detection:
