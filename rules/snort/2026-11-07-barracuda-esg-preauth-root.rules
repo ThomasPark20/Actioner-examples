@@ -1,0 +1,19 @@
+# Barracuda ESG Pre-Auth Root Chain (CVE-2026-116606 / CVE-2026-111560)
+# Detection of authorization bypass and command injection exploitation attempts
+# Author: Actioner CTI Pipeline
+# Date: 2026-11-07
+# References:
+#   https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
+#   https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
+
+# Rule 1: Detect POST to /cgi-mod/index.cgi with password change fields (auth bypass trigger)
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"BARRACUDA ESG Auth Bypass - Password Change to CGI Endpoint (CVE-2026-116606)"; flow:to_server,established; content:"POST"; http_method; content:"/cgi-mod/index.cgi"; http_uri; content:"new_password"; http_client_body; content:"retype_password"; http_client_body; classtype:web-application-attack; sid:2026110701; rev:1; metadata:cve CVE-2026-116606, severity high, deployment perimeter;)
+
+# Rule 2: Detect multipart backup upload to the CGI endpoint (backup restore abuse)
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"BARRACUDA ESG Backup Upload via CGI Endpoint (CVE-2026-116606)"; flow:to_server,established; content:"POST"; http_method; content:"/cgi-mod/index.cgi"; http_uri; content:"multipart/form-data"; http_header; content:"pu_bayesian_upload"; http_client_body; classtype:web-application-attack; sid:2026110702; rev:1; metadata:cve CVE-2026-116606, severity high, deployment perimeter;)
+
+# Rule 3: Detect crafted backup containing timezone command injection payload
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"BARRACUDA ESG Command Injection in Backup Timezone Field (CVE-2026-111560)"; flow:to_server,established; content:"POST"; http_method; content:"/cgi-mod/index.cgi"; http_uri; content:"system_timezone"; http_client_body; content:"|60|"; http_client_body; distance:0; within:200; classtype:web-application-attack; sid:2026110703; rev:2; metadata:cve CVE-2026-111560, severity critical, deployment perimeter;)
+
+# Rule 4: Detect watchTowr PoC tool User-Agent or backup artifact pattern
+alert tcp any any -> $HOME_NET $HTTP_PORTS (msg:"BARRACUDA ESG watchTowr PoC Tool Detection (CVE-2026-116606/CVE-2026-111560)"; flow:to_server,established; content:"POST"; http_method; content:"/cgi-mod/index.cgi"; http_uri; content:"watchTowr"; http_header; classtype:web-application-attack; sid:2026110704; rev:1; metadata:cve CVE-2026-116606, severity critical, deployment perimeter;)

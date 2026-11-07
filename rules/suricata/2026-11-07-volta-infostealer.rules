@@ -1,0 +1,15 @@
+# VOLTA Infostealer - Suricata Rules
+# Reference: https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+# Author: Actioner CTI
+# Date: 2026-11-07
+# NOTE: All HTTP-content rules require TLS inspection; VOLTA exfils to Telegram over HTTPS.
+# Without TLS inspection, only DNS-based detection applies (none retained -- see revision notes).
+# revision: dropped SID 2026110801 (generic OpenRouter API detection -- not VOLTA-specific)
+# revision: dropped SID 2026110802 (LLM model string -- not VOLTA-exclusive)
+# revision: dropped SID 2026110804 (bare DNS query to legitimate service; misclassified as trojan-activity)
+
+# Rule 1: Detect VOLTA archive filename in HTTP upload
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Exfiltration Archive volta_dox.zip in Upload"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"volta_dox.zip"; nocase; classtype:trojan-activity; sid:2026110803; rev:1; metadata: author Actioner, created_at 2026-11-07;)
+
+# Rule 2: Detect VOLTA staged exfil archive volta_log.zip
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Staged Exfil Archive volta_log.zip"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"volta_log.zip"; nocase; classtype:trojan-activity; sid:2026110805; rev:1; metadata: author Actioner, created_at 2026-11-07;)

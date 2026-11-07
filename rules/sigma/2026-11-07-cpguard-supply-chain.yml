@@ -1,0 +1,137 @@
+title: cPGuard Supply Chain Attack - Malicious Update Script Artifacts
+id: 8a1c3e7d-9f4b-4d2a-b6e1-3c5a8d7f2e90
+status: experimental
+description: >
+    Detects artifacts associated with the cPGuard supply chain attack (November 2026)
+    where attackers hijacked the update channel to deploy malicious scripts that installed
+    a setuid-root backdoor shell, scheduled tasks, and exfiltrated credentials from
+    approximately 2,950 Linux servers.
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://opsshield.com/notice/cpguard-update-channel-compromise.html
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+author: Actioner CTI
+date: 2026-11-07
+modified: 2026-11-07
+tags:
+    - attack.t1059.004
+    - attack.t1053.003
+    - attack.t1548.001
+    - attack.t1003
+    - attack.t1195.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_backdoor_shell:
+        TargetFilename|contains:
+            - '/var/tmp/.cpg91511_sh'
+    selection_cron_persistence:
+        TargetFilename|contains:
+            - '/etc/cron.d/i93677'
+    selection_staging_dir:
+        TargetFilename|contains:
+            - '/var/tmp/.cpg91511/'
+            - '/var/tmp/.i93677/'
+    selection_loot_archive:
+        TargetFilename|endswith:
+            - '/var/tmp/.cpg91511/loot.tgz'
+    selection_gsocket_backdoor:
+        TargetFilename|contains:
+            - '/usr/bin/defunct'
+            - '/lib/systemd/system/defunct.dat'
+    selection_go_implant:
+        TargetFilename|contains:
+            - '/usr/sbin/pythno3'
+            - '/usr/sbin/netstat.cfg'
+            - '/usr/lib/system.mark'
+            - '/usr/lib/libgdi.so.0.8.2'
+            - '/boot/system.pub'
+    selection_hiding_script:
+        TargetFilename|contains:
+            - '/etc/profile.d/gateway.sh'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely for most paths; /etc/profile.d/gateway.sh could be a legitimate network-configuration script and /usr/bin/defunct is a generic binary name - these individual paths are less distinctive than the compound selections
+level: critical
+---
+title: cPGuard Supply Chain Attack - Malicious Script Execution
+id: 2b4d6e8f-1a3c-5b7d-9e0f-4c6a8b2d1e3f
+status: experimental
+description: >
+    Detects execution of the malicious cPGuard update scripts that were distributed
+    through the hijacked update channel. These scripts collect /etc/shadow, SSH keys,
+    MySQL credentials, and shell history before exfiltrating them.
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+author: Actioner CTI
+date: 2026-11-07
+modified: 2026-11-07
+tags:
+    - attack.t1059.004
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_script_name:
+        CommandLine|contains:
+            - 'cpguard-v58812-i91511'
+    selection_hidden_process_gsocket:
+        Image|endswith:
+            - '/usr/bin/defunct'
+        CommandLine|contains:
+            - 'slub_flushwq'
+    selection_hidden_process_implant:
+        Image|endswith:
+            - '/usr/sbin/pythno3'
+            - '/usr/sbin/netstat.cfg'
+        CommandLine|contains:
+            - 'rcu_gp'
+    selection_hiding_mechanism:
+        CommandLine|contains:
+            - '/etc/profile.d/gateway.sh'
+            - '/etc/profile.d/bash.cfg'
+    condition: 1 of selection_*
+falsepositives:
+    - Unlikely - indicators are highly specific to this attack
+level: critical
+---
+title: cPGuard Supply Chain Attack - Credential Harvesting Behavior
+id: 3c5e7f9a-2b4d-6c8e-0a1f-5d7b9c3e2f4a
+status: experimental
+description: >
+    Detects behavioral patterns associated with the cPGuard malicious update script
+    credential harvesting activity - reading /etc/shadow, SSH keys, and MySQL
+    credentials in sequence, followed by archiving into a hidden /var/tmp directory.
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
+author: Actioner CTI
+date: 2026-11-07
+modified: 2026-11-07
+tags:
+    - attack.t1003
+    - attack.t1552.004
+    - attack.t1005
+logsource:
+    # NOTE: file_access on Linux requires auditd (or equivalent) configured to log file-read events.
+    # Most deployments do not have this out of the box. This rule is config-dependent.
+    category: file_access
+    product: linux
+detection:
+    selection_shadow:
+        TargetFilename: '/etc/shadow'
+    selection_ssh_keys:
+        TargetFilename|contains: '/root/.ssh/'
+    selection_mysql_creds:
+        TargetFilename: '/root/.my.cnf'
+    selection_s3_creds:
+        TargetFilename: '/root/.s3cfg'
+    selection_staging:
+        TargetFilename|contains: '/var/tmp/.cpg91511'
+    condition: selection_staging and (selection_shadow or selection_ssh_keys or selection_mysql_creds or selection_s3_creds)
+falsepositives:
+    - Security auditing tools that read /etc/shadow in combination with writing to /var/tmp
+level: high

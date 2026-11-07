@@ -1,0 +1,19 @@
+# Barracuda ESG Pre-Auth Root Chain (CVE-2026-116606 / CVE-2026-111560)
+# Suricata rules for detecting authorization bypass and command injection
+# Author: Actioner CTI Pipeline
+# Date: 2026-11-07
+# References:
+#   https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
+#   https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
+
+# Rule 1: Auth bypass via password change fields to /cgi-mod/index.cgi
+alert http any any -> $HOME_NET any (msg:"ET EXPLOIT Barracuda ESG Auth Bypass - Password Change Fields (CVE-2026-116606)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; http.request_body; content:"new_password"; content:"retype_password"; classtype:web-application-attack; sid:2026110801; rev:2; metadata:affected_product Barracuda_ESG, attack_target Server, created_at 2026_11_07, cve CVE_2026_116606, deployment Perimeter, severity Major, signature_severity Critical, tag Exploit;)
+
+# Rule 2: Backup file upload via pu_bayesian_upload parameter
+alert http any any -> $HOME_NET any (msg:"ET EXPLOIT Barracuda ESG Backup Upload Abuse (CVE-2026-116606)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; http.request_body; content:"pu_bayesian_upload"; http.content_type; content:"multipart/form-data"; classtype:web-application-attack; sid:2026110802; rev:1; metadata:affected_product Barracuda_ESG, attack_target Server, created_at 2026_11_07, cve CVE_2026_116606, deployment Perimeter, severity Major, signature_severity Critical, tag Exploit;)
+
+# Rule 3: Command injection via system_timezone in backup payload
+alert http any any -> $HOME_NET any (msg:"ET EXPLOIT Barracuda ESG Command Injection via Timezone (CVE-2026-111560)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; http.request_body; content:"system_timezone"; pcre:"/system_timezone[^a-zA-Z0-9]{0,10}[\x3b\x7c\x60\x24]/P"; classtype:web-application-attack; sid:2026110803; rev:3; metadata:affected_product Barracuda_ESG, attack_target Server, created_at 2026_11_07, cve CVE_2026_111560, deployment Perimeter, severity Major, signature_severity Critical, tag Exploit;)
+
+# Rule 4: Detection of watchTowr PoC tool
+alert http any any -> $HOME_NET any (msg:"ET EXPLOIT Barracuda ESG watchTowr PoC Tool (CVE-2026-116606/CVE-2026-111560)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; http.header; content:"watchTowr"; classtype:web-application-attack; sid:2026110804; rev:1; metadata:affected_product Barracuda_ESG, attack_target Server, created_at 2026_11_07, cve CVE_2026_116606, deployment Perimeter, severity Major, signature_severity Critical, tag Exploit;)

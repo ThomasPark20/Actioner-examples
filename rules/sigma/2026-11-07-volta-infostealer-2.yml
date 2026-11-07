@@ -1,0 +1,26 @@
+title: VOLTA Infostealer - Known Sample Filename Deletion
+id: d4f6a1b5-0c7e-4d2a-e9f4-5a1b8c3d6e0f
+status: experimental
+description: >
+    Detects deletion of files matching known VOLTA infostealer sample names.
+    Coverage is limited to two observed filenames; the builder randomizes names
+    per build, so future samples will not match.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner CTI
+date: 2026-11-07
+tags:
+    - attack.t1070.004
+logsource:
+    category: file_delete
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\9BY0tjwOc3ut.exe'
+            - '\yLP9m5J3i2Aw.exe'
+    condition: selection
+falsepositives:
+    - Unlikely; these filenames are unique to known VOLTA samples
+level: high
+# revision: retitled from "Process Self-Deletion After Credential Harvest"; level critical->high; confidence low

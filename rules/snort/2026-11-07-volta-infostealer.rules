@@ -1,0 +1,14 @@
+# VOLTA Infostealer - Snort Rules
+# Reference: https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+# Author: Actioner CTI
+# Date: 2026-11-07
+# NOTE: All HTTP-content rules require TLS inspection; VOLTA exfils to Telegram over HTTPS.
+# Without TLS inspection, these rules will not fire on encrypted exfiltration traffic.
+# revision: dropped SID 2026110701 (generic OpenRouter API -- any app using the service fires it; TLS blind)
+# revision: dropped SID 2026110702 (LLM model string -- not VOLTA-exclusive; TLS blind)
+
+# Rule 1: Detect VOLTA victim assessment output section headers in HTTP traffic
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - AI Assessment Output Markers"; flow:established,to_server; content:"WHAT THEY|27|RE WORTH"; content:"THEIR OPSEC"; distance:0; classtype:trojan-activity; sid:2026110703; rev:1;)
+
+# Rule 2: Detect VOLTA exfiltration archive filenames in HTTP traffic
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"VOLTA Infostealer - Exfiltration Archive Name in Traffic"; flow:established,to_server; content:"volta_dox.zip"; nocase; classtype:trojan-activity; sid:2026110704; rev:1;)
