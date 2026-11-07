@@ -65,8 +65,6 @@ rule Barracuda_ESG_Post_Exploit_Timezone_Injection {
         $fix_tz = "fix_tz.pl" ascii
         $inject_marker1 = /ZONE="[^"]*[;|`$][^"]*"/ ascii
         $inject_marker2 = /ZONE='[^']*[;|`$][^']*'/ ascii
-        $sudo_fix = "sudo" ascii
-
     condition:
-        any of ($tz_path*) and $fix_tz and ($sudo_fix or any of ($inject_marker*))
+        any of ($tz_path*) and $fix_tz and any of ($inject_marker*)
 }

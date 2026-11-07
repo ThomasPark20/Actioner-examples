@@ -14,17 +14,17 @@ author: Actioner CTI Pipeline
 date: 2026-11-07
 modified: 2026-11-07
 tags:
-    - attack.initial_access
     - attack.t1190
-    - attack.execution
     - attack.t1059.004
-    - attack.privilege_escalation
     - attack.t1068
     - cve.2026-116606
     - cve.2026-111560
 logsource:
     category: webserver
-    service: barracuda
+    # NOTE: This rule uses cs-body (HTTP request body), which is not a standard
+    # Sigma webserver field. It requires HTTP body logging to be enabled in the
+    # upstream proxy/WAF/web server logs. Without body logging, this rule is
+    # inoperable. Adapt field names to your log pipeline.
 detection:
     selection_endpoint:
         cs-uri-stem|contains: '/cgi-mod/index.cgi'
@@ -39,4 +39,4 @@ detection:
 falsepositives:
     - Legitimate administrator password changes via the Barracuda ESG web interface (should correlate with authenticated sessions)
     - Legitimate backup restore operations performed by administrators
-level: high
+level: medium

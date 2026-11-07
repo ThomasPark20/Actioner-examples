@@ -1,6 +1,6 @@
-# DRAFT: Barracuda ESG Pre-Authentication Root Chain (CVE-2026-116606 + CVE-2026-111560)
+# Barracuda ESG Pre-Authentication Root Chain (CVE-2026-116606 + CVE-2026-111560)
 
-> **Status**: DRAFT -- Actioner CTI Pipeline  
+> **Status**: FINAL -- Actioner CTI Pipeline  
 > **Date**: 2026-11-07  
 > **Analyst**: Automated Research Pipeline  
 > **Classification**: TLP:CLEAR  
@@ -162,14 +162,15 @@ Step 3: Restore Processing (CVE-2026-111560)
 
 ## MITRE ATT&CK Mapping
 
+<!-- revision: removed T1211 (auth bypass is T1190 initial access, not defense evasion); relabeled T1505 as speculative (no persistence evidence in advisory/PoC); replaced T1212 with T1114 (root on email GW enables email interception, not credential exploitation). -->
+
 | Tactic | Technique | ID | Notes |
 |--------|-----------|-----|-------|
-| Initial Access | Exploit Public-Facing Application | T1190 | Exploitation of internet-exposed ESG admin interface |
+| Initial Access | Exploit Public-Facing Application | T1190 | Exploitation of internet-exposed ESG admin interface via auth bypass + backup upload |
 | Execution | Command and Scripting Interpreter: Unix Shell | T1059.004 | Command injection via `system_timezone` in `sed` backtick calls |
 | Privilege Escalation | Exploitation for Privilege Escalation | T1068 | Auth bypass escalates from unauthenticated to admin; command injection from admin to root |
-| Defense Evasion | Exploitation for Defense Evasion | T1211 | Bypassing authentication controls |
-| Persistence | Server Software Component | T1505 | Potential post-exploitation persistence via modified configs/web shells |
-| Credential Access | Exploitation for Credential Access | T1212 | Access to email gateway provides access to email traffic |
+| Collection | Email Collection | T1114 | Root access on email gateway enables interception of all organizational email traffic |
+| Persistence (speculative) | Server Software Component | T1505 | Not observed in advisory or PoC; included as a plausible post-exploitation objective given the appliance type |
 
 ---
 
@@ -234,10 +235,11 @@ Step 3: Restore Processing (CVE-2026-111560)
 
 ### Sigma: Barracuda ESG Pre-Auth Root Chain Exploitation
 
-**File**: `rules/sigma/2026-11-07-barracuda-esg-preauth-root.yml`  
-**Compile Status**: &#9989; Compiles (Splunk + LogScale backends validated)  
-**Confidence**: HIGH  
-**Coverage**: Detects POST requests to `/cgi-mod/index.cgi` containing auth bypass (password change) or backup upload (`pu_bayesian_upload`) parameters  
+<!-- revision: downgraded confidence HIGH->MEDIUM; cs-body is non-standard Sigma webserver field; removed service:barracuda (non-portable); removed tactic tags per spec (technique-only); added body-logging prerequisite note. sigma convert splunk+log_scale exit 0. -->
+
+Detects POST requests to `/cgi-mod/index.cgi` containing auth bypass (password change) or backup upload (`pu_bayesian_upload`) parameters. Inoperable without HTTP body logging enabled on the upstream proxy/WAF.
+**Status:** compile ✅ compiles (Splunk + LogScale) · confidence: medium
+<!-- audit: sigma check blocked by proxy MITRE fetch; sigma convert --without-pipeline -t splunk exit 0; -t log_scale exit 0. cs-body is not a standard Sigma webserver field; requires body logging. Removed service:barracuda as non-portable; removed tactic tags (attack.initial_access etc.) per Sigma spec (technique-only). FP: legit admin password changes / backup restores; correlate with authenticated session tokens. -->
 
 ```yaml
 title: Barracuda ESG Pre-Auth Root Chain Exploitation Attempt (CVE-2026-116606 / CVE-2026-111560)
@@ -248,6 +250,7 @@ description: >
     containing password change parameters (new_password, retype_password) or backup
     upload parameters (pu_bayesian_upload) that indicate exploitation of the pre-auth
     authorization bypass (CVE-2026-116606) and command injection (CVE-2026-111560) chain.
+    Requires HTTP body logging to be enabled.
 references:
     - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
     - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
@@ -256,17 +259,15 @@ author: Actioner CTI Pipeline
 date: 2026-11-07
 modified: 2026-11-07
 tags:
-    - attack.initial_access
     - attack.t1190
-    - attack.execution
     - attack.t1059.004
-    - attack.privilege_escalation
     - attack.t1068
     - cve.2026-116606
     - cve.2026-111560
 logsource:
     category: webserver
-    service: barracuda
+    # NOTE: cs-body is not a standard Sigma webserver field. Requires HTTP body
+    # logging enabled on upstream proxy/WAF. Adapt field names to your pipeline.
 detection:
     selection_endpoint:
         cs-uri-stem|contains: '/cgi-mod/index.cgi'
@@ -279,37 +280,35 @@ detection:
         cs-body|contains: 'pu_bayesian_upload'
     condition: selection_endpoint and (selection_auth_bypass or selection_backup_upload)
 falsepositives:
-    - Legitimate administrator password changes via the Barracuda ESG web interface
+    - Legitimate administrator password changes via the Barracuda ESG web interface (correlate with authenticated sessions)
     - Legitimate backup restore operations performed by administrators
-level: high
+level: medium
 ```
-
-**Audit Notes**: This rule targets the specific endpoint and parameters documented in the watchTowr analysis. The `cs-body` field requires HTTP body logging to be enabled in the web server or proxy logs. False positives from legitimate admin operations can be filtered by correlating with authenticated session tokens. The `service: barracuda` logsource may need to be adapted to the organization's specific log pipeline (e.g., reverse proxy logs, WAF logs).
 
 ---
 
 ### Snort: Barracuda ESG Exploitation Detection (4 rules)
 
-**File**: `rules/snort/2026-11-07-barracuda-esg-preauth-root.rules`  
-**Compile Status**: &#9989; Compiles (Snort 2.9.20 validation passed)  
-**Confidence**: HIGH (SIDs 2026110701-2026110702), MEDIUM (SID 2026110703 -- payload-dependent), HIGH (SID 2026110704 -- tool-specific)
+<!-- revision: SID 2026110703 rev:1->rev:2; added distance:0; within:200; after system_timezone match to anchor backtick byte to timezone field. Clarified description from "payload-dependent" to positional-anchoring note. Snort 2.9.20 -T exit 0. -->
+
+Four Snort rules targeting auth bypass, backup upload, command injection, and PoC tool detection. SID 2026110703 anchors the backtick byte (`|60|`) within 200 bytes of `system_timezone` via `distance:0; within:200;`.
+**Status:** compile ✅ compiles (Snort 2.9.20) · confidence: HIGH (SIDs 01/02/04), MEDIUM (SID 03)
+<!-- audit: snort -c snort.conf -T exit 0. SID 2026110703 rev:2 adds distance:0/within:200 to anchor |60| relative to system_timezone in http_client_body. Prior rev had no positional constraint, allowing backtick match anywhere in body. All rules require http_inspect preprocessor. -->
 
 | SID | Description | Confidence |
 |-----|-------------|------------|
 | 2026110701 | Auth bypass - password change fields to CGI endpoint | HIGH |
 | 2026110702 | Backup upload via multipart form to CGI endpoint | HIGH |
-| 2026110703 | Command injection - backtick character in timezone field | MEDIUM |
+| 2026110703 | Command injection - backtick within 200 bytes of `system_timezone` | MEDIUM |
 | 2026110704 | watchTowr PoC tool User-Agent detection | HIGH |
-
-**Audit Notes**: Rules are tuned for perimeter deployment monitoring traffic to Barracuda ESG admin interfaces. SID 2026110703 uses hex byte `|60|` (backtick) to detect command injection payloads in the `system_timezone` field; this may need tuning depending on encoding. All rules require `http_inspect` preprocessor to be enabled.
 
 ---
 
 ### Suricata: Barracuda ESG Exploitation Detection (4 rules)
 
-**File**: `rules/suricata/2026-11-07-barracuda-esg-preauth-root.rules`  
-**Compile Status**: &#9989; Compiles (Suricata 7.0.3 validation passed)  
-**Confidence**: HIGH (SIDs 2026110801-2026110802), MEDIUM (SID 2026110803 -- PCRE-dependent), HIGH (SID 2026110804)
+Four Suricata rules using native `http.*` sticky buffers. SID 2026110803 uses PCRE to match shell metacharacters near `system_timezone`.
+**Status:** compile ✅ compiles (Suricata 7.0.3) · confidence: HIGH (SIDs 01/02/04), MEDIUM (SID 03)
+<!-- audit: suricata -T exit 0. SID 03 PCRE hex-escaped metacharacters (\x3b semicolon, \x7c pipe, \x60 backtick, \x24 dollar) with /P flag. No changes from draft. -->
 
 | SID | Description | Confidence |
 |-----|-------------|------------|
@@ -318,23 +317,21 @@ level: high
 | 2026110803 | Command injection - shell metacharacters after system_timezone (PCRE) | MEDIUM |
 | 2026110804 | watchTowr PoC tool string in HTTP headers | HIGH |
 
-**Audit Notes**: Rules use Suricata native `http.*` sticky buffers for efficient matching. SID 2026110803 uses a PCRE with hex-escaped shell metacharacters (`\x3b` = semicolon, `\x7c` = pipe, `\x60` = backtick, `\x24` = dollar sign) with the `/P` flag for HTTP request body matching. The duplicate `http.request_body` sticky buffer warning was resolved in rev:2. All rules are classified as `web-application-attack`.
-
 ---
 
 ### YARA: Barracuda ESG Backup and Tool Detection (3 rules)
 
-**File**: `rules/yara/2026-11-07-barracuda-esg-preauth-root.yar`  
-**Compile Status**: &#9989; Compiles (yarac validation passed)  
-**Confidence**: Varies by rule
+<!-- revision: Post-exploit rule confidence MEDIUM->LOW; removed $sudo_fix from condition (trivially present in legit ESG files, guaranteed FP on clean appliance fix_tz.pl). Condition now requires $inject_marker* (actual injection evidence). yarac exit 0. -->
+
+Three YARA rules for crafted backup detection, PoC tool detection, and post-exploitation filesystem forensics.
+**Status:** compile ✅ compiles (yarac) · confidence: HIGH (rules 1-2), LOW (rule 3)
+<!-- audit: yarac exit 0. Rule 3 revised: removed $sudo_fix="sudo" alternative from condition; the legit fix_tz.pl contains "sudo" + tz paths + its own name, guaranteeing FP on clean appliances. Now requires any of ($inject_marker*) -- actual shell metacharacter injection evidence in ZONE= values. -->
 
 | Rule | Description | Confidence |
 |------|-------------|------------|
 | `Barracuda_ESG_Crafted_Backup_CVE_2026_116606` | Detects crafted backup archives with timezone injection payloads | HIGH |
 | `Barracuda_ESG_watchTowr_PoC_Script` | Detects the watchTowr PoC Python script | HIGH |
-| `Barracuda_ESG_Post_Exploit_Timezone_Injection` | Detects timezone injection artifacts on ESG filesystem | MEDIUM |
-
-**Audit Notes**: Rule 1 checks for the tar magic at byte offset 257 combined with `backup.xml`, `Spam_Config`, `system_timezone`, and shell metacharacter patterns -- this is highly specific to the exploit chain. Rule 2 is tool-specific and will detect the public PoC. Rule 3 targets filesystem artifacts and is useful for forensic scanning of ESG appliance disk images or backups; confidence is MEDIUM because the matched strings may appear in legitimate administrative scripts.
+| `Barracuda_ESG_Post_Exploit_Timezone_Injection` | Detects timezone injection artifacts on ESG filesystem | LOW |
 
 ---
 
