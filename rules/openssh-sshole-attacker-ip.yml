@@ -1,0 +1,25 @@
+title: OpenSSH SSHole - Known Exploitation Source IP
+id: 3c5e7f9a-2b4d-6e8f-a1c3-5d7e9f0b2c4d
+status: experimental
+description: >
+    Detects SSH connections from the IP 89.116.89.18, which was observed exploiting the SSHole
+    vulnerability (CVE-2026-123158) against Alpine Linux honeypots within hours of disclosure.
+    The attacker gained root and executed reconnaissance commands (id, uname, hostname).
+references:
+    - https://thehackernews.com/2026/11/hackers-exploited-openssh-sshole-flaw.html
+    - https://sshhole.com
+author: Actioner
+date: 2026/11/08
+tags:
+    - attack.t1078.001
+    - attack.t1110
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        SyslogMessage|contains: '89.116.89.18'
+    condition: selection
+falsepositives:
+    - Legitimate traffic from this IP (unlikely - observed in active exploitation)
+level: critical
