@@ -107,7 +107,7 @@ Beyond customer servers, the attacker:
 | Type | Value | Context |
 |------|-------|---------|
 | IP | `94.183.188[.]91` | Primary attacker operating address (per OPSSHIELD) |
-| Domain | `manage.opsshield[.]com` | Billing portal (attack vector) |
+| Domain | `manage.opsshield[.]com` | OPSSHIELD billing portal — attack vector, not attacker infrastructure (do not block) |
 
 ### Behavioral
 
@@ -308,7 +308,7 @@ This attack demonstrates the critical risk of software supply-chain compromise t
 
 - [The Hacker News](https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html) — Primary technical report with IOCs, timeline, and malicious script hashes
 - [CSO Online](https://www.csoonline.com/article/4244961/attackers-turned-opsshields-trusted-update-channel-into-a-supply-chain-attack-2.html) — Additional analysis of attack chain and remediation steps
-- [SecurityWeek](https://securityweek.com/malicious-cpguard-updates-served-in-opsshield-supply-chain-attack) — Coverage with OPSSHIELD response details
+- [SecurityWeek](https://www.securityweek.com/malicious-cpguard-updates-served-in-opsshield-supply-chain-attack/) — Coverage with OPSSHIELD response details
 - [NetworkWorld](https://www.networkworld.com/article/4244919/attackers-turned-opsshields-trusted-update-channel-into-a-supply-chain-attack.html) — Supply chain analysis context
 
 ---

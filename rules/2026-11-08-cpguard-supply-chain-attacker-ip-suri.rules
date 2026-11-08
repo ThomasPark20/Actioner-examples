@@ -1,1 +1,1 @@
-alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attacker IP 94.183.188.91"; sid:2200050; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-08;)
+alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attacker IP 94.183.188.91"; sid:2200060; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-08;)
