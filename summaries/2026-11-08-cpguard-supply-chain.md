@@ -1,9 +1,10 @@
 # Technical Analysis Report: cPGuard Update Channel Supply Chain Attack (2026-11-08)
 
 Prepared by: Actioner
-Classification: TLP:WHITE
+Classification: TLP:CLEAR
 Date: 2026-11-08
-Version: 1.0
+Version: 1.1 (FINAL)
+<!-- revision: TLP:WHITE→TLP:CLEAR (v2 nomenclature); fixed Sigma credential harvesting condition parentheses; version bumped to FINAL after review. -->
 
 ## Executive Summary
 
@@ -248,7 +249,7 @@ detection:
             - '/useradd'
             - '/usermod'
             - '/chpasswd'
-    condition: (selection_shadow and (selection_sshkeys or selection_mysql or selection_s3)) or selection_archive and not filter_legitimate
+    condition: (selection_shadow and (selection_sshkeys or selection_mysql or selection_s3)) or (selection_archive and not filter_legitimate)
 falsepositives:
     - System administration scripts that read shadow and SSH key files simultaneously
     - Backup scripts archiving credential stores
@@ -260,7 +261,7 @@ Detects outbound traffic to the primary attacker operating address identified by
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: snort -T exit 0. IP directly attributed by vendor as attacker's operating address. High confidence but time-limited — attacker may rotate. -->
 ```snort
-alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound to Attacker IP 94.183.188.91"; flow:to_server; sid:2100050; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html;)
+alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound to Attacker IP 94.183.188.91"; flow:to_server; sid:2100060; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html;)
 ```
 
 ### Suricata: cPGuard Supply Chain Attacker IP
@@ -268,7 +269,7 @@ Detects outbound traffic to the primary attacker operating address identified by
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: suricata -T exit 0. Same IP as Snort rule. -->
 ```suricata
-alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attacker IP 94.183.188.91"; sid:2200050; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-08;)
+alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attacker IP 94.183.188.91"; sid:2200060; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html; metadata:author Actioner, created_at 2026-11-08;)
 ```
 
 ### YARA: cPGuard Supply Chain Malicious Update Script

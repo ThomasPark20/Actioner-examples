@@ -1,0 +1,19 @@
+title: ARTEX xcai AI Reseller Domain DNS Query
+id: 8c6fdaa6-84e3-47dd-a6a7-f997ca4a1806
+status: experimental
+description: Detects DNS queries to xcai.pro, the AI model reseller domain used by the ARTEX operator to route requests to DeepSeek and other AI backends.
+references:
+    - https://securityaffairs.com/202607/ai/inside-artex-ai-hacking-tools-exposed-servers-and-south-korean-bank-breaches.html
+author: Actioner
+date: 2026/11/08
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'xcai.pro'
+    condition: selection
+falsepositives:
+    - Legitimate use of the xcai.pro AI reseller service (unlikely in enterprise environments)
+level: high

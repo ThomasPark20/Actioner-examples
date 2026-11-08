@@ -1,0 +1,25 @@
+title: Storm-3358 ARTEX Infrastructure Communication
+id: 90b3236e-9cf6-4604-955e-2cf5fc93f64d
+status: experimental
+description: Detects outbound network connections to known ARTEX C2 infrastructure IPs used by Storm-3358 for reconnaissance and command delivery in financial sector attacks (November 2026).
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/06/artex-abuse-expands-as-cybercriminals-target-financial-sector/
+author: Actioner
+date: 2026/11/08
+tags:
+    - attack.t1071
+    - attack.t1595.002
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp|startswith:
+            - '91.92.240.238'
+            - '85.11.168.45'
+            - '85.11.167.52'
+            - '178.16.54.129'
+            - '31.77.229.35'
+    condition: selection
+falsepositives:
+    - Legitimate services on these IPs (unlikely given hosting profile)
+level: high

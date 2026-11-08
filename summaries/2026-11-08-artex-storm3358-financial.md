@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-08
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 

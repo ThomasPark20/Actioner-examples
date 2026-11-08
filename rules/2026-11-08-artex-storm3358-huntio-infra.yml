@@ -1,0 +1,25 @@
+title: ARTEX Console and Jump Server Infrastructure Communication
+id: 0b9752c8-3e55-48e9-8283-90de78980efe
+status: experimental
+description: Detects network connections to ARTEX console and jump server IPs identified by Hunt.io in their investigation of Korean bank breaches linked to the ARTEX framework.
+references:
+    - https://securityaffairs.com/202607/ai/inside-artex-ai-hacking-tools-exposed-servers-and-south-korean-bank-breaches.html
+author: Actioner
+date: 2026/11/08
+tags:
+    - attack.t1071
+    - attack.t1190
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp|startswith:
+            - '38.244.50.120'
+            - '23.248.226.250'
+            - '154.201.79.246'
+            - '130.94.31.86'
+            - '156.251.11.39'
+    condition: selection
+falsepositives:
+    - Rotating proxy exit IPs may generate noise (154.201.79.246); correlate with other indicators
+level: high

@@ -1,0 +1,25 @@
+title: ARTEX Framework Health API Endpoint Detection
+id: 4b8d0f2e-c3a5-4e9b-af7d-6a1b2c3d4e5f
+status: experimental
+description: Detects HTTP responses from the ARTEX penetration testing framework health API endpoint. The presence of an ARTEX instance on a network may indicate unauthorized deployment of an offensive AI tool or active threat actor infrastructure.
+references:
+    - https://blog.gitguardian.com/the-agents-have-now-found-your-secrets-on-github-artex-is-abusing-public-secrets-right-now/
+    - https://www.microsoft.com/en-us/security/blog/2026/10/21/storm-0940-uses-artex-agentic-ai-connectwise-supply-chain-compromise/
+author: Actioner
+date: 2026-11-08
+tags:
+    - attack.discovery
+    - attack.t1046
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem: '/api/health'
+    selection_response:
+        sc-body|contains|all:
+            - '"service"'
+            - '"artex"'
+    condition: selection_uri and selection_response
+falsepositives:
+    - Authorized ARTEX deployments for legitimate penetration testing
+level: high
