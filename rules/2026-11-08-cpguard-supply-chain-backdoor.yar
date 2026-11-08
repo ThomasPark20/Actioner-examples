@@ -17,7 +17,6 @@ rule Supply_Chain_cPGuard_Backdoor_Script
         $shadow = "/etc/shadow" ascii
         $sshkey = "/root/.ssh" ascii
         $mycnf = "/root/.my.cnf" ascii
-        $s3cfg = "/root/.s3cfg" ascii
         $script_name1 = "cpguard-v58812-i91511" ascii
         $script_name2 = "cpguard-v58812-i91511b" ascii
         $script_name3 = "cpguard-v58812-i91511c" ascii
@@ -28,6 +27,5 @@ rule Supply_Chain_cPGuard_Backdoor_Script
         ($path1 and $shadow) or
         ($path2 and ($loot or $sshkey or $mycnf)) or
         ($cron and $path3) or
-        ($s3cfg and $shadow) or
         (3 of ($path1, $path2, $path3, $cron, $loot))
 }
