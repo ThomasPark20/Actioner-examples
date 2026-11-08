@@ -1,0 +1,1 @@
+alert tcp 89.116.89.18 any -> $HOME_NET 22 (msg:"Actioner - SSHole CVE-2026-123158 Known Exploitation Source IP"; flow:to_server; content:"SSH-"; depth:4; sid:2100100; rev:1; classtype:attempted-admin; reference:url,thehackernews.com/2026/11/hackers-exploited-openssh-sshole-flaw.html; reference:cve,2026-123158;)
