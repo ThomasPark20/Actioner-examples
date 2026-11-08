@@ -121,7 +121,7 @@ Beyond customer servers, the attacker:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious code injected into cPGuard auto-update channel |
-| T1078 | Valid Accounts | Fraudulent trial account used to access billing portal |
+| T1136 | Create Account | Fraudulent trial account registered on billing portal to gain initial access |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Malicious bash scripts executed as root via update mechanism |
 | T1053.003 | Scheduled Task/Job: Cron | Persistence via `/etc/cron.d/i93677` |
 | T1548.001 | Abuse Elevation Control Mechanism: Setuid and Setgid | Setuid-root shell at `/var/tmp/.cpg91511_sh` |
@@ -209,36 +209,27 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: cPGuard Supply Chain Credential Harvesting
-Detects shell commands consistent with the bulk credential harvesting pattern — simultaneous access to shadow, SSH keys, MySQL credentials, and cloud storage keys.
+### Sigma: cPGuard Supply Chain Credential Harvesting Archive
+Detects shell commands referencing the campaign-specific credential archive (`loot.tgz`) or backdoor staging paths (`.cpg91511`).
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check skipped (ATT&CK data 403 from proxy); splunk convert exit 0; log_scale convert exit 0. Condition requires shadow + at least one other credential target, or cpg91511/loot.tgz references. Medium confidence: individual file accesses are benign; the combination is suspicious but not exclusive to this campaign. -->
+<!-- audit: sigma check skipped (ATT&CK data 403 from proxy); splunk convert exit 0; log_scale convert exit 0. revision: removed behavioral shadow+credentials branch (altitude drift — backup scripts touch those files together; campaign-specific paths already caught by file-artifacts rule); kept only archive detection with filter. Tags updated to match narrowed scope. -->
 ```yaml
-title: cPGuard Supply Chain - Credential Harvesting via Script
+title: cPGuard Supply Chain - Credential Harvesting Archive
 id: 8b4f2c5d-ae30-5f9b-c6d2-701f4e3b2c9d
 status: experimental
-description: Detects shell commands consistent with the cPGuard supply chain attack credential harvesting - reading /etc/shadow, SSH keys, MySQL credentials, and shell history as root
+description: Detects shell commands referencing the campaign-specific credential archive (loot.tgz) or backdoor staging paths (.cpg91511) from the cPGuard supply chain attack
 references:
     - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
     - https://www.csoonline.com/article/4244961/attackers-turned-opsshields-trusted-update-channel-into-a-supply-chain-attack-2.html
 author: Actioner
 date: 2026/11/08
 tags:
-    - attack.t1552.004
-    - attack.t1552.003
+    - attack.t1560.001
     - attack.t1005
 logsource:
     category: process_creation
     product: linux
 detection:
-    selection_shadow:
-        CommandLine|contains: '/etc/shadow'
-    selection_sshkeys:
-        CommandLine|contains: '/root/.ssh'
-    selection_mysql:
-        CommandLine|contains: '/root/.my.cnf'
-    selection_s3:
-        CommandLine|contains: '/root/.s3cfg'
     selection_archive:
         CommandLine|contains:
             - 'loot.tgz'
@@ -249,17 +240,16 @@ detection:
             - '/useradd'
             - '/usermod'
             - '/chpasswd'
-    condition: (selection_shadow and (selection_sshkeys or selection_mysql or selection_s3)) or (selection_archive and not filter_legitimate)
+    condition: selection_archive and not filter_legitimate
 falsepositives:
-    - System administration scripts that read shadow and SSH key files simultaneously
-    - Backup scripts archiving credential stores
+    - Legitimate cPGuard remediation scripts that reference the backdoor paths during cleanup
 level: high
 ```
 
 ### Snort: cPGuard Supply Chain Attacker IP
-Detects outbound traffic to the primary attacker operating address identified by OPSSHIELD.
+Detects outbound traffic to the primary attacker operating address identified by OPSSHIELD. IOC will age — review quarterly.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0. IP directly attributed by vendor as attacker's operating address. High confidence but time-limited — attacker may rotate. -->
+<!-- audit: snort -T exit 0. IP directly attributed by vendor as attacker's operating address. High confidence but time-limited — attacker may rotate infrastructure. -->
 ```snort
 alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound to Attacker IP 94.183.188.91"; flow:to_server; sid:2100060; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html;)
 ```
@@ -274,8 +264,8 @@ alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chai
 
 ### YARA: cPGuard Supply Chain Malicious Update Script
 Detects the malicious update scripts by their distinctive file paths, script names, and credential harvesting artifact combination.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: yarac exit 0. Tested with constructed script containing published paths/names — no real malware sample available. Negative test: benign update script → no match. Script names (cpguard-v58812-i91511*) are campaign-unique identifiers from the vendor advisory. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed
+<!-- audit: yarac exit 0. revision: removed broad ($s3cfg and $shadow) clause (matches backup scripts/audit checklists); remaining branches all require campaign-unique paths. Changed label from "sample: fired ✓" to "sample: constructed" — positive was built from published paths/names, not a confirmed upstream sample. -->
 ```yara
 rule Supply_Chain_cPGuard_Backdoor_Script
 {
@@ -296,7 +286,6 @@ rule Supply_Chain_cPGuard_Backdoor_Script
         $shadow = "/etc/shadow" ascii
         $sshkey = "/root/.ssh" ascii
         $mycnf = "/root/.my.cnf" ascii
-        $s3cfg = "/root/.s3cfg" ascii
         $script_name1 = "cpguard-v58812-i91511" ascii
         $script_name2 = "cpguard-v58812-i91511b" ascii
         $script_name3 = "cpguard-v58812-i91511c" ascii
@@ -307,7 +296,6 @@ rule Supply_Chain_cPGuard_Backdoor_Script
         ($path1 and $shadow) or
         ($path2 and ($loot or $sshkey or $mycnf)) or
         ($cron and $path3) or
-        ($s3cfg and $shadow) or
         (3 of ($path1, $path2, $path3, $cron, $loot))
 }
 ```
