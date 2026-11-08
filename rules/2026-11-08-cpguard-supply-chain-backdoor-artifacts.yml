@@ -1,0 +1,27 @@
+title: cPGuard Supply Chain - Backdoor File Artifacts
+id: 7a3e1b4c-9d2f-4e8a-b5c1-6f0e3d2a1b8c
+status: experimental
+description: Detects creation of files associated with the cPGuard supply chain attack including the hidden setuid-root shell and staging directories
+references:
+    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
+    - https://www.csoonline.com/article/4244961/attackers-turned-opsshields-trusted-update-channel-into-a-supply-chain-attack-2.html
+author: Actioner
+date: 2026/11/08
+tags:
+    - attack.t1195.002
+    - attack.t1059.004
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_backdoor:
+        TargetFilename|contains:
+            - '/var/tmp/.cpg91511_sh'
+            - '/var/tmp/.cpg91511/'
+            - '/var/tmp/.i93677/'
+    selection_cron:
+        TargetFilename: '/etc/cron.d/i93677'
+    condition: selection_backdoor or selection_cron
+falsepositives:
+    - Legitimate cPGuard operations during the affected version window (5.88.12-5.88.19) prior to remediation
+level: critical

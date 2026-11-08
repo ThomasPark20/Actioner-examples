@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-08
-Version: 1.0 (DRAFT)
+Version: 1.0
 
 ## Executive Summary
 
@@ -273,8 +273,8 @@ alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chai
 
 ### YARA: cPGuard Supply Chain Malicious Update Script
 Detects the malicious update scripts by their distinctive file paths, script names, and credential harvesting artifact combination.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Positive test: constructed script with published paths/names → matched. Negative test: benign update script → no match. Script names (cpguard-v58812-i91511*) are campaign-unique identifiers from the vendor advisory. -->
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. Tested with constructed script containing published paths/names — no real malware sample available. Negative test: benign update script → no match. Script names (cpguard-v58812-i91511*) are campaign-unique identifiers from the vendor advisory. -->
 ```yara
 rule Supply_Chain_cPGuard_Backdoor_Script
 {

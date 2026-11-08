@@ -1,0 +1,1 @@
+alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chain Attack - Outbound to Attacker IP 94.183.188.91"; flow:to_server; sid:2100050; rev:1; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html;)
