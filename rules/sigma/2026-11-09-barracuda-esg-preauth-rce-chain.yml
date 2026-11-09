@@ -1,0 +1,69 @@
+title: Barracuda ESG Exploit Chain - Suspicious CGI Request With Backup Upload
+id: 7a3e9c41-b8d2-4f1e-a6c3-5d0e8f2b1a94
+status: experimental
+description: >
+    Detects HTTP requests to the Barracuda ESG administrative CGI endpoint
+    containing multipart fields associated with the CVE-2026-116606 and
+    CVE-2026-111560 exploit chain (pre-auth backup restore leading to
+    command injection).
+references:
+    - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
+    - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
+author: Actioner
+date: 2026-11-09
+tags:
+    - attack.t1190
+    - attack.t1059.004
+logsource:
+    category: webserver
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/cgi-mod/index.cgi'
+    selection_method:
+        cs-method: 'POST'
+    selection_body:
+        cs-body|contains:
+            - 'pu_bayesian_upload'
+            - 'UPDATE_activation_code'
+    condition: selection_uri and selection_method and selection_body
+falsepositives:
+    - Legitimate Barracuda ESG administrative backup restore operations performed by authorized administrators
+level: medium
+---
+title: Barracuda ESG Command Injection - Suspicious Timezone Value With Shell Metacharacters
+id: 4b1c6e89-d3a7-4f52-9e08-7a2d5c1f3b60
+status: experimental
+description: >
+    Detects suspicious process creation on Linux systems where a web server
+    child process executes timezone configuration commands containing shell
+    metacharacters, indicative of CVE-2026-111560 command injection via the
+    timezone field in Barracuda appliance configuration restore.
+references:
+    - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
+    - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
+author: Actioner
+date: 2026-11-09
+tags:
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/httpd'
+            - '/apache2'
+            - '/nginx'
+            - '/index.cgi'
+            - '/perl'
+    selection_commands:
+        CommandLine|contains:
+            - 'system_timezone'
+            - 'timedatectl'
+            - 'tzdata'
+    selection_injection:
+        CommandLine|re: '[\x60;$|&]'
+    condition: selection_parent and selection_commands and selection_injection
+falsepositives:
+    - System administrators manually configuring timezone settings via scripts that include shell metacharacters
+level: medium
