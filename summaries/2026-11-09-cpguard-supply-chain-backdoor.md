@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-09
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -149,10 +149,10 @@ On OPSSHIELD's internal servers (not customer servers), investigators found:
 | TID | Technique | Observed Behavior |
 |-----|-----------|-------------------|
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Hijacked cPGuard auto-update channel to distribute malicious scripts to ~2,950 servers |
-| T1078 | Valid Accounts | Used stolen update-signing key and compromised licensing server account |
+| T1588.003 | Obtain Capabilities: Code Signing Certificates | Stole the update-signing key from the licensing server to sign malicious updates |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Malicious payload was a bash shell script executed as root |
 | T1072 | Software Deployment Tools | Abused cPGuard's legitimate auto-update mechanism for payload delivery |
-| T1003 | OS Credential Dumping | Harvested `/etc/shadow` and `/etc/passwd` for password hashes |
+| T1003.008 | OS Credential Dumping: /etc/passwd and /etc/shadow | Harvested `/etc/shadow` and `/etc/passwd` for password hashes |
 | T1552.004 | Unsecured Credentials: Private Keys | Collected SSH private keys from `/root/.ssh/` |
 | T1548.001 | Abuse Elevation Control Mechanism: Setuid and Setgid | Installed hidden setuid-root shell at `/var/tmp/.cpg91511_sh` |
 | T1053.003 | Scheduled Task/Job: Cron | Created cron job at `/etc/cron.d/i93677` for persistence |
@@ -161,7 +161,7 @@ On OPSSHIELD's internal servers (not customer servers), investigators found:
 | T1041 | Exfiltration Over C2 Channel | Exfiltrated collected data to attacker-controlled endpoint |
 | T1505.003 | Server Software Component: Web Shell | Deployed PHP web shells on OPSSHIELD infrastructure (`i90573_sh.php`, `i90573_x.php`) |
 | T1036.004 | Masquerading: Masquerade Task or Service | Go implant masqueraded as kernel threads (`[rcu_gp]`, `[slub_flushwq]`) |
-| T1071.001 | Application Layer Protocol: Web Protocols | Spoofed cPGuard user agent for blending with legitimate HTTP traffic |
+| T1036 | Masquerading | Spoofed cPGuard/5.88.11 user agent to blend malicious traffic with legitimate update requests |
 
 ## Impact Assessment
 
@@ -216,7 +216,9 @@ find /var/tmp/ -name "loot.tgz" -o -name ".cpg91511" 2>/dev/null
 
 ## Detection Rules
 
-These rules cover the cPGuard supply chain attack's file artifacts, network indicators, and behavioral patterns. All IOC-specific rules target distinctive, attack-unique indicators, while behavioral rules carry lower confidence due to potential overlap with legitimate administrative activity. The `sigma check` command could not run (MITRE ATT&CK data fetch blocked by proxy), so Sigma rules were validated via `sigma convert` to both Splunk and LogScale backends.
+These rules cover the cPGuard supply chain attack's file artifacts, network indicators, and malware signatures. All rules target distinctive, attack-unique indicators at specific altitude. Sigma rules were validated via `sigma convert` to both Splunk and LogScale backends; YARA rules compiled with `yarac`; Suricata rules validated with `suricata -T`. Snort rules are structurally checked only (snort binary not available) -- deploy with local compilation before production use.
+
+<!-- revision: v1.1 — dropped 6 rules (Credential Harvesting Sigma, Spoofed UA Sigma/Suricata/Snort, _rx.php Suricata/Snort) per critic; fixed MITRE T1003→T1003.008, T1078→T1588.003, T1071.001→T1036; removed redundant selection_loot from file artifacts Sigma; fixed Go Implant YARA (ELF header, pythno3 anchor, removed broad branch); added setuid backdoor /bin/sh caveat. -->
 
 ### Sigma: cPGuard Malicious File Artifacts
 
@@ -249,8 +251,6 @@ detection:
         TargetFilename|endswith: '/var/tmp/.cpg91511_sh'
     selection_staging:
         TargetFilename|contains: '/var/tmp/.cpg91511/'
-    selection_loot:
-        TargetFilename|endswith: '/var/tmp/.cpg91511/loot.tgz'
     selection_cron:
         TargetFilename|endswith: '/etc/cron.d/i93677'
     selection_cron_dir:
@@ -261,7 +261,7 @@ falsepositives:
 level: critical
 ```
 
-<!-- Audit: Validated via sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). sigma check failed due to MITRE ATT&CK data fetch blocked by proxy (HTTP 403), not a rule issue. Tags use procedure-level technique IDs only. All file paths are real (not defanged) per logsource-encoding guidance. -->
+<!-- Audit: Validated via sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). sigma check failed due to MITRE ATT&CK data fetch blocked by proxy (HTTP 403), not a rule issue. Tags use procedure-level technique IDs only. All file paths are real (not defanged) per logsource-encoding guidance. revision: v1.1 removed redundant selection_loot (already matched by selection_staging via contains). -->
 
 ### Sigma: cPGuard Malicious Script Execution
 
@@ -305,54 +305,7 @@ level: critical
 
 <!-- Audit: Validated via sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). Script names match all four known SHA-256 hashed variants from OPSSHIELD disclosure. -->
 
-### Sigma: cPGuard Credential Harvesting Pattern
-
-Detects the auditd access pattern of reading /etc/shadow together with SSH keys or MySQL config, as observed in the attack's harvesting phase.
-
-**Compile:** ✅ (`sigma convert` to Splunk exit 0, LogScale exit 0) | **Confidence:** medium
-
-```yaml
-title: cPGuard Supply Chain Attack - Credential Harvesting Pattern
-id: 3fc3fed8-cb40-4dd5-b309-a7b705f3b0e9
-status: experimental
-description: >
-    Detects the credential and secret harvesting pattern used by the cPGuard
-    supply chain attack, where the malicious script reads /etc/shadow, SSH
-    private keys, and MySQL credentials, then stages them to a hidden directory
-    under /var/tmp.
-references:
-    - https://thehackernews.com/2026/11/cpguard-update-channel-hijacked-to.html
-    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
-author: Actioner
-date: 2026-11-09
-tags:
-    - attack.t1003
-    - attack.t1552.004
-    - attack.t1560.001
-logsource:
-    product: linux
-    service: auditd
-detection:
-    selection_shadow:
-        type: 'PATH'
-        name: '/etc/shadow'
-    selection_ssh:
-        type: 'PATH'
-        name|startswith: '/root/.ssh/'
-    selection_mycnf:
-        type: 'PATH'
-        name: '/root/.my.cnf'
-    selection_s3cfg:
-        type: 'PATH'
-        name: '/root/.s3cfg'
-    condition: selection_shadow and (selection_ssh or selection_mycnf or selection_s3cfg)
-falsepositives:
-    - Backup scripts that read /etc/shadow and SSH keys simultaneously
-    - Configuration management tools performing credential audits
-level: medium
-```
-
-<!-- Audit: Validated via sigma convert. This is a behavioral/TTP rule correlating multiple file accesses -- requires auditd file access auditing enabled for these paths. Medium confidence due to potential overlap with backup and config management tools. -->
+<!-- revision: v1.1 DROPPED Sigma "Credential Harvesting Pattern" — behavioral/TTP rule at specific altitude; cross-event AND correlation unsupported in standard Sigma without temporal aggregation. -->
 
 ### Sigma: Connection to Attacker IP
 
@@ -421,38 +374,7 @@ level: critical
 
 <!-- Audit: Validated via sigma convert. IOC-specific path unique to this incident. -->
 
-### Sigma: Spoofed cPGuard User Agent
-
-Detects HTTP requests using the spoofed `cPGuard/5.88.11` user agent observed from the attacker.
-
-**Compile:** ✅ (`sigma convert` to Splunk exit 0, LogScale exit 0) | **Confidence:** medium
-
-```yaml
-title: cPGuard Supply Chain Attack - Spoofed User Agent
-id: bb148aa4-488f-4af1-8287-039e60433b51
-status: experimental
-description: >
-    Detects HTTP requests using the spoofed user agent string cPGuard/5.88.11
-    observed in the cPGuard supply chain attack. The attacker used this to
-    impersonate legitimate cPGuard update traffic.
-references:
-    - https://opsshield.com/notice/security-incident-disclosure-servermanage.html
-author: Actioner
-date: 2026-11-09
-tags:
-    - attack.t1071.001
-logsource:
-    category: proxy
-detection:
-    selection:
-        c-useragent|contains: 'cPGuard/5.88.11'
-    condition: selection
-falsepositives:
-    - Legitimate cPGuard version 5.88.11 update traffic (this specific version existed before the attack)
-level: medium
-```
-
-<!-- Audit: Validated via sigma convert. Medium confidence because cPGuard 5.88.11 was a real version and legitimate instances would produce the same UA string. Best used in correlation with other indicators. -->
+<!-- revision: v1.1 DROPPED Sigma "Spoofed cPGuard User Agent" — cPGuard/5.88.11 was a real legitimate version; rule matches all genuine update traffic from that version. -->
 
 ### YARA: cPGuard Malicious Update Script
 
@@ -526,7 +448,7 @@ rule SupplyChain_cPGuard_Setuid_Backdoor
 }
 ```
 
-<!-- Audit: Compiled with yarac exit 0. Matches ELF binaries containing the unique path marker string. High confidence due to attack-specific string. -->
+<!-- Audit: Compiled with yarac exit 0. Matches ELF binaries containing the unique path marker string. High confidence due to attack-specific string. Caveat: the backdoor is a plain copy of /bin/sh with setuid set — file content is a standard shell binary; detection relies on the path string being embedded (e.g., in process argv or debug info), which may not be present in all forensic copies. For disk scans, pair with path-based file_event Sigma rule. -->
 
 ### YARA: cPGuard Go Implant (OPSSHIELD Infrastructure)
 
@@ -552,19 +474,19 @@ rule SupplyChain_cPGuard_GoImplant_Infra
         $implant_name2 = "netstat.cfg" ascii
         $implant_name3 = "system.mark" ascii
         $implant_name4 = "libgdi.so.0.8.2" ascii
-        $hiding_script = "gateway.sh" ascii
 
     condition:
+        uint32(0) == 0x464C457F and
         filesize < 50MB and
+        $implant_name1 and
         (
             2 of ($fake_proc*) or
-            3 of ($implant_name*) or
-            ($hiding_script and 1 of ($fake_proc*))
+            2 of ($implant_name*)
         )
 }
 ```
 
-<!-- Audit: Compiled with yarac exit 0. Medium confidence because individual strings (e.g., gateway.sh, rcu_gp) can appear in legitimate contexts; the rule requires combinations to reduce FPs. Primarily relevant for OPSSHIELD infrastructure or similar hosting providers. -->
+<!-- Audit: Compiled with yarac exit 0. revision: v1.1 added ELF header check, required $implant_name1 (pythno3 typosquat) as anchor, removed broad ($hiding_script and 1 of ($fake_proc*)) branch, dropped $hiding_script. Medium confidence because individual strings can appear in legitimate contexts; anchoring on the distinctive pythno3 typosquat reduces FPs. Primarily relevant for OPSSHIELD infrastructure or similar hosting providers. -->
 
 ### Suricata: Outbound Connection to Attacker IP
 
@@ -578,29 +500,9 @@ alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chai
 
 <!-- Audit: Validated with suricata -T -S exit 0. IP-based rule, high confidence. Will need removal when IP is reassigned. -->
 
-### Suricata: Spoofed cPGuard User Agent
+<!-- revision: v1.1 DROPPED Suricata sid:2100102 "Spoofed cPGuard User Agent" — legitimate cPGuard 5.88.11 traffic matches identically. -->
 
-Detects HTTP traffic with the spoofed cPGuard/5.88.11 user agent string.
-
-**Compile:** ✅ (`suricata -T` exit 0) | **Confidence:** medium
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - cPGuard Supply Chain Attack - Spoofed cPGuard User Agent in HTTP Request"; flow:established,to_server; http.user_agent; content:"cPGuard/5.88.11"; fast_pattern; classtype:trojan-activity; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; metadata:author Actioner, created_at 2026-11-09; sid:2100102; rev:1;)
-```
-
-<!-- Audit: Validated with suricata -T -S exit 0. Medium confidence -- legitimate cPGuard 5.88.11 instances generate identical UA. Best used in correlation. -->
-
-### Suricata: Exfiltration URI Pattern _rx.php
-
-Detects HTTP requests to `_rx.php` endpoints used for data exfiltration.
-
-**Compile:** ✅ (`suricata -T` exit 0) | **Confidence:** medium
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - cPGuard Supply Chain Attack - Exfiltration URI Pattern _rx.php"; flow:established,to_server; http.uri; content:"_rx.php"; fast_pattern; classtype:trojan-activity; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; metadata:author Actioner, created_at 2026-11-09; sid:2100103; rev:1;)
-```
-
-<!-- Audit: Validated with suricata -T -S exit 0. Medium confidence -- _rx.php is a short pattern that may appear in legitimate web applications. Best used in correlation with other indicators. -->
+<!-- revision: v1.1 DROPPED Suricata sid:2100103 "Exfiltration URI Pattern _rx.php" — generic PHP substring with high FP risk in web hosting environments. -->
 
 ### Snort: Outbound Connection to Attacker IP
 
@@ -614,29 +516,9 @@ alert ip $HOME_NET any -> 94.183.188.91 any (msg:"Actioner - cPGuard Supply Chai
 
 <!-- Audit: Structural check only -- snort binary not available. IP-based rule, msg/sid/rev present, semicolons balanced. -->
 
-### Snort: Spoofed cPGuard User Agent
+<!-- revision: v1.1 DROPPED Snort sid:2100202 "Spoofed cPGuard User Agent" — same UA issue as Suricata; also had flow syntax bug (space after comma). -->
 
-Detects HTTP traffic with the spoofed cPGuard/5.88.11 user agent.
-
-**Compile:** ⚠️ uncompiled (snort binary not available) | **Confidence:** medium
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - cPGuard Supply Chain Attack - Spoofed cPGuard/5.88.11 User Agent"; flow:established, to_server; http_header; content:"cPGuard/5.88.11", fast_pattern; classtype:trojan-activity; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; metadata:author Actioner, created 2026-11-09; sid:2100202; rev:1;)
-```
-
-<!-- Audit: Structural check only. Uses http_header (Snort 3 underscore notation, not Suricata dot notation). -->
-
-### Snort: Exfiltration URI Pattern _rx.php
-
-Detects HTTP requests to `_rx.php` exfiltration endpoints.
-
-**Compile:** ⚠️ uncompiled (snort binary not available) | **Confidence:** medium
-
-```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - cPGuard Supply Chain Attack - Exfiltration URI Pattern _rx.php"; flow:established, to_server; http_uri; content:"_rx.php", fast_pattern; classtype:trojan-activity; reference:url,opsshield.com/notice/security-incident-disclosure-servermanage.html; metadata:author Actioner, created 2026-11-09; sid:2100203; rev:1;)
-```
-
-<!-- Audit: Structural check only. Uses http_uri (Snort 3 underscore notation). -->
+<!-- revision: v1.1 DROPPED Snort sid:2100203 "Exfiltration URI Pattern _rx.php" — same genericness issue as Suricata; also had flow syntax bug. -->
 
 ## Lessons Learned
 

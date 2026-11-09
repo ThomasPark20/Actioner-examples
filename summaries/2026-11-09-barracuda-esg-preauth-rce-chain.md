@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-09
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -115,8 +115,7 @@ The attack leverages legitimate appliance functionality (backup restore, timezon
 | T1190 | Exploit Public-Facing Application | Unauthenticated exploitation of the ESG admin interface CGI endpoint |
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Injected shell commands via timezone field executed by sudo-invoked script |
 | T1068 | Exploitation for Privilege Escalation | Command injection runs as root through sudo-invoked timezone script |
-| T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Hardcoded checksum secret in firmware enables backup archive forgery |
-| T1078 | Valid Accounts | Authorization bypass grants a session role without authentication |
+| T1036 | Masquerading | Forged backup archive with valid checksum (hardcoded secret) masquerades as legitimate configuration restore |
 
 ## Impact Assessment
 
@@ -144,11 +143,13 @@ curl -k -s -o /dev/null -w "%{http_code}" https://<your-esg-ip>:8443/cgi-mod/ind
 - Check for unexpected admin accounts or password changes
 - Look for unexpected outbound connections from the appliance
 
-**Run the watchTowr detection tool:**
+**Run the watchTowr detection tool (TEST ENVIRONMENTS ONLY):**
 ```bash
-# Clone and run the vulnerability check (does NOT exploit -- checks exposure only)
+# WARNING: This tool sends an actual exploit payload to the target. Running it
+# against a production appliance IS exploitation, even with a benign command.
+# Use ONLY in isolated test/lab environments with explicit authorization.
 git clone https://github.com/watchtowrlabs/watchTowr-vs-Barracuda-RCE-CVE-2026-116606-CVE-2026-111560.git
-python3 watchTowr-vs-Barracuda.py --target https://<your-esg-ip> --command 'id'
+python3 watchTowr-vs-Barracuda.py --target https://<your-test-esg-ip> --command 'id'
 ```
 
 ### Remediation
@@ -169,11 +170,13 @@ python3 watchTowr-vs-Barracuda.py --target https://<your-esg-ip> --command 'id'
 
 ## Detection Rules
 
-The rules below target the specific HTTP request patterns and behavioral indicators of the CVE-2026-116606 / CVE-2026-111560 exploit chain. No traditional network IOCs (C2 domains, IPs, file hashes) exist because no in-the-wild exploitation has been reported. Rules focus on the CGI endpoint access pattern, multipart backup upload fields, and anomalous process creation from web server processes on the appliance.
+<!-- revision: v1.1 — dropped proxy Sigma rule (altitude violation at specific/strict); removed redundant 'bayesian' from HTTP request rule and downgraded to medium; fixed timezone rule OR→AND logic flaw; made YARA injection indicators mandatory; moved Suricata SIDs to 2200000+ range; added Snort uncompiled caveat. -->
+
+The rules below target the specific HTTP request patterns and behavioral indicators of the CVE-2026-116606 / CVE-2026-111560 exploit chain. No traditional network IOCs (C2 domains, IPs, file hashes) exist because no in-the-wild exploitation has been reported. Compiles does not equal fires -- verify in your pipeline with representative telemetry.
 
 ### Sigma: Barracuda ESG Exploit Chain - Suspicious CGI Request With Backup Upload
 
-Detects HTTP POST requests to `/cgi-mod/index.cgi` containing exploit-specific multipart form fields in web server logs.
+Detects HTTP POST requests to `/cgi-mod/index.cgi` containing exploit-specific multipart form fields (`pu_bayesian_upload`, `UPDATE_activation_code`). Requires HTTP request body logging (cs-body), which is not default on most web servers/proxies.
 **Compile status:** ✅ compiles (sigma convert splunk + log_scale) | **Confidence:** medium
 
 ```yaml
@@ -204,56 +207,23 @@ detection:
         cs-body|contains:
             - 'pu_bayesian_upload'
             - 'UPDATE_activation_code'
-            - 'bayesian'
     condition: selection_uri and selection_method and selection_body
 falsepositives:
     - Legitimate Barracuda ESG administrative backup restore operations performed by authorized administrators
-level: high
-```
-
-<!-- audit: Validated with sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). sigma check failed due to MITRE ATT&CK data fetch (HTTP 403 from network proxy), not a rule syntax issue. Fields cs-uri-stem, cs-method, cs-body are standard webserver log fields. The body field requires the web server to log request bodies, which is not default in most configurations -- document this as a deployment prerequisite. Values are not defanged per logsource-encoding guidance. -->
-
-### Sigma: Barracuda ESG Exploit Chain - CGI Backup Upload Via Proxy
-
-Detects the exploit chain HTTP pattern in proxy logs (POST to CGI endpoint with multipart content type).
-**Compile status:** ✅ compiles (sigma convert splunk + log_scale) | **Confidence:** low
-
-```yaml
-title: Barracuda ESG Exploit Chain - CGI Backup Upload Via Proxy
-id: 2d5f8a01-c7e3-49b6-8d14-6e3b9f0c2a57
-status: experimental
-description: >
-    Detects HTTP POST requests to the Barracuda ESG CGI endpoint associated
-    with the pre-auth configuration restore exploit chain (CVE-2026-116606
-    and CVE-2026-111560) as seen in proxy logs.
-references:
-    - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
-    - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
-author: Actioner
-date: 2026-11-09
-tags:
-    - attack.t1190
-    - attack.t1059.004
-logsource:
-    category: proxy
-detection:
-    selection_method:
-        cs-method: 'POST'
-    selection_uri:
-        cs-uri-stem|contains: '/cgi-mod/index.cgi'
-    selection_content_type:
-        cs-content-type|contains: 'multipart/form-data'
-    condition: selection_method and selection_uri and selection_content_type
-falsepositives:
-    - Legitimate administrator access to the Barracuda ESG management interface through a proxy
 level: medium
 ```
 
-<!-- audit: Validated with sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). Low confidence because the pattern matches any multipart POST to the CGI endpoint, which includes legitimate admin activity. Proxy category with standard cs-method, cs-uri-stem, cs-content-type fields. -->
+<!-- audit: v1.1 — removed redundant 'bayesian' keyword (appears in legitimate Bayesian filter requests, too broad). Downgraded level high→medium. sigma check failed due to MITRE ATT&CK data fetch (HTTP 403 from network proxy), not a rule syntax issue. sigma convert --without-pipeline -t splunk exit 0, -t log_scale exit 0. Fields cs-uri-stem, cs-method, cs-body are standard webserver log fields. cs-body requires request body logging which is not default. Values not defanged per logsource-encoding guidance. -->
+
+### Sigma: Barracuda ESG Exploit Chain - CGI Backup Upload Via Proxy
+
+**DROPPED.** Altitude violation at specific/strict: this rule matched any multipart POST to `/cgi-mod/index.cgi` via proxy, which includes all legitimate admin activity. Proxy logs rarely include request body, so the rule cannot be narrowed to exploit-specific fields without becoming the webserver rule above. Use the webserver-category rule or the Suricata rules instead.
+
+<!-- audit: v1.1 — dropped per critic verdict. Original rule id 2d5f8a01-c7e3-49b6-8d14-6e3b9f0c2a57. -->
 
 ### Sigma: Barracuda ESG Command Injection - Suspicious Timezone Process Creation
 
-Detects suspicious process creation on Linux where web server child processes execute timezone-related commands with shell metacharacters.
+Detects web server child processes executing timezone commands that contain shell metacharacters, requiring all three indicators simultaneously. Requires Linux process creation logging (auditd or Sysmon for Linux); ParentImage list may need tuning for the specific Barracuda ESG process hierarchy.
 **Compile status:** ✅ compiles (sigma convert splunk + log_scale) | **Confidence:** low
 
 ```yaml
@@ -261,10 +231,10 @@ title: Barracuda ESG Command Injection - Suspicious Timezone Value With Shell Me
 id: 4b1c6e89-d3a7-4f52-9e08-7a2d5c1f3b60
 status: experimental
 description: >
-    Detects suspicious process creation on Linux systems where timezone
-    configuration commands contain shell metacharacters, indicative of
-    CVE-2026-111560 command injection via the timezone field in Barracuda
-    appliance configuration restore.
+    Detects suspicious process creation on Linux systems where a web server
+    child process executes timezone configuration commands containing shell
+    metacharacters, indicative of CVE-2026-111560 command injection via the
+    timezone field in Barracuda appliance configuration restore.
 references:
     - https://trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection
     - https://labs.watchtowr.com/barracuda-networks-is-your-new-best-friend-barracuda-email-security-gateway-pre-auth-remote-root-rce-cve-2026-116606-cve-2026-111560/
@@ -290,43 +260,43 @@ detection:
             - 'tzdata'
     selection_injection:
         CommandLine|re: '[\x60;$|&]'
-    condition: selection_parent and (selection_commands or selection_injection)
+    condition: selection_parent and selection_commands and selection_injection
 falsepositives:
-    - System administrators manually configuring timezone settings via scripts
+    - System administrators manually configuring timezone settings via scripts that include shell metacharacters
 level: medium
 ```
 
-<!-- audit: Validated with sigma convert --without-pipeline -t splunk (exit 0) and -t log_scale (exit 0). Low confidence: behavioral rule matching broad patterns. Requires Linux process creation logging (auditd or Sysmon for Linux). The regex for shell metacharacters is intentionally broad. ParentImage list covers common web server processes but may need tuning for specific Barracuda ESG process hierarchy. -->
+<!-- audit: v1.1 — CRITICAL FIX: changed condition from 'selection_parent and (selection_commands or selection_injection)' to 'selection_parent and selection_commands and selection_injection'. The original OR allowed the rule to fire on ANY web-server child process whose command line contained common shell metacharacters (semicolons, pipes, ampersands, backticks), which is extremely broad. The AND requires all three: web server parent + timezone-related command + shell metacharacters. sigma convert --without-pipeline -t splunk exit 0, -t log_scale exit 0. Confidence remains low: behavioral rule at ttp altitude. -->
 
 ### Suricata: Barracuda ESG Exploit Chain HTTP Detection
 
-Two rules detecting the exploit chain POST requests at the network level.
-**Compile status:** ✅ compiles (suricata -T exit 0) | **Confidence:** medium
+Two rules detecting the exploit chain POST requests at the network level with exploit-specific body content.
+**Compile status:** ✅ compiles (suricata -T exit 0, Suricata 7.0.3) | **Confidence:** medium
 
+```suricata
+alert http any any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Exploit Chain POST to /cgi-mod/index.cgi with Backup Upload (CVE-2026-116606)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; fast_pattern; http.request_body; content:"pu_bayesian_upload"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created_at 2026-11-09; sid:2200101; rev:2;)
+
+alert http any any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Config Restore Multipart POST to CGI Endpoint (CVE-2026-116606)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; fast_pattern; http.content_type; content:"multipart/form-data"; http.request_body; content:"UPDATE_activation_code"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created_at 2026-11-09; sid:2200102; rev:2;)
 ```
-alert http any any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Exploit Chain POST to /cgi-mod/index.cgi with Backup Upload (CVE-2026-116606)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; fast_pattern; http.request_body; content:"pu_bayesian_upload"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created_at 2026-11-09; sid:2100101; rev:1;)
 
-alert http any any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Config Restore Multipart POST to CGI Endpoint (CVE-2026-116606)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/cgi-mod/index.cgi"; fast_pattern; http.content_type; content:"multipart/form-data"; http.request_body; content:"UPDATE_activation_code"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created_at 2026-11-09; sid:2100102; rev:1;)
-```
-
-<!-- audit: Validated with suricata -T -S (exit 0, Suricata 7.0.3). Uses dot-notation sticky buffers. Rules inspect request body which requires Suricata http body inspection to be enabled (default). TLS-encrypted admin traffic will not be visible unless TLS termination/inspection is in place upstream. -->
+<!-- audit: v1.1 — moved SIDs from 2100101/2100102 to 2200101/2200102 (Suricata private range per spec is 2200000+; original SIDs overlapped with the Snort range). Bumped rev to 2. Re-validated with suricata -T -S (exit 0, Suricata 7.0.3). Uses dot-notation sticky buffers. TLS-encrypted admin traffic will not be visible unless TLS termination/inspection is in place upstream. -->
 
 ### Snort 3: Barracuda ESG Exploit Chain HTTP Detection
 
 Two rules detecting the same exploit chain POST patterns for Snort 3 deployments.
-**Compile status:** ⚠️ uncompiled (snort binary not available) | **Confidence:** medium
+**Compile status:** ⚠️ uncompiled (structural check only -- snort binary not available) | **Confidence:** medium
 
-```
+```snort
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Exploit Chain POST to /cgi-mod/index.cgi with Backup Upload (CVE-2026-116606)"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/cgi-mod/index.cgi", fast_pattern; http_client_body; content:"pu_bayesian_upload"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created 2026-11-09; sid:2100201; rev:1;)
 
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - Barracuda ESG Config Restore Multipart POST to CGI Endpoint (CVE-2026-116606)"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/cgi-mod/index.cgi", fast_pattern; http_header; content:"multipart/form-data"; http_client_body; content:"UPDATE_activation_code"; classtype:web-application-attack; reference:url,trust.barracuda.com/security/pre-authentication-authorization-bypass-command-injection; reference:cve,2026-116606; metadata:author Actioner, created 2026-11-09; sid:2100202; rev:1;)
 ```
 
-<!-- audit: Structural check only -- snort binary not available. Uses underscore sticky buffers (http_uri, http_method, http_client_body, http_header) per Snort 3 syntax. Comma-separated modifiers per Snort 3 convention. All required fields (msg, sid, rev) present. Semicolons terminate all options. -->
+<!-- audit: Structural check only -- snort binary not available. Uses underscore sticky buffers (http_uri, http_method, http_client_body, http_header) per Snort 3 syntax. Comma-separated modifiers per Snort 3 convention. All required fields (msg, sid, rev) present. Semicolons terminate all options. SIDs in 2100000+ range (Snort private range per spec). -->
 
 ### YARA: Barracuda ESG Exploit Artifacts
 
-Two rules: one for crafted backup archives used in the exploit chain, one for the watchTowr PoC tool.
+Two rules: one for crafted backup archives (requires tar format + SQL + timezone field + injection indicators + Barracuda config markers), one for the watchTowr PoC tool.
 **Compile status:** ✅ compiles (yarac exit 0) | **Confidence:** medium (backup archive) / medium (PoC tool)
 
 ```yara
@@ -354,8 +324,9 @@ rule Exploit_Barracuda_ESG_Crafted_Backup_CVE_2026_116606
     condition:
         $tar_magic at 257 and
         filesize < 5MB and
-        ($sql_insert and $timezone_field) and
-        (1 of ($inject*) or $bayesian or $spam_config)
+        $sql_insert and $timezone_field and
+        1 of ($inject*) and
+        ($bayesian or $spam_config)
 }
 
 rule Tool_WatchTowr_Barracuda_ESG_PoC_CVE_2026_116606
@@ -385,7 +356,7 @@ rule Tool_WatchTowr_Barracuda_ESG_PoC_CVE_2026_116606
 }
 ```
 
-<!-- audit: Validated with yarac (exit 0). Non-fatal warning on single-char $inject2 string (performance advisory, not compilation error). The tar magic at offset 257 is the standard "ustar" signature. Crafted backup rule requires co-occurrence of tar format, SQL content, timezone field, AND injection indicators -- reasonably specific but may FP on legitimate Barracuda backups that happen to contain metacharacters in comments. PoC tool rule requires 3-of-9 strings, tuned to catch variants and forks. -->
+<!-- audit: v1.1 — FIX: changed backup archive condition from '(1 of ($inject*) or $bayesian or $spam_config)' to '1 of ($inject*) and ($bayesian or $spam_config)'. Original condition made injection indicators optional — $bayesian or $spam_config alone (without any injection pattern) would satisfy it, matching legitimate Barracuda backups. Now requires ALL of: tar magic + SQL insert + timezone field + at least one injection indicator + at least one Barracuda config marker. yarac exit 0. Non-fatal warning on single-char $inject2 (performance advisory). PoC tool rule unchanged (3-of-9 strings). -->
 
 ## Lessons Learned
 
