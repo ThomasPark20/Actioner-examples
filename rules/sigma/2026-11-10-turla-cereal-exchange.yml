@@ -1,0 +1,167 @@
+title: Turla CerealLoader DLL Search Order Hijacking in WMI Directory
+id: a7c3e1d0-4f8b-4e2a-9d6c-1b5a3f7e9c2d
+status: experimental
+description: >
+    Detects creation of suspicious DLL files (ncobjapi.dll or wbemcomn.dll) in the
+    C:\Windows\System32\wbem\ directory, which is used by the Turla Cereal toolset
+    for DLL search order hijacking. CerealLoader is placed in this location to be
+    loaded by the legitimate WMI Provider Host process (WmiPrvSE.exe).
+references:
+    - https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+    - https://web-assets.esetstatic.com/wls/en/papers/white-papers/turla-cereal-tricks.pdf
+author: CTI Analysis (DRAFT)
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.defense-evasion
+    - attack.t1574.001
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\Windows\System32\wbem\ncobjapi.dll'
+            - '\Windows\System32\wbem\wbemcomn.dll'
+    condition: selection
+falsepositives:
+    - Legitimate software updates placing DLLs in this directory (unlikely for these specific filenames)
+level: high
+---
+title: Turla CerealNeuron Suspicious Exchange URI Paths
+id: b8d4f2e1-5a9c-4b3d-ae7f-2c6b4a8f0d3e
+status: experimental
+description: >
+    Detects web requests to URI paths used by Turla CerealNeuron passive backdoor
+    on compromised Exchange servers. CerealNeuron listens on specific URI prefixes
+    that mimic legitimate Exchange services but are not standard Exchange endpoints.
+references:
+    - https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+    - https://web-assets.esetstatic.com/wls/en/papers/white-papers/turla-cereal-tricks.pdf
+author: CTI Analysis (DRAFT)
+date: 2026-11-10
+tags:
+    - attack.command-and-control
+    - attack.t1071.001
+    - attack.t1573.001
+logsource:
+    category: webserver
+    product: windows
+detection:
+    selection:
+        cs-uri-stem|contains:
+            - '/owa/sdds/'
+            - '/autodiscover/microsoft.exchange.proxyservice/'
+            - '/autodiscover/integrated/api/'
+            - '/autodiscover/proxyservice/'
+            - '/microsoft-server-activesync/integrated/api/'
+    condition: selection
+falsepositives:
+    - Legitimate Exchange traffic using similar URL patterns
+    - Custom Exchange applications or plugins using these paths
+level: medium
+---
+title: Turla CerealLoader .NET Native Image Cache Abuse
+id: c9e5f3f2-6b0d-4c4e-bf80-3d7c5a9b1e4f
+status: experimental
+description: >
+    Detects suspicious file creation in the .NET native image cache directory
+    with Exchange-related filenames. Turla places CerealLoader as malicious .ni.dll
+    files in the NativeImages directory to hijack Exchange service DLL loading.
+references:
+    - https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+    - https://web-assets.esetstatic.com/wls/en/papers/white-papers/turla-cereal-tricks.pdf
+author: CTI Analysis (DRAFT)
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.defense-evasion
+    - attack.t1574.001
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_path:
+        TargetFilename|contains: '\assembly\NativeImages_v4.0.30319_64\'
+    selection_name:
+        TargetFilename|endswith:
+            - 'Microsoft.Exchange.Search.Mdb.ni.dll'
+            - 'Microsoft.Exchange.Data.Transport.ni.dll'
+            - 'Microsoft.Exchange.EdgeSyncSvc.ni.exe'
+            - 'EdgeTransport.ni.exe'
+    filter_ngen:
+        Image|endswith: '\ngen.exe'
+    condition: selection_path and selection_name and not filter_ngen
+falsepositives:
+    - Legitimate Exchange patching or updates that regenerate native images outside of ngen.exe
+level: high
+---
+title: Turla CerealBox Injection Into EdgeTransport Process
+id: d0f6a4a3-7c1e-4d5f-ca91-4e8d6b0c2f5a
+status: experimental
+description: >
+    Detects potential process injection into Microsoft Exchange EdgeTransport.exe.
+    The Turla Cereal toolset uses CerealIron to inject CerealBox into
+    EdgeTransport.exe to hijack the mail transport pipeline for email collection.
+references:
+    - https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+    - https://web-assets.esetstatic.com/wls/en/papers/white-papers/turla-cereal-tricks.pdf
+author: CTI Analysis (DRAFT)
+date: 2026-11-10
+tags:
+    - attack.defense-evasion
+    - attack.t1055.001
+    - attack.t1620
+logsource:
+    category: create_remote_thread
+    product: windows
+detection:
+    selection:
+        TargetImage|endswith: '\EdgeTransport.exe'
+    filter_legitimate:
+        SourceImage|endswith:
+            - '\Microsoft.Exchange.Diagnostics.Service.exe'
+            - '\MSExchangeTransport.exe'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Legitimate Exchange management tools or monitoring agents
+    - Exchange service restarts or updates
+level: high
+---
+title: Turla CerealLoader Masquerading as Exchange Components
+id: e1a7b5c4-8d2f-4e6a-dc02-5f9e7d1e3a6b
+status: experimental
+description: >
+    Detects file creation events where known CerealLoader filenames are written
+    in system directories where they are illegitimate. Turla uses filenames mimicking
+    legitimate Microsoft Exchange and Windows components to disguise CerealLoader on disk.
+    Note: Program Files\Microsoft\Exchange is excluded because Microsoft.Ceres.dll and
+    Microsoft.Search.Platform.dll are legitimate Exchange components in that directory.
+references:
+    - https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+    - https://web-assets.esetstatic.com/wls/en/papers/white-papers/turla-cereal-tricks.pdf
+author: CTI Analysis (DRAFT)
+date: 2026-11-10
+tags:
+    - attack.defense-evasion
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_exchange_masq:
+        TargetFilename|endswith:
+            - '\Microsoft.Ceres.dll'
+            - '\Microsoft.Search.Platform.dll'
+            - '\iph.dat'
+    selection_system_dir:
+        TargetFilename|contains:
+            - '\Windows\System32\'
+            - '\assembly\NativeImages'
+    condition: selection_exchange_masq and selection_system_dir
+falsepositives:
+    - Legitimate Microsoft Exchange or Search service updates
+    - Third-party software using similar naming conventions
+level: medium

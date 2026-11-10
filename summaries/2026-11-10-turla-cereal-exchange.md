@@ -458,7 +458,7 @@ level: high
 
 ### Sigma Rule 5: CerealLoader Masquerading as Exchange Components
 
-Detects file creation where known CerealLoader disguise filenames appear in system or Exchange directories.
+Detects file creation where known CerealLoader disguise filenames appear in system directories where they are illegitimate (System32 and NativeImages cache).
 
 **Status:** Compile: `sigma convert` to Splunk/LogScale exit 0 | `sigma check` blocked by proxy | Confidence: **MEDIUM** (filenames like Microsoft.Ceres.dll and iph.dat could appear in legitimate contexts)
 
@@ -498,7 +498,7 @@ falsepositives:
 level: medium
 ```
 
-<!-- AUDIT: Semi-IOC-specific rule. These filenames were observed as CerealLoader disguises, but Microsoft.Ceres.dll is a legitimate Exchange Search component. The combination with specific directory paths narrows false positives. Medium confidence due to potential overlap with legitimate Exchange patching. Validated: sigma convert to splunk exit 0, sigma convert to log_scale exit 0. -->
+<!-- AUDIT: Semi-IOC-specific rule. These filenames were observed as CerealLoader disguises. Microsoft.Ceres.dll and Microsoft.Search.Platform.dll are legitimate Exchange components in Program Files\Microsoft\Exchange, so that path was removed from the directory filter -- only System32 and NativeImages paths (where these filenames are illegitimate) are matched. Medium confidence due to potential overlap with legitimate Exchange patching. Validated: sigma convert to splunk exit 0, sigma convert to log_scale exit 0. REVISION: Removed '\Program Files\Microsoft\Exchange' from directory filter to eliminate false positives on legitimate Exchange components. -->
 
 ### YARA Rule 1: CerealLoader .NET with Native Entry Point
 
@@ -517,6 +517,7 @@ rule Turla_CerealLoader_DotNet_NativeEntryPoint
         hash1 = "4A3C263977417FB6977B0E598C9E3BC5924F390C"
         hash2 = "7742C6B0AAF114335CEF7EBAB11290CB18A0B8B3"
         hash3 = "5B94FE76EC4FEB0B5CB6EA3BCA4C48D2FE22597B"
+        severity = "medium"
     strings:
         $mz = "MZ"
         $dotnet_sig = { 42 53 4A 42 }
@@ -556,6 +557,7 @@ rule Turla_CerealNeuron_URI_Prefixes
         author = "CTI Analysis (DRAFT)"
         date = "2026-11-10"
         reference = "https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/"
+        severity = "high"
     strings:
         $uri1 = "/owa/sdds/" ascii wide nocase
         $uri2 = "/autodiscover/microsoft.exchange.proxyservice/" ascii wide nocase
@@ -588,6 +590,7 @@ rule Turla_CerealBox_Exchange_Transport_Hijack
         author = "CTI Analysis (DRAFT)"
         date = "2026-11-10"
         reference = "https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/"
+        severity = "medium"
     strings:
         $mz = "MZ"
         $dotnet_sig = { 42 53 4A 42 }
@@ -625,47 +628,67 @@ rule Turla_Cereal_IOC_ConfigKey
         author = "CTI Analysis (DRAFT)"
         date = "2026-11-10"
         reference = "https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/"
+        severity = "high"
     strings:
         $config_key = "B38C96AE6643D2AB5C0BFE823D9C9017" ascii wide nocase
     condition:
-        $config_key
+        uint16(0) == 0x5A4D and $config_key
 }
 ```
 
-<!-- AUDIT: Pure IOC rule. This MD5 hash value is generated from a hardcoded integer and used as a configuration key in both CerealNeuron and CerealBox. High confidence as a known-bad indicator, but low coverage -- other samples may use different config keys. Note: ConfuserEx string encryption may prevent this string from appearing in plaintext. yarac compilation: exit 0. -->
+<!-- AUDIT: Pure IOC rule. This MD5 hash value is generated from a hardcoded integer and used as a configuration key in both CerealNeuron and CerealBox. High confidence as a known-bad indicator, but low coverage -- other samples may use different config keys. Note: ConfuserEx string encryption may prevent this string from appearing in plaintext. yarac compilation: exit 0. REVISION: Added PE header constraint (uint16(0) == 0x5A4D) to prevent matching threat reports or text files that quote the IOC string. Added severity = "high" meta field. -->
 
 ### Suricata Rule (Network): CerealNeuron URI Path Detection
 
 Detects HTTP/HTTPS requests to CerealNeuron passive backdoor URI paths on Exchange servers. Note: only effective for unencrypted HTTP or with TLS inspection.
 
-**Status:** Compile: uncompiled (structural check only) | Confidence: **MEDIUM** (URI paths are advisory-specific but TLS limits visibility)
+**Status:** Compile: uncompiled (structural check only) | Confidence: **MEDIUM** (URI paths are advisory-specific but TLS limits visibility) | 5 sub-rules covering all documented CerealNeuron URI prefixes
 
 ```
-# Suricata rules for Turla CerealNeuron URI path detection
+# Suricata rules for Turla CerealNeuron URI path detection (5 rules)
 # WARNING: These rules require TLS inspection to be effective on HTTPS traffic
+# SIDs use local range 1000001-1000005
 
 alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious OWA SDDS URI"; \
     flow:to_server,established; \
     http.uri; content:"/owa/sdds/"; nocase; \
-    classtype:trojan-activity; sid:2026111001; rev:1;)
+    classtype:trojan-activity; sid:1000001; rev:1;)
 
-alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover ProxyService URI"; \
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover MS Exchange ProxyService URI"; \
     flow:to_server,established; \
     http.uri; content:"/autodiscover/microsoft.exchange.proxyservice/"; nocase; \
-    classtype:trojan-activity; sid:2026111002; rev:1;)
+    classtype:trojan-activity; sid:1000002; rev:1;)
 
 alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover Integrated API URI"; \
     flow:to_server,established; \
     http.uri; content:"/autodiscover/integrated/api/"; nocase; \
-    classtype:trojan-activity; sid:2026111003; rev:1;)
+    classtype:trojan-activity; sid:1000003; rev:1;)
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover ProxyService URI"; \
+    flow:to_server,established; \
+    http.uri; content:"/autodiscover/proxyservice/"; nocase; \
+    classtype:trojan-activity; sid:1000004; rev:1;)
 
 alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious ActiveSync Integrated API URI"; \
     flow:to_server,established; \
     http.uri; content:"/microsoft-server-activesync/integrated/api/"; nocase; \
-    classtype:trojan-activity; sid:2026111004; rev:1;)
+    classtype:trojan-activity; sid:1000005; rev:1;)
 ```
 
-<!-- AUDIT: Network-level detection for CerealNeuron's URI prefixes. Requires TLS inspection (SSL bump or equivalent) to inspect HTTPS traffic, which limits real-world utility. The /owa/sdds/ path is the most distinctive -- standard OWA paths do not include "sdds". The other paths mimic Exchange patterns but are non-standard. Structural check only -- Suricata not installed for compilation verification. Medium confidence because: (1) HTTPS limits visibility without TLS inspection, (2) operator could change URI paths in new samples, (3) some URI patterns may appear in legitimate Exchange configurations. -->
+<!-- AUDIT: Network-level detection for CerealNeuron's URI prefixes. Requires TLS inspection (SSL bump or equivalent) to inspect HTTPS traffic, which limits real-world utility. The /owa/sdds/ path is the most distinctive -- standard OWA paths do not include "sdds". The other paths mimic Exchange patterns but are non-standard. Structural check only -- Suricata not installed for compilation verification. Medium confidence because: (1) HTTPS limits visibility without TLS inspection, (2) operator could change URI paths in new samples, (3) some URI patterns may appear in legitimate Exchange configurations. REVISION: Changed SIDs from Emerging Threats reserved range (2026111001-2026111004) to local range (1000001-1000005). Added 5th rule for /autodiscover/proxyservice/ URI path that was documented in the report but missing from the original rule set. -->
+
+## Revision Notes (v2)
+
+Changes applied from critic review:
+
+1. **Sigma #5 (CerealLoader Masquerading)**: Removed `'\Program Files\Microsoft\Exchange'` from directory filter. `Microsoft.Ceres.dll` and `Microsoft.Search.Platform.dll` are legitimate Exchange components in that directory; retaining only `'\Windows\System32\'` and `'\assembly\NativeImages'` eliminates false positives while preserving detection of these filenames in illegitimate locations. Renamed `selection_exchange_server` to `selection_system_dir` for clarity.
+2. **YARA #1 (CerealLoader .NET with Native Entry Point)**: Added `severity = "medium"` to meta section.
+3. **YARA #2 (CerealNeuron URI Prefixes)**: Added `severity = "high"` to meta section.
+4. **YARA #3 (CerealBox Exchange Transport Hijack)**: Added `severity = "medium"` to meta section.
+5. **YARA #4 (Cereal Toolset Configuration Key)**: Added PE header constraint (`uint16(0) == 0x5A4D`) to condition to prevent matching threat reports or text files quoting the IOC. Added `severity = "high"` to meta section.
+6. **Suricata #10 (CerealNeuron URI Path Detection)**: Changed SIDs from Emerging Threats reserved range (2026111001-2026111004) to local range (1000001-1000005). Added 5th rule for `/autodiscover/proxyservice/` URI path that was documented in the report's IOC table but missing from the original rule set.
+
+Rules retained without changes: Sigma #1, #2, #3, #4; no rules dropped.
 
 ## Sources
 
