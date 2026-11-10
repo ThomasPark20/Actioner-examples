@@ -431,10 +431,7 @@ detection:
     selection_service:
         CommandLine|contains:
             - '5cbe79c9c25524df'
-    selection_service_name:
-        ServiceName|contains:
-            - 'ScreenConnect Client (5cbe79c9c25524df)'
-    condition: selection_service or selection_service_name
+    condition: selection_service
 falsepositives:
     - A legitimate ScreenConnect deployment would not use this specific instance ID
 level: high
@@ -567,7 +564,7 @@ rule beejs_malicious_loader_generate_version_cjs {
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
         hash = "ee2f762e9ed3fd89f106e0b80c2e923bf1aed9a280277d3d998a5902c4d9ec0f"
-        severity = "critical"
+        severity = "high"
     strings:
         $url = "api.frameworkmetrics.xyz" ascii wide
         $path1 = "/v1/analytics" ascii wide
@@ -591,12 +588,12 @@ Detects the malicious bee-js 13.3.0 npm tarball by matching the package name, ve
 ```yara
 rule beejs_malicious_package_tgz {
     meta:
-        description = "Detects the malicious bee-js 13.3.0 npm tarball by SHA-256"
+        description = "Detects the malicious bee-js 13.3.0 npm tarball by package name, version, and injected postinstall hook"
         author = "CTI Analyst (Actioner)"
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
         hash = "d01fdf241aa9e0a1ba6ebc19f8f667af1bf652745021c5050126cb7036f7ce58"
-        severity = "critical"
+        severity = "high"
     strings:
         $pkg = "@ethersphere/bee-js" ascii
         $ver = "13.3.0" ascii
