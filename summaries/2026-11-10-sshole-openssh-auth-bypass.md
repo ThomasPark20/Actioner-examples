@@ -1,6 +1,6 @@
 # SSHole (CVE-2026-123158) -- OpenSSH Authentication Bypass on musl-based Linux
 
-**Status:** DRAFT | **Date:** 2026-11-10 | **TLP:** CLEAR | **CVSSv3:** 8.1 (High)
+**Status:** FINAL | **Date:** 2026-11-10 | **TLP:** CLEAR | **CVSSv3:** 8.1 (High)
 
 ---
 
@@ -211,7 +211,7 @@ ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFQrQmHWfW5QjOEZ4+Y5cz4yuF/dTlneMsoRlpe/jsTJ
 | **Initial Access** | Valid Accounts: Default Accounts | T1078.001 | Login to `alpine`/`root` accounts via oversized password |
 | **Initial Access** | Exploit Public-Facing Application | T1190 | Exploitation of CVE-2026-123158 against internet-facing sshd |
 | **Persistence** | Account Manipulation: SSH Authorized Keys | T1098.004 | Injection of `SSHHOLE-HIT` and `fleet-access` keys |
-| **Persistence** | Create or Modify System Process: Init Script | T1543.004 | TAC Agent OpenRC init script at `/etc/init.d/tac-agent` |
+| **Persistence** | Boot or Logon Initialization Scripts: RC Scripts | T1037.004 | TAC Agent OpenRC init script at `/etc/init.d/tac-agent` |
 | **Persistence** | External Remote Services | T1133 | Rogue sshd on port 2222 |
 | **Privilege Escalation** | Abuse Elevation Control Mechanism | T1548 | `doas -n` for root escalation |
 | **Defense Evasion** | Indicator Removal: Clear Command History | T1070.003 | `HISTFILE=/dev/null` |
@@ -292,11 +292,13 @@ If any indicators are found, treat the machine as compromised. Rebuild from a kn
 
 ## Detection Rules
 
+> **Revision note (2026-11-10):** Three rules were dropped during peer review. Rule 4 (HISTFILE Suppression) was removed as a generic TTP not specific to SSHole. Rule 6 (Rogue SSHD on Port 2222) was removed because port 2222 is common and the rule is behavioral rather than artifact-specific. Rule 7 (Suricata: Oversized SSH Password Attempt) was removed because SSH authentication is encrypted post-key-exchange, making the rule non-functional without decryption. Five rules survive: four Sigma and one YARA.
+
 ### Rule 1: SSHole -- Accepted Password Login to No-Password Account (Sigma)
 
 Detects successful SSH password authentication to accounts that should not accept passwords (root, alpine, key-only users), which is the primary log signature of CVE-2026-123158 exploitation.
 
-**Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network (MITRE ATT&CK data unreachable) | **Confidence: HIGH**
+**Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network (MITRE ATT&CK data unreachable) | **Confidence: MEDIUM**
 
 ```yaml
 title: SSHole - Accepted Password Login to No-Password Account
@@ -321,17 +323,19 @@ logsource:
     product: linux
     service: sshd
 detection:
+    # NOTE: syslog_message is non-standard; requires a pipeline mapping
+    # (e.g., to message, Message, or _raw depending on SIEM target)
     selection:
         - syslog_message|contains: 'Accepted password for'
-    filter_valid_users:
+    selection_target_users:
         syslog_message|contains:
             - 'Accepted password for root '
             - 'Accepted password for alpine '
-    condition: selection and filter_valid_users
+    condition: selection and selection_target_users
 falsepositives:
     - Legitimate password-based login to root on systems where root has a valid password set
     - Environments where the alpine user is intentionally given a password
-level: high
+level: medium
 ```
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma check exit 1 (MITRE ATT&CK data fetch blocked by proxy 403, not a rule defect); rule parses and converts cleanly -->
@@ -359,7 +363,7 @@ date: 2026-11-10
 tags:
     - attack.persistence
     - attack.t1059.006
-    - attack.t1543.004
+    - attack.t1037.004
     - cve.2026.123158
 logsource:
     category: process_creation
@@ -385,7 +389,7 @@ level: high
 
 ### Rule 3: SSHole Post-Exploitation -- SSHHOLE-HIT Authorized Key Injection (Sigma)
 
-Detects commands injecting SSH public keys with the attacker markers `SSHHOLE-HIT` or `fleet-access`, or containing the specific ed25519 key prefix observed in confirmed intrusions.
+Detects commands injecting SSH public keys with the attacker markers `SSHHOLE-HIT` or `fleet-access`, or containing attacker-specific ed25519 key body fragments observed in confirmed intrusions.
 
 **Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network | **Confidence: HIGH** (IOC-specific)
 
@@ -414,11 +418,13 @@ detection:
         CommandLine|contains:
             - 'SSHHOLE-HIT'
             - 'fleet-access'
-    selection_key_injection:
-        CommandLine|contains|all:
-            - 'authorized_keys'
-            - 'AAAAC3NzaC1lZDI1NTE5'
-    condition: selection_marker or selection_key_injection
+    selection_key_base:
+        CommandLine|contains: 'authorized_keys'
+    selection_key_fragments:
+        CommandLine|contains:
+            - 'AAAAIC+fr+jwfsBA'
+            - 'AAAAIFQrQmHWfW5Q'
+    condition: selection_marker or (selection_key_base and selection_key_fragments)
 falsepositives:
     - Legitimate automation using these exact key comments (very unlikely)
 level: critical
@@ -426,47 +432,9 @@ level: critical
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma check exit 1 (network); rule parses and converts cleanly -->
 
-### Rule 4: SSHole Post-Exploitation -- HISTFILE Suppression (Sigma)
+### Rule 4: SSHole Post-Exploitation -- TAC C2 Domain Resolution (Sigma)
 
-Detects commands setting `HISTFILE=/dev/null`, a defense evasion technique observed in CVE-2026-123158 post-exploitation to suppress shell command history.
-
-**Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network | **Confidence: MEDIUM** (behavioral/TTP -- not SSHole-exclusive)
-
-```yaml
-title: SSHole Post-Exploitation - HISTFILE Suppression via SSH
-id: 3e4f5a6b-7c8d-9e0f-1a2b-3c4d5e6f7a8b
-status: experimental
-description: |
-    Detects commands setting HISTFILE=/dev/null, a defense evasion technique
-    observed in CVE-2026-123158 post-exploitation activity. Attackers use this
-    to suppress shell command history recording.
-references:
-    - https://sshole.events.greynoise.io
-    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
-author: Actioner CTI
-date: 2026-11-10
-tags:
-    - attack.defense_evasion
-    - attack.t1070.003
-    - cve.2026.123158
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection:
-        CommandLine|contains: 'HISTFILE=/dev/null'
-    condition: selection
-falsepositives:
-    - Security testing and penetration testing activities
-    - Some legitimate administrative scripts that suppress history
-level: medium
-```
-
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma check exit 1 (network); rule parses and converts cleanly -->
-
-### Rule 5: SSHole Post-Exploitation -- TAC C2 Domain Resolution (Sigma)
-
-Detects DNS queries for `tac.vpnla.org`, the C2 domain used by the TAC Agent implant deployed in confirmed CVE-2026-123158 intrusions.
+Detects DNS queries for `tac[.]vpnla[.]org`, the C2 domain used by the TAC Agent implant deployed in confirmed CVE-2026-123158 intrusions.
 
 **Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network | **Confidence: HIGH** (IOC-specific)
 
@@ -475,7 +443,7 @@ title: SSHole Post-Exploitation - TAC C2 Domain Resolution
 id: 4f5a6b7c-8d9e-0f1a-2b3c-4d5e6f7a8b9c
 status: experimental
 description: |
-    Detects DNS resolution of tac.vpnla.org, the command-and-control domain
+    Detects DNS resolution of tac[.]vpnla[.]org, the command-and-control domain
     used by the TAC agent implant observed in CVE-2026-123158 post-exploitation.
 references:
     - https://sshole.events.greynoise.io
@@ -490,6 +458,8 @@ logsource:
     category: dns_query
     product: linux
 detection:
+    # NOTE: query field may require pipeline mapping (e.g., QueryName,
+    # dns.question.name, or query depending on SIEM target)
     selection:
         query|contains: 'tac.vpnla.org'
     condition: selection
@@ -500,59 +470,7 @@ level: high
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma check exit 1 (network); rule parses and converts cleanly -->
 
-### Rule 6: SSHole Post-Exploitation -- Rogue SSHD on Port 2222 (Sigma)
-
-Detects execution of sshd or sshd-session with `-p 2222`, indicating a rogue SSH listener observed as a persistence and lateral movement technique in confirmed intrusions.
-
-**Status:** `sigma convert -t splunk` exit 0 | `sigma check` blocked by network | **Confidence: MEDIUM** (behavioral -- port 2222 has legitimate uses)
-
-```yaml
-title: SSHole Post-Exploitation - Rogue SSHD on Port 2222
-id: 5a6b7c8d-9e0f-1a2b-3c4d-5e6f7a8b9c0d
-status: experimental
-description: |
-    Detects execution of sshd with the -p 2222 flag, indicating a rogue SSH
-    listener on a non-standard port. This was observed as a persistence and
-    lateral movement technique in CVE-2026-123158 post-exploitation.
-references:
-    - https://sshole.events.greynoise.io
-    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
-author: Actioner CTI
-date: 2026-11-10
-tags:
-    - attack.persistence
-    - attack.t1133
-    - cve.2026.123158
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection:
-        Image|endswith:
-            - '/sshd'
-            - '/sshd-session'
-        CommandLine|contains: '-p 2222'
-    condition: selection
-falsepositives:
-    - Legitimate SSH servers configured to listen on port 2222
-level: medium
-```
-
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma check exit 1 (network); rule parses and converts cleanly -->
-
-### Rule 7: SSHole -- Oversized SSH Password Attempt (Suricata)
-
-Attempts to detect oversized password payloads in SSH traffic. **Important caveat:** SSH traffic is encrypted after key exchange, so this rule is effective only with SSL/TLS inspection or an SSH decryption proxy.
-
-**Status:** :warning: uncompiled (structural check only -- Suricata not installed) | **Confidence: LOW** (encrypted traffic limits applicability)
-
-```
-alert ssh any any -> any 22 (msg:"EXPLOIT SSHole CVE-2026-123158 - Oversized SSH Password Auth Attempt"; flow:to_server,established; ssh.software; content:"SSH-2.0-"; content:"password"; within:2048; byte_test:4,>,256,0,relative; reference:cve,2026-123158; classtype:attempted-admin; sid:2026123158; rev:1; metadata:created_at 2026_11_10, deployment Perimeter, signature_severity Critical, attack_target Server, affected_product OpenSSH, tag SSHole;)
-```
-
-<!-- audit: structural review only; Suricata not available for compilation; SSH encryption severely limits rule utility without decryption capability -->
-
-### Rule 8: SSHole -- TAC Agent Python Implant (YARA)
+### Rule 5: SSHole -- TAC Agent Python Implant (YARA)
 
 Detects the TAC Agent Python implant based on its C2 protocol strings, custom HTTP headers, and domain indicators.
 
@@ -618,4 +536,4 @@ rule SSHole_TACAgent_PythonImplant
 
 ---
 
-*Report generated 2026-11-10. Draft for review -- verify IOCs against your environment before deploying detection rules to production.*
+*Report generated 2026-11-10. Verify IOCs against your environment before deploying detection rules to production.*

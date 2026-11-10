@@ -1,7 +1,7 @@
 # bee-js / Swarm Desktop Supply Chain Compromise
 
 **Date:** 2026-11-10
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** CLEAR
 **Severity:** Critical
 
@@ -299,7 +299,7 @@ The contract `0xf8a900Db50b3331be6B768bA460BB59f3E40C344` (deployed March 14, 20
 
 ### Sigma Rules
 
-All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `sigma convert --without-pipeline -t log_scale`. Note: `sigma check` could not complete due to a network error fetching MITRE ATT&CK data in this environment; structural validity is confirmed by successful conversion.
+7 Sigma rules, 8 YARA rules, and 6 Snort/Suricata rules. All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `-t log_scale`. All YARA rules compiled with `yarac` (exit 0). Snort/Suricata rules are structurally reviewed but uncompiled (no engine available in this environment). Sigma #4 uses only CommandLine matching (process_creation logsource). All YARA rules use `severity = "high"` in meta.
 
 #### 1. Frameworkmetrics C2 DNS Query
 
@@ -581,7 +581,7 @@ rule beejs_malicious_loader_generate_version_cjs {
 
 #### 2. beejs_malicious_package_tgz
 
-Detects the malicious bee-js 13.3.0 npm tarball by matching the package name, version, and injected postinstall script reference.
+Detects the malicious bee-js 13.3.0 npm tarball by matching the package name, version, and injected postinstall hook.
 
 **Status:** Compiled successfully (`yarac` exit 0)
 
@@ -645,7 +645,7 @@ rule evjawbreaker_go_backdoor {
         author = "CTI Analyst (Actioner)"
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
-        severity = "critical"
+        severity = "high"
     strings:
         $mod = "evjawbreaker" ascii wide
         $contract = "0xf8a900Db50b3331be6B768bA460BB59f3E40C344" ascii wide nocase
@@ -698,7 +698,7 @@ rule invoke_ps1_swarm_attack {
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
         hash = "37d14bff30762ca701e9c1f8bc6c57c065bb20ae3a2208cb7411a6530610f08e"
-        severity = "critical"
+        severity = "high"
     strings:
         $stuffed = ".stuffed-" ascii wide
         $defender_excl = "Add-MpPreference" ascii wide
@@ -725,7 +725,7 @@ rule swarm_desktop_malicious_index_js {
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
         hash = "f81315968e679b48f6bdff1c9b928bb223230d07f44d7948412c2250c2a14deb"
-        severity = "critical"
+        severity = "high"
     strings:
         $url = "api.frameworkmetrics.xyz" ascii wide
         $path = "/v1/electron" ascii wide
@@ -750,7 +750,7 @@ rule swarm_wallet_exfiltration_endpoint {
         author = "CTI Analyst (Actioner)"
         date = "2026-11-10"
         reference = "https://socket.dev/blog/bee-js-compromise"
-        severity = "critical"
+        severity = "high"
     strings:
         $exfil = "/v1/swarm/report" ascii wide
         $domain = "frameworkmetrics" ascii wide
@@ -827,15 +827,15 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"BEEJS-SUPPLY-CHAIN Wallet Ex
 
 #### 6. Stage 3 Payload Download
 
-Detects HTTP requests to the `/v1/assets/` payload delivery path with `frameworkmetrics` in the header.
+Detects HTTP requests to the `/v1/assets/` payload delivery path on the `frameworkmetrics.xyz` host.
 
 **Status:** Structurally reviewed, uncompiled
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"BEEJS-SUPPLY-CHAIN Stage 3 Payload Download from /v1/assets/"; http.uri; content:"/v1/assets/"; http.header; content:"frameworkmetrics"; classtype:trojan-activity; sid:2026111006; rev:1; metadata:created_at 2026_11_10, updated_at 2026_11_10;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"BEEJS-SUPPLY-CHAIN Stage 3 Payload Download from /v1/assets/"; http.uri; content:"/v1/assets/"; http.host; content:"frameworkmetrics.xyz"; classtype:trojan-activity; sid:2026111006; rev:1; metadata:created_at 2026_11_10, updated_at 2026_11_10;)
 ```
 
-**Audit:** Targets the Stage 3 download path. Will only fire on decrypted traffic (requires TLS inspection).
+**Audit:** Targets the Stage 3 download path on the attacker's host. Will only fire on decrypted traffic (requires TLS inspection).
 
 ---
 

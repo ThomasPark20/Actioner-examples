@@ -1,0 +1,135 @@
+title: SSHole - Accepted Password Login to No-Password Account
+id: 8a3f1b2c-4d5e-6f7a-8b9c-0d1e2f3a4b5c
+status: experimental
+description: |
+    Detects successful SSH password authentication to accounts that should not accept passwords
+    (e.g., root, alpine, key-only users). This is a primary indicator of CVE-2026-123158 (SSHole)
+    exploitation on musl-based Linux systems such as Alpine Linux.
+references:
+    - https://alpinelinux.org/posts/2026-11-05-openssh-password-authentication-bypass/
+    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
+    - https://sshole.events.greynoise.io
+author: Actioner CTI
+date: 2026-11-10
+tags:
+    - attack.initial_access
+    - attack.t1078.001
+    - attack.t1021.004
+    - cve.2026.123158
+logsource:
+    product: linux
+    service: sshd
+detection:
+    # NOTE: syslog_message is non-standard; requires a pipeline mapping
+    # (e.g., to message, Message, or _raw depending on SIEM target)
+    selection:
+        - syslog_message|contains: 'Accepted password for'
+    selection_target_users:
+        syslog_message|contains:
+            - 'Accepted password for root '
+            - 'Accepted password for alpine '
+    condition: selection and selection_target_users
+falsepositives:
+    - Legitimate password-based login to root on systems where root has a valid password set
+    - Environments where the alpine user is intentionally given a password
+level: medium
+---
+title: SSHole Post-Exploitation - TAC Agent Persistence
+id: 1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f
+status: experimental
+description: |
+    Detects file creation or process execution associated with the TAC agent
+    (tac_agent.py), a Python-based C2 implant observed in post-exploitation
+    activity following CVE-2026-123158 (SSHole) compromise. The agent communicates
+    with tac.vpnla.org:8443 and persists via OpenRC init scripts.
+references:
+    - https://sshole.events.greynoise.io
+    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
+author: Actioner CTI
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.t1059.006
+    - attack.t1037.004
+    - cve.2026.123158
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_process:
+        CommandLine|contains:
+            - 'tac_agent.py'
+            - 'tac-agent'
+    selection_file_paths:
+        CommandLine|contains:
+            - '/opt/py3/tac_agent.py'
+            - '/usr/local/bin/tac_agent.py'
+            - '/etc/init.d/tac-agent'
+            - '/opt/py3/run_tac.sh'
+    condition: selection_process or selection_file_paths
+falsepositives:
+    - Legitimate use of software named tac_agent (unlikely)
+level: high
+---
+title: SSHole Post-Exploitation - SSHHOLE-HIT Authorized Key Injection
+id: 2d3e4f5a-6b7c-8d9e-0f1a-2b3c4d5e6f7a
+status: experimental
+description: |
+    Detects commands that inject SSH public keys with the marker comment
+    'SSHHOLE-HIT' or 'fleet-access' into authorized_keys files. This is a
+    specific persistence technique observed in CVE-2026-123158 post-exploitation.
+references:
+    - https://sshole.events.greynoise.io
+    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
+author: Actioner CTI
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.t1098.004
+    - cve.2026.123158
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_marker:
+        CommandLine|contains:
+            - 'SSHHOLE-HIT'
+            - 'fleet-access'
+    selection_key_base:
+        CommandLine|contains: 'authorized_keys'
+    selection_key_fragments:
+        CommandLine|contains:
+            - 'AAAAIC+fr+jwfsBA'
+            - 'AAAAIFQrQmHWfW5Q'
+    condition: selection_marker or (selection_key_base and selection_key_fragments)
+falsepositives:
+    - Legitimate automation using these exact key comments (very unlikely)
+level: critical
+---
+title: SSHole Post-Exploitation - TAC C2 Domain Resolution
+id: 4f5a6b7c-8d9e-0f1a-2b3c-4d5e6f7a8b9c
+status: experimental
+description: |
+    Detects DNS resolution of tac[.]vpnla[.]org, the command-and-control domain
+    used by the TAC agent implant observed in CVE-2026-123158 post-exploitation.
+references:
+    - https://sshole.events.greynoise.io
+    - https://nvd.nist.gov/vuln/detail/cve-2026-123158
+author: Actioner CTI
+date: 2026-11-10
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - cve.2026.123158
+logsource:
+    category: dns_query
+    product: linux
+detection:
+    # NOTE: query field may require pipeline mapping (e.g., QueryName,
+    # dns.question.name, or query depending on SIEM target)
+    selection:
+        query|contains: 'tac.vpnla.org'
+    condition: selection
+falsepositives:
+    - Legitimate use of tac.vpnla.org (unknown, treat as suspicious)
+level: high
