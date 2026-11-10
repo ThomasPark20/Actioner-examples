@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-10
-Version: 1 (DRAFT)
+Version: 2 (REVISED)
 
 ## Executive Summary
 
@@ -487,12 +487,11 @@ detection:
             - '\Microsoft.Ceres.dll'
             - '\Microsoft.Search.Platform.dll'
             - '\iph.dat'
-    selection_exchange_server:
+    selection_system_dir:
         TargetFilename|contains:
             - '\Windows\System32\'
             - '\assembly\NativeImages'
-            - '\Program Files\Microsoft\Exchange'
-    condition: selection_exchange_masq and selection_exchange_server
+    condition: selection_exchange_masq and selection_system_dir
 falsepositives:
     - Legitimate Microsoft Exchange or Search service updates
     - Third-party software using similar naming conventions
