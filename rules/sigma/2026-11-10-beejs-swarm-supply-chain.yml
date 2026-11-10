@@ -1,0 +1,174 @@
+title: BeeJS/Swarm Supply Chain - Frameworkmetrics C2 DNS Query
+id: a7c3e1f0-9d4b-4e8a-b2f1-3c5d7e9f0a1b
+status: experimental
+description: Detects DNS resolution of api.frameworkmetrics.xyz, the C2 domain used by the malicious bee-js 13.3.0 and Swarm Desktop 0.56.2 loader.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://github.com/advisories/GHSA-hh7j-5m3j-23pf
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: dns
+detection:
+    selection:
+        query|endswith:
+            - 'frameworkmetrics.xyz'
+    condition: selection
+falsepositives:
+    - Unlikely; this is an attacker-registered domain with no legitimate use
+level: high
+---
+title: BeeJS/Swarm Supply Chain - Evjawbreaker Systemd Persistence
+id: b8d4f2a1-0e5c-5f9b-c3a2-4d6e8f0b1c2d
+status: experimental
+description: Detects creation or modification of the systemd user service used by the evjawbreaker Go backdoor deployed via the compromised bee-js/Swarm Desktop supply chain.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_unit:
+        TargetFilename|endswith:
+            - '/solidity-langsupport-runner.service'
+    condition: selection_unit
+falsepositives:
+    - Legitimate Solidity development tooling is unlikely to use this exact service name
+level: high
+---
+title: BeeJS/Swarm Supply Chain - Evjawbreaker macOS LaunchAgent Persistence
+id: c9e5a3b2-1f6d-6a0c-d4b3-5e7f9a1c2d3e
+status: experimental
+description: Detects creation of the LaunchAgent plist used by the evjawbreaker backdoor on macOS, installed by the compromised bee-js/Swarm Desktop supply chain.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.t1543.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/com.solidity.langsupport.runner.plist'
+    condition: selection
+falsepositives:
+    - No known legitimate software uses this LaunchAgent identifier
+level: high
+---
+title: BeeJS/Swarm Supply Chain - Malicious ScreenConnect Service Installation
+id: daf6b4c3-2a7e-7b1d-e5c4-6f8a0b2d3e4f
+status: experimental
+description: Detects creation of the specific ScreenConnect service instance deployed by the Windows payload of the bee-js/Swarm Desktop supply chain attack. The instance ID 5cbe79c9c25524df is unique to this threat actor.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.persistence
+    - attack.t1543.003
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_service:
+        CommandLine|contains:
+            - '5cbe79c9c25524df'
+    condition: selection_service
+falsepositives:
+    - A legitimate ScreenConnect deployment would not use this specific instance ID
+level: high
+---
+title: BeeJS/Swarm Supply Chain - Dotsolidity Hidden Directory Creation
+id: ebf7c5d4-3b8f-8c2e-f6d5-7a9b1c3e4f5a
+status: experimental
+description: Detects file creation events inside the ~/.solidity/ hidden directory, which is used as the staging and persistence directory for the evjawbreaker Go backdoor.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.execution
+    - attack.t1105
+    - attack.persistence
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains:
+            - '/.solidity/'
+    condition: selection
+falsepositives:
+    - Custom Solidity development environments may use this path, but it is uncommon
+level: medium
+---
+title: BeeJS/Swarm Supply Chain - ScreenConnect Relay Network Connection
+id: fc08d6e5-4c9a-9d3f-a7e6-8bac2d4f5a6b
+status: experimental
+description: Detects outbound network connections to the ScreenConnect relay IP used by the threat actor in the bee-js/Swarm Desktop supply chain attack.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.command_and_control
+    - attack.t1219
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '185.232.84.169'
+        DestinationPort: 8041
+    condition: selection
+falsepositives:
+    - Unlikely; this IP and port combination is specific to the attacker's relay
+level: high
+---
+title: BeeJS/Swarm Supply Chain - Evjawbreaker C2 Hub Connection
+id: ad19e7f6-5dab-ae4a-b8f7-9cbd3e5a6b7c
+status: experimental
+description: Detects outbound network connections to the known C2 hub IPs used by the evjawbreaker backdoor. These IPs have been rotated over time via the Ethereum dead-drop resolver contract.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+author: CTI Analyst (Actioner)
+date: 2026-11-10
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1102.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '193.57.9.155'
+            - '193.57.9.17'
+            - '178.16.54.222'
+            - '107.189.27.223'
+            - '107.189.27.46'
+            - '91.108.240.156'
+            - '107.189.16.215'
+        DestinationPort: 4912
+    condition: selection
+falsepositives:
+    - These IPs on port 4912 are specific to this threat actor's infrastructure; false positives are unlikely
+level: high

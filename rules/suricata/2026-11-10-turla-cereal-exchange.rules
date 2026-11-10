@@ -1,0 +1,14 @@
+# Suricata rules for Turla CerealNeuron URI path detection (5 rules)
+# WARNING: These rules require TLS inspection to be effective on HTTPS traffic
+# SIDs use local range 1000001-1000005
+# Reference: https://www.welivesecurity.com/en/eset-research/exchange-for-breakfast-turlas-cereal-tricks-are-not-for-kids/
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious OWA SDDS URI"; flow:to_server,established; http.uri; content:"/owa/sdds/"; nocase; classtype:trojan-activity; sid:1000001; rev:1;)
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover MS Exchange ProxyService URI"; flow:to_server,established; http.uri; content:"/autodiscover/microsoft.exchange.proxyservice/"; nocase; classtype:trojan-activity; sid:1000002; rev:1;)
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover Integrated API URI"; flow:to_server,established; http.uri; content:"/autodiscover/integrated/api/"; nocase; classtype:trojan-activity; sid:1000003; rev:1;)
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious Autodiscover ProxyService URI"; flow:to_server,established; http.uri; content:"/autodiscover/proxyservice/"; nocase; classtype:trojan-activity; sid:1000004; rev:1;)
+
+alert http any any -> any 443 (msg:"TURLA CerealNeuron - Suspicious ActiveSync Integrated API URI"; flow:to_server,established; http.uri; content:"/microsoft-server-activesync/integrated/api/"; nocase; classtype:trojan-activity; sid:1000005; rev:1;)

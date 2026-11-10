@@ -1,0 +1,9 @@
+# Suricata rules for VOLTA infostealer network indicators
+# Status: structurally reviewed (suricata not available in validation environment)
+# SIDs in local range 1000000-1999999
+
+# Detects HTTPS TLS SNI to openrouter.ai which VOLTA uses for LLM victim analysis
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - OpenRouter AI API TLS SNI"; tls.sni; content:"openrouter.ai"; nocase; classtype:misc-activity; sid:1000001; rev:1; metadata:created_at 2026_11_10, updated_at 2026_11_10;)
+
+# Detects HTTP POST to OpenRouter chat completions endpoint (if TLS inspection is enabled)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"VOLTA Infostealer - OpenRouter Chat Completions API POST"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; nocase; http.uri; content:"/api/v1/chat/completions"; classtype:misc-activity; sid:1000002; rev:1; metadata:created_at 2026_11_10, updated_at 2026_11_10;)
