@@ -1,0 +1,24 @@
+title: Systemd User Service Created for Evjawbreaker Persistence
+id: 3a7e9c1f-5b4d-4d2e-8f6a-2c0b3e8d7f5a
+status: experimental
+description: >
+    Detects creation of the systemd user service solidity-langsupport-runner.service,
+    used by the evjawbreaker Go backdoor for persistence on Linux systems compromised
+    through the @ethersphere/bee-js supply chain attack.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1543.002
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/solidity-langsupport-runner.service'
+    condition: selection
+falsepositives:
+    - No known legitimate use of this service name
+level: critical

@@ -1,0 +1,24 @@
+title: Network Connection to Rogue ScreenConnect Relay from Bee-js Attack
+id: 1b5e8c3a-7d2f-4a9e-6c4b-8f0d3e1a5c7b
+status: experimental
+description: >
+    Detects outbound network connections to the ScreenConnect relay IP used in
+    the @ethersphere/bee-js and Swarm Desktop supply chain attack for persistent
+    remote access to compromised Windows hosts.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1219
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '185.232.84.169'
+        DestinationPort: 8041
+    condition: selection
+falsepositives:
+    - Unlikely; this IP:port is exclusively associated with the rogue ScreenConnect relay
+level: critical

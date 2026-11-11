@@ -1,0 +1,26 @@
+title: VOLTA Infostealer Exfiltration Archive Creation
+id: 9c5a4b3d-1e6f-4a0b-b7c8-2d3e4f5a6b7c
+status: experimental
+description: >
+    Detects creation of ZIP archives matching VOLTA infostealer exfiltration
+    naming convention (volta_log.zip, volta_dox.zip, volta_doxnet.zip) used
+    for staged data exfiltration.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026/11/11
+tags:
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\volta_log.zip'
+            - '\volta_dox.zip'
+            - '\volta_doxnet.zip'
+    condition: selection
+falsepositives:
+    - Unlikely - highly specific filenames associated with VOLTA malware
+level: critical

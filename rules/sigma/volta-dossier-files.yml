@@ -1,0 +1,27 @@
+title: VOLTA Infostealer Victim Dossier File Creation
+id: 2a1b3c4d-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects creation of Identity_Report.txt or AI_Analysis.txt files used by
+    the VOLTA infostealer to assemble victim dossiers and store LLM-generated
+    assessments of victim asset value.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026/11/11
+tags:
+    - attack.t1005
+    - attack.t1119
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\Identity_Report.txt'
+            - '\AI_Analysis.txt'
+    condition: selection
+falsepositives:
+    - Security assessment tools that generate similarly named reports
+    - AI-powered tools that create analysis or identity report files
+level: medium

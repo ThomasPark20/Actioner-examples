@@ -1,0 +1,28 @@
+title: UACME Method 39 COR_PROFILER UAC Bypass via mmc.exe
+id: 2e7b4c9a-1f3d-4a5e-8d6b-0c2a9f1e3b5d
+status: experimental
+description: >
+    Detects the COR_PROFILER-based UAC bypass technique (UACME method 39) used by
+    the Windows payload in the @ethersphere/bee-js supply chain attack. The attack
+    sets COR_PROFILER environment variables and hijacks mmc.exe to elevate privileges.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1548.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith: '\mmc.exe'
+    selection_env:
+        CommandLine|contains:
+            - 'COR_PROFILER'
+            - 'uac39'
+    condition: selection_parent and selection_env
+falsepositives:
+    - Legitimate .NET profiler usage with mmc.exe is rare in end-user environments
+level: high
