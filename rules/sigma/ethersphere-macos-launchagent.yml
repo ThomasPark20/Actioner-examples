@@ -1,0 +1,23 @@
+title: macOS LaunchAgent Created for Evjawbreaker Persistence
+id: 4c6a1e9b-8d3f-4b2e-5a7c-9f0d2e1b3c8a
+status: experimental
+description: >
+    Detects creation of the macOS LaunchAgent plist for the evjawbreaker backdoor
+    persistence mechanism deployed through the @ethersphere/bee-js supply chain attack.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1543.001
+logsource:
+    category: file_event
+    product: macos
+detection:
+    selection:
+        TargetFilename|endswith: '/com.solidity.langsupport.runner.plist'
+    condition: selection
+falsepositives:
+    - No known legitimate software uses this LaunchAgent label
+level: critical

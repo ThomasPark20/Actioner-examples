@@ -1,0 +1,26 @@
+title: Rogue ScreenConnect Service Installation with Bee-js Attack Instance ID
+id: 9d4f2a6e-3c1b-4e8d-7a5f-0b2c9e1d8f3a
+status: experimental
+description: >
+    Detects creation of a Windows service matching the ScreenConnect instance ID
+    used in the @ethersphere/bee-js supply chain attack. The attackers installed a
+    legitimate but pre-configured ScreenConnect client connecting to their relay.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1219
+    - attack.t1543.003
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName|contains: '5cbe79c9c25524df'
+    condition: selection
+falsepositives:
+    - No known legitimate use of this ScreenConnect instance ID
+level: critical

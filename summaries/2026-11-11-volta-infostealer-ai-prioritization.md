@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026/11/11
-Version: 1.0 DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -202,7 +202,7 @@ Get-WinEvent -LogName "Microsoft-Windows-Sysmon/Operational" -FilterXPath "*[Sys
 
 ## Detection Rules
 
-This section provides seven detection rules (five Sigma, one Suricata rule file with three rules, and one YARA rule file with two rules) targeting VOLTA's distinctive file artifacts, behavioral patterns, and network indicators. All rules are advisory-specific and tuned for high precision; the primary caveat is that the builder-based distribution model means file hashes will vary across deployments, making behavioral and string-based detection essential.
+This section provides detection rules (five Sigma, two Suricata network rules, and two YARA file rules) targeting VOLTA's distinctive file artifacts, behavioral patterns, and network indicators. All rules are advisory-specific and tuned for high precision; the primary caveat is that the builder-based distribution model means file hashes will vary across deployments, making behavioral and string-based detection essential.
 
 ### Sigma: Chrome Headless Launch from Unusual Parent
 
@@ -248,7 +248,8 @@ detection:
 falsepositives:
     - Automated testing frameworks (Selenium, Puppeteer, Playwright)
     - CI/CD pipelines running headless browser tests
-level: high
+    - Node.js, Python, Java, or PowerShell processes using headless Chrome for PDF rendering
+level: medium
 ```
 
 ### Sigma: VOLTA Debug Log File Creation
@@ -356,7 +357,8 @@ detection:
     condition: selection
 falsepositives:
     - Security assessment tools that generate similarly named reports
-level: high
+    - AI-powered tools that create analysis or identity report files
+level: medium
 ```
 
 ### Sigma: Non-Browser DNS Query to OpenRouter AI
@@ -400,30 +402,30 @@ detection:
 falsepositives:
     - Legitimate AI development tools or IDE plugins using OpenRouter API
     - Python or Node.js scripts using OpenRouter for AI tasks
-level: high
+level: medium
 ```
 
-### Suricata: VOLTA OpenRouter LLM Exfiltration and Rolimons Valuation
+### Suricata: VOLTA OpenRouter LLM Exfiltration
 
-Three Suricata rules detecting: (1) OpenRouter API POST with VOLTA-specific system prompt keywords in the request body, (2) OpenRouter API POST with forensic analyst role assignment, and (3) DNS query to `rolimons[.]com` for Roblox inventory valuation.  Rule 2200003 (Rolimons DNS) will fire on legitimate Roblox players browsing the site; deploy alongside endpoint indicators.
+Two Suricata rules detecting: (1) OpenRouter API POST with VOLTA-specific system prompt keywords in the request body, and (2) OpenRouter API POST with forensic analyst role assignment. Both require TLS decryption or proxy inspection to match HTTPS POST body content.
 
-<!-- audit: suricata -T -S <file> -l /tmp/actioner exits 0; all three rules pass syntax validation; SIDs 2200001-2200003 in assigned range; dot-notation sticky buffers used correctly; rules 2200001 and 2200002 require TLS decryption or proxy inspection to match HTTPS POST body content -->
+<!-- audit: suricata -T -S <file> -l /tmp/actioner exits 0; both rules pass syntax validation; SIDs 2200004-2200005 in assigned range; dot-notation sticky buffers used correctly -->
+<!-- revision: Dropped SID 2200003 (rolimons.com DNS) per critic — fires on every Roblox player or trader visiting rolimons.com; not remotely specific to VOLTA at strict leniency. -->
 
-**Compile**: ✅ | **Confidence**: medium (rules 2200001/2200002 require TLS inspection), low (rule 2200003 alone)
+**Compile**: ✅ | **Confidence**: medium (requires TLS inspection)
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter API LLM Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; fast_pattern; http.uri; content:"/api/v1/chat/completions"; http.request_body; content:"WHAT THEY"; content:"WORTH"; distance:0; within:30; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-11; sid:2200001; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter API LLM Exfiltration"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; fast_pattern; http.uri; content:"/api/v1/chat/completions"; http.request_body; content:"WHAT THEY"; content:"WORTH"; distance:0; within:30; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-11; sid:2200004; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter API Request With Stealer Model Chain"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; http.request_body; content:"forensic"; content:"target assessment"; distance:0; within:200; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-11; sid:2200002; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - VOLTA Infostealer DNS Query to rolimons.com Roblox Valuation"; dns.query; content:"rolimons.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-11; sid:2200003; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - VOLTA Infostealer OpenRouter API Request With Stealer Model Chain"; flow:established,to_server; http.method; content:"POST"; http.host; content:"openrouter.ai"; http.uri; content:"/api/v1/chat/completions"; http.request_body; content:"forensic"; content:"target assessment"; distance:0; within:200; classtype:trojan-activity; reference:url,blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/; metadata:author Actioner, created_at 2026-11-11; sid:2200005; rev:1;)
 ```
 
 ### YARA: VOLTA Infostealer Binary Detection
 
-Two rules: (1) String-based detection matching VOLTA's characteristic filenames, LLM model identifiers, API endpoints, and output section headers, and (2) a broader rule matching any PE64 binary containing VOLTA-prefixed artifact names.  The string-based rule is designed to survive builder variations by requiring only a subset of indicators.
+Two rules: (1) String-based detection matching VOLTA's characteristic filenames, LLM model identifiers, API endpoints, and output section headers, and (2) a broader rule matching PE64 binaries containing two or more VOLTA-prefixed artifact names.  The string-based rule is designed to survive builder variations by requiring only a subset of indicators.
 
 <!-- audit: yarac /tmp/actioner/rules/yara_volta_infostealer.yar /dev/null exits 0; both rules compile cleanly; PE module imported correctly; condition logic uses OR branches for flexibility across builder variants; hash of known sample included in meta -->
+<!-- revision: Renamed rule 2 from Malware_VOLTA_Infostealer_Hash to Malware_VOLTA_Infostealer_Artifacts_Broad — it detects by strings, not hash. Tightened condition from `any of ($volta*)` to `2 of ($volta*)` to reduce FP from unrelated projects using a single "volta_log" or "volta_dox" string. -->
 
 **Compile**: ✅ | **Confidence**: high (rule 1 with 3+ string matches), medium (rule 2 broader catch)
 
@@ -470,16 +472,16 @@ rule Malware_VOLTA_Infostealer_Strings
         )
 }
 
-rule Malware_VOLTA_Infostealer_Hash
+rule Malware_VOLTA_Infostealer_Artifacts_Broad
 {
     meta:
-        description = "Detects known VOLTA infostealer sample by SHA-256 hash"
+        description = "Broadly detects VOLTA infostealer variants by matching PE64 binaries containing two or more VOLTA-prefixed artifact name strings (volta_debug, volta_log, volta_dox)"
         author = "Actioner"
         date = "2026-11-11"
         reference = "https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/"
         hash = "57ef4242666d78c50df145b34023df564f0fad38812d6a580e66433d427e2279"
         tlp = "WHITE"
-        severity = "critical"
+        severity = "high"
 
     strings:
         $volta1 = "volta_debug" ascii wide
@@ -489,7 +491,7 @@ rule Malware_VOLTA_Infostealer_Hash
     condition:
         uint16(0) == 0x5A4D and
         pe.machine == pe.MACHINE_AMD64 and
-        any of ($volta*)
+        2 of ($volta*)
 }
 ```
 

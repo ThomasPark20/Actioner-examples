@@ -1,0 +1,31 @@
+title: Network Connection to Evjawbreaker C2 Hub on Port 4912
+id: 7f2b9d4e-6a1c-4e3d-8b5f-1c9a0d7e2f4b
+status: experimental
+description: >
+    Detects outbound network connections to known evjawbreaker backdoor hub IP
+    addresses on port 4912. These IPs served as C2 for the Go-based remote shell
+    deployed via the compromised @ethersphere/bee-js and Swarm Desktop supply chain attack.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '193.57.9.155'
+            - '193.57.9.17'
+            - '178.16.54.222'
+            - '107.189.27.223'
+            - '107.189.27.46'
+            - '91.108.240.156'
+            - '107.189.16.215'
+        DestinationPort: 4912
+    condition: selection
+falsepositives:
+    - Unlikely; these IPs on port 4912 are exclusively associated with the evjawbreaker campaign
+level: critical

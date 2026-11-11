@@ -1,0 +1,24 @@
+title: File Created in Evjawbreaker Implant Directory ~/.solidity/
+id: 5e8c4a3b-1d9f-4c2e-7a6b-0f3d8e5c9a1b
+status: experimental
+description: >
+    Detects file creation events in the ~/.solidity/ directory, which is used by the
+    evjawbreaker Go backdoor deployed through the compromised @ethersphere/bee-js and
+    Swarm Desktop supply chain attack to store implant binaries and launcher scripts.
+references:
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026-11-11
+tags:
+    - attack.t1105
+    - attack.t1036
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|contains: '/.solidity/'
+    condition: selection
+falsepositives:
+    - Solidity development tooling is unlikely to use a hidden directory named .solidity in the user home
+level: high

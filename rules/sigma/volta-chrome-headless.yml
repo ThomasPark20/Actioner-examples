@@ -1,0 +1,37 @@
+title: Chrome Launched With Headless Flag By Unusual Parent
+id: 7a3e2d1f-9c4b-4e8a-b5d6-0f1a2c3e4d5b
+status: experimental
+description: >
+    Detects Chrome being launched with the --headless flag from a non-standard
+    parent process, which may indicate App-Bound Encryption bypass as observed
+    in the VOLTA infostealer.
+references:
+    - https://blog.talosintelligence.com/appraisal-by-ai-model-driven-victim-prioritization-in-the-volta-infostealer/
+author: Actioner
+date: 2026/11/11
+tags:
+    - attack.t1555.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains: '--headless'
+        Image|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+    filter_browser_parent:
+        ParentImage|endswith:
+            - '\chrome.exe'
+            - '\msedge.exe'
+            - '\explorer.exe'
+            - '\svchost.exe'
+            - '\services.exe'
+            - '\GoogleUpdate.exe'
+            - '\MicrosoftEdgeUpdate.exe'
+    condition: selection and not filter_browser_parent
+falsepositives:
+    - Automated testing frameworks (Selenium, Puppeteer, Playwright)
+    - CI/CD pipelines running headless browser tests
+    - Node.js, Python, Java, or PowerShell processes using headless Chrome for PDF rendering
+level: medium
