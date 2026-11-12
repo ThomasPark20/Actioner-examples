@@ -1,0 +1,29 @@
+title: Ethersphere Supply Chain evjawbreaker Backdoor Persistence
+id: 1d4e6f8a-2b3c-4d5e-9a7b-0c1d2e3f4a5b
+status: experimental
+description: >
+    Detects file creation in the ~/.solidity/ directory or creation of the systemd
+    user service or macOS LaunchAgent used by the evjawbreaker Go backdoor deployed
+    via the compromised bee-js 13.3.0 / Swarm Desktop 0.56.2 supply chain attack.
+references:
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+    - https://socket.dev/blog/bee-js-compromise
+    - https://safedep.io/blog/ethersphere-bee-js-npm-compromise
+author: Actioner
+date: 2026/11/12
+tags:
+    - attack.t1543.002
+    - attack.t1543.001
+logsource:
+    category: file_event
+detection:
+    selection_solidity_dir:
+        TargetFilename|contains: '/.solidity/'
+    selection_systemd:
+        TargetFilename|endswith: '/solidity-langsupport-runner.service'
+    selection_launchagent:
+        TargetFilename|contains: 'com.solidity.langsupport.runner'
+    condition: 1 of selection_*
+falsepositives:
+    - Solidity development tools are unlikely to use a hidden .solidity directory in the user home
+level: critical

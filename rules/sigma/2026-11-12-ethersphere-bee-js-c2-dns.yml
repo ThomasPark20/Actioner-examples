@@ -1,0 +1,26 @@
+title: DNS Query to Ethersphere bee-js C2 Domain frameworkmetrics.xyz
+id: 8a3c1f2e-7b4d-4e6a-9f01-2c3d5e8a7b9c
+status: experimental
+description: >
+    Detects DNS resolution of api.frameworkmetrics.xyz, the C2 domain used by the
+    malicious bee-js 13.3.0 and Swarm Desktop 0.56.2 supply chain compromise to
+    download second-stage payloads and exfiltrate stolen wallet credentials.
+references:
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+    - https://socket.dev/blog/bee-js-compromise
+    - https://github.com/advisories/GHSA-hh7j-5m3j-23pf
+author: Actioner
+date: 2026/11/12
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'frameworkmetrics.xyz'
+    condition: selection
+falsepositives:
+    - Unlikely - domain registered specifically for this campaign on Nov 6 2026
+level: critical
