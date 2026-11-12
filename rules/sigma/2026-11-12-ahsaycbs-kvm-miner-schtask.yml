@@ -1,0 +1,26 @@
+title: Scheduled Task Created for kvm-agent Miner Persistence
+id: 4f8b2c6d-1a3e-4e9f-b7d5-2c0a8e3f6b1d
+status: experimental
+description: >
+    Detects creation of the kvm scheduled task used to persist the XMRig
+    cryptominer (kvm-agent.exe) observed in the AhsayCBS intrusion campaign.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-webshells
+author: Actioner
+date: 2026-11-12
+tags:
+    - attack.t1053.005
+    - attack.t1496.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'kvm-agent'
+    condition: selection
+falsepositives:
+    - Legitimate KVM virtualization agent scheduled tasks
+level: high

@@ -1,0 +1,27 @@
+title: Ethersphere Supply Chain ScreenConnect Backdoor Service
+id: 3f5a7c9e-1b2d-4e6f-8a0c-2d4e6f8a1b3c
+status: experimental
+description: >
+    Detects installation of the ScreenConnect client service with the specific instance
+    ID 5cbe79c9c25524df used in the Ethersphere bee-js / Swarm Desktop supply chain attack
+    for persistent Windows remote access.
+references:
+    - https://thehackernews.com/2026/11/hackers-compromise-etherspheres-bee-js.html
+    - https://socket.dev/blog/bee-js-compromise
+author: Actioner
+date: 2026/11/12
+tags:
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_service:
+        CommandLine|contains: '5cbe79c9c25524df'
+    selection_image:
+        Image|contains: 'ScreenConnect'
+        CommandLine|contains: '185.232.84.169'
+    condition: selection_service or selection_image
+falsepositives:
+    - Legitimate ScreenConnect installations will not reference this specific instance ID or relay IP
+level: critical

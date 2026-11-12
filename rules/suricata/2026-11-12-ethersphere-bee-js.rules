@@ -1,0 +1,6 @@
+# Ethersphere bee-js / Swarm Desktop Supply Chain Compromise (2026-11-12)
+# SIDs are placeholders; reassign to your organization's local range before deployment.
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Ethersphere bee-js C2 HTTP Request to frameworkmetrics.xyz"; flow:established,to_server; http.host; content:"api.frameworkmetrics.xyz"; fast_pattern; http.header; content:"X-Ethersphere"; classtype:trojan-activity; reference:url,socket.dev/blog/bee-js-compromise; reference:url,github.com/advisories/GHSA-hh7j-5m3j-23pf; metadata:author Actioner, created_at 2026-11-12; sid:2200001; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - Ethersphere bee-js C2 DNS Query for frameworkmetrics.xyz"; flow:to_server; dns.query; content:"frameworkmetrics.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/bee-js-compromise; reference:url,github.com/advisories/GHSA-hh7j-5m3j-23pf; metadata:author Actioner, created_at 2026-11-12; sid:2200002; rev:1;)

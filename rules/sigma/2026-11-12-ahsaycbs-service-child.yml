@@ -1,0 +1,40 @@
+title: AhsayCBS Service Spawns Suspicious Child Process
+id: 7c3a91e2-4b8f-4d1a-9e5c-6f2d8a0b3c7e
+status: experimental
+description: >
+    Detects the AhsayCBS backup service process spawning command interpreters
+    or download utilities, consistent with exploitation of CVE-2026-105133
+    and CVE-2026-105134 for unauthenticated RCE.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+    - https://www.huntress.com/blog/ahsaycbs-webshells
+    - https://thehackernews.com/2026/11/attackers-exploit-ahsaycbs-flaws-to.html
+author: Actioner
+date: 2026-11-12
+tags:
+    - attack.t1190
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\cbssvcX64.exe'
+            - '\cbssvcX86.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\curl.exe'
+            - '\certutil.exe'
+            - '\python.exe'
+            - '\pythonw.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+            - '\mshta.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Legitimate AhsayCBS scripted maintenance operations
+level: high

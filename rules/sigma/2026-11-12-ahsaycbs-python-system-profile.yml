@@ -1,0 +1,28 @@
+title: Python Execution from SYSTEM Profile Directory
+id: 2e9d4a1b-8c3f-4e7a-b5d6-1f0c9a2e3d8b
+status: experimental
+description: >
+    Detects Python interpreters executing from the SYSTEM profile directory,
+    consistent with the AhsayCBS Python backdoor (main.py) that deploys an
+    embedded Python distribution under the SYSTEM profile.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-webshells
+    - https://thehackernews.com/2026/11/attackers-exploit-ahsaycbs-flaws-to.html
+author: Actioner
+date: 2026-11-12
+tags:
+    - attack.t1059.006
+    - attack.t1480.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains: '\systemprofile\'
+        Image|endswith:
+            - '\python.exe'
+            - '\pythonw.exe'
+    condition: selection
+falsepositives:
+    - Legitimate system-level Python automation deployed under SYSTEM profile
+level: high

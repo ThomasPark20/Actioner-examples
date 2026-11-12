@@ -1,0 +1,27 @@
+title: JSP File Created in AhsayCBS Web Application Directory
+id: b3d7e1f2-5a4c-4b9e-8c6d-7f2a0e1b3d5c
+status: experimental
+description: >
+    Detects creation of JSP files within AhsayCBS web application directories,
+    which may indicate web shell deployment following exploitation of
+    CVE-2026-105133 and CVE-2026-105134.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-webshells
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: Actioner
+date: 2026-11-12
+tags:
+    - attack.t1505.003
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains:
+            - '\webapps\cbs\'
+            - '\webapps\rps\'
+        TargetFilename|endswith: '.jsp'
+    condition: selection
+falsepositives:
+    - Legitimate AhsayCBS software updates or plugin installations
+level: high

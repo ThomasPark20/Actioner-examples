@@ -1,0 +1,16 @@
+# Actioner - AhsayCBS CVE-2026-105134 Exploitation Detection
+# Date: 2026-11-12
+# SIDs are placeholders; replace with your local SID allocation before deployment.
+
+alert http $EXTERNAL_NET any -> $HOME_NET any ( \
+    msg:"Actioner - AhsayCBS CVE-2026-105134 UpdateReceivers.do Exploitation Attempt"; \
+    flow:established,to_server; \
+    http_uri; \
+    content:"/rps/api/json/UpdateReceivers.do", fast_pattern; \
+    classtype:web-application-attack; \
+    reference:url,www.huntress.com/blog/ahsaycbs-flaws-exploit; \
+    reference:cve,2026-105134; \
+    metadata:author Actioner, created 2026-11-12; \
+    sid:2100001; \
+    rev:1; \
+)

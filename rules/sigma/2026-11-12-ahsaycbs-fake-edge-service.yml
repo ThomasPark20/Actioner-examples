@@ -1,0 +1,25 @@
+title: Fake Microsoft Edge Update Service Installation
+id: 9a1e3b5c-7d2f-4c8a-b6e4-3f0d1a2c5e9b
+status: experimental
+description: >
+    Detects installation of the MicrosoftEdgeUpdateSvc service, used in the
+    AhsayCBS campaign to persist an XMRig miner via a modified NSSM wrapper
+    masquerading as a Microsoft Edge update service.
+references:
+    - https://www.huntress.com/blog/ahsaycbs-flaws-exploit
+author: Actioner
+date: 2026-11-12
+tags:
+    - attack.t1543.003
+    - attack.t1036.004
+logsource:
+    product: windows
+    service: system
+detection:
+    selection:
+        EventID: 7045
+        ServiceName: 'MicrosoftEdgeUpdateSvc'
+    condition: selection
+falsepositives:
+    - None expected - legitimate Edge update service uses different naming
+level: critical
