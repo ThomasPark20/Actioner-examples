@@ -426,7 +426,7 @@ level: critical
 
 Detects creation of JSP files in AhsayCBS webapps directories, consistent with web shell deployment after exploitation.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check 0; splunk 0; log_scale 0. Keys on file creation with .jsp extension in webapps path. Medium confidence: legitimate AhsayCBS updates could create JSP files (filter by change window). -->
+<!-- audit: sigma check blocked by proxy (MITRE ATT&CK data fetch 403); splunk convert 0; log_scale convert 0. Keys on file creation with .jsp extension in webapps path. Medium confidence: legitimate AhsayCBS updates could create JSP files (filter by change window). -->
 ```yaml
 title: JSP File Created in AhsayCBS Web Application Directory
 id: b3d7e1f2-5a4c-4b9e-8c6d-7f2a0e1b3d5c
