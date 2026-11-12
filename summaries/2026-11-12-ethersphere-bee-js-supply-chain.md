@@ -233,7 +233,7 @@ The malware uses an Ethereum smart contract for dynamic C2 resolution, making tr
 | T1059.001 | Command and Scripting Interpreter: PowerShell | `invoke.ps1` obfuscated PowerShell loader on Windows |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS used for C2 communication and wallet exfiltration |
 | T1543.002 | Create or Modify System Process: Systemd Service | Linux persistence via systemd user unit |
-| T1547.011 | Boot or Logon Autostart Execution: XDG Autostart Entries | macOS persistence via LaunchAgent |
+| T1543.001 | Create or Modify System Process: Launch Agent | macOS persistence via LaunchAgent |
 | T1219 | Remote Access Software | ScreenConnect installed as SYSTEM service for Windows remote access |
 | T1548.002 | Abuse Elevation Control Mechanism: Bypass UAC | UACME method 39 (COR_PROFILER) used for privilege escalation |
 | T1562.001 | Impair Defenses: Disable or Modify Tools | Microsoft Defender exclusion added before ScreenConnect installation |
@@ -297,6 +297,8 @@ launchctl list com.solidity.langsupport.runner 2>/dev/null
 
 ## Detection Rules
 
+> **SID caveat:** SIDs in the Snort and Suricata rules below are placeholders; reassign to your organization's local range before deployment.
+
 These detections target the specific indicators from the Ethersphere bee-js / Swarm Desktop supply chain compromise at PoC/advisory-specific altitude. Compiles does not equal fires -- verify in your pipeline with representative telemetry before deploying to production.
 
 ### Sigma: DNS Query to bee-js C2 Domain frameworkmetrics.xyz
@@ -354,7 +356,7 @@ author: Actioner
 date: 2026/11/12
 tags:
     - attack.t1543.002
-    - attack.t1547.011
+    - attack.t1543.001
 logsource:
     category: file_event
 detection:
