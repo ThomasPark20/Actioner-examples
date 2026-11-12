@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-12
-Version: 1.0-DRAFT
+Version: 1.0
+<!-- revision: Fixed MITRE T1547.011→T1543.001 in ATT&CK table and Sigma tags; added SID placeholder caveat; cut Suricata port-4912 rule (behavioral, not campaign-specific). -->
 
 ## Executive Summary
 
@@ -446,14 +447,7 @@ Detects DNS queries for the `frameworkmetrics[.]xyz` C2 domain used throughout t
 alert dns $HOME_NET any -> any any (msg:"Actioner - Ethersphere bee-js C2 DNS Query for frameworkmetrics.xyz"; flow:to_server; dns.query; content:"frameworkmetrics.xyz"; nocase; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/bee-js-compromise; reference:url,github.com/advisories/GHSA-hh7j-5m3j-23pf; metadata:author Actioner, created_at 2026-11-12; sid:2200002; rev:1;)
 ```
 
-### Suricata: evjawbreaker Backdoor C2 Connection on Port 4912
-
-Detects outbound TLS connections to port 4912, the characteristic port used by the evjawbreaker backdoor for hub communication. Scope to monitored developer/node-operator segments to reduce false positives.
-**Status:** compile ✅ compiles · confidence: medium
-<!-- audit: suricata -T exit 0. Port 4912 is uncommon but not unique to this campaign -- medium confidence because other services may use this port. TLS handshake byte check adds specificity. -->
-```suricata
-alert tcp $HOME_NET any -> $EXTERNAL_NET 4912 (msg:"Actioner - Ethersphere evjawbreaker Backdoor C2 Connection on Port 4912"; flow:established,to_server; content:"|16 03|"; depth:2; classtype:trojan-activity; reference:url,socket.dev/blog/bee-js-compromise; metadata:author Actioner, created_at 2026-11-12; sid:2200003; rev:1;)
-```
+<!-- Suricata evjawbreaker port 4912 rule: Dropped by critic — behavioral, not specific to this campaign. -->
 
 ### YARA: Malicious bee-js Loader (generate-version.cjs)
 
