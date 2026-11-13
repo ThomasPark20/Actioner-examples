@@ -1,7 +1,7 @@
 # Windows SignDrop Zero-Day: CLFS Local Privilege Escalation to SYSTEM
 
 **Date:** 2026-11-13  
-**Status:** DRAFT  
+**Status:** FINAL  
 **TLP:** CLEAR  
 **CVE:** None assigned  
 
@@ -121,8 +121,9 @@ No network indicators have been identified. This is a local privilege escalation
 |-------------|----------------|-----------|
 | [T1068](https://attack.mitre.org/techniques/T1068/) | Exploitation for Privilege Escalation | Core technique: CLFS driver vulnerability exploited for LPE to SYSTEM |
 | [T1574.002](https://attack.mitre.org/techniques/T1574/002/) | Hijack Execution Flow: DLL Side-Loading | PoC includes custom `hid.dll` for sideloading |
-| [T1562.001](https://attack.mitre.org/techniques/T1562/001/) | Impair Defenses: Disable or Modify Tools | Technique can bypass AV/EDR tamper protection by coercing the security product's own process |
 | [T1112](https://attack.mitre.org/techniques/T1112/) | Modify Registry | CLFS Authentication Mode registry value is the configuration surface |
+
+<!-- revision: T1562.001 (Impair Defenses) dropped — SignDrop coerces Defender into performing a file operation, it does not disable or modify it -->
 
 ---
 
@@ -134,11 +135,11 @@ No network indicators have been identified. This is a local privilege escalation
 
 2. **Registry Monitoring**: Monitor changes to `HKLM\SYSTEM\CurrentControlSet\Services\CLFS\Authentication\Mode`. Any modification outside of Group Policy or MDM-driven configuration is suspicious.
 
-3. **DLL Load Monitoring**: Detect `hid.dll` being loaded from non-standard directories (outside `System32`, `SysWOW64`, `WinSxS`).
+<!-- revision: DLL Load Monitoring strategy for hid.dll removed — hid.dll is commonly sideloaded by benign software; not SignDrop-specific -->
 
-4. **Process Behavior Analysis**: Monitor Windows Defender processes (`MsMpEng.exe`) for interaction with CLFS log files in user-writable directories.
+3. **File-Open Telemetry for Defender-CLFS Interaction**: Monitor for `MsMpEng.exe` opening `.blf` or `.cnpf` files in user-writable directories. Note: process-creation telemetry will not capture this because the exploit triggers Defender via RPC (`ServerMpUpdateEngineSignature`), not by spawning child processes. Use Sysmon Event ID 11 (FileCreate) or ETW FileIO providers to observe the file-level activity.
 
-5. **Sysmon Configuration**: Enable Sysmon Event ID 11 (FileCreate) for `.cnpf` and `.blf` patterns, Event ID 7 (ImageLoad) for `hid.dll`, and Event ID 13 (RegistryEvent) for the CLFS Authentication key.
+4. **Sysmon Configuration**: Enable Sysmon Event ID 11 (FileCreate) for `.cnpf` and `.blf` patterns and Event ID 13 (RegistryEvent) for the CLFS Authentication key.
 
 ### Remediation
 
