@@ -1,7 +1,7 @@
 # Check Point Gateway PHP2Shell Exploitation + TSGA Backdoor (CVE-2026-123039)
 
 **Date:** 2026-11-13
-**Status:** DRAFT
+**Status:** FINAL
 **Author:** Actioner
 **Classification:** TLP:CLEAR
 
@@ -171,9 +171,9 @@ TSGA is a standalone passive Linux gateway implant with roots in Tiny SHell (tsh
 | T1059.004 | Command and Scripting Interpreter: Unix Shell | Shell commands via web shell, beacon.sh, collect.sh |
 | T1036.004 | Masquerading: Masquerade Task or Service | TSGA masquerading as CPconfigdaemon |
 | T1574.006 | Hijack Execution Flow: Dynamic Linker Hijacking | TSProxy planted as libcpfwcommon.so |
-| T1571 | Non-Standard Port | TSGA listener on TCP 11072 |
+| T1564.001 | Hide Artifacts: Hidden Files and Directories | TSGA hidden files (.p_sock, .bd.log, .up.tpl) |
 | T1055 | Process Injection | TSGA injecting TSProxy into appliance processes |
-| T1003 | OS Credential Dumping | Configuration and credential theft from appliance |
+| T1005 | Data from Local System | Configuration and credential extraction from appliance |
 | T1046 | Network Service Discovery | gogo scanner for internal reconnaissance |
 | T1021.004 | Remote Services: SSH | SSH lateral movement via vpxuser to ESXi |
 | T1485 | Data Destruction | destroy_v6 wiper |
@@ -228,32 +228,37 @@ All rules validated via `sigma convert` to Splunk SPL and CrowdStrike LogScale. 
 Image="*/CPconfigdaemon" OR (CommandLine="*nohup*" CommandLine="*CPconfigdaemon*" CommandLine="*.bd.log*")
 ```
 
+<!-- revision: downgraded to medium; socket path may not appear in compiled exploit cmdline -->
 #### Sigma Rule 2: DynamicCLI Privilege Escalation (CVE-2026-123039)
 - **File:** `/tmp/actioner/checkpoint-2.yml`
 - **Compile status:** PASS (converts to Splunk + LogScale)
-- **Confidence:** HIGH
+- **Confidence:** MEDIUM
 - **Targets:** Non-legitimate processes accessing /tmp/dynamic_socket
+- **Caveat:** A compiled exploit may connect to the socket programmatically without the path appearing in the process command line. Supplement with auditd monitoring on `/tmp/dynamic_socket` for connect() syscalls.
 
 **Splunk SPL:**
 ```
 CommandLine="*/tmp/dynamic_socket*" NOT Image="*/dynamic_server"
 ```
 
+<!-- revision: downgraded to medium; tightened "zz" substring to "/zz" path prefix to reduce false positives -->
 #### Sigma Rule 3: PHP2Shell Web Shell Deployment
 - **File:** `/tmp/actioner/checkpoint-3.yml`
 - **Compile status:** PASS (converts to Splunk + LogScale)
-- **Confidence:** HIGH
-- **Targets:** base64-decoded .tpl file creation and zz*.tpl web shell pattern
+- **Confidence:** MEDIUM
+- **Targets:** base64-decoded .tpl file creation and /zz*.tpl web shell pattern
+- **Caveat:** The 2-char substring "zz" is too broadly matching; rule tightened to require "/zz" path component. May still need environment-specific tuning.
 
 **Splunk SPL:**
 ```
-(CommandLine="*base64*" CommandLine="*-d*" CommandLine="*.tpl*") OR (CommandLine="*zz*" CommandLine="*.tpl*")
+(CommandLine="*base64*" CommandLine="*-d*" CommandLine="*.tpl*") OR (CommandLine="*/zz*" CommandLine="*.tpl*")
 ```
 
+<!-- revision: CRITICAL→high; ATT&CK tag corrected t1571→t1564.001 (Hide Artifacts: Hidden Files and Directories) -->
 #### Sigma Rule 4: TSGA Hidden File Artifacts
 - **File:** `/tmp/actioner/checkpoint-4.yml`
 - **Compile status:** PASS (converts to Splunk + LogScale)
-- **Confidence:** CRITICAL
+- **Confidence:** HIGH
 - **Targets:** Creation of .p_sock, .bd.log, and .up.tpl files
 
 **Splunk SPL:**
@@ -261,10 +266,11 @@ CommandLine="*/tmp/dynamic_socket*" NOT Image="*/dynamic_server"
 TargetFilename IN ("*/.p_sock", "*/.bd.log", "*/.up.tpl")
 ```
 
+<!-- revision: CRITICAL→high -->
 #### Sigma Rule 5: TSProxy Shared Library Injection
 - **File:** `/tmp/actioner/checkpoint-5.yml`
 - **Compile status:** PASS (converts to Splunk + LogScale)
-- **Confidence:** CRITICAL
+- **Confidence:** HIGH
 - **Targets:** Modification of /lib/libcpfwcommon.so
 
 **Splunk SPL:**
@@ -272,10 +278,11 @@ TargetFilename IN ("*/.p_sock", "*/.bd.log", "*/.up.tpl")
 TargetFilename="/lib/libcpfwcommon.so"
 ```
 
+<!-- revision: CRITICAL→high -->
 #### Sigma Rule 6: Destroy_v6 Wiper Execution
 - **File:** `/tmp/actioner/checkpoint-6.yml`
 - **Compile status:** PASS (converts to Splunk + LogScale)
-- **Confidence:** CRITICAL
+- **Confidence:** HIGH
 - **Targets:** Execution of destroy_v6/destory_v6 wiper binary
 
 **Splunk SPL:**
@@ -332,12 +339,7 @@ All rules compiled successfully with `yarac`.
 
 > These rules are structural only and could not be compiled in this environment.
 
-#### Suricata Rule 1: TSGA C2 on TCP 11072
-
-```
-alert tcp any any -> any 11072 (msg:"ETPRO MALWARE TSGA/PhiliKit Backdoor Encrypted C2 Communication on Port 11072"; flow:to_server,established; content:"|00|"; depth:1; threshold:type limit, track by_src, count 1, seconds 60; classtype:trojan-activity; sid:2026110001; rev:1;)
-```
-- **Confidence:** MEDIUM | Uncompiled (structural check only)
+<!-- revision: Suricata Rule 1 (TSGA C2 on TCP 11072) DROPPED — port-only alerting with cosmetic null-byte check has near-zero discriminative value -->
 
 #### Suricata Rule 2: PHP2Shell Scanner User-Agent
 
@@ -346,12 +348,13 @@ alert http any any -> any any (msg:"ET SCAN PHP2Shell Scanner User-Agent Detecte
 ```
 - **Confidence:** HIGH | Uncompiled (structural check only)
 
+<!-- revision: downgraded to medium; "/tools/collect.sh" is a generic URI path -->
 #### Suricata Rule 3: PHP2Shell Post-Exploitation Tool Download
 
 ```
 alert http any any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PHP2Shell Post-Exploitation Tool Download (collect.sh)"; flow:to_server,established; http.uri; content:"/tools/collect.sh"; endswith; classtype:trojan-activity; sid:2026110003; rev:1;)
 ```
-- **Confidence:** HIGH | Uncompiled (structural check only)
+- **Confidence:** MEDIUM | Uncompiled (structural check only)
 
 ---
 
