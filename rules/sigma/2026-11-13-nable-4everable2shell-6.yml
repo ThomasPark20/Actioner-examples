@@ -1,0 +1,27 @@
+title: N-able N-central 4EverAble2Shell ServerChild.sh Symlink Manipulation
+id: a8c61d53-f924-4e0b-9317-4b5c82e1a70f
+status: experimental
+description: >
+    Detects the creation of a symlink at /var/opt/n-central/flag/flag_default.json
+    pointing to ServerChild.sh, which is the privilege escalation technique used
+    in the 4EverAble2Shell exploit chain. Also detects backup files created
+    during the escalation process.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_symlink:
+        TargetFilename: '/var/opt/n-central/flag/flag_default.json'
+    selection_backup:
+        TargetFilename|startswith: '/var/opt/n-central/tmp/serverchild-'
+    condition: selection_symlink or selection_backup
+falsepositives:
+    - Legitimate creation of flag_default.json by N-central processes; verify if the file is a symlink
+level: high

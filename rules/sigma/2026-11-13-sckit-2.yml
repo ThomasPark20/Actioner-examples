@@ -1,0 +1,31 @@
+title: SCKit Dropper and Decoder Files in Windows Temp
+id: a8d2f3e4-5b6c-7d8e-9f0a-1b2c3d4e5f6a
+status: experimental
+description: Detects SCKit dropper, decoder, and loader scripts written to the Windows Temp directory during initial infection of ScreenConnect-managed endpoints.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.defense_evasion
+    - attack.t1027
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_sckit_files:
+        TargetFilename|endswith:
+            - '\sckit-run.bat'
+            - '\sckit-decoder.ps1'
+            - '\sckit-loader.ps1'
+    selection_temp_msi:
+        TargetFilename|endswith: '\Windows\Temp\sc.msi'
+    selection_runnew:
+        TargetFilename|endswith: '\runnew.cmd'
+    condition: selection_sckit_files or selection_temp_msi or selection_runnew
+falsepositives:
+    - Very unlikely. These filenames are specific to the SCKit toolkit.
+level: critical

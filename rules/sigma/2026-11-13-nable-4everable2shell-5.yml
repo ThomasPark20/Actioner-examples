@@ -1,0 +1,29 @@
+title: N-able N-central 4EverAble2Shell Outbound Connection to Attacker Infrastructure
+id: 7d4e2f10-ca83-4a69-8b15-3e7f62d09a84
+status: experimental
+description: >
+    Detects outbound network connections from N-central hosts to known
+    attacker infrastructure used in 4EverAble2Shell exploitation and the
+    subsequent XMRig mining campaign, including the payload server and
+    mining pool proxies.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.command_and_control
+    - attack.t1071
+    - attack.impact
+    - attack.t1496
+logsource:
+    category: firewall
+detection:
+    selection_ips:
+        dst_ip:
+            - '157.20.241.16'
+            - '139.99.69.109'
+            - '79.76.51.56'
+    condition: selection_ips
+falsepositives:
+    - Legitimate traffic to these IPs is not expected from N-central environments
+level: critical

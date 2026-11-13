@@ -1,0 +1,30 @@
+title: N-able N-central 4EverAble2Shell Post-Exploitation Privilege Escalation
+id: 2c7f8a15-d3e6-4b91-a6c0-9e12d4f58b37
+status: experimental
+description: >
+    Detects the privilege escalation technique used in 4EverAble2Shell
+    post-exploitation. The attacker abuses nable_wrapper.pl with
+    setLDFileOwner or serverControl noop to escalate from the nable service
+    account to root via symlink manipulation of ServerChild.sh.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.privilege_escalation
+    - attack.t1068
+    - attack.t1548.003
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_wrapper:
+        Image|endswith: '/nable_wrapper.pl'
+    selection_args:
+        CommandLine|contains:
+            - 'setLDFileOwner'
+            - 'serverControl noop'
+    condition: selection_wrapper and selection_args
+falsepositives:
+    - Legitimate N-central maintenance operations using nable_wrapper.pl with these specific arguments; verify context
+level: medium

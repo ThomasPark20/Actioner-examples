@@ -1,0 +1,7 @@
+# PHP2Shell / TSGA Campaign - Suricata Rules
+# Suricata Rule 1 (TSGA C2 on TCP 11072) DROPPED: port-only alerting with cosmetic null-byte check has near-zero discriminative value
+
+alert http any any -> any any (msg:"ET SCAN PHP2Shell Scanner User-Agent Detected"; flow:to_server,established; http.user_agent; content:"php2shell-scan/109618"; nocase; classtype:web-application-attack; sid:2026110002; rev:1;)
+
+# revision: confidence downgraded to medium; "/tools/collect.sh" is a generic URI path
+alert http any any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PHP2Shell Post-Exploitation Tool Download (collect.sh)"; flow:to_server,established; http.uri; content:"/tools/collect.sh"; endswith; classtype:trojan-activity; sid:2026110003; rev:1;)

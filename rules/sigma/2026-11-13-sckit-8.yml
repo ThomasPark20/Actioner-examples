@@ -1,0 +1,32 @@
+title: SCKit Rogue ScreenConnect Client Silent Installation
+id: 04d8e9f0-1a2b-3c4d-5e6f-7a8b9c0d1e2f
+status: experimental
+description: Detects silent MSI installation of ScreenConnect clients connecting to known SCKit attacker relay infrastructure (185.99.255.28, soxnewwork.homedns.org, newnewnew.gotdns.org). The SCKit toolkit installs rogue Access clients for persistent backdoor access to compromised endpoints.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.persistence
+    - attack.t1219
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_msiexec:
+        Image|endswith: '\msiexec.exe'
+        CommandLine|contains: 'ScreenConnect'
+    selection_attacker_infra:
+        CommandLine|contains:
+            - '185.99.255.28'
+            - 'soxnewwork.homedns.org'
+            - 'newnewnew.gotdns.org'
+            - 'payproofkit.com'
+            - 'cdn007-digitaldownloads'
+    condition: selection_msiexec and selection_attacker_infra
+falsepositives:
+    - None known. These relay addresses and domains are SCKit attacker infrastructure.
+level: critical

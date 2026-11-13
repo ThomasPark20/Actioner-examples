@@ -1,0 +1,33 @@
+title: SCKit PowerShell Download from Staging Server
+id: e2b6c7d8-9f0a-1b2c-3d4e-5f6a7b8c9d0e
+status: experimental
+description: Detects PowerShell or curl.exe downloading SCKit payloads from the ns.mo7sen.dev staging server, including the EadF.php endpoint used for per-host encrypted kit delivery.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_process:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+            - '\curl.exe'
+    selection_url:
+        CommandLine|contains:
+            - 'mo7sen.dev'
+            - 'EadF.php'
+            - 'payproofkit.com'
+            - 'cdn007-digitaldownloads.com'
+    condition: selection_process and selection_url
+falsepositives:
+    - None known. These URLs are attacker-controlled SCKit infrastructure.
+level: critical

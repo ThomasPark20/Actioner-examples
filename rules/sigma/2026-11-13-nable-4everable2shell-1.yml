@@ -1,0 +1,31 @@
+title: N-able N-central 4EverAble2Shell SOAP Exploitation Attempt
+id: 8a3d1e72-bf40-4c12-9a5e-6d8f23c71a09
+status: experimental
+description: >
+    Detects exploitation attempts targeting the N-able N-central Apache Axis
+    SOAP endpoint via crafted fault messages referencing the JLine
+    TerminalLineSettings class, as seen in 4EverAble2Shell (CVE-2026-90436
+    chain). The attacker sends a POST to /dms/services/ServerUI with a SOAP
+    fault whose exceptionName is jline.internal.TerminalLineSettings.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+    - https://previdian.com/VULN-2026-0009
+tags:
+    - attack.initial_access
+    - attack.t1190
+logsource:
+    category: webserver
+    product: apache
+detection:
+    selection_uri:
+        cs-uri-stem|contains: '/dms/services/ServerUI'
+    selection_method:
+        cs-method: 'POST'
+    selection_payload:
+        cs-body|contains: 'jline.internal.TerminalLineSettings'
+    condition: selection_uri and selection_method and selection_payload
+falsepositives:
+    - Legitimate SOAP fault messages referencing jline classes are highly unlikely in N-central environments
+level: critical

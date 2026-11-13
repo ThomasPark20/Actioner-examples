@@ -1,0 +1,33 @@
+title: SCKit RelayTrap Directory and File Creation
+id: 7c3e1a2f-9b4d-4e8a-b5c6-d7f8e9a0b1c2
+status: experimental
+description: Detects creation of the SCKit RelayTrap installation directory and associated files used by the SCKit worm toolkit targeting ScreenConnect MSP environments.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_relaytrap_dir:
+        TargetFilename|contains: '\ProgramData\RelayTrap\'
+    selection_relaytrap_files:
+        TargetFilename|endswith:
+            - '\RelayTrap.cs'
+            - '\RelayTrap.exe'
+            - '\TrapWatch.ps1'
+            - '\Lite-Alert.ps1'
+            - '\install.ps1'
+            - '\TRAP-PROOF.bat'
+            - '\lab-context.json'
+    condition: selection_relaytrap_dir or selection_relaytrap_files
+falsepositives:
+    - Unlikely in legitimate environments. RelayTrap is specific to SCKit malware.
+level: critical

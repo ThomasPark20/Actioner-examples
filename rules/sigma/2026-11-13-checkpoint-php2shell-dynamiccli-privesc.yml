@@ -1,0 +1,26 @@
+# revision: downgraded to medium; socket path may not appear in compiled exploit cmdline
+title: Check Point DynamicCLI Privilege Escalation via Unix Socket (CVE-2026-123039)
+id: b4e92c6a-3f17-4d85-a1c9-7e6b8d2f5a30
+status: experimental
+description: |
+    Detects suspicious access to the world-writable /tmp/dynamic_socket Unix socket used by DynamicCLI, which can be exploited for local privilege escalation to root on Gaia OS (CVE-2026-123039).
+    Note: A compiled exploit may connect to the socket programmatically without the path appearing in the process command line. Supplement with auditd monitoring on /tmp/dynamic_socket for connect() syscalls.
+references:
+    - https://support.checkpoint.com/results/sk/sk1000362
+    - https://www.bleepingcomputer.com/news/security/check-point-patches-zero-day-that-lets-hackers-get-root-access/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        CommandLine|contains: '/tmp/dynamic_socket'
+    filter_dynamic_server:
+        Image|endswith: '/dynamic_server'
+    condition: selection and not filter_dynamic_server
+falsepositives:
+    - Legitimate DynamicCLI administration from expected service accounts
+level: medium
