@@ -183,7 +183,6 @@ author: Actioner
 date: 2026/11/13
 tags:
     - attack.t1068
-    - attack.t1562.001
 logsource:
     category: file_event
     product: windows
@@ -239,7 +238,6 @@ author: Actioner
 date: 2026/11/13
 tags:
     - attack.t1112
-    - attack.t1562.001
 logsource:
     category: registry_set
     product: windows
@@ -263,108 +261,8 @@ TargetObject="*\\Services\\CLFS\\Authentication\\Mode"
 TargetObject=/\\Services\\CLFS\\Authentication\\Mode$/i
 ```
 
----
-
-### Sigma Rule 3: Suspicious HID DLL Loaded From Non-System Directory
-
-**Compile status:** ✅ compiles (sigma convert to Splunk and LogScale successful)  
-**Confidence:** Medium -- DLL sideloading detection; some legitimate software may bundle hid.dll
-
-**File:** `/tmp/actioner/signdrop-3.yml`
-
-```yaml
-title: SignDrop - Suspicious HID DLL Loaded From Non-System Directory
-id: 4e8a1c36-2d9b-4f7e-a5c3-8b6d0e2f1a9c
-status: experimental
-description: >
-  Detects loading of hid.dll from a non-standard directory. The SignDrop PoC includes
-  a custom hid.dll for DLL sideloading as part of the CLFS privilege escalation chain.
-references:
-    - https://github.com/MSNightmare/SignDrop
-    - https://www.bleepingcomputer.com/news/security/new-windows-signdrop-zero-day-gives-hackers-system-privileges/
-author: Actioner
-date: 2026/11/13
-tags:
-    - attack.t1574.002
-    - attack.t1068
-logsource:
-    category: image_load
-    product: windows
-detection:
-    selection:
-        ImageLoaded|endswith: '\hid.dll'
-    filter_system:
-        ImageLoaded|startswith:
-            - 'C:\Windows\System32\'
-            - 'C:\Windows\SysWOW64\'
-            - 'C:\Windows\WinSxS\'
-    condition: selection and not filter_system
-falsepositives:
-    - Legitimate applications bundling their own HID library
-    - Hardware vendor software with custom HID implementations
-level: medium
-```
-
-**Splunk output:**
-```
-ImageLoaded="*\\hid.dll" NOT (ImageLoaded IN ("C:\\Windows\\System32\\*", "C:\\Windows\\SysWOW64\\*", "C:\\Windows\\WinSxS\\*"))
-```
-
-**LogScale output:**
-```
-ImageLoaded=/\\hid\.dll$/i not (ImageLoaded=/^C:\\Windows\\System32\\/i or ImageLoaded=/^C:\\Windows\\SysWOW64\\/i or ImageLoaded=/^C:\\Windows\\WinSxS\\/i)
-```
-
----
-
-### Sigma Rule 4: Windows Defender Engine Signature Update Coercion
-
-**Compile status:** ✅ compiles (sigma convert to Splunk and LogScale successful)  
-**Confidence:** Low -- process creation telemetry may not capture the RPC-level coercion; this rule targets a narrow observable and requires MsMpEng.exe -> MpCmdRun.exe with .blf references
-
-**File:** `/tmp/actioner/signdrop-4.yml`
-
-```yaml
-title: SignDrop - Windows Defender Engine Signature Update Coercion
-id: 6c2f4a87-1e3d-4b9a-8d5c-7f0e3b2a1d6e
-status: experimental
-description: >
-  Detects potential abuse of the Windows Defender signature update RPC interface
-  (ServerMpUpdateEngineSignature) to coerce the Defender service into opening
-  attacker-controlled CLFS log files. The SignDrop exploit uses this to trigger
-  CNPF file creation with SYSTEM privileges.
-references:
-    - https://github.com/MSNightmare/SignDrop
-    - https://thehackernews.com/2026/11/new-signdrop-zero-day-exploit-turns.html
-author: Actioner
-date: 2026/11/13
-tags:
-    - attack.t1068
-    - attack.t1562.001
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_defender_access:
-        ParentImage|endswith: '\MsMpEng.exe'
-        Image|endswith: '\MpCmdRun.exe'
-    selection_blf_commandline:
-        CommandLine|contains: '.blf'
-    condition: selection_defender_access and selection_blf_commandline
-falsepositives:
-    - Highly unlikely in normal operations
-level: high
-```
-
-**Splunk output:**
-```
-ParentImage="*\\MsMpEng.exe" Image="*\\MpCmdRun.exe" CommandLine="*.blf*"
-```
-
-**LogScale output:**
-```
-ParentImage=/\\MsMpEng\.exe$/i Image=/\\MpCmdRun\.exe$/i CommandLine=/\.blf/i
-```
+<!-- revision: Sigma Rule 3 (HID DLL Non-System Load) dropped — hid.dll is commonly sideloaded by benign software; too generic, not SignDrop-specific -->
+<!-- revision: Sigma Rule 4 (Defender Engine Coercion via process_creation) dropped — fundamentally wrong mechanism; MsMpEng does not spawn MpCmdRun during RPC coercion; exploit uses RPC, not process creation -->
 
 ---
 
@@ -445,4 +343,4 @@ rule SignDrop_HID_Sideload_DLL
 
 ---
 
-*Report generated 2026-11-13 | Actioner CTI & Detection Engineering | DRAFT*
+*Report generated 2026-11-13 | Actioner CTI & Detection Engineering | FINAL*

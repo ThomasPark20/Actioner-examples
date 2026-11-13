@@ -1,0 +1,29 @@
+title: SignDrop - Suspicious CNPF File Creation in User-Writable Directory
+id: 7a3c8e91-4d2f-4b1a-9e6c-2f8d5a1b3c4e
+status: experimental
+description: Detects creation of CLFS authentication (.cnpf) files in user-writable directories, which may indicate abuse of the SignDrop CLFS privilege escalation technique where a standard user redirects CNPF file creation via object manager symlinks.
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://www.bleepingcomputer.com/news/security/new-windows-signdrop-zero-day-gives-hackers-system-privileges/
+    - https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/clfs-authentication
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.cnpf'
+    filter_system_paths:
+        TargetFilename|startswith:
+            - 'C:\Windows\'
+            - 'C:\ProgramData\'
+            - 'C:\Program Files\'
+            - 'C:\Program Files (x86)\'
+    condition: selection and not filter_system_paths
+falsepositives:
+    - Legitimate applications creating CLFS log files in user directories
+    - Development or testing of CLFS-based applications
+level: high

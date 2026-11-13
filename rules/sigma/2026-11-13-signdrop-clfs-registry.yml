@@ -1,0 +1,23 @@
+title: SignDrop - CLFS Authentication Mode Registry Modification
+id: 9b5d2e73-6f1a-4c8d-be49-3a7e1d5f2c6b
+status: experimental
+description: Detects modification of the CLFS Authentication Mode registry value, which controls the CLFS logfile authentication mitigation. Attackers may change this value to disable protections (value 2) or the SignDrop exploit targets systems in learning mode (value 1) or enforcement mode (value 0).
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://support.microsoft.com/en-us/servicing/os/windows/2025/03/common-log-file-system-clfs-authentication-mitigation
+    - https://learn.microsoft.com/en-us/windows-hardware/drivers/kernel/clfs-authentication
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1112
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Services\CLFS\Authentication\Mode'
+    condition: selection
+falsepositives:
+    - Legitimate administrator configuration of CLFS authentication via Group Policy or MDM
+    - Windows Update changing the CLFS authentication mode during mitigation rollout
+level: medium
