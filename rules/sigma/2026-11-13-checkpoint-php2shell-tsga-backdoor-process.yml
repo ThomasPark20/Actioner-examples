@@ -1,0 +1,27 @@
+title: TSGA Backdoor Process Execution (slot_CPconfigdaemon)
+id: 8a3d7e1f-4c2b-4a91-b6e3-1f5d9c8e2a47
+status: experimental
+description: Detects execution of the TSGA backdoor masquerading as a Check Point configuration daemon process. The backdoor runs under the process name slot_CPconfigdaemon and writes to a hidden log file.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1059.004
+    - attack.t1036.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_process:
+        Image|endswith: '/CPconfigdaemon'
+    selection_nohup:
+        CommandLine|contains|all:
+            - 'nohup'
+            - 'CPconfigdaemon'
+            - '.bd.log'
+    condition: selection_process or selection_nohup
+falsepositives:
+    - Legitimate Check Point configuration daemon processes (verify against known Check Point process inventory)
+level: critical

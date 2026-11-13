@@ -1,0 +1,33 @@
+title: N-able N-central 4EverAble2Shell XMRig Miner Artifacts
+id: 5e9b3d84-a17c-42f0-b8e5-1c6a09f72d63
+status: experimental
+description: >
+    Detects file system artifacts associated with the XMRig cryptocurrency
+    miner deployed via 4EverAble2Shell exploitation of N-able N-central.
+    The miner installs to /tmp/.xvd/ or /var/tmp/.xvd/ with specific
+    filenames.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.impact
+    - attack.t1496
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_paths:
+        TargetFilename|contains:
+            - '/tmp/.xvd/x'
+            - '/tmp/.xvd/keep.sh'
+            - '/tmp/.xvd/xm.log'
+            - '/var/tmp/.xvd/x'
+            - '/var/tmp/.xvd/keep.sh'
+            - '/var/tmp/.xvd/xm.log'
+    condition: selection_paths
+falsepositives:
+    - Unlikely; the .xvd hidden directory name is specific to this campaign
+level: critical

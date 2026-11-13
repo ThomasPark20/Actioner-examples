@@ -1,7 +1,10 @@
+<!-- revision: critic-nable pass 1 — cut Sigma 9 + Snort 2026111306 (UA too common), downgraded Sigma 2+8 HIGH→MEDIUM, fixed ATT&CK tags on Sigma 5+7, removed generic remount from Sigma 7, added cs-body caveat to Sigma 1, corrected MITRE table -->
+
 # N-able N-central 4EverAble2Shell Zero-Day
 
 **Date:** 2026-11-13
-**Status:** DRAFT
+**Status:** REVISED
+**Revision:** 1 (2026-11-13)
 **TLP:** CLEAR
 **Author:** Actioner
 
@@ -127,7 +130,7 @@ Agent2Shell comprises approximately a dozen zero-days allowing command execution
 |-----------|---------|
 | POST to `/dms/services/ServerUI` with `jline.internal.TerminalLineSettings` in body | SOAP exploitation |
 | POST to `/dms2/services2/ServerMMS2` with `SessionHello` | Able2Shell exploitation (WatchTowr) |
-| User-Agent `python-requests/2.31.0` to SOAP endpoints | Weaponized requests |
+| User-Agent `python-requests/2.31.0` to SOAP endpoints | Weaponized requests (informational only; UA is too common for standalone detection) |
 | User-Agent ending in `N-central-sec-audit/1.0` | Able2Shell exploitation (WatchTowr) |
 | `nable` user spawning `python3`, `base64`, or bash with `/dev/tcp` | Post-exploitation callback |
 | `mount -o remount,exec /tmp` | Pre-miner deployment |
@@ -147,6 +150,7 @@ Agent2Shell comprises approximately a dozen zero-days allowing command execution
 | T1548.003 | Abuse Elevation Control Mechanism: Sudo and Sudo Caching | sudo nable_wrapper.pl setLDFileOwner / serverControl noop |
 | T1140 | Deobfuscate/Decode Files or Information | Base64-encoded Python payload |
 | T1105 | Ingress Tool Transfer | curl download of jup.sh and xvgz from 157.20.241[.]16 |
+| T1071 | Application Layer Protocol | Outbound HTTP to attacker payload server and mining pool proxies |
 | T1571 | Non-Standard Port | Callback on TCP 19202-19418, payload on TCP 8080 |
 | T1095 | Non-Application Layer Protocol | Raw TCP callback via /dev/tcp |
 | T1543.002 | Create or Modify System Process: Systemd Service | xvd.service persistence |
@@ -195,6 +199,7 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **MITRE:** T1190
 - **Compile Status:** PASS (sigma convert)
 - **Confidence:** HIGH -- exploits a specific, campaign-unique class name in a specific endpoint
+- **Caveat:** Requires WAF or reverse-proxy logging that captures request bodies (cs-body); this field is not available in standard web server access logs
 
 #### Rule 2: Privilege Escalation via nable_wrapper.pl (nable-2.yml)
 
@@ -204,7 +209,7 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **Log Source:** process_creation (linux)
 - **MITRE:** T1068, T1548.003
 - **Compile Status:** PASS (sigma convert)
-- **Confidence:** HIGH -- specific to the documented escalation technique
+- **Confidence:** MEDIUM -- setLDFileOwner and serverControl noop are legitimate N-central maintenance commands; verify surrounding context (symlink at flag_default.json, nable user initiating)
 
 #### Rule 3: XMRig Miner File Artifacts (nable-3.yml)
 
@@ -232,7 +237,7 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **ID:** `7d4e2f10-ca83-4a69-8b15-3e7f62d09a84`
 - **Description:** Detects connections to known attacker IPs (payload server and mining pools)
 - **Log Source:** firewall
-- **MITRE:** T1071.001, T1496
+- **MITRE:** T1071, T1496
 - **Compile Status:** PASS (sigma convert)
 - **Confidence:** HIGH -- IPs confirmed in active exploitation; will need updates as infrastructure rotates
 
@@ -246,15 +251,16 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **Compile Status:** PASS (sigma convert)
 - **Confidence:** MEDIUM -- flag_default.json may be legitimately created by N-central; symlink status requires verification
 
-#### Rule 7: Tmp Remount Exec and Curl Pipe to Shell (nable-7.yml)
+#### Rule 7: Curl Pipe jup.sh to Shell (nable-7.yml)
 
 - **File:** `/tmp/actioner/nable-7.yml`
 - **ID:** `d2e58b93-7610-4d1a-ae4f-5f30c19e82b6`
-- **Description:** Detects remounting /tmp with exec permissions or curl piping jup.sh from the attacker IP
+- **Description:** Detects curl piping jup.sh from the attacker IP to shell, as observed in the 4EverAble2Shell miner deployment
 - **Log Source:** process_creation (linux)
-- **MITRE:** T1059.004, T1140
+- **MITRE:** T1059.004, T1105
 - **Compile Status:** PASS (sigma convert)
-- **Confidence:** HIGH -- curl+IP+jup.sh is campaign-specific; remount is a useful behavioral indicator
+- **Confidence:** HIGH -- curl+IP+jup.sh is campaign-specific
+- **Note:** Generic remount condition removed (violates campaign-specific altitude); remount detection belongs in a separate behavioral rule
 
 #### Rule 8: Nable Account Spawning Suspicious Processes (nable-8.yml)
 
@@ -264,17 +270,9 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **Log Source:** process_creation (linux)
 - **MITRE:** T1059.006, T1059.004
 - **Compile Status:** PASS (sigma convert)
-- **Confidence:** HIGH -- /dev/tcp usage by a service account is highly anomalous
+- **Confidence:** MEDIUM -- /dev/tcp usage by a service account is highly anomalous, but python3 -c and base64 -d alone are generic; rule requires the nable user context to reduce false positives
 
-#### Rule 9: Weaponised SOAP Request User-Agent (nable-9.yml)
-
-- **File:** `/tmp/actioner/nable-9.yml`
-- **ID:** `6e302c47-8a19-4f5b-b6d3-1c94a0e7f583`
-- **Description:** Detects python-requests/2.31.0 User-Agent targeting N-central SOAP endpoints
-- **Log Source:** webserver
-- **MITRE:** T1190
-- **Compile Status:** PASS (sigma convert)
-- **Confidence:** MEDIUM -- User-Agent is easily spoofed; useful as an early-warning signal in context
+<!-- CUT: Rule 9 (nable-9.yml) removed — python-requests/2.31.0 UA is too common for a detection rule; generates excessive false positives -->
 
 ### YARA Rules
 
@@ -295,7 +293,7 @@ All rules validated via `sigma convert --without-pipeline -t splunk` and `-t log
 - **Rule 2026111303:** Primary XMRig mining pool connection. Confidence: HIGH.
 - **Rule 2026111304:** Fallback XMRig mining pool connection. Confidence: HIGH.
 - **Rule 2026111305:** jup.sh installer download from attacker server. Confidence: HIGH.
-- **Rule 2026111306:** python-requests UA to SOAP endpoint. Confidence: MEDIUM.
+<!-- CUT: Rule 2026111306 removed — python-requests/2.31.0 UA is too common; same issue as Sigma 9 -->
 
 ---
 

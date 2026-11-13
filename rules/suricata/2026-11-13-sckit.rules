@@ -1,0 +1,34 @@
+# Suricata/Snort Rules for SCKit Malware C2 Detection
+# Author: Actioner
+# Date: 2026-11-13
+# Status: UNCOMPILED - no Suricata/Snort engine available for validation
+# References:
+#   - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+#   - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+
+# SCKit EadF.php Staging Endpoint Communication
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SCKit Staging Endpoint EadF.php Request"; flow:established,to_server; http.uri; content:"/EadF.php"; http.host; content:"mo7sen.dev"; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111301; rev:1;)
+
+# SCKit Custom X-Lab-Half HTTP Header
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SCKit Custom X-Lab-Half Header Detected"; flow:established,to_server; http.header; content:"X-Lab-Half"; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111302; rev:1;)
+
+# SCKit Custom X-Lab-Salt HTTP Header
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SCKit Custom X-Lab-Salt Header Detected"; flow:established,to_server; http.header; content:"X-Lab-Salt"; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111303; rev:1;)
+
+# SCKit C2 Domain - cdn007-digitaldownloads.com
+alert dns $HOME_NET any -> any any (msg:"MALWARE SCKit C2 Domain cdn007-digitaldownloads.com DNS Query"; dns.query; content:"cdn007-digitaldownloads.com"; nocase; reference:url,blackpointcyber.com/blog/screenconnect-attack-sckit/; classtype:trojan-activity; sid:2026111304; rev:1;)
+
+# SCKit C2 Domain - payproofkit.com
+alert dns $HOME_NET any -> any any (msg:"MALWARE SCKit Attacker Panel Domain payproofkit.com DNS Query"; dns.query; content:"payproofkit.com"; nocase; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111305; rev:1;)
+
+# SCKit C2 Domain - mo7sen.dev
+alert dns $HOME_NET any -> any any (msg:"MALWARE SCKit Staging Domain mo7sen.dev DNS Query"; dns.query; content:"mo7sen.dev"; nocase; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111306; rev:1;)
+
+# SCKit Rogue Relay - soxnewwork.homedns.org
+alert dns $HOME_NET any -> any any (msg:"MALWARE SCKit Rogue Relay Domain soxnewwork.homedns.org DNS Query"; dns.query; content:"soxnewwork.homedns.org"; nocase; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111307; rev:1;)
+
+# SCKit Attacker ScreenConnect Server IP
+alert ip $HOME_NET any -> 185.99.255.28 any (msg:"MALWARE SCKit Attacker ScreenConnect Server Communication"; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111308; rev:1;)
+
+# SCKit Rogue ScreenConnect Client Installation URL Pattern
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SCKit Rogue ScreenConnect Client Installation Pattern"; flow:established,to_server; http.uri; content:"/Bin/ScreenConnect.ClientSetup.msi"; content:"Exploited"; content:"Addmin"; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity; sid:2026111309; rev:1;)

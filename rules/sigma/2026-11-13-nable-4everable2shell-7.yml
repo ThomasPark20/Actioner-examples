@@ -1,0 +1,29 @@
+title: N-able N-central 4EverAble2Shell Curl Pipe jup.sh to Shell
+id: d2e58b93-7610-4d1a-ae4f-5f30c19e82b6
+status: experimental
+description: >
+    Detects curl downloading jup.sh from the attacker IP and piping it to
+    shell, as observed in the 4EverAble2Shell campaign deploying XMRig
+    miners on compromised N-central servers.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.command_and_control
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_curl_pipe:
+        CommandLine|contains|all:
+            - 'curl'
+            - '157.20.241.16'
+            - 'jup.sh'
+    condition: selection_curl_pipe
+falsepositives:
+    - Unlikely; the curl pattern with attacker IP and jup.sh is specific to this campaign
+level: critical

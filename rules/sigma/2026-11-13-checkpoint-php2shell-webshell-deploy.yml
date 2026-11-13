@@ -1,0 +1,28 @@
+# revision: downgraded to medium; tightened "zz" to "/zz" path prefix to reduce false positives
+title: PHP2Shell Web Shell Deployment in Check Point Mobile Access Templates
+id: c5f83a2d-6e19-4b70-9d87-3a1c4e7f8b92
+status: experimental
+description: Detects the creation of suspicious .tpl files in Check Point Mobile Access portal template directories, consistent with PHP2Shell web shell deployment using the zz*.tpl naming pattern.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1505.003
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_base64_decode:
+        CommandLine|contains|all:
+            - 'base64'
+            - '-d'
+            - '.tpl'
+    selection_webshell_write:
+        CommandLine|contains|all:
+            - '/zz'
+            - '.tpl'
+    condition: selection_base64_decode or selection_webshell_write
+falsepositives:
+    - Legitimate Check Point template file management
+level: medium

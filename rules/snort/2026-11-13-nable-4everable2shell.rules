@@ -1,0 +1,23 @@
+# Suricata/Snort rules for N-able N-central 4EverAble2Shell
+# Status: UNCOMPILED - No Suricata/Snort compiler available for validation
+# Author: Actioner
+# Date: 2026/11/13
+# Reference: https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+
+# Rule 1: Detect SOAP exploitation attempt targeting N-central ServerUI endpoint
+# with jline.internal.TerminalLineSettings class in the fault message
+alert http any any -> $HOME_NET any (msg:"ACTIONER N-able 4EverAble2Shell SOAP Exploit Attempt - JLine TerminalLineSettings"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/dms/services/ServerUI"; http.request_body; content:"jline.internal.TerminalLineSettings"; classtype:web-application-attack; sid:2026111301; rev:1; metadata:attack_target Server, created_at 2026_11_13, deployment Perimeter, tag 4EverAble2Shell, cve CVE_2026_90436, mitre_attack_technique T1190;)
+
+# Rule 2: Detect outbound connection to attacker payload server
+alert ip $HOME_NET any -> 157.20.241.16 any (msg:"ACTIONER N-able 4EverAble2Shell C2/Payload Server Connection"; classtype:trojan-activity; sid:2026111302; rev:1; metadata:attack_target Server, created_at 2026_11_13, tag 4EverAble2Shell;)
+
+# Rule 3: Detect outbound connection to primary XMRig mining pool
+alert ip $HOME_NET any -> 139.99.69.109 10128 (msg:"ACTIONER N-able 4EverAble2Shell XMRig Mining Pool Primary"; classtype:policy-violation; sid:2026111303; rev:1; metadata:attack_target Server, created_at 2026_11_13, tag XMRig;)
+
+# Rule 4: Detect outbound connection to fallback XMRig mining pool
+alert ip $HOME_NET any -> 79.76.51.56 39100 (msg:"ACTIONER N-able 4EverAble2Shell XMRig Mining Pool Fallback"; classtype:policy-violation; sid:2026111304; rev:1; metadata:attack_target Server, created_at 2026_11_13, tag XMRig;)
+
+# Rule 5: Detect HTTP request for jup.sh installer script from attacker server
+alert http $HOME_NET any -> any any (msg:"ACTIONER N-able 4EverAble2Shell jup.sh Miner Installer Download"; flow:to_server,established; http.uri; content:"/jup.sh"; http.host; content:"157.20.241.16"; classtype:trojan-activity; sid:2026111305; rev:1; metadata:attack_target Server, created_at 2026_11_13, tag 4EverAble2Shell;)
+
+# Rule 6 (SID 2026111306) REMOVED: python-requests/2.31.0 UA is too common for reliable detection

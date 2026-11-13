@@ -1,6 +1,7 @@
 # SCKit Malware -- ScreenConnect MSP Supply Chain Attack (CVE-2026-84869)
 
-**Report Status:** DRAFT
+**Report Status:** REVISED
+<!-- revision: applied critic verdicts 2026-11-13; CUT sckit-7, fixed ATT&CK tags, domain prefixes, YARA thresholds, added caveats -->
 **Date:** 2026-11-13
 **Author:** Actioner
 **TLP:** CLEAR
@@ -219,33 +220,34 @@ The MSP trust model creates a high-value target: a single compromised MSP techni
 
 ## Detection Rules
 
-### Sigma Rules (8 rules)
+### Sigma Rules (7 rules)
+<!-- revision: CUT sckit-7 (Defender exclusion) — generic behavior, not SCKit-specific altitude -->
 
 All rules validated via `sigma convert` to Splunk and LogScale backends. `sigma check` could not complete ATT&CK tag validation due to external endpoint unavailability (proxy restriction); rules parse and convert correctly.
 
 | File | Title | Compile | Confidence |
 |------|-------|---------|------------|
-| `/tmp/actioner/sckit-1.yml` | SCKit RelayTrap Directory and File Creation | PASS (convert) | HIGH |
-| `/tmp/actioner/sckit-2.yml` | SCKit Dropper and Decoder Files in Windows Temp | PASS (convert) | HIGH |
+| `/tmp/actioner/sckit-1.yml` | SCKit RelayTrap Directory and File Creation | PASS (convert) | HIGH | <!-- revision: fixed ATT&CK tag t1547.001 → t1105 -->
+| `/tmp/actioner/sckit-2.yml` | SCKit Dropper and Decoder Files in Windows Temp | PASS (convert) | HIGH | <!-- caveat: runnew.cmd and sc.msi are generic filenames; correlate with RelayTrap or C2 indicators to reduce false positives -->
 | `/tmp/actioner/sckit-3.yml` | SCKit TrapWatch Scheduled Task Creation | PASS (convert) | HIGH |
 | `/tmp/actioner/sckit-4.yml` | SCKit RelayTrapLiteAlert Registry Run Key Persistence | PASS (convert) | HIGH |
-| `/tmp/actioner/sckit-5.yml` | SCKit C2 Communication to Staging Infrastructure | PASS (convert) | HIGH |
+| `/tmp/actioner/sckit-5.yml` | SCKit C2 Communication to Staging Infrastructure | PASS (convert) | HIGH | <!-- revision: added leading dots to 3 domains missing them -->
 | `/tmp/actioner/sckit-6.yml` | SCKit PowerShell Download from Staging Server | PASS (convert) | HIGH |
-| `/tmp/actioner/sckit-7.yml` | SCKit Defender Exclusion for PowerShell and MSIExec | PASS (convert) | MEDIUM |
 | `/tmp/actioner/sckit-8.yml` | SCKit Rogue ScreenConnect Client Silent Installation | PASS (convert) | HIGH |
 
 ### YARA Rules (2 files, 9 rules)
+<!-- revision: LabContext_Config threshold raised from 2 of them → 3 of them; Dropper_Batch condition restructured to partition $sckit* and $mode* with required SCKit-specific string -->
 
 | File | Rules | Compile | Confidence |
 |------|-------|---------|------------|
-| `/tmp/actioner/sckit-1.yar` | SCKit_RelayTrap_Source, SCKit_TrapWatch_Script, SCKit_PanelLateral_Script, SCKit_LabContext_Config, SCKit_ToolboxRelayUploader, SCKit_Stage0Loader, SCKit_Dropper_Batch | PASS (yarac) | HIGH |
+| `/tmp/actioner/sckit-1.yar` | SCKit_RelayTrap_Source, SCKit_TrapWatch_Script, SCKit_PanelLateral_Script, SCKit_LabContext_Config, SCKit_ToolboxRelayUploader, SCKit_Stage0Loader, SCKit_Dropper_Batch | PASS (yarac) | HIGH | <!-- revision: LabContext_Config threshold raised 2→3; Dropper_Batch restructured to require $sckit* string -->
 | `/tmp/actioner/sckit-2.yar` | SCKit_Installer_MSI, SCKit_SilentForceInstall | PASS (yarac) | HIGH |
 
 ### Suricata/Snort Rules (1 file, 9 rules)
 
 | File | Rules | Compile | Confidence |
 |------|-------|---------|------------|
-| `/tmp/actioner/sckit-1.rules` | 9 rules covering EadF.php endpoint, X-Lab headers, C2 domains, attacker IP, installer pattern | UNCOMPILED (no engine available) | HIGH |
+| `/tmp/actioner/sckit-1.rules` | 9 rules covering EadF.php endpoint, X-Lab headers, C2 domains, attacker IP, installer pattern | UNCOMPILED (no engine available) | HIGH | <!-- caveat: SID 2026111308 (IP 185.99.255.28) may become ephemeral; monitor threat intel feeds and disable if IP is reassigned -->
 
 ---
 

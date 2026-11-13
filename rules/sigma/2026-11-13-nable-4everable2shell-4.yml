@@ -1,0 +1,27 @@
+title: N-able N-central 4EverAble2Shell Miner Persistence via Systemd or Cron
+id: 3f1a6c92-e054-48db-b7a3-d25e81f09c46
+status: experimental
+description: >
+    Detects persistence mechanisms used by the XMRig miner deployed after
+    4EverAble2Shell exploitation. The attacker creates a systemd service
+    named xvd.service or cron entries tagged with xvkeep.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.persistence
+    - attack.t1543.002
+    - attack.t1053.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_systemd:
+        TargetFilename|endswith: '/xvd.service'
+    selection_cron:
+        TargetFilename|endswith: '/cron.d/xvd'
+    condition: selection_systemd or selection_cron
+falsepositives:
+    - Legitimate services or cron jobs named xvd are not expected on N-central systems
+level: critical

@@ -1,0 +1,23 @@
+title: SCKit RelayTrapLiteAlert Registry Run Key Persistence
+id: c0f4a5b6-7d8e-9f0a-1b2c-3d4e5f6a7b8c
+status: experimental
+description: Detects creation of the RelayTrapLiteAlert Run key used by SCKit malware for persistence on ScreenConnect-managed endpoints.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.persistence
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Microsoft\Windows\CurrentVersion\Run\'
+        TargetObject|endswith: '\RelayTrapLiteAlert'
+    condition: selection
+falsepositives:
+    - None known. RelayTrapLiteAlert is specific to SCKit malware.
+level: critical

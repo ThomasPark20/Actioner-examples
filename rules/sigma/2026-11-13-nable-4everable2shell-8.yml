@@ -1,0 +1,30 @@
+title: N-able N-central Nable Service Account Spawning Suspicious Processes
+id: b4917e6d-c253-4f8a-9d10-87a3ef520c16
+status: experimental
+description: >
+    Detects the nable service account spawning python3, base64, or bash with
+    /dev/tcp redirection, which is characteristic of the initial post-exploitation
+    callback in the 4EverAble2Shell attack chain.
+author: Actioner
+date: 2026/11/13
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+tags:
+    - attack.execution
+    - attack.t1059.006
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_user:
+        User: 'nable'
+    selection_suspicious:
+        CommandLine|contains:
+            - '/dev/tcp/'
+            - 'python3 -c'
+            - 'base64 -d'
+    condition: selection_user and selection_suspicious
+falsepositives:
+    - Legitimate use of python3 or base64 by the nable account is unusual; /dev/tcp usage is highly suspicious
+level: medium

@@ -1,0 +1,29 @@
+title: PHP2Shell Post-Exploitation Beacon and Recon Activity
+id: a1dc7e62-0251-4f94-d1a8-7e5f8c9b2d46
+status: experimental
+description: Detects post-exploitation activity associated with PHP2Shell exploitation including beacon scripts, collection tools, and characteristic staging paths observed in the wild.
+references:
+    - https://php.events.greynoise.io/
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1059.004
+    - attack.t1082
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_beacon:
+        CommandLine|contains:
+            - '/tmp/beacon.sh'
+            - '/tmp/collect.sh'
+    selection_staging:
+        CommandLine|contains:
+            - '/tmp/.c1104'
+            - '/tmp/.wtest'
+            - '/tmp/.loot-'
+    condition: selection_beacon or selection_staging
+falsepositives:
+    - Penetration testing tools using similar file naming
+level: high

@@ -1,0 +1,28 @@
+title: SCKit C2 Communication to Staging Infrastructure
+id: d1a5b6c7-8e9f-0a1b-2c3d-4e5f6a7b8c9d
+status: experimental
+description: Detects DNS queries or process command lines referencing known SCKit staging and C2 domains including ns.mo7sen.dev, payproofkit.com, cdn007-digitaldownloads.com, and attacker relay domains.
+references:
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.command_and_control
+    - attack.t1105
+    - attack.t1071.001
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection_dns:
+        QueryName|endswith:
+            - '.mo7sen.dev'
+            - '.payproofkit.com'
+            - '.cdn007-digitaldownloads.com'
+            - '.soxnewwork.homedns.org'
+            - '.newnewnew.gotdns.org'
+    condition: selection_dns
+falsepositives:
+    - Unlikely. These domains are specific to SCKit attacker infrastructure.
+level: critical

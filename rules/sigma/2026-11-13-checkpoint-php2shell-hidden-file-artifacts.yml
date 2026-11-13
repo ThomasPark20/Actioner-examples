@@ -1,0 +1,24 @@
+# revision: CRITICAL->high; ATT&CK tag corrected t1571->t1564.001
+title: TSGA Backdoor Hidden Unix Socket and Log Files
+id: d6a94b3e-7f28-4c61-ae95-4b2d5f8c9a13
+status: experimental
+description: Detects creation or access to hidden files associated with the TSGA backdoor - the .p_sock Unix domain socket, .bd.log output log, and .up.tpl upload staging file.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1564.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/.p_sock'
+            - '/.bd.log'
+            - '/.up.tpl'
+    condition: selection
+falsepositives:
+    - Very unlikely in legitimate environments
+level: high

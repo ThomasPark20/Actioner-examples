@@ -1,0 +1,28 @@
+# revision: CRITICAL->high
+title: Destroy_v6 Wiper and DREAM_ANNEXATION Ransom Note Deployment
+id: f8cb6d50-9140-4e83-c097-6d4f7b0e1c35
+status: experimental
+description: Detects execution of the destroy_v6 wiper tool or creation of the DREAM_ANNEXATION.txt ransom-style note, associated with destructive activity in the PHP2Shell/TSGA campaign.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026/11/13
+tags:
+    - attack.t1485
+    - attack.t1561.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_wiper:
+        Image|endswith:
+            - '/destroy_v6'
+            - '/destory_v6'
+    selection_cmd:
+        CommandLine|contains:
+            - 'destroy_v6'
+            - 'destory_v6'
+    condition: selection_wiper or selection_cmd
+falsepositives:
+    - None expected
+level: high
