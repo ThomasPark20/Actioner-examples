@@ -1,0 +1,21 @@
+title: DREAM_ANNEXATION Wiper Ransom Note Detection
+id: c9d0e1f2-a3b4-5678-cdef-789012345678
+status: experimental
+description: Detects creation of the DREAM_ANNEXATION.txt file, which is the ransom-style note dropped by the destroy_v6 wiper in each processed directory during the PHP2Shell campaign.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.impact
+    - attack.t1485
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '/DREAM_ANNEXATION.txt'
+    condition: selection
+falsepositives:
+    - None expected
+level: critical

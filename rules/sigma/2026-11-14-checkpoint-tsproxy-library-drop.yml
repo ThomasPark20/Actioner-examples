@@ -1,0 +1,22 @@
+title: TSProxy Malicious Library Drop at /lib/libcpfwcommon.so
+id: f6a7b8c9-d0e1-2345-fabc-456789012345
+status: experimental
+description: Detects creation or modification of /lib/libcpfwcommon.so, which is the TSProxy shared library used by the TSGA backdoor to inject into appliance processes and intercept network traffic.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.persistence
+    - attack.t1055
+    - attack.defense_evasion
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename: '/lib/libcpfwcommon.so'
+    condition: selection
+falsepositives:
+    - Legitimate Check Point firmware updates (hotfixes and Jumbo takes) routinely replace this library; verify file hash against vendor-published checksums before escalating
+level: medium
