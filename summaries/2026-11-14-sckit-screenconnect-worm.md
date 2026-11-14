@@ -3,7 +3,7 @@
 Prepared by: Actioner Research Agent
 Classification: TLP:CLEAR
 Date: 2026-11-14
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
@@ -385,9 +385,9 @@ Microsoft's blog provides KQL queries for:
 
 ## Detection Rules
 
-Ten Sigma rules cover the endpoint behavioral chain (C2 DNS queries, C2 IP connections, rogue MSI installation, command-line artifacts, registry persistence, Defender exclusions, scheduled task creation, file system artifacts, session cookie theft, and port proxy relay). Four YARA rules target the RelayTrap source/binary, Panel-Lateral session theft scripts, the decoder/loader scripts, and the ToolboxRelayUploader binary. Snort and Suricata rules cover DNS queries to all C2 domains, TCP connections to C2 IPs, HTTP URI patterns for the staging endpoint, HTTP response headers for the custom key exchange, and TLS SNI for C2 domains.
+37 detection rules: ten Sigma rules cover the endpoint behavioral chain (C2 DNS queries, C2 IP connections, rogue MSI installation, command-line artifacts, registry persistence, Defender exclusions, scheduled task creation, file system artifacts, session cookie theft, and port proxy relay). Four YARA rules target the RelayTrap source/binary, Panel-Lateral session theft scripts, the decoder/loader scripts, and the ToolboxRelayUploader binary. Eleven Snort rules and twelve Suricata rules cover DNS queries to all C2 domains, TCP connections to C2 IPs, HTTP URI patterns for the staging endpoint, HTTP response headers for the custom key exchange, and TLS SNI for C2 domains.
 
-<!-- Validation audit: sigma check blocked by proxy (MITRE ATT&CK data fetch 403); sigma convert --without-pipeline -t splunk passed for all 10 rules; sigma convert --without-pipeline -t log_scale passed for all 10 rules; yarac compiled all 4 YARA rules on first attempt; Snort/Suricata: structural review only (not installed). All encoding follows logsource-encoding.md: values are real (not defanged), field names match Sysmon/Windows schema. -->
+<!-- Validation audit: sigma check blocked by proxy (MITRE ATT&CK data fetch 403); sigma convert --without-pipeline -t splunk passed for all 10 rules; sigma convert --without-pipeline -t log_scale passed for all 10 rules; yarac compiled all 4 YARA rules on first attempt; Snort/Suricata: structural review only (not installed). DNS label-length bytes in Snort rules were hand-counted and peer-reviewed but not machine-validated. All encoding follows logsource-encoding.md: values are real (not defanged), field names match Sysmon/Windows schema. -->
 
 ### Sigma Rules
 
@@ -411,7 +411,7 @@ references:
 author: Actioner
 date: 2026/11/14
 tags:
-    - attack.t1071.001
+    - attack.t1071.004
     - attack.t1105
     - cve.2026.84869
 logsource:
@@ -508,12 +508,7 @@ detection:
         CommandLine|contains|all:
             - '\Windows\Temp\sc.msi'
             - '/qn'
-    selection_msi_alt:
-        Image|endswith: '\msiexec.exe'
-        CommandLine|contains|all:
-            - '\Windows\TEMP\sc.msi'
-            - '/qn'
-    condition: (selection_curl_msi and selection_curl_exploited) or selection_msi_silent or selection_msi_alt
+    condition: (selection_curl_msi and selection_curl_exploited) or selection_msi_silent
 falsepositives:
     - Legitimate silent MSI installations of ScreenConnect to Windows Temp directory
 level: high
@@ -610,8 +605,8 @@ level: critical
 
 #### 6. SCKit Defender Exclusion Path Modifications
 
-Detects Defender exclusion registry writes matching SCKit-associated paths.
-**Compile: Splunk pass, LogScale pass | Confidence: high**
+Detects Defender exclusion registry writes matching SCKit-associated paths. `ConnectWiseControl_` excluded (fires on every legitimate ScreenConnect installation).
+**Compile: Splunk pass, LogScale pass | Confidence: medium**
 
 ```yaml
 title: SCKit Defender Exclusion Path Modifications
@@ -640,11 +635,10 @@ detection:
         TargetObject|contains:
             - 'RelayTrap'
             - 'CWInstall_'
-            - 'ConnectWiseControl_'
     condition: selection_defender_path and selection_sckit_values
 falsepositives:
-    - Legitimate ConnectWise installations that add Defender exclusions during setup
-level: high
+    - Legitimate ConnectWise installations that add Defender exclusions for CWInstall_ paths during setup
+level: medium
 ```
 
 #### 7. SCKit TrapWatch Scheduled Task Creation
@@ -771,7 +765,7 @@ level: high
 #### 10. SCKit Netsh Port Proxy for C2 Relay
 
 Detects netsh portproxy commands creating the localhost:88 relay used in Wave 2.
-**Compile: Splunk pass, LogScale pass | Confidence: high**
+**Compile: Splunk pass, LogScale pass | Confidence: medium**
 
 ```yaml
 title: SCKit Netsh Port Proxy for C2 Relay
@@ -797,11 +791,17 @@ detection:
         CommandLine|contains|all:
             - 'portproxy'
             - '127.0.0.1'
-            - '88'
-    condition: selection
+    selection_port:
+        CommandLine|contains:
+            - 'listenport=88 '
+            - 'listenport=88"'
+            - 'connectport=88 '
+            - 'connectport=88"'
+            - '185.241.211.197'
+    condition: selection and selection_port
 falsepositives:
     - Legitimate port forwarding configurations using port 88
-level: high
+level: medium
 ```
 
 ### YARA Rules
@@ -840,7 +840,7 @@ rule SCKit_RelayTrap_CSharp_Source
         (
             ($transfer_files and $file_action_run) or
             ($can_be_elevated and $endpoint_status) or
-            ($guest_process and $trap_watch and 3 of them)
+            ($guest_process and $trap_watch and 5 of them)
         )
 }
 ```
@@ -912,7 +912,7 @@ rule SCKit_Decoder_Loader
         $x_lab_half = "X-Lab-Half" ascii wide
         $x_lab_salt = "X-Lab-Salt" ascii wide
         $pbkdf2 = "PBKDF2" ascii wide nocase
-        $aes_cbc = "AES" ascii wide
+        $aes = "AES" ascii wide
         $sckit_bundle = "SCKitBundle" ascii wide
         $eadf_php = "EadF.php" ascii wide
         $mo7sen = "mo7sen" ascii wide
@@ -923,7 +923,7 @@ rule SCKit_Decoder_Loader
         filesize < 2MB and
         (
             ($x_lab_half and $x_lab_salt) or
-            ($machine_guid and $pbkdf2 and $aes_cbc) or
+            ($machine_guid and $pbkdf2 and $aes and ($sckit_bundle or $eadf_php)) or
             ($eadf_php and $mo7sen) or
             ($sckit_bundle and ($gzip or $mode_full)) or
             4 of them
@@ -967,9 +967,9 @@ rule SCKit_ToolboxRelayUploader
 
 ### Snort Rules
 
-#### 15-24. SCKit Campaign Network Detection (Snort)
+#### 15-25. SCKit Campaign Network Detection (Snort)
 
-Ten rules covering TCP connections to the three C2 IPs, DNS queries for six C2 domains, HTTP URI pattern for the EadF.php staging endpoint, and HTTP response header detection for the custom X-Lab-Half key exchange.
+Eleven rules covering TCP connections to the three C2 IPs, DNS queries for all six C2 domains (including Wave 2 relay 007.from-ak.com), HTTP URI pattern for the EadF.php staging endpoint, and HTTP response header detection for the custom X-Lab-Half key exchange.
 **Compile: structural review (Snort not installed) | Confidence: high (IOC-based)**
 
 ```
@@ -983,11 +983,13 @@ alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Staging Do
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Domain payproofkit.com"; flow:to_server; content:"|0b|payproofkit|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100105; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Domain cdn007-digitaldownloads.com"; flow:to_server; content:"|1a|cdn007-digitaldownloads|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100106; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Domain cdn007-digitaldownloads.com"; flow:to_server; content:"|17|cdn007-digitaldownloads|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100106; rev:1;)
 
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Relay Domain newnewnew.gotdns.org"; flow:to_server; content:"|09|newnewnew|06|gotdns|03|org|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100107; rev:1;)
 
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Relay Domain soxnewwork.homedns.org"; flow:to_server; content:"|0b|soxnewwork|07|homedns|03|org|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100108; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Relay Domain soxnewwork.homedns.org"; flow:to_server; content:"|0a|soxnewwork|07|homedns|03|org|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100108; rev:1;)
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - DNS Query to SCKit Wave 2 Relay Domain 007.from-ak.com"; flow:to_server; content:"|03|007|07|from-ak|03|com|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; metadata:author Actioner, created 2026-11-14; sid:2100111; rev:1;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SCKit HTTP Request to EadF.php Staging Endpoint"; flow:established, to_server; content:"/EadF.php"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created 2026-11-14; sid:2100109; rev:1;)
 
@@ -996,7 +998,7 @@ alert tcp $EXTERNAL_NET $HTTP_PORTS -> $HOME_NET any (msg:"Actioner - SCKit X-La
 
 ### Suricata Rules
 
-#### 25-36. SCKit Campaign Network Detection (Suricata)
+#### 26-37. SCKit Campaign Network Detection (Suricata)
 
 Twelve rules covering DNS queries (dns.query sticky buffer) for six C2 domains, TCP connections to three C2 IPs, HTTP URI for the staging endpoint, and TLS SNI for two primary C2 domains.
 **Compile: structural review (Suricata not installed) | Confidence: high (IOC-based)**
@@ -1048,4 +1050,4 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS Connection to 
 - [ConnectWise Trust Center / Security Bulletins](https://www.connectwise.com/company/trust/security-bulletins) -- vendor advisory and patch information
 
 ---
-*Report generated by Actioner (DRAFT -- pending peer review)*
+*Report generated by Actioner v1.0 (FINAL)*
