@@ -1,0 +1,33 @@
+title: Anomalous CLFS Authentication File Creation
+id: e8f9a0b1-c2d3-4e5f-6a7b-8c9d0e1f2a3b
+status: experimental
+description: >
+    Detects creation of CLFS authentication (.cnpf) files outside of
+    expected CLFS log directories. The SignDrop exploit uses Object
+    Manager symbolic link redirection to cause clfs.sys to create the
+    .cnpf file at an attacker-chosen location with SYSTEM privileges.
+    Legitimate .cnpf files are normally co-located with their .blf log
+    files in system or application log directories.
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://thehackernews.com/2026/11/new-signdrop-zero-day-exploit-turns.html
+    - https://threatdefence.com/article/windows-signdrop-clfs-zero-day-privilege-escalation-hunting
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '.cnpf'
+    filter_system_logs:
+        TargetFilename|contains:
+            - '\System32\config\'
+            - '\System32\LogFiles\'
+            - '\ServiceProfiles\'
+    condition: selection and not 1 of filter_*
+falsepositives:
+    - Application-created CLFS logs in non-standard directories
+level: medium

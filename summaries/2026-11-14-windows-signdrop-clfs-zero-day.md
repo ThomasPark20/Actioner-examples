@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-14
-Version: 0.1 (DRAFT)
+Version: 1.0 (REVISED)
 
 ## Executive Summary
 
@@ -188,11 +188,13 @@ The exploit terminates `osk.exe` (On-Screen Keyboard) and relaunches it hidden, 
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Malicious hid.dll planted in Ink directory for consent.exe to load as SYSTEM |
 | T1070.004 | Indicator Removal: File Deletion | Planted hid.dll removed via transacted delete after execution; working directory auto-deleted |
 | T1106 | Native API | Extensive use of NT APIs (NtCreateFile, DeviceIoControl IOCTL 0x8007A808), Object Manager symbolic link creation, CLFS AddLogContainer |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | Technique can potentially disable antivirus/EDR tamper protection by executing as the security product's own process context |
+<!-- revision: T1562.001 rewritten — exploit does not disable Defender; it triggers a legitimate Defender RPC operation as a side-channel. T1562.001 applies only to the registry detection rule (administrative disablement of the CLFS authentication mitigation). -->
+| T1562.001 | Impair Defenses: Disable or Modify Tools | Administrative disablement of the CLFS authentication mitigation via registry modification (relevant to the registry detection rule, not the exploit chain itself) |
 
 ## Detection Rules
 
-These detections target the SignDrop exploit chain at PoC/advisory-specific altitude with strict leniency. All Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. `sigma check` could not validate MITRE ATT&CK tags due to network restrictions in the build environment; all rules parse, convert, and produce correct query output.
+<!-- revision: final count after critic pass — 6 Sigma rules (1 dropped), 2 YARA rules, 0 Snort/Suricata. Confidence: 3 high, 4 medium, 1 critical-pair. -->
+These detections target the SignDrop exploit chain at PoC/advisory-specific altitude with strict leniency. Six Sigma rules and two YARA rules are provided; one Sigma rule was dropped during review. All kept Sigma rules convert cleanly to Splunk and CrowdStrike LogScale. `sigma check` could not validate MITRE ATT&CK tags due to network restrictions in the build environment; all rules parse, convert, and produce correct query output.
 
 ### Sigma: Suspicious hid.dll Creation in Ink Directory
 Detects creation of `hid.dll` in the Windows Ink directory (`C:\Program Files\Common Files\microsoft shared\ink\`). This file does not ship with Windows at that location. The SignDrop exploit plants a payload here via CLFS authentication redirection.
@@ -298,43 +300,7 @@ level: critical
 ```
 
 ### Sigma: SYSTEM conhost.exe Spawned on User Desktop
-Detects `conhost.exe` spawned with SYSTEM integrity by a non-expected parent process. This is the outcome stage of the SignDrop exploit where a SYSTEM shell is opened on the user desktop.
-<!-- audit: sigma convert splunk 0; sigma convert log_scale 0. revision: filters for known legitimate SYSTEM conhost parents. FP: some service-spawned console applications. -->
-**Status:** compile pass (sigma convert, yarac n/a) · confidence: medium
-```yaml
-title: SYSTEM conhost.exe Spawned on User Desktop
-id: a4b5c6d7-e8f9-0a1b-2c3d-4e5f6a7b8c9d
-status: experimental
-description: >
-    Detects conhost.exe spawned with SYSTEM integrity on the interactive
-    user desktop (WinSta0\Default). This is the outcome stage of the
-    SignDrop exploit chain where a SYSTEM shell is opened on the user
-    desktop after the privilege escalation succeeds.
-references:
-    - https://github.com/MSNightmare/SignDrop
-    - https://www.cyderes.com/howler-cell/signdrop-zero-day
-author: Actioner
-date: 2026/11/14
-tags:
-    - attack.t1068
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\conhost.exe'
-        IntegrityLevel: System
-    filter_expected_parents:
-        ParentImage|endswith:
-            - '\csrss.exe'
-            - '\services.exe'
-            - '\smss.exe'
-            - '\wininit.exe'
-    condition: selection and not 1 of filter_*
-falsepositives:
-    - Some service-spawned console applications may create SYSTEM conhost instances
-level: high
-```
+<!-- revision: DROPPED by critic — behavioral rule at TTP altitude with high false-positive risk; incomplete parent filter; title-logic mismatch (Sysmon has no desktop field). -->
 
 ### Sigma: SignDrop or Nightmare Eclipse Exploit Binary Execution
 Detects execution of known Nightmare Eclipse exploit binaries by filename. Trivially evaded by rename but catches unmodified PoC deployment.
@@ -385,6 +351,7 @@ level: critical
 ### Sigma: CLFS Authentication Mode Registry Modification
 Detects modifications to the CLFS Authentication Mode registry value. Monitors for both attacker manipulation and inadvertent disablement of the mitigation in response to SignDrop.
 <!-- audit: sigma convert splunk 0; sigma convert log_scale 0. FP: legitimate 90-day learning-to-enforcement transitions; Group Policy updates. -->
+<!-- revision: level downgraded high -> medium; 90-day transitions and GP refreshes create benign alert volume at high. -->
 **Status:** compile pass (sigma convert, yarac n/a) · confidence: medium
 ```yaml
 title: CLFS Authentication Mode Registry Modification
@@ -415,7 +382,7 @@ detection:
 falsepositives:
     - Legitimate CLFS authentication mode transitions (learning to enforcement after 90-day period)
     - Group Policy updates modifying CLFS logfile authentication settings
-level: high
+level: medium
 ```
 
 ### Sigma: MpEngine.dll Created Outside Defender Installation Path
@@ -502,7 +469,8 @@ level: medium
 ### YARA: SignDrop Exploit Tool Detection
 Detects PE files containing the combination of SignDrop-specific strings, CLFS API references, Defender RPC interface stubs, and NT Object Manager paths characteristic of the SignDrop exploit binary.
 <!-- audit: yarac exit 0. Condition requires multiple independent string clusters to reduce false positives. -->
-**Status:** compile pass (yarac) · confidence: high
+<!-- revision: Exploit_SignDrop_Planted_HID_DLL condition tightened to require at least one SignDrop-specific anchor ($s1, $s2, or $s6); confidence downgraded high -> medium. -->
+**Status:** compile pass (yarac) · confidence: high (Exploit_SignDrop_CLFS_LPE), medium (Exploit_SignDrop_Planted_HID_DLL)
 ```yara
 rule Exploit_SignDrop_CLFS_LPE
 {
@@ -565,7 +533,7 @@ rule Exploit_SignDrop_Planted_HID_DLL
         author = "Actioner"
         date = "2026-11-14"
         reference = "https://github.com/MSNightmare/SignDrop"
-        severity = "high"
+        severity = "medium"
         tlp = "WHITE"
 
     strings:
@@ -579,7 +547,7 @@ rule Exploit_SignDrop_Planted_HID_DLL
     condition:
         uint16(0) == 0x5A4D and
         filesize < 5MB and
-        3 of them
+        (1 of ($s1, $s2, $s6)) and (2 of them)
 }
 ```
 
@@ -667,4 +635,4 @@ Search file, process, and command-line telemetry for "SigDrop" or "SignDrop" str
 - [Microsoft - CLFS Authentication Mitigation Guidance](https://support.microsoft.com/en-us/servicing/os/windows/2025/03/common-log-file-system-clfs-authentication-mitigation) -- Microsoft support article on CLFS authentication configuration
 
 ---
-*Report generated by Actioner (DRAFT -- pending peer review and editorial pass)*
+*Report generated by Actioner (REVISED -- critic pass applied 2026-11-14)*

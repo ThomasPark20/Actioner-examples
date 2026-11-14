@@ -1,0 +1,29 @@
+title: CLFS Authentication Mode Registry Modification
+id: c6d7e8f9-a0b1-2c3d-4e5f-6a7b8c9d0e1f
+status: experimental
+description: >
+    Detects modifications to the CLFS Authentication Mode registry value
+    at HKLM\SYSTEM\CurrentControlSet\Services\CLFS\Authentication. An
+    attacker may change Mode from 0 (enforcement) or 1 (learning) to
+    2 or 3 (disabled) to re-expose the system to CLFS memory corruption
+    vulnerabilities as part of an attack chain, or defenders may
+    inadvertently disable the mitigation in response to SignDrop.
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://threatdefence.com/article/windows-signdrop-clfs-zero-day-privilege-escalation-hunting
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Services\CLFS\Authentication'
+        TargetObject|endswith: '\Mode'
+    condition: selection
+falsepositives:
+    - Legitimate CLFS authentication mode transitions (learning to enforcement after 90-day period)
+    - Group Policy updates modifying CLFS logfile authentication settings
+level: medium
