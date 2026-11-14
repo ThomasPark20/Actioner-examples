@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-14
-Version: 0.1 (DRAFT)
+Version: 1.0 (FINAL)
 
 ## Executive Summary
 
@@ -279,19 +279,20 @@ This is an opportunistic, multi-exploit cryptomining operator, not an APT group.
 
 These detections target the specific exploit chain, post-exploitation payload, and infrastructure observed in the 4EverAble2Shell campaign. Compiles does not equal fires -- verify in your pipeline with representative log data.
 
-### Sigma: N-central 4EverAble2Shell Apache Axis SOAP Fault Exploitation (CVE-2026-90436)
-Detects HTTP POST requests to the vulnerable `/dms/services/ServerUI` endpoint characteristic of CVE-2026-90436 exploitation.
-**Status:** compile: pass (splunk, log_scale) | confidence: medium
-<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). Keys on the specific Axis endpoint path — distinctive to N-central SOAP API, but URI-only match has inherent FP surface from legitimate Legacy API traffic. -->
+### Sigma: N-central Legacy API POST Activity
+Detects HTTP POST requests to the N-central `/dms/services/ServerUI` endpoint. This is a URI-only match with no body inspection; it will fire on both exploitation attempts and legitimate Legacy API traffic. Use as a hunt lead or pair with additional context.
+**Status:** compile: pass (splunk, log_scale) | confidence: low
+<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. sigma check blocked by proxy (MITRE ATT&CK data fetch 403). URI-only match -- no body inspection, so legitimate Legacy API traffic will match. Confidence downgraded to low accordingly. -->
 ```yaml
-title: N-central 4EverAble2Shell Apache Axis SOAP Fault Exploitation (CVE-2026-90436)
+title: N-central Legacy API POST Activity
 id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
 status: experimental
 description: >
     Detects HTTP POST requests to the N-central Apache Axis endpoint
-    /dms/services/ServerUI containing SOAP fault payloads referencing
-    jline.internal.TerminalLineSettings, indicative of CVE-2026-90436
-    exploitation in the 4EverAble2Shell attack chain.
+    /dms/services/ServerUI. This rule matches on URI alone without body
+    inspection. It will fire on both CVE-2026-90436 exploitation attempts
+    and legitimate Legacy API traffic. Pair with additional context such
+    as source IP reputation or SOAP body analysis for higher fidelity.
 references:
     - https://www.bleepingcomputer.com/news/security/new-n-able-4everable2shell-zero-day-exploited-hours-after-poc-released/
     - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
@@ -312,7 +313,8 @@ detection:
     condition: selection_method and selection_uri
 falsepositives:
     - Legitimate N-central SOAP API traffic to the ServerUI endpoint from authorized management systems
-level: medium
+    - Any integration or monitoring tool that uses the Legacy API
+level: low
 ```
 
 ### Sigma: N-central 4EverAble2Shell XMRig Miner Persistence via Systemd or Cron
@@ -385,16 +387,16 @@ level: high
 ```
 
 ### Sigma: N-central 4EverAble2Shell XMRig Miner Process Execution
-Detects XMRig processes with the campaign-specific `nc_` rig-id prefix or binary path.
+Detects XMRig processes with the campaign-specific `nc_` rig-id prefix or `.xvd/x` binary path.
 **Status:** compile: pass (splunk, log_scale) | confidence: high
-<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. --rig-id nc_ is campaign-specific; .xvd/x binary path is unique to this payload. -->
+<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. --rig-id nc_ is campaign-specific; .xvd/x binary path is unique to this payload. Removed --donate-level 1 arm (generic XMRig default, high FP). Downgraded from critical to high. -->
 ```yaml
 title: N-central 4EverAble2Shell XMRig Miner Process Execution
 id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
 status: experimental
 description: >
     Detects XMRig cryptocurrency miner processes with the nc_ rig-id
-    prefix or donate-level argument characteristic of the 4EverAble2Shell
+    prefix or .xvd/x binary path characteristic of the 4EverAble2Shell
     post-exploitation payload on compromised N-central servers.
 references:
     - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
@@ -410,14 +412,12 @@ logsource:
 detection:
     selection_rigid:
         CommandLine|contains: '--rig-id nc_'
-    selection_donate:
-        CommandLine|contains: '--donate-level 1'
     selection_binary:
         Image|endswith: '/.xvd/x'
-    condition: selection_rigid or selection_donate or selection_binary
+    condition: selection_rigid or selection_binary
 falsepositives:
     - Legitimate XMRig usage with a rig-id starting with nc_ (unlikely in enterprise environments)
-level: critical
+level: high
 ```
 
 ### Sigma: N-central 4EverAble2Shell Privilege Escalation Artifacts
@@ -452,13 +452,14 @@ detection:
     condition: selection_backup or selection_symlink
 falsepositives:
     - N-central maintenance operations may create files in /var/opt/n-central/tmp/ but the serverchild- prefix with hex suffix is specific to the exploit
+    - The flag_default.json arm may fire on legitimate N-central flag writes because Sigma file_event rules cannot distinguish symlinks from regular file writes -- baseline tuning is required for that selector
 level: high
 ```
 
 ### Sigma: N-central 4EverAble2Shell Outbound Connection to Known C2 Infrastructure
 Detects outbound connections to known 4EverAble2Shell infrastructure.
-**Status:** compile: pass (splunk, log_scale) | confidence: critical
-<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. IOC-based rule with high specificity. IPs are confirmed attacker infrastructure. -->
+**Status:** compile: pass (splunk, log_scale) | confidence: high
+<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. IOC-based rule with high specificity. IPs are confirmed attacker infrastructure. Confidence corrected from invalid 'critical' to 'high'. T1071 replaced with T1496 (resource hijacking -- mining pool traffic, not application-layer C2 protocol). -->
 ```yaml
 title: N-central 4EverAble2Shell Outbound Connection to Known C2 Infrastructure
 id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f809102
@@ -473,7 +474,6 @@ references:
 author: Actioner
 date: 2026-11-14
 tags:
-    - attack.t1071
     - attack.t1496
 logsource:
     category: firewall
@@ -489,84 +489,6 @@ detection:
     condition: selection_payload_server or selection_pool_primary or selection_pool_fallback
 falsepositives:
     - Unlikely for the specific IP and port combinations
-level: critical
-```
-
-### Sigma: N-central Agent2Shell Suspicious Encoded PowerShell from N-able Agent
-Detects encoded PowerShell as SYSTEM spawned by the N-able Agent, a potential Agent2Shell indicator.
-**Status:** compile: pass (splunk, log_scale) | confidence: low
-<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. N-able agents legitimately use encoded PowerShell -- this rule requires significant baselining and tuning. Included as a hunting lead, not a production detection. -->
-```yaml
-title: N-central Agent2Shell Suspicious Encoded PowerShell from N-able Agent
-id: 07b8c9d0-e1f2-4a3b-4c5d-6e7f80910213
-status: experimental
-description: >
-    Detects encoded PowerShell commands running as SYSTEM that are spawned
-    by the N-able Agent process, which may indicate Agent2Shell exploitation.
-    Note that N-able agents legitimately use encoded PowerShell, so this
-    rule requires tuning based on baseline behavior.
-references:
-    - https://www.huntress.com/blog/n-able-disables-cloud-services-following-disclosure-of-able2shell-exploit-chains
-    - https://thehackernews.com/2026/11/new-n-central-exploits-work-against.html
-author: Actioner
-date: 2026-11-14
-tags:
-    - attack.t1059.001
-    - attack.t1569.002
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection_powershell:
-        Image|endswith:
-            - '\powershell.exe'
-            - '\pwsh.exe'
-        CommandLine|contains|all:
-            - '-EncodedCommand'
-            - '-NoProfile'
-            - '-NonInteractive'
-        User: 'NT AUTHORITY\SYSTEM'
-    selection_parent:
-        ParentImage|contains: 'N-able'
-    condition: selection_powershell and selection_parent
-falsepositives:
-    - Legitimate N-able Agent encoded PowerShell operations - requires baselining
-level: medium
-```
-
-### Sigma: N-central 4EverAble2Shell Remount /tmp with Exec Permissions
-Detects remounting /tmp with exec permissions, used to enable miner execution.
-**Status:** compile: pass (splunk, log_scale) | confidence: medium
-<!-- audit: sigma convert -t splunk --without-pipeline exit 0; sigma convert -t log_scale --without-pipeline exit 0. mount remount exec /tmp is a legitimate admin operation, but on N-central servers it is suspicious. -->
-```yaml
-title: N-central 4EverAble2Shell Remount tmp with Exec Permissions
-id: 18c9d0e1-f2a3-4b4c-5d6e-7f8091021324
-status: experimental
-description: >
-    Detects remounting /tmp with exec permissions, a technique used in
-    the 4EverAble2Shell exploit chain to enable execution of the XMRig
-    miner binary downloaded to /tmp.
-references:
-    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
-    - https://thehackernews.com/2026/11/hackers-exploit-n-central-flaws-to.html
-author: Actioner
-date: 2026-11-14
-tags:
-    - attack.t1222.002
-    - attack.t1059.004
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection:
-        CommandLine|contains|all:
-            - 'mount'
-            - 'remount'
-            - 'exec'
-            - '/tmp'
-    condition: selection
-falsepositives:
-    - System administrators legitimately remounting /tmp with exec for maintenance
 level: high
 ```
 
@@ -591,7 +513,7 @@ Detects HTTP GET request for `jup.sh` dropper from the known payload server.
 **Status:** compile: uncompiled (structural check only) | confidence: high
 <!-- audit: structural check passed. -->
 ```suricata
-alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Dropper Download from Payload Server"; flow:established,to_server; http.uri; content:"/jup.sh"; fast_pattern; content:"157.20.241.16"; http.host; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200103; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Dropper Download from Payload Server"; flow:established,to_server; http.uri; content:"/jup.sh"; fast_pattern; http.host; content:"157.20.241.16"; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200103; rev:2;)
 ```
 
 ### Suricata: N-central 4EverAble2Shell Primary Mining Pool Connection
