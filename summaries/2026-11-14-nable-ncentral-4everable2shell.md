@@ -182,9 +182,7 @@ This is an opportunistic, multi-exploit cryptomining operator, not an APT group.
 | Indicator | Description |
 |-----------|-------------|
 | Command line containing `--rig-id nc_` | XMRig miner with N-central campaign rig naming |
-| Command line containing `--donate-level 1` | XMRig miner donate-level flag |
 | Binary `x` executing from `.xvd` directory | Renamed miner binary |
-| `mount -o remount,exec /tmp` | Enabling execution in /tmp for miner deployment |
 
 ### Agent2Shell Endpoint Indicators (Windows)
 
@@ -277,7 +275,7 @@ This is an opportunistic, multi-exploit cryptomining operator, not an APT group.
 
 ## Detection Rules
 
-These detections target the specific exploit chain, post-exploitation payload, and infrastructure observed in the 4EverAble2Shell campaign. Compiles does not equal fires -- verify in your pipeline with representative log data.
+This section contains 20 detection rules (6 Sigma, 6 Suricata, 4 Snort, 4 YARA) targeting the specific exploit chain, post-exploitation payload, and infrastructure observed in the 4EverAble2Shell campaign. Compiles does not equal fires -- verify in your pipeline with representative log data.
 
 ### Sigma: N-central Legacy API POST Activity
 Detects HTTP POST requests to the N-central `/dms/services/ServerUI` endpoint. This is a URI-only match with no body inspection; it will fire on both exploitation attempts and legitimate Legacy API traffic. Use as a hunt lead or pair with additional context.
@@ -502,8 +500,8 @@ alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - N-central 4EverAb
 
 ### Suricata: N-central 4EverAble2Shell python-requests Probe
 Detects POST requests to `/dms/services/ServerUI` with the observed `python-requests/2.31.0` User-Agent.
-**Status:** compile: uncompiled (structural check only) | confidence: high
-<!-- audit: structural check passed. -->
+**Status:** compile: uncompiled (structural check only) | confidence: medium
+<!-- audit: structural check passed. UA string python-requests/2.31.0 is generic and used by many legitimate tools; confidence downgraded to medium. -->
 ```suricata
 alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Probe via python-requests"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/dms/services/ServerUI"; http.user_agent; content:"python-requests/2.31.0"; fast_pattern; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created_at 2026-11-14; sid:2200102; rev:1;)
 ```
@@ -518,16 +516,16 @@ alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell M
 
 ### Suricata: N-central 4EverAble2Shell Primary Mining Pool Connection
 Detects TCP connections to the primary mining pool.
-**Status:** compile: uncompiled (structural check only) | confidence: critical
-<!-- audit: structural check passed. IOC-based rule. -->
+**Status:** compile: uncompiled (structural check only) | confidence: high
+<!-- audit: structural check passed. IOC-based rule. Confidence corrected from invalid 'critical' to 'high'. -->
 ```suricata
 alert tcp $HOME_NET any -> 139.99.69.109 10128 (msg:"Actioner - N-central 4EverAble2Shell Primary Mining Pool Connection"; flow:established,to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200104; rev:1;)
 ```
 
 ### Suricata: N-central 4EverAble2Shell Fallback Mining Pool Connection
 Detects TCP connections to the fallback mining pool.
-**Status:** compile: uncompiled (structural check only) | confidence: critical
-<!-- audit: structural check passed. IOC-based rule. -->
+**Status:** compile: uncompiled (structural check only) | confidence: high
+<!-- audit: structural check passed. IOC-based rule. Confidence corrected from invalid 'critical' to 'high'. -->
 ```suricata
 alert tcp $HOME_NET any -> 79.76.51.56 39100 (msg:"Actioner - N-central 4EverAble2Shell Fallback Mining Pool Connection"; flow:established,to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200105; rev:1;)
 ```
@@ -537,7 +535,7 @@ Detects HTTP beacon callbacks to the payload server's `/ob/` path.
 **Status:** compile: uncompiled (structural check only) | confidence: high
 <!-- audit: structural check passed. -->
 ```suricata
-alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Beacon Callback"; flow:established,to_server; http.uri; content:"/ob/"; fast_pattern; content:"157.20.241.16"; http.host; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200106; rev:1;)
+alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Beacon Callback"; flow:established,to_server; http.uri; content:"/ob/"; fast_pattern; http.host; content:"157.20.241.16"; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200106; rev:2;)
 ```
 
 ### Snort: N-central 4EverAble2Shell SOAP Fault Exploitation (CVE-2026-90436)
@@ -550,24 +548,24 @@ alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - N-central
 
 ### Snort: N-central 4EverAble2Shell python-requests Probe
 Detects POST requests to ServerUI with the observed python-requests User-Agent.
-**Status:** compile: uncompiled (structural check only) | confidence: high
-<!-- audit: structural check passed. -->
+**Status:** compile: uncompiled (structural check only) | confidence: medium
+<!-- audit: structural check passed. UA string python-requests/2.31.0 is generic; confidence downgraded to medium. -->
 ```snort
 alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Probe via python-requests"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/dms/services/ServerUI"; http_header; content:"python-requests/2.31.0", fast_pattern; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created 2026-11-14; sid:2100102; rev:1;)
 ```
 
 ### Snort: N-central 4EverAble2Shell Primary Mining Pool Connection
 Detects TCP connections to the primary mining pool.
-**Status:** compile: uncompiled (structural check only) | confidence: critical
-<!-- audit: structural check passed. -->
+**Status:** compile: uncompiled (structural check only) | confidence: high
+<!-- audit: structural check passed. Confidence corrected from invalid 'critical' to 'high'. -->
 ```snort
 alert tcp $HOME_NET any -> 139.99.69.109 10128 (msg:"Actioner - N-central 4EverAble2Shell Primary Mining Pool Connection"; flow:established, to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created 2026-11-14; sid:2100103; rev:1;)
 ```
 
 ### Snort: N-central 4EverAble2Shell Fallback Mining Pool Connection
 Detects TCP connections to the fallback mining pool.
-**Status:** compile: uncompiled (structural check only) | confidence: critical
-<!-- audit: structural check passed. -->
+**Status:** compile: uncompiled (structural check only) | confidence: high
+<!-- audit: structural check passed. Confidence corrected from invalid 'critical' to 'high'. -->
 ```snort
 alert tcp $HOME_NET any -> 79.76.51.56 39100 (msg:"Actioner - N-central 4EverAble2Shell Fallback Mining Pool Connection"; flow:established, to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created 2026-11-14; sid:2100104; rev:1;)
 ```
@@ -632,8 +630,8 @@ rule Exploit_NCentral_4EverAble2Shell_PrivEsc
 
 ### YARA: 4EverAble2Shell XMRig Dropper Script (jup.sh)
 Detects the jup.sh dropper script used to install the XMRig miner.
-**Status:** compile: pass (yarac exit 0) | confidence: high | sample: fired on positive, clean on negative
-<!-- audit: yarac exit 0; yara pos_dropper.txt matched; neg.txt no match. Strings drawn from dropper behavior analysis. -->
+**Status:** compile: pass (yarac exit 0) | confidence: medium | sample: fired on positive, clean on negative
+<!-- audit: yarac exit 0; yara pos_dropper.txt matched; neg.txt no match. Threshold raised from 3 to 5 because several individual strings (keep.sh, pool IP octets, --donate-level 1) are generic. Confidence downgraded to medium accordingly. -->
 ```yara
 rule Trojan_XMRig_4EverAble2Shell_Dropper
 {
@@ -658,7 +656,7 @@ rule Trojan_XMRig_4EverAble2Shell_Dropper
 
     condition:
         filesize < 500KB and
-        3 of them
+        5 of them
 }
 ```
 
