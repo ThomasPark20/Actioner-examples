@@ -1,0 +1,28 @@
+title: TSGA Backdoor Process Creation - Check Point Gateway
+id: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+status: experimental
+description: Detects the creation of TSGA backdoor processes (CPconfigdaemon or slot_CPconfigdaemon) associated with the PHP2Shell exploitation campaign targeting Check Point Security Gateways.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+    - https://www.bleepingcomputer.com/news/security/check-point-gateways-hacked-via-php2shell-to-deploy-vmware-esxi-wiper/
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.persistence
+    - attack.t1547
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_name:
+        Image|endswith:
+            - '/CPconfigdaemon'
+            - '/slot_CPconfigdaemon'
+    selection_cmdline:
+        CommandLine|contains:
+            - 'CPconfigdaemon'
+            - 'slot_CPconfigdaemon'
+    condition: selection_name or selection_cmdline
+falsepositives:
+    - Legitimate Check Point CPconfigdaemon processes on managed gateways; verify binary hash against known-good values
+level: high

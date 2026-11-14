@@ -1,0 +1,45 @@
+title: SCKit Malware Command Line Artifacts
+id: c7b3a1f2-9e4d-4a81-b5c6-3d8f2e7a9b04
+status: experimental
+description: >
+    Detects command line patterns specific to the SCKit malware toolkit,
+    including references to SCKit component names, the EadF.php staging
+    endpoint, RelayTrap components, Panel-Lateral scripts, and
+    ToolboxRelayUploader used in the November 2026 campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1059.001
+    - attack.t1059.003
+    - cve.2026.84869
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains:
+            - 'EadF.php'
+            - 'SCKitBundle'
+            - 'SCKit'
+            - 'RelayTrap'
+            - 'Panel-Lateral'
+            - 'ToolboxRelayUploader'
+            - 'TrapWatch'
+            - 'sckit-decoder'
+            - 'sckit-run'
+            - 'sckit-loader'
+            - 'Run-Lateral-Full'
+            - 'Stop-LabTrap'
+            - 'Lite-Alert'
+            - 'c=Exploited'
+    filter_legit:
+        Image|endswith: '\code.exe'
+    condition: selection and not filter_legit
+falsepositives:
+    - Security researchers analyzing SCKit samples
+    - Software with coincidental naming (low probability for most strings)
+level: critical

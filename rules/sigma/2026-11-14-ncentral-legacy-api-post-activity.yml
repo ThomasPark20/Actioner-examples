@@ -1,0 +1,31 @@
+title: N-central Legacy API POST Activity
+id: a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d
+status: experimental
+description: >
+    Detects HTTP POST requests to the N-central Apache Axis endpoint
+    /dms/services/ServerUI. This rule matches on URI alone without body
+    inspection. It will fire on both CVE-2026-90436 exploitation attempts
+    and legitimate Legacy API traffic. Pair with additional context such
+    as source IP reputation or SOAP body analysis for higher fidelity.
+references:
+    - https://www.bleepingcomputer.com/news/security/new-n-able-4everable2shell-zero-day-exploited-hours-after-poc-released/
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+    - https://previdian.com/VULN-2026-0009
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.t1190
+    - attack.t1059.004
+    - cve.2026.90436
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains: '/dms/services/ServerUI'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate N-central SOAP API traffic to the ServerUI endpoint from authorized management systems
+    - Any integration or monitoring tool that uses the Legacy API
+level: low

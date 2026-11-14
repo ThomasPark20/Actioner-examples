@@ -1,0 +1,12 @@
+# N-central 4EverAble2Shell Detection Rules
+# Author: Actioner
+# Date: 2026-11-14
+# Reference: https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Exploitation Attempt (CVE-2026-90436)"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/dms/services/ServerUI", fast_pattern; http_client_body; content:"jline.internal.TerminalLineSettings"; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created 2026-11-14; sid:2100101; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Probe via python-requests"; flow:established, to_server; http_method; content:"POST"; http_uri; content:"/dms/services/ServerUI"; http_header; content:"python-requests/2.31.0", fast_pattern; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created 2026-11-14; sid:2100102; rev:1;)
+
+alert tcp $HOME_NET any -> 139.99.69.109 10128 (msg:"Actioner - N-central 4EverAble2Shell Primary Mining Pool Connection"; flow:established, to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created 2026-11-14; sid:2100103; rev:1;)
+
+alert tcp $HOME_NET any -> 79.76.51.56 39100 (msg:"Actioner - N-central 4EverAble2Shell Fallback Mining Pool Connection"; flow:established, to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created 2026-11-14; sid:2100104; rev:1;)

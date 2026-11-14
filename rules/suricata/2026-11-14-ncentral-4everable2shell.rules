@@ -1,0 +1,16 @@
+# N-central 4EverAble2Shell Detection Rules
+# Author: Actioner
+# Date: 2026-11-14
+# Reference: https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Exploitation Attempt (CVE-2026-90436)"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/dms/services/ServerUI"; fast_pattern; http.request_body; content:"jline.internal.TerminalLineSettings"; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created_at 2026-11-14; sid:2200101; rev:1;)
+
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - N-central 4EverAble2Shell SOAP Fault Probe via python-requests"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/dms/services/ServerUI"; http.user_agent; content:"python-requests/2.31.0"; fast_pattern; classtype:web-application-attack; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; reference:cve,2026-90436; metadata:author Actioner, created_at 2026-11-14; sid:2200102; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Dropper Download from Payload Server"; flow:established,to_server; http.uri; content:"/jup.sh"; fast_pattern; http.host; content:"157.20.241.16"; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200103; rev:2;)
+
+alert tcp $HOME_NET any -> 139.99.69.109 10128 (msg:"Actioner - N-central 4EverAble2Shell Primary Mining Pool Connection"; flow:established,to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200104; rev:1;)
+
+alert tcp $HOME_NET any -> 79.76.51.56 39100 (msg:"Actioner - N-central 4EverAble2Shell Fallback Mining Pool Connection"; flow:established,to_server; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200105; rev:1;)
+
+alert http $HOME_NET any -> any any (msg:"Actioner - N-central 4EverAble2Shell Miner Beacon Callback"; flow:established,to_server; http.uri; content:"/ob/"; fast_pattern; http.host; content:"157.20.241.16"; classtype:trojan-activity; reference:url,huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers; metadata:author Actioner, created_at 2026-11-14; sid:2200106; rev:2;)

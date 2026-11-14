@@ -1,0 +1,26 @@
+title: SignDrop Exploit Working Directory Creation
+id: e2f3a4b5-c6d7-8e9f-0a1b-2c3d4e5f6a7b
+status: experimental
+description: >
+    Detects creation of files in the SignDrop exploit working directory
+    %TEMP%\SigDrop_<GUID>. This is the staging directory created by
+    the SignDrop zero-day that exploits CLFS authentication to escalate
+    to SYSTEM via path redirection and Defender abuse.
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://www.bleepingcomputer.com/news/security/new-windows-signdrop-zero-day-gives-hackers-system-privileges/
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\SigDrop_'
+    condition: selection
+falsepositives:
+    - Unlikely - SigDrop is a specific exploit tool name
+level: critical

@@ -1,0 +1,28 @@
+title: SCKit TrapWatch Scheduled Task Creation
+id: c7b3a1f2-9e4d-4a81-b5c6-3d8f2e7a9b07
+status: experimental
+description: >
+    Detects creation of scheduled tasks referencing TrapWatch or RelayTrap,
+    which are used by the SCKit malware for persistence and monitoring of
+    ScreenConnect client services.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1053.005
+    - cve.2026.84869
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains:
+            - 'TrapWatch'
+            - 'RelayTrap'
+    condition: selection_schtasks
+falsepositives:
+    - Unknown
+level: critical

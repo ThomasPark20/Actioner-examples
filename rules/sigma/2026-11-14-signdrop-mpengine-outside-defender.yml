@@ -1,0 +1,34 @@
+title: MpEngine.dll Created Outside Defender Installation Path
+id: d7e8f9a0-b1c2-3d4e-5f6a-7b8c9d0e1f2a
+status: experimental
+description: >
+    Detects creation of MpEngine.dll outside of the legitimate Windows
+    Defender installation directories. The SignDrop exploit stages a bait
+    MpEngine.dll in a user-controlled temp directory to lure the Defender
+    engine process into opening a CLFS log, triggering the authentication
+    file creation as SYSTEM.
+references:
+    - https://github.com/MSNightmare/SignDrop
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\MpEngine.dll'
+    filter_defender:
+        TargetFilename|contains:
+            - '\Windows Defender\'
+            - '\Windows Defender Advanced Threat Protection\'
+            - '\Microsoft\Windows Defender\'
+            - '\Microsoft Antimalware\'
+    filter_winsxs:
+        TargetFilename|contains: '\WinSxS\'
+    condition: selection and not 1 of filter_*
+falsepositives:
+    - Security tools that copy Defender DLLs for analysis
+level: high

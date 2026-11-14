@@ -1,0 +1,14 @@
+# PHP2Shell Campaign - Check Point Gateway Exploitation (2026-11-14)
+# Reference: https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+
+# TSGA/PhiliKit C2 Channel on TCP 11072
+alert tcp any any -> any 11072 (msg:"ACTIONER PHP2Shell TSGA Backdoor C2 Channel TCP 11072"; flow:established; classtype:trojan-activity; sid:2026111401; rev:1;)
+
+# Outbound Connection to Attacker IP 130.94.19.204
+alert ip any any -> 130.94.19.204 any (msg:"ACTIONER PHP2Shell Campaign Known Attacker IP 130.94.19.204"; classtype:trojan-activity; sid:2026111402; rev:1;)
+
+# Outbound Connection to Attacker IP 130.94.19.168
+alert ip any any -> 130.94.19.168 any (msg:"ACTIONER PHP2Shell Campaign Known Attacker IP 130.94.19.168"; classtype:trojan-activity; sid:2026111403; rev:1;)
+
+# Inbound Scan from Attacker IP 130.94.19.204
+alert tcp 130.94.19.204 any -> any 443 (msg:"ACTIONER PHP2Shell Inbound Scan from Known Attacker IP 130.94.19.204"; flow:to_server,established; classtype:attempted-recon; sid:2026111404; rev:1;)

@@ -1,0 +1,35 @@
+title: SCKit Malware File System Artifacts
+id: c7b3a1f2-9e4d-4a81-b5c6-3d8f2e7a9b08
+status: experimental
+description: >
+    Detects file creation events matching SCKit malware staging paths,
+    including the RelayTrap directory in ProgramData, SCKitBundle in Temp,
+    and the characteristic hex-named PowerShell loader files.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1105
+    - attack.t1027
+    - cve.2026.84869
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_relaytrap_dir:
+        TargetFilename|contains: '\ProgramData\RelayTrap\'
+    selection_sckit_temp:
+        TargetFilename|contains:
+            - '\SCKitBundle'
+            - '\SCKit\trapkit\'
+            - '\sckit-decoder.ps1'
+            - '\sckit-run.bat'
+            - '\sckit-loader.ps1'
+    selection_hex_loader:
+        TargetFilename|re: '\\Temp\\k[0-9a-f]{32}\.ps1$'
+    condition: selection_relaytrap_dir or selection_sckit_temp or selection_hex_loader
+falsepositives:
+    - Unknown
+level: critical

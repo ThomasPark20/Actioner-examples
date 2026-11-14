@@ -1,0 +1,21 @@
+title: TSGA Backdoor Network Communication on TCP 11072
+id: e5f6a7b8-c9d0-1234-efab-345678901234
+status: experimental
+description: Detects network connections on TCP port 11072, which is the encrypted operator channel used by the TSGA backdoor and its PhiliKit predecessor on compromised Check Point gateways.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.command_and_control
+    - attack.t1571
+logsource:
+    category: network_connection
+    product: linux
+detection:
+    selection:
+        DestinationPort: 11072
+    condition: selection
+falsepositives:
+    - Legitimate services running on port 11072 are uncommon; verify against known application inventory
+level: high

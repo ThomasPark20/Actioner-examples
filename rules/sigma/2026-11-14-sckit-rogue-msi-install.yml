@@ -1,0 +1,39 @@
+title: SCKit Rogue ScreenConnect MSI Installation via Command Line
+id: c7b3a1f2-9e4d-4a81-b5c6-3d8f2e7a9b03
+status: experimental
+description: >
+    Detects the SCKit malware installation pattern where cmd.exe or
+    powershell.exe uses curl to download a ScreenConnect MSI installer
+    to Windows Temp and installs it silently with msiexec. The campaign
+    uses the marker parameter c=Exploited in the installer URL.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1219
+    - attack.t1059.003
+    - attack.t1105
+    - cve.2026.84869
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_curl_msi:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains:
+            - 'ClientSetup.msi'
+            - 'sc.msi'
+    selection_curl_exploited:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains: 'c=Exploited'
+    selection_msi_silent:
+        Image|endswith: '\msiexec.exe'
+        CommandLine|contains|all:
+            - '\Windows\Temp\sc.msi'
+            - '/qn'
+    condition: (selection_curl_msi and selection_curl_exploited) or selection_msi_silent
+falsepositives:
+    - Legitimate silent MSI installations of ScreenConnect to Windows Temp directory
+level: high

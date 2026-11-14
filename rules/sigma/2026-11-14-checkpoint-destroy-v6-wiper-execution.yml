@@ -1,0 +1,24 @@
+title: Destroy_v6 Wiper Execution on ESXi Host
+id: b2c3d4e5-f6a7-8901-bcde-f12345678901
+status: experimental
+description: Detects execution of the destroy_v6 wiper binary associated with the PHP2Shell campaign, which recursively deletes files on VMware ESXi hosts after zero-filling them.
+references:
+    - https://research.checkpoint.com/2026/php2shell-exploitation-on-check-point-gateway/
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.impact
+    - attack.t1485
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_binary:
+        Image|endswith: '/destroy_v6'
+    selection_cmdline:
+        CommandLine|contains: 'destroy_v6'
+    condition: selection_binary or selection_cmdline
+falsepositives:
+    - Unlikely in production environments
+level: critical
