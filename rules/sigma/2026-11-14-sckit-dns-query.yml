@@ -1,0 +1,32 @@
+title: DNS Query to SCKit Campaign Infrastructure
+id: c7b3a1f2-9e4d-4a81-b5c6-3d8f2e7a9b01
+status: experimental
+description: >
+    Detects DNS queries to domains associated with the November 2026 SCKit
+    malware campaign targeting ScreenConnect MSP environments, including the
+    staging server ns.mo7sen.dev, attacker panels, and relay infrastructure.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+    - https://blackpointcyber.com/blog/screenconnect-attack-sckit/
+author: Actioner
+date: 2026/11/14
+tags:
+    - attack.t1071.004
+    - attack.t1105
+    - cve.2026.84869
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'ns.mo7sen.dev'
+            - 'payproofkit.com'
+            - 'cdn007-digitaldownloads.com'
+            - 'newnewnew.gotdns.org'
+            - 'soxnewwork.homedns.org'
+            - '007.from-ak.com'
+    condition: selection
+falsepositives:
+    - Unknown
+level: critical
