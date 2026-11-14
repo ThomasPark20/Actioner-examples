@@ -1,0 +1,29 @@
+title: N-central 4EverAble2Shell Privilege Escalation Artifacts
+id: e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091
+status: experimental
+description: >
+    Detects file system artifacts from the 4EverAble2Shell privilege
+    escalation chain, including ServerChild.sh backup files, symlinks
+    to flag_default.json, and escalation output files in the N-central
+    temporary directory.
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+    - https://malware.news/t/4everable2shell-at-a-glance/127283
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.t1068
+    - attack.t1548
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_backup:
+        TargetFilename|contains: '/var/opt/n-central/tmp/serverchild-'
+    selection_symlink:
+        TargetFilename: '/var/opt/n-central/flag/flag_default.json'
+    condition: selection_backup or selection_symlink
+falsepositives:
+    - N-central maintenance operations may create files in /var/opt/n-central/tmp/ but the serverchild- prefix with hex suffix is specific to the exploit
+    - The flag_default.json arm may fire on legitimate N-central flag writes because Sigma file_event rules cannot distinguish symlinks from regular file writes -- baseline tuning is required for that selector
+level: high

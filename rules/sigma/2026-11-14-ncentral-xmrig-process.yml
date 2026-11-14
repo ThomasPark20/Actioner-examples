@@ -1,0 +1,27 @@
+title: N-central 4EverAble2Shell XMRig Miner Process Execution
+id: d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80
+status: experimental
+description: >
+    Detects XMRig cryptocurrency miner processes with the nc_ rig-id
+    prefix or .xvd/x binary path characteristic of the 4EverAble2Shell
+    post-exploitation payload on compromised N-central servers.
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+    - https://www.bleepingcomputer.com/news/security/new-n-able-4everable2shell-zero-day-exploited-hours-after-poc-released/
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.t1496
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_rigid:
+        CommandLine|contains: '--rig-id nc_'
+    selection_binary:
+        Image|endswith: '/.xvd/x'
+    condition: selection_rigid or selection_binary
+falsepositives:
+    - Legitimate XMRig usage with a rig-id starting with nc_ (unlikely in enterprise environments)
+level: high

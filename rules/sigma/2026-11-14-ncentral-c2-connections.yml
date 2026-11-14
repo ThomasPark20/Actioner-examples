@@ -1,0 +1,29 @@
+title: N-central 4EverAble2Shell Outbound Connection to Known C2 Infrastructure
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f809102
+status: experimental
+description: >
+    Detects outbound network connections from N-central servers to
+    known 4EverAble2Shell infrastructure including the payload server,
+    primary mining pool, and fallback mining pool.
+references:
+    - https://huntback.io/blog/ncentral-4everable2shell-miners-on-live-servers
+    - https://www.huntress.com/blog/n-able-disables-cloud-services-following-disclosure-of-able2shell-exploit-chains
+author: Actioner
+date: 2026-11-14
+tags:
+    - attack.t1496
+logsource:
+    category: firewall
+detection:
+    selection_payload_server:
+        dst_ip: '157.20.241.16'
+    selection_pool_primary:
+        dst_ip: '139.99.69.109'
+        dst_port: 10128
+    selection_pool_fallback:
+        dst_ip: '79.76.51.56'
+        dst_port: 39100
+    condition: selection_payload_server or selection_pool_primary or selection_pool_fallback
+falsepositives:
+    - Unlikely for the specific IP and port combinations
+level: high
