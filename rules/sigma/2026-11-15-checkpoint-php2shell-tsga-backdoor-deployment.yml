@@ -1,0 +1,30 @@
+title: TSGA Backdoor Deployment on Check Point Gateway
+id: 1fec1047-c49c-4519-a70f-fc13e8c8d3df
+status: experimental
+description: >
+    Detects creation of TSGA backdoor artifacts on Check Point Gaia OS appliances,
+    including the slot_CPconfigdaemon binary and the PhiliKit Unix socket .p_sock.
+    These are associated with the PHP2Shell campaign (CVE-2026-109618, CVE-2026-109619)
+    and privilege escalation via CVE-2026-123039.
+references:
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+    - https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1505.003
+    - attack.t1543
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'slot_CPconfigdaemon'
+            - '/tmp/CPconfigdaemon'
+            - '/tmp/.p_sock'
+            - 'libcpfwcommon.so'
+    condition: selection
+falsepositives:
+    - Legitimate Check Point processes creating libcpfwcommon.so during patching
+level: high

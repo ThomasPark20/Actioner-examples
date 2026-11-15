@@ -1,0 +1,5 @@
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain tarotfree101.top"; content:"tarotfree101.top"; nocase; sid:1100101; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain chrorne.com"; content:"chrorne.com"; nocase; sid:1100102; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain avbliud.com"; content:"avbliud.com"; nocase; sid:1100103; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain microsoft-flash.com"; content:"microsoft-flash.com"; nocase; sid:1100104; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain wps-cn.com"; content:"wps-cn.com"; nocase; sid:1100105; rev:1;)

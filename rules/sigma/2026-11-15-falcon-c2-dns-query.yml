@@ -1,0 +1,155 @@
+title: DNS Query to Known Falcon C2 Domain
+id: 7a3e1f4b-9c2d-4e8a-b5f6-d0c7a1e3b9f2
+status: experimental
+description: >
+    Detects DNS queries to known Falcon C2 framework command-and-control domains
+    used in campaigns targeting government entities in the Middle East and Southeast Asia.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'tarotfree101.top'
+            - 'chrorne.com'
+            - 'avbliud.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these are attacker-controlled domains
+level: high
+---
+title: DNS Query to Falcon C2 Payload Delivery Domain
+id: b8d2c5e1-3f7a-4b9c-a6e0-f1d8c2b4a7e5
+status: experimental
+description: >
+    Detects DNS queries to domains used by the Falcon C2 framework to deliver the
+    Antino implant and other payloads via fake software update pages.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1204.002
+    - attack.t1036.005
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'microsoft-flash.com'
+            - 'wps-cn.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these are attacker-controlled domains masquerading as legitimate software
+level: high
+---
+title: Antino Implant File Creation in GatherOSStateKit Directory
+id: c4f9a3e7-1b5d-4c8e-9a2f-e6d0b3c7f1a8
+status: experimental
+description: >
+    Detects file creation in the Windows GatherOSStateKit directory under LocalAppData,
+    used by the Antino implant as its persistence location with a random 8-character filename.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1036.005
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Windows GatherOSStateKit\'
+    condition: selection
+falsepositives:
+    - Legitimate Windows GatherOSState tool activity, though the directory name includes a space which distinguishes this from the real GatherOSState path
+level: high
+---
+title: Suspicious Sdiagnhost Execution with PowerShell Result File
+id: d5e8b2c6-4a7f-4d9e-b3c1-a0f7e6d2c8b4
+status: experimental
+description: >
+    Detects creation of result.ps1 files under SDIAG temporary directories, as used
+    by the Antino implant to abuse sdiagnhost.exe for Run key persistence via
+    scripted diagnostic answer files.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1218
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains|all:
+            - '\SDIAG_'
+            - '\result\result.ps1'
+    condition: selection
+falsepositives:
+    - Legitimate Microsoft Scripted Diagnostics creating PowerShell result files, though this specific path pattern is uncommon outside of troubleshooting pack execution
+level: medium
+---
+title: Falcon C2 Malicious Browser Extension Installation
+id: e6f9c3d7-5b8a-4e0f-c4d2-b1a8e7f3d9c5
+status: experimental
+description: >
+    Detects file system activity related to the Falcon C2 malicious Chrome extension
+    (ID mbidcmlcbgbphpoacojjbmfpohcimjji) disguised as a PDF Viewer, used for
+    credential theft and session hijacking.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1176
+    - attack.t1185
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: 'mbidcmlcbgbphpoacojjbmfpohcimjji'
+    condition: selection
+falsepositives:
+    - Unlikely; this is a known malicious extension ID
+level: high
+---
+title: Web Proxy Connection to Falcon C2 Infrastructure
+id: f7a0d4e8-6c9b-4f1a-d5e3-c2b9f8a4e0d6
+status: experimental
+description: >
+    Detects proxy log entries showing connections to known Falcon C2 domains and
+    their characteristic URI path patterns used for configuration retrieval and
+    payload delivery.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: proxy
+detection:
+    selection_domains:
+        cs-host|endswith:
+            - 'tarotfree101.top'
+            - 'chrorne.com'
+            - 'avbliud.com'
+            - 'microsoft-flash.com'
+            - 'wps-cn.com'
+    condition: selection_domains
+falsepositives:
+    - Unlikely; these are attacker-controlled domains
+level: high

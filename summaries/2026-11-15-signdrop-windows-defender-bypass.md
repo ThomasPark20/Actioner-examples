@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-15
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -65,11 +65,11 @@ The exploit uses the privileged file write to plant `hid.dll` in `C:\Program Fil
 
 When `consent.exe` (the UAC consent prompt, running as SYSTEM via the AppInfo service) loads DLLs, it searches the `ink` directory while On-Screen Keyboard is running. It loads the planted `hid.dll`, which executes a payload that spawns a SYSTEM-context `conhost.exe` on the interactive desktop. The exploit then deletes `hid.dll` to remove on-disk evidence.
 
-### 3. C2 Infrastructure
+### 6. C2 Infrastructure
 
 Not applicable. SignDrop is a local privilege escalation exploit with no network C2 component.
 
-### 4. Platform-Specific Behavior
+### 7. Platform-Specific Behavior
 
 #### Windows
 
@@ -80,7 +80,7 @@ This is a Windows-only exploit targeting the CLFS kernel driver. Tested configur
 
 The vulnerability requires the CLFS authentication mitigation to be active (registry Mode 0 or 1).
 
-### 5. Anti-Forensics / Evasion Techniques
+### 8. Anti-Forensics / Evasion Techniques
 
 - **Post-exploitation cleanup:** The exploit deletes `hid.dll` from the ink directory after payload execution. On-disk evidence is ephemeral.
 - **Transacted delete:** The deletion may use transacted filesystem operations to avoid detection by file-monitoring tools.
@@ -138,7 +138,6 @@ No network IOCs. This is a local privilege escalation exploit.
 | T1068 | Exploitation for Privilege Escalation | Exploits logic flaw in CLFS authentication file creation to escalate from standard user to SYSTEM |
 | T1574.001 | Hijack Execution Flow: DLL Search Order Hijacking | Plants `hid.dll` in the ink directory where `consent.exe` loads it as SYSTEM |
 | T1036.005 | Masquerading: Match Legitimate Name or Location | Stages bait `MpEngine.dll` outside Defender paths to lure Defender's signature update |
-| T1562.001 | Impair Defenses: Disable or Modify Tools | Researcher claims the coercion technique can disable AV/EDR tamper protection (unverified) |
 
 ## Impact Assessment
 
@@ -196,9 +195,9 @@ These rules target the SignDrop exploit chain at multiple stages. The highest-fi
 
 Detects the creation of `hid.dll` in the ink directory, the highest-fidelity indicator in the SignDrop chain. Windows never ships this file in this location.
 
-**Compile: ✅ (sigma convert splunk/log_scale exit 0) | Confidence: medium**
+**Compile: ✅ (sigma convert splunk/log_scale exit 0) | Confidence: high**
 
-<!-- audit: sigma convert splunk output: TargetFilename="*\\Microsoft Shared\\ink\\hid.dll". sigma convert log_scale output: TargetFilename=/\\Microsoft Shared\\ink\\hid\.dll$/i. sigma check blocked by proxy (MITRE ATT&CK data 403). Behavioral/file-system rule; medium confidence despite high fidelity because the artifact name could change in variants. -->
+<!-- audit: sigma convert splunk output: TargetFilename="*\\Microsoft Shared\\ink\\hid.dll". sigma convert log_scale output: TargetFilename=/\\Microsoft Shared\\ink\\hid\.dll$/i. sigma check blocked by proxy (MITRE ATT&CK data 403). High confidence: Windows never ships hid.dll in this directory; any appearance is definitively anomalous. -->
 
 ```yaml
 title: SignDrop - HID DLL Creation in Microsoft Shared Ink Directory
@@ -270,9 +269,9 @@ level: high
 
 Detects `conhost.exe` running as SYSTEM spawned by `consent.exe`, which may indicate the final stage of SignDrop where a SYSTEM console is obtained.
 
-**Compile: ✅ (sigma convert splunk/log_scale exit 0) | Confidence: medium**
+**Compile: ✅ (sigma convert splunk/log_scale exit 0) | Confidence: low**
 
-<!-- audit: sigma convert splunk output: Image="*\\conhost.exe" User="*SYSTEM*" ParentImage="*\\consent.exe". Behavioral process_creation rule. Medium confidence: legitimate UAC processes may spawn console hosts in edge cases. -->
+<!-- audit: sigma convert splunk output: Image="*\\conhost.exe" User="*SYSTEM*" ParentImage="*\\consent.exe". Behavioral process_creation rule. Low confidence: legitimate UAC processes may spawn console hosts in edge cases; requires environment-specific tuning. -->
 
 ```yaml
 title: SignDrop - SYSTEM Conhost Spawned After Ink Directory Activity
@@ -350,7 +349,7 @@ Detects `osk.exe` launched by a process outside the expected parent list, which 
 
 **Compile: ✅ (sigma convert splunk/log_scale exit 0) | Confidence: low**
 
-<!-- audit: sigma convert splunk output: Image="*\\osk.exe" NOT (ParentImage IN (...)). Process_creation rule. Low confidence: accessibility tools and RDP solutions may legitimately launch osk.exe from unexpected parents. Caveat: filter list may need tuning per environment. -->
+<!-- audit: sigma convert splunk output: Image="*\\osk.exe" NOT (ParentImage IN (...)). Process_creation rule. Low confidence: accessibility tools, RDP solutions, and automation may legitimately launch osk.exe from unexpected parents. Filter list requires per-environment tuning. -->
 
 ```yaml
 title: SignDrop - On-Screen Keyboard Launched by Unexpected Parent
@@ -386,7 +385,7 @@ detection:
 falsepositives:
     - Accessibility software or automation tools launching osk.exe
     - Remote desktop solutions starting on-screen keyboard
-level: medium
+level: low
 ```
 
 ### Sigma Rule 6: SignDrop PoC Temporary Working Directory (Tripwire)
@@ -430,7 +429,7 @@ Detects the SignDrop PoC binary based on distinctive string combinations unique 
 
 **Compile: ✅ (yarac exit 0) | Confidence: medium**
 
-<!-- audit: yarac /tmp/actioner-signdrop/signdrop_poc_artifacts.yar /dev/null exited 0. Rule requires MZ header + filesize < 5MB + multiple exploit-specific string combinations. Medium confidence: strings are from the PoC; weaponized variants may change naming. The second sub-rule (SignDrop_Planted_HID_DLL) is generic enough to flag consent/conhost-targeting DLLs but may FP on legitimate DLLs referencing cmd.exe. -->
+<!-- audit: yarac /tmp/actioner-signdrop/signdrop_poc_artifacts.yar /dev/null exited 0. Rule requires MZ header + filesize < 5MB + multiple exploit-specific string combinations. Medium confidence: strings are from the PoC; weaponized variants may change naming. -->
 
 ```yara
 rule SignDrop_PoC_Binary
@@ -463,29 +462,6 @@ rule SignDrop_PoC_Binary
         )
 }
 
-rule SignDrop_Planted_HID_DLL
-{
-    meta:
-        description = "Detects a suspicious hid.dll placed in the Microsoft Shared Ink directory, characteristic of SignDrop payload staging"
-        author = "Actioner"
-        date = "2026-11-15"
-        reference = "https://www.cyderes.com/howler-cell/signdrop-zero-day"
-
-    strings:
-        $mz = { 4D 5A }
-        $export_consent = "consent" ascii
-        $export_conhost = "conhost" ascii
-        $cmd_spawn = "cmd.exe" ascii wide
-        $system_shell = "\\system32\\cmd.exe" ascii wide
-
-    condition:
-        $mz at 0 and
-        filesize < 1MB and
-        (
-            ($export_consent and ($cmd_spawn or $system_shell)) or
-            ($export_conhost and ($cmd_spawn or $system_shell))
-        )
-}
 ```
 
 ## Lessons Learned

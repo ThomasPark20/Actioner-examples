@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:CLEAR
 Date: 2026-11-15
-Version: 1.0
+Version: 1.1
 
 ## Executive Summary
 
@@ -185,7 +185,7 @@ netstat -tlnp | grep 11072
 
 ## Detection Rules
 
-Six Sigma rules, three Suricata rules, three Snort rules, and three YARA rules cover the key artifacts of this campaign: TSGA backdoor deployment, wiper artifacts, webshell staging, DynamicCLI socket abuse, campaign infrastructure, and network indicators. The primary caveat is that no file hashes were publicly disclosed, so file-based detections rely on path and name patterns rather than cryptographic indicators.
+Four Sigma rules, three Suricata rules, three Snort rules, and three YARA rules cover the key artifacts of this campaign: TSGA backdoor deployment, wiper artifacts, webshell staging, DynamicCLI socket abuse, campaign infrastructure, and network indicators. The primary caveat is that no file hashes were publicly disclosed, so file-based detections rely on path and name patterns rather than cryptographic indicators.
 
 ### Sigma Rules
 
@@ -253,7 +253,6 @@ author: Actioner
 date: 2026-11-15
 tags:
     - attack.t1485
-    - attack.t1059.004
 logsource:
     category: file_event
     product: linux
@@ -309,42 +308,7 @@ falsepositives:
 level: high
 ```
 
-#### 4. Check Point DynamicCLI Socket Privilege Escalation
-
-Detects interaction with the DynamicCLI Unix socket used for CVE-2026-123039 exploitation. Requires network-level socket monitoring on Linux.
-
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; DestinationHostname for Unix socket monitoring is non-standard in most SIEM pipelines; may require custom field mapping -->
-
-**Compile: pass (sigma convert splunk+logscale) | Confidence: medium**
-
-```yaml
-title: Check Point DynamicCLI Socket Privilege Escalation
-id: 4a8276c6-32c4-4a82-a53b-ef70640b7565
-status: experimental
-description: >
-    Detects processes interacting with the world-writable /tmp/dynamic_socket
-    Unix socket used by the Gaia OS DynamicCLI daemon. Exploitation of
-    CVE-2026-123039 sends commands through this socket for root execution.
-references:
-    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
-    - https://securityaffairs.com/203040/hacking/u-s-cisa-adds-check-point-and-unrealircd-flaws-to-its-known-exploited-vulnerabilities-catalog.html
-author: Actioner
-date: 2026-11-15
-tags:
-    - attack.t1068
-logsource:
-    category: network_connection
-    product: linux
-detection:
-    selection:
-        DestinationHostname: '/tmp/dynamic_socket'
-    condition: selection
-falsepositives:
-    - Legitimate Check Point Gaia OS administration processes communicating with DynamicCLI
-level: medium
-```
-
-#### 5. Network Connection to PHP2Shell Campaign Infrastructure
+#### 4. Network Connection to PHP2Shell Campaign Infrastructure
 
 Detects connections to the confirmed attack IP 130.94.19[.]204.
 
@@ -378,46 +342,9 @@ falsepositives:
 level: high
 ```
 
-#### 6. Gogo Network Scanner Execution on Linux Gateway
-
-Detects execution of the gogo scanner used for internal discovery. Caveat: "gogo" is a generic name; verify in the context of Check Point appliances.
-
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0; generic tool name may produce false positives in non-gateway environments -->
-
-**Compile: pass (sigma convert splunk+logscale) | Confidence: medium**
-
-```yaml
-title: Gogo Network Scanner Execution on Linux Gateway
-id: de4b0d27-5d29-4568-bddd-083b06cd5b10
-status: experimental
-description: >
-    Detects execution of the gogo network scanner, an internal discovery tool
-    deployed during the PHP2Shell Check Point gateway exploitation campaign
-    for lateral movement preparation.
-references:
-    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
-    - https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html
-author: Actioner
-date: 2026-11-15
-tags:
-    - attack.t1046
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection_name:
-        Image|endswith: '/gogo'
-    selection_cmdline:
-        CommandLine|contains: 'gogo'
-    condition: selection_name or selection_cmdline
-falsepositives:
-    - Legitimate use of similarly named tools; verify context on Check Point appliances
-level: medium
-```
-
 ### Suricata Rules
 
-#### 7. PHP2Shell Campaign C2 Connection to 130.94.19[.]204
+#### 5. PHP2Shell Campaign C2 Connection to 130.94.19[.]204
 
 Alerts on any IP traffic to the confirmed attacker IP.
 
@@ -426,10 +353,10 @@ Alerts on any IP traffic to the confirmed attacker IP.
 **Compile: pass (suricata -T) | Confidence: high**
 
 ```
-alert ip $HOME_NET any -> 130.94.19.204 any (msg:"Actioner - PHP2Shell Campaign C2 Connection to 130.94.19.204"; flow:to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html; metadata:author Actioner, created_at 2026-11-15; sid:2200001; rev:1;)
+alert ip $HOME_NET any -> 130.94.19.204 any (msg:"Actioner - PHP2Shell Campaign C2 Connection to 130.94.19.204"; flow:to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html; metadata:author Actioner, created_at 2026-11-15; sid:2026111501; rev:1;)
 ```
 
-#### 8. PhiliKit Communication on TCP Port 11072
+#### 6. PhiliKit Communication on TCP Port 11072
 
 Alerts on established TCP sessions to port 11072, used by the PhiliKit/TSProxy implant.
 
@@ -438,10 +365,10 @@ Alerts on established TCP sessions to port 11072, used by the PhiliKit/TSProxy i
 **Compile: pass (suricata -T) | Confidence: medium**
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET 11072 (msg:"Actioner - PhiliKit Communication on TCP Port 11072"; flow:established,to_server; classtype:trojan-activity; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created_at 2026-11-15; sid:2200002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET 11072 (msg:"Actioner - PhiliKit Communication on TCP Port 11072"; flow:established,to_server; classtype:trojan-activity; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created_at 2026-11-15; sid:2026111502; rev:1;)
 ```
 
-#### 9. PHP2Shell Upload Progress Marker in HTTP Request
+#### 7. PHP2Shell Upload Progress Marker in HTTP Request
 
 Detects the `upload_progress_pwn` string in HTTP request bodies, a distinctive marker of PHP2Shell exploitation payloads.
 
@@ -450,44 +377,44 @@ Detects the `upload_progress_pwn` string in HTTP request bodies, a distinctive m
 **Compile: pass (suricata -T) | Confidence: high**
 
 ```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Upload Progress Marker in HTTP Request"; flow:established,to_server; http.request_body; content:"upload_progress_pwn"; fast_pattern; classtype:web-application-attack; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created_at 2026-11-15; sid:2200003; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Upload Progress Marker in HTTP Request"; flow:established,to_server; http.request_body; content:"upload_progress_pwn"; fast_pattern; classtype:web-application-attack; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created_at 2026-11-15; sid:2026111503; rev:1;)
 ```
 
 ### Snort Rules
 
-#### 10. PHP2Shell Campaign C2 Connection
+#### 8. PHP2Shell Campaign C2 Connection
 
 <!-- audit: snort not installed; structural check only; rule follows snort-ref.md format with ip protocol, no sticky buffers required -->
 
 **Compile: uncompiled (structural check only) | Confidence: high**
 
 ```
-alert ip $HOME_NET any -> 130.94.19.204 any (msg:"Actioner - PHP2Shell Campaign C2 Connection to 130.94.19.204"; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html; metadata:author Actioner, created 2026-11-15; sid:2100001; rev:1;)
+alert ip $HOME_NET any -> 130.94.19.204 any (msg:"Actioner - PHP2Shell Campaign C2 Connection to 130.94.19.204"; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html; metadata:author Actioner, created 2026-11-15; sid:3026111501; rev:1;)
 ```
 
-#### 11. PhiliKit Communication on TCP Port 11072
+#### 9. PhiliKit Communication on TCP Port 11072
 
 <!-- audit: snort not installed; structural check only; uses tcp protocol with flow established, no sticky buffers needed -->
 
 **Compile: uncompiled (structural check only) | Confidence: medium**
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET 11072 (msg:"Actioner - PhiliKit Communication on TCP Port 11072"; flow:established, to_server; classtype:trojan-activity; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created 2026-11-15; sid:2100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET 11072 (msg:"Actioner - PhiliKit Communication on TCP Port 11072"; flow:established, to_server; classtype:trojan-activity; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created 2026-11-15; sid:3026111502; rev:1;)
 ```
 
-#### 12. PHP2Shell Upload Progress Marker in HTTP Request
+#### 10. PHP2Shell Upload Progress Marker in HTTP Request
 
 <!-- audit: snort not installed; structural check only; uses http service with http_client_body sticky buffer per snort-ref.md -->
 
 **Compile: uncompiled (structural check only) | Confidence: high**
 
 ```
-alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Upload Progress Marker in HTTP Request"; flow:established, to_server; http_client_body; content:"upload_progress_pwn", fast_pattern; classtype:web-application-attack; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created 2026-11-15; sid:2100003; rev:1;)
+alert http $EXTERNAL_NET any -> $HOME_NET any (msg:"Actioner - PHP2Shell Upload Progress Marker in HTTP Request"; flow:established, to_server; http_client_body; content:"upload_progress_pwn"; fast_pattern; classtype:web-application-attack; reference:url,securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html; metadata:author Actioner, created 2026-11-15; sid:3026111503; rev:1;)
 ```
 
 ### YARA Rules
 
-#### 13. TSGA Backdoor Binary Detection
+#### 11. TSGA Backdoor Binary Detection
 
 Detects the TSGA backdoor by matching ELF magic bytes combined with distinctive internal strings.
 
@@ -518,13 +445,13 @@ rule TSGA_Backdoor_CheckPoint
 }
 ```
 
-#### 14. destroy_v6 Wiper Binary Detection
+#### 12. destroy_v6 Wiper Binary Detection
 
 Detects the destroy_v6 ELF wiper by its unique string artifacts.
 
 <!-- audit: yarac exit 0; any-of condition on two campaign-unique strings plus ELF check -->
 
-**Compile: pass (yarac) | Confidence: high**
+**Compile: pass (yarac) | Confidence: medium**
 
 ```yara
 rule Destroy_V6_Wiper
@@ -542,11 +469,11 @@ rule Destroy_V6_Wiper
 
     condition:
         uint32(0) == 0x464C457F and
-        any of ($s*)
+        all of ($s*)
 }
 ```
 
-#### 15. PHP2Shell Webshell Detection
+#### 13. PHP2Shell Webshell Detection
 
 Detects PHP webshells containing the distinctive upload_progress_pwn marker combined with execution functions.
 
@@ -590,7 +517,6 @@ This campaign underscores several critical defensive gaps. First, the DynamicCLI
 - [The Hacker News - PHP2Shell Exploitation](https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html) -- Primary technical analysis with comprehensive IOCs, timeline, and malware details
 - [Security Affairs - Unpatched Check Point Gateways Wiped](https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html) -- Additional technical details on file paths, Unix sockets, and webshell patterns
 - [Security Affairs - CISA KEV Addition](https://securityaffairs.com/203040/hacking/u-s-cisa-adds-check-point-and-unrealircd-flaws-to-its-known-exploited-vulnerabilities-catalog.html) -- CISA KEV catalog addition details, CVE descriptions, CWE mappings
-- [GBHackers - CISA Check Point Zero-Day](https://gbhackers.com/cisa-check-point-zero-day-vulnerability/) -- CISA advisory context (returned empty content)
 - [CISA KEV Catalog](https://www.cisa.gov/known-exploited-vulnerabilities-catalog) -- Official KEV entry for CVE-2026-123039 with BOD 26-04 forensic triage requirement
 - [Check Point Advisory SK1000362](https://support.checkpoint.com/results/sk/sk1000362) -- Vendor security advisory for CVE-2026-123039
 
