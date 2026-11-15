@@ -501,23 +501,23 @@ Nine Suricata rules covering DNS queries to all five C2/delivery domains, TLS SN
 **Compile status:** ✅ compiles (suricata -T) | **Confidence:** high (IOC-anchored)
 
 ```
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain tarotfree101.top"; flow:to_server; dns.query; content:"tarotfree101.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200101; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain tarotfree101.top"; flow:to_server; dns.query; content:"tarotfree101.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111581; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain chrorne.com"; flow:to_server; dns.query; content:"chrorne.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200102; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain chrorne.com"; flow:to_server; dns.query; content:"chrorne.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111582; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain avbliud.com"; flow:to_server; dns.query; content:"avbliud.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200103; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain avbliud.com"; flow:to_server; dns.query; content:"avbliud.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111583; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain microsoft-flash.com"; flow:to_server; dns.query; content:"microsoft-flash.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200104; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain microsoft-flash.com"; flow:to_server; dns.query; content:"microsoft-flash.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111584; rev:1;)
 
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain wps-cn.com"; flow:to_server; dns.query; content:"wps-cn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200105; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain wps-cn.com"; flow:to_server; dns.query; content:"wps-cn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111585; rev:1;)
 
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain tarotfree101.top"; flow:established,to_server; tls.sni; content:"tarotfree101.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200106; rev:1;)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain tarotfree101.top"; flow:established,to_server; tls.sni; content:"tarotfree101.top"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111586; rev:1;)
 
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain chrorne.com"; flow:established,to_server; tls.sni; content:"chrorne.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200107; rev:1;)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain chrorne.com"; flow:established,to_server; tls.sni; content:"chrorne.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111587; rev:1;)
 
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain avbliud.com"; flow:established,to_server; tls.sni; content:"avbliud.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200108; rev:1;)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - TLS SNI to Falcon C2 Domain avbliud.com"; flow:established,to_server; tls.sni; content:"avbliud.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111588; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to Falcon C2 Config Path"; flow:established,to_server; http.uri; content:"/config/"; fast_pattern; http.host; content:"tarotfree101.top"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:1200109; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - HTTP Request to Falcon C2 Config Path"; flow:established,to_server; http.uri; content:"/config/"; fast_pattern; http.host; content:"tarotfree101.top"; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/falcon-c2-browser-compromise/; metadata:author Actioner, created_at 2026-11-15; sid:2026111589; rev:1;)
 ```
 
 ### Snort: Falcon C2 DNS Detection Rules
@@ -529,11 +529,11 @@ Five Snort rules for DNS queries to known C2 and payload delivery domains. Snort
 **Compile status:** ⚠️ uncompiled (structural check only) | **Confidence:** high
 
 ```
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain tarotfree101.top"; content:"tarotfree101.top"; nocase; sid:1100101; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain chrorne.com"; content:"chrorne.com"; nocase; sid:1100102; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain avbliud.com"; content:"avbliud.com"; nocase; sid:1100103; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain microsoft-flash.com"; content:"microsoft-flash.com"; nocase; sid:1100104; rev:1;)
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain wps-cn.com"; content:"wps-cn.com"; nocase; sid:1100105; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain tarotfree101.top"; content:"tarotfree101.top"; nocase; sid:3026111581; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain chrorne.com"; content:"chrorne.com"; nocase; sid:3026111582; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Domain avbliud.com"; content:"avbliud.com"; nocase; sid:3026111583; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain microsoft-flash.com"; content:"microsoft-flash.com"; nocase; sid:3026111584; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Falcon C2 Payload Domain wps-cn.com"; content:"wps-cn.com"; nocase; sid:3026111585; rev:1;)
 ```
 
 ### YARA: Falcon C2 Extension Manifest Detection
@@ -671,9 +671,7 @@ rule Antino_Implant
 
 - [Palo Alto Unit 42 - Falcon C2 Browser Compromise](https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/) — Primary technical analysis of Falcon C2 framework, Antino implant, and browser extension details
 - [Trend Micro - PeckBirdy Script Framework](https://www.trendmicro.com/en_us/research/26/a/peckbirdy-script-framework.html) — Earlier variant analysis establishing overlap with Falcon C2
-- [Symantec/Broadcom - The Jewelbug Dossier](https://sed-cms.broadcom.com/) — Related threat intelligence on the actor ecosystem
-- [Cisco Talos - UAT-11587 and Antino Backdoor](https://blog.talosintelligence.com/) — China-nexus attribution and additional Antino analysis
-- [GBHackers - Hackers Use Falcon C2 Framework](https://gbhackers.com/hackers-use-falcon-c2-framework/) — Secondary coverage (content unavailable during analysis)
+<!-- Symantec/Broadcom "Jewelbug Dossier" and Cisco Talos UAT-11587 report are cited by Unit 42 but could not be resolved to specific public URLs at time of analysis -->
 
 ---
 *Report generated by Actioner*

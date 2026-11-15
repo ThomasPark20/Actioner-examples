@@ -1,0 +1,24 @@
+title: SignDrop PoC - Temporary Working Directory Creation
+id: f7b1d4e9-6a0c-4f5d-c3b8-9e2a1f7d8c4b
+status: experimental
+description: >
+    Detects creation of the SignDrop PoC-specific temporary working directory
+    pattern. This is a tripwire for the unmodified public PoC only; a
+    weaponized variant will likely use different naming.
+references:
+    - https://securityaffairs.com/202968/hacking/new-signdrop-exploit-can-abuse-windows-defender-to-bypass-security-protections.html
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1068
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\SigDrop_'
+    condition: selection
+falsepositives:
+    - Software using SigDrop in directory or file names (very unlikely)
+level: high

@@ -1,0 +1,26 @@
+title: Suspicious Sdiagnhost Execution with PowerShell Result File
+id: d5e8b2c6-4a7f-4d9e-b3c1-a0f7e6d2c8b4
+status: experimental
+description: >
+    Detects creation of result.ps1 files under SDIAG temporary directories, as used
+    by the Antino implant to abuse sdiagnhost.exe for Run key persistence via
+    scripted diagnostic answer files.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1218
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains|all:
+            - '\SDIAG_'
+            - '\result\result.ps1'
+    condition: selection
+falsepositives:
+    - Legitimate Microsoft Scripted Diagnostics creating PowerShell result files, though this specific path pattern is uncommon outside of troubleshooting pack execution
+level: medium

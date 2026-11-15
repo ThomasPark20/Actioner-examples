@@ -1,0 +1,25 @@
+title: DNS Query to Known Falcon C2 Domain
+id: 7a3e1f4b-9c2d-4e8a-b5f6-d0c7a1e3b9f2
+status: experimental
+description: >
+    Detects DNS queries to known Falcon C2 framework command-and-control domains
+    used in campaigns targeting government entities in the Middle East and Southeast Asia.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'tarotfree101.top'
+            - 'chrorne.com'
+            - 'avbliud.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these are attacker-controlled domains
+level: high
