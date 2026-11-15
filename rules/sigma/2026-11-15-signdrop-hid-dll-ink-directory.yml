@@ -1,0 +1,25 @@
+title: SignDrop - HID DLL Creation in Microsoft Shared Ink Directory
+id: 9a3c7e1f-4b2d-4f8e-a6d1-3e5c8f0b2a7d
+status: experimental
+description: >
+    Detects creation of hid.dll in the Microsoft Shared Ink directory, a key
+    indicator of the SignDrop privilege escalation exploit. Windows does not
+    ship this file in this location.
+references:
+    - https://securityaffairs.com/202968/hacking/new-signdrop-exploit-can-abuse-windows-defender-to-bypass-security-protections.html
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\Microsoft Shared\ink\hid.dll'
+    condition: selection
+falsepositives:
+    - Unlikely in production; no legitimate software places hid.dll in this directory
+level: high

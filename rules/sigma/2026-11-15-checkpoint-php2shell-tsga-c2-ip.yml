@@ -1,0 +1,23 @@
+title: Network Connection to PHP2Shell Campaign Infrastructure
+id: 499d4851-2706-4ba0-a081-c33b2424fea8
+status: experimental
+description: >
+    Detects network connections to IP address 130.94.19.204, the primary
+    attack infrastructure used in the PHP2Shell exploitation campaign
+    targeting Check Point Security Gateways with Mobile Access portals.
+references:
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+    - https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '130.94.19.204'
+    condition: selection
+falsepositives:
+    - Unlikely; this IP is confirmed attack infrastructure
+level: high

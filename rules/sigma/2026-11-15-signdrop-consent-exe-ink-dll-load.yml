@@ -1,0 +1,27 @@
+title: SignDrop - Consent.exe Loading DLL from Ink Directory
+id: b7d2f4a8-1c3e-4d9b-8f6a-5e0c7b3d1a9f
+status: experimental
+description: >
+    Detects consent.exe (UAC prompt) loading a DLL from the Microsoft Shared
+    Ink directory, which is a key step in the SignDrop exploit where a planted
+    DLL is loaded by the SYSTEM-level consent process.
+references:
+    - https://securityaffairs.com/202968/hacking/new-signdrop-exploit-can-abuse-windows-defender-to-bypass-security-protections.html
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1068
+    - attack.t1574.001
+logsource:
+    category: image_load
+    product: windows
+detection:
+    selection_process:
+        Image|endswith: '\consent.exe'
+    selection_dll:
+        ImageLoaded|contains: '\Microsoft Shared\ink\'
+    condition: selection_process and selection_dll
+falsepositives:
+    - Legitimate accessibility tools loading from the ink directory (very rare for consent.exe)
+level: high
