@@ -1,0 +1,34 @@
+title: SignDrop - On-Screen Keyboard Launched by Unexpected Parent
+id: e6a0c3d8-5f9b-4e4c-b2a7-8d1f0e6c7b3a
+status: experimental
+description: >
+    Detects osk.exe (On-Screen Keyboard) launched by an unexpected parent
+    process. The SignDrop exploit launches a hidden osk.exe to set up the
+    consent.exe DLL hijack chain.
+references:
+    - https://securityaffairs.com/202968/hacking/new-signdrop-exploit-can-abuse-windows-defender-to-bypass-security-protections.html
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\osk.exe'
+    filter_legitimate:
+        ParentImage|endswith:
+            - '\explorer.exe'
+            - '\svchost.exe'
+            - '\winlogon.exe'
+            - '\userinit.exe'
+            - '\LogonUI.exe'
+            - '\AtBroker.exe'
+            - '\ShellExperienceHost.exe'
+    condition: selection and not filter_legitimate
+falsepositives:
+    - Accessibility software or automation tools launching osk.exe
+    - Remote desktop solutions starting on-screen keyboard
+level: low

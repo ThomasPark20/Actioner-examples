@@ -1,0 +1,23 @@
+title: Antino Implant File Creation in GatherOSStateKit Directory
+id: c4f9a3e7-1b5d-4c8e-9a2f-e6d0b3c7f1a8
+status: experimental
+description: >
+    Detects file creation in the Windows GatherOSStateKit directory under LocalAppData,
+    used by the Antino implant as its persistence location with a random 8-character filename.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1036.005
+    - attack.t1547.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Windows GatherOSStateKit\'
+    condition: selection
+falsepositives:
+    - Legitimate Windows GatherOSState tool activity, though the directory name includes a space which distinguishes this from the real GatherOSState path
+level: high

@@ -1,0 +1,30 @@
+title: PHP2Shell Webshell Template File on Check Point Gateway
+id: c7f1d866-f878-45e0-acb9-19173e38514f
+status: experimental
+description: >
+    Detects creation of suspicious .tpl files in Check Point Mobile Access portal
+    directories matching the zz*.tpl naming pattern or known staging paths used
+    during PHP2Shell exploitation (CVE-2026-109618, CVE-2026-109619).
+references:
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+    - https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1505.003
+    - attack.t1190
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_staging:
+        TargetFilename|contains:
+            - '/tmp/.up.tpl'
+            - 'challenge_render.tpl'
+    selection_webshell_pattern:
+        TargetFilename|endswith: '.tpl'
+        TargetFilename|contains: '/CPcvpn'
+    condition: selection_staging or selection_webshell_pattern
+falsepositives:
+    - Legitimate Check Point portal template updates
+level: high

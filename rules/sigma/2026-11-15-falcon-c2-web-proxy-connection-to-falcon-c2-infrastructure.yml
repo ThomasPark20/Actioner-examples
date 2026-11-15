@@ -1,0 +1,28 @@
+title: Web Proxy Connection to Falcon C2 Infrastructure
+id: f7a0d4e8-6c9b-4f1a-d5e3-c2b9f8a4e0d6
+status: experimental
+description: >
+    Detects proxy log entries showing connections to known Falcon C2 domains and
+    their characteristic URI path patterns used for configuration retrieval and
+    payload delivery.
+references:
+    - https://unit42.paloaltonetworks.com/falcon-c2-browser-compromise/
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1071.001
+    - attack.t1102.002
+logsource:
+    category: proxy
+detection:
+    selection_domains:
+        cs-host|endswith:
+            - 'tarotfree101.top'
+            - 'chrorne.com'
+            - 'avbliud.com'
+            - 'microsoft-flash.com'
+            - 'wps-cn.com'
+    condition: selection_domains
+falsepositives:
+    - Unlikely; these are attacker-controlled domains
+level: high

@@ -1,0 +1,26 @@
+title: destroy_v6 Wiper or DREAM_ANNEXATION Note Detection
+id: 23618ce7-c68d-4a6b-9e25-3aefe0c9e6e3
+status: experimental
+description: >
+    Detects creation of the destroy_v6 Linux ELF wiper binary or the
+    DREAM_ANNEXATION.txt note file dropped during destructive operations
+    linked to the PHP2Shell Check Point gateway exploitation campaign.
+references:
+    - https://thehackernews.com/2026/11/hackers-exploit-php2shell-flaws-in.html
+    - https://securityaffairs.com/202982/hacking/unpatched-check-point-gateways-are-being-wiped-exploiting-php2shell.html
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1485
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains:
+            - 'destroy_v6'
+            - 'DREAM_ANNEXATION.txt'
+    condition: selection
+falsepositives:
+    - Unlikely in production environments
+level: high

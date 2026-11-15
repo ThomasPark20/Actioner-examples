@@ -1,0 +1,26 @@
+title: SignDrop - SYSTEM Conhost Spawned After Ink Directory Activity
+id: c4e8a1b6-3d7f-4c2a-9e5b-6f1d0a8c4b3e
+status: experimental
+description: >
+    Detects conhost.exe running as SYSTEM on the interactive desktop, which
+    may indicate the final stage of the SignDrop exploit where a SYSTEM shell
+    is obtained via consent.exe DLL hijacking.
+references:
+    - https://securityaffairs.com/202968/hacking/new-signdrop-exploit-can-abuse-windows-defender-to-bypass-security-protections.html
+    - https://www.cyderes.com/howler-cell/signdrop-zero-day
+author: Actioner
+date: 2026-11-15
+tags:
+    - attack.t1068
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\conhost.exe'
+        User|contains: 'SYSTEM'
+        ParentImage|endswith: '\consent.exe'
+    condition: selection
+falsepositives:
+    - Legitimate UAC consent processes spawning console hosts (uncommon but possible)
+level: medium
