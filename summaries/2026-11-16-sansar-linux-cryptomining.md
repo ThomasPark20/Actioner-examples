@@ -209,20 +209,16 @@ SANSAR includes raw IPv4 TCP SYN flood functionality controlled via `StressStart
 | T1059.006 | Python | Python reverse shell via Ray job |
 | T1059.004 | Unix Shell | Bash shells, reverse shells |
 | T1098.004 | SSH Authorized Keys | Persistence via authorized_keys |
-| T1136.001 | Local Account | Account manipulation |
 | T1543.002 | Systemd Service | Netns backdoor persistence |
 | T1547.006 | Kernel Modules and Extensions | acpi_thermal_mgr rootkit boot loading |
-| T1611 | Escape to Host | Container/job escape |
 | T1078.003 | Valid Local Accounts | Reuse of service account |
 | T1014 | Rootkit | ftrace-based process/file hiding |
 | T1622 | Debugger Evasion | TracerPid check, timing check |
 | T1027 | Obfuscated Files | Encoded C2 hostname |
 | T1140 | Deobfuscate/Decode | Runtime hostname decoding |
-| T1685.006 | Clear Linux System Logs | Log clearing |
 | T1690 | Prevent Command History Logging | HISTFILE=/dev/null |
 | T1082 | System Information Discovery | GPU/CPU/host enumeration |
 | T1016 | Network Configuration Discovery | Public IP discovery |
-| T1021.004 | SSH | Lateral movement via SSH |
 | T1090.003 | Multi-hop Proxy | TOR C2 via Arti/Lyrebird |
 | T1102.001 | Dead Drop Resolver | Ethereum contract for C2 address |
 | T1095 | Non-Application Layer Protocol | Custom wire protocol over TOR |
@@ -393,13 +389,17 @@ Detects the specific bash invocation pattern used by SANSAR's interactive shell 
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
 
-**Compile status**: compiled (Splunk + LogScale) | **Confidence**: Medium (behavioral pattern; some automation may use similar flags)
+**Compile status**: compiled (Splunk + LogScale) | **Confidence**: Low (behavioral pattern; matches Docker entrypoints, Ansible, CI runners) | **Use**: Informational/correlation only
 
 ```yaml
 title: SANSAR Anti-Forensic Shell Execution
 id: 4d6e8f0a-3c5b-7d9e-1f2a-4b6c8e0f2a3d
 status: experimental
-description: Detects bash execution with --norc --noprofile flags combined with HISTFILE set to /dev/null, a pattern used by SANSAR to open interactive shells that leave no command history.
+description: >
+    Detects bash execution with --norc --noprofile flags from non-login-shell parent processes.
+    SANSAR uses this pattern when opening interactive C2 shells (it also sets HISTFILE=/dev/null
+    via environment variable, which this rule cannot observe). Use as a correlation indicator
+    alongside other SANSAR detection rules, not as a standalone alert.
 references:
     - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
     - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
@@ -417,18 +417,28 @@ detection:
         CommandLine|contains|all:
             - '--norc'
             - '--noprofile'
-    filter_env:
+    filter_login:
         ParentImage|endswith:
             - '/sshd'
             - '/login'
             - '/su'
-    condition: selection and not filter_env
+    filter_automation:
+        ParentImage|endswith:
+            - '/docker'
+            - '/containerd-shim'
+            - '/ansible'
+            - '/python'
+            - '/jenkins'
+    condition: selection and not filter_login and not filter_automation
 falsepositives:
-    - Some automation scripts launch bash with --norc --noprofile for clean environments
-level: medium
+    - Docker container entrypoints
+    - Ansible playbook execution
+    - CI/CD runners and build systems
+    - Shell initialization scripts
+level: low
 ```
 
-> **Caveat**: This is a behavioral pattern not unique to SANSAR; tune thresholds per environment.
+> **Caveat**: This is a behavioral pattern not unique to SANSAR. The rule detects only the `--norc --noprofile` CLI arguments; it does NOT detect the `HISTFILE=/dev/null` environment variable manipulation. Use only as a correlation indicator alongside other SANSAR artifacts.
 
 ---
 
@@ -438,13 +448,17 @@ Detects enabling or starting of the netns systemd service used as a persistent b
 
 <!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
 
-**Compile status**: compiled (Splunk + LogScale) | **Confidence**: Medium (the name "netns" overlaps with Linux network namespace tooling)
+**Compile status**: compiled (Splunk + LogScale) | **Confidence**: Low (the name "netns" collides with Linux network namespace tooling)
 
 ```yaml
 title: Netns Backdoor Systemd Service Installation
 id: 5e7f9a1b-4d6c-8e0f-2a3b-5c7d9f1a3b4e
 status: experimental
-description: Detects systemctl commands enabling or starting the netns service, an Ethereum-assisted backdoor used by REF3364 for persistent access.
+description: >
+    Detects systemctl commands enabling or starting a netns-related service that references
+    the SANSAR staging directory, or direct execution of the netns backdoor binary. The bare
+    service name "netns" collides with Linux network namespace tooling; the path-based
+    selection anchors detection to the REF3364 toolkit.
 references:
     - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
     - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
@@ -457,21 +471,27 @@ logsource:
     category: process_creation
     product: linux
 detection:
-    selection:
+    selection_systemctl_path:
         Image|endswith: '/systemctl'
-        CommandLine|contains|all:
-            - 'netns'
+        CommandLine|contains:
+            - '/opt/vadi_/netns'
+    selection_systemctl_service:
+        Image|endswith: '/systemctl'
+        CommandLine|contains: 'netns.service'
     selection_action:
         CommandLine|contains:
             - 'enable'
             - 'start'
-    condition: selection and selection_action
+    selection_direct:
+        Image|contains: '/opt/vadi_/netns'
+    condition: ((selection_systemctl_path or selection_systemctl_service) and selection_action) or selection_direct
 falsepositives:
-    - Linux network namespace management tools using netns naming
-level: medium
+    - Linux network namespace management tools using netns naming (mitigated by path anchoring)
+    - Container orchestration platforms managing network namespaces
+level: low
 ```
 
-> **Caveat**: High false-positive potential in container/Kubernetes environments where `netns` is a common term; correlate with other SANSAR indicators.
+> **Caveat**: The systemctl-only selections (without the `/opt/vadi_/` path) have high false-positive potential in container/Kubernetes environments. The path-anchored selections are more reliable. Correlate with other SANSAR indicators.
 
 ---
 
