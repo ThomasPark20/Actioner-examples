@@ -1,3 +1,4 @@
+<!-- revision: 2026-11-16 REVISE pass -- fixed Sigma #1 tags (T1071.001→T1071.004, dropped T1568), #2 tags (dropped T1071.001 sub-technique for raw-IP rule), #5 logic (contains→contains|all, upgraded to high), #6 confidence (medium→high), #7 narrowed to RelayTrap-only and renamed filter_data→selection_details; dropped Sigma #9 (generic portproxy) and #10 (generic sqlite3 cookie theft); all modified rules re-validated -->
 # SCKit ScreenConnect Worm -- Technical Analysis (DRAFT)
 
 > **Status**: DRAFT -- generated 2026-11-16  
@@ -289,7 +290,7 @@ Rebuild devices when integrity cannot be established. The worm's per-host compil
 
 Detects DNS queries to known SCKit campaign command-and-control domains.
 
-<!-- audit: sigma check passed (MITRE fetch blocked by proxy, not a rule error); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
+<!-- audit: sigma check -x attacktag -x d3_fendtag exit 0 (MITRE fetch blocked by proxy); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 | REVISED: T1071.001→T1071.004, dropped T1568 -->
 
 **Status**: Compiled (Splunk, LogScale) | **Confidence**: High (IOC-based)
 
@@ -305,8 +306,7 @@ author: Actioner CTI
 date: 2026-11-16
 tags:
     - attack.command_and_control
-    - attack.t1071.001
-    - attack.t1568
+    - attack.t1071.004
 logsource:
     category: dns_query
     product: windows
@@ -329,7 +329,7 @@ level: high
 
 Detects outbound network connections to known SCKit attacker-controlled IP addresses.
 
-<!-- audit: sigma check passed (MITRE fetch blocked by proxy); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
+<!-- audit: sigma check -x attacktag -x d3_fendtag exit 0 (MITRE fetch blocked by proxy); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 | REVISED: dropped T1071.001 sub-technique (raw IP matching, not web protocol) -->
 
 **Status**: Compiled (Splunk, LogScale) | **Confidence**: High (IOC-based)
 
@@ -345,7 +345,6 @@ author: Actioner CTI
 date: 2026-11-16
 tags:
     - attack.command_and_control
-    - attack.t1071.001
 logsource:
     category: network_connection
     product: windows
@@ -435,9 +434,9 @@ level: critical
 
 Detects curl.exe downloading a ScreenConnect MSI installer with the campaign-specific Exploited tracking marker.
 
-<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
+<!-- audit: sigma check -x attacktag -x d3_fendtag exit 0 (MITRE fetch blocked by proxy); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 | REVISED: contains→contains|all (AND logic fix), confidence upgraded to high -->
 
-**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral + IOC-specific string)
+**Status**: Compiled (Splunk, LogScale) | **Confidence**: High (IOC-based -- `c=Exploited` marker is campaign-specific)
 
 ```yaml
 title: SCKit Rogue ScreenConnect MSI Download via Curl
@@ -459,12 +458,12 @@ logsource:
 detection:
     selection:
         Image|endswith: '\curl.exe'
-        CommandLine|contains:
+        CommandLine|contains|all:
             - 'ClientSetup.msi'
             - 'c=Exploited'
     condition: selection
 falsepositives:
-    - Legitimate ScreenConnect MSI deployments that happen to use curl, though the Exploited marker makes false positives unlikely
+    - Unlikely given the Exploited marker is specific to the SCKit campaign
 level: high
 ```
 
@@ -472,9 +471,9 @@ level: high
 
 Detects process execution with command-line strings unique to the SCKit toolkit components.
 
-<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
+<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 | REVISED: confidence upgraded medium→high (IOC-grade strings) -->
 
-**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral, string-matching on command lines)
+**Status**: Compiled (Splunk, LogScale) | **Confidence**: High (IOC-grade identifiers -- SCKitBundle, RelayTrap, TrapWatch, etc. are unique to this toolkit)
 
 ```yaml
 title: SCKit Toolkit Command Line Indicators
@@ -516,15 +515,15 @@ level: high
 
 Detects Defender path exclusion registry writes referencing SCKit-associated staging directories.
 
-<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
+<!-- audit: sigma check -x attacktag -x d3_fendtag exit 0 (MITRE fetch blocked by proxy); sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 | REVISED: narrowed to RelayTrap-only (CWInstall_/ConnectWiseControl_ too broad), renamed filter_data→selection_details -->
 
-**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral -- Defender exclusions for CWInstall_ or ConnectWiseControl_ could be legitimate)
+**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral -- requires RelayTrap string to distinguish from legitimate ConnectWise exclusions)
 
 ```yaml
-title: SCKit Defender Exclusion for Staging Directories
+title: SCKit Defender Exclusion for RelayTrap Staging Directory
 id: a3c7d9e6-2b88-4f37-e1c8-4b6a8a3f7c25
 status: experimental
-description: Detects registry writes adding Windows Defender path exclusions for directories associated with SCKit staging (CWInstall_, RelayTrap, ConnectWiseControl_)
+description: Detects registry writes adding Windows Defender path exclusions that reference RelayTrap, the SCKit persistence component
 references:
     - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
 author: Actioner CTI
@@ -538,14 +537,11 @@ logsource:
 detection:
     selection_path:
         TargetObject|contains: '\Windows Defender\Exclusions\Paths'
-    filter_data:
-        Details|contains:
-            - 'CWInstall_'
-            - 'RelayTrap'
-            - 'ConnectWiseControl_'
-    condition: selection_path and filter_data
+    selection_details:
+        Details|contains: 'RelayTrap'
+    condition: selection_path and selection_details
 falsepositives:
-    - Legitimate ScreenConnect deployments that add Defender exclusions, though RelayTrap exclusions are not legitimate
+    - Unlikely given RelayTrap is specific to the SCKit campaign
 level: high
 ```
 
@@ -583,80 +579,8 @@ falsepositives:
 level: medium
 ```
 
-#### 9. SCKit Port Proxy Redirect via Netsh
-
-Detects netsh portproxy commands redirecting localhost port 88, used by SCKit for relay traffic redirection to attacker infrastructure.
-
-<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
-
-**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral -- legitimate portproxy use is possible)
-
-```yaml
-title: SCKit Port Proxy Redirect via Netsh
-id: c5e9f1a8-4d00-4b59-a3e0-6d8a0c5b9e47
-status: experimental
-description: Detects netsh portproxy commands redirecting localhost port 88 to external infrastructure, a technique used by the SCKit campaign for relay redirection
-references:
-    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
-author: Actioner CTI
-date: 2026-11-16
-tags:
-    - attack.command_and_control
-    - attack.t1090
-    - attack.defense_evasion
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\netsh.exe'
-        CommandLine|contains|all:
-            - 'portproxy'
-            - '127.0.0.1'
-            - '88'
-    condition: selection
-falsepositives:
-    - Legitimate netsh portproxy configurations using port 88, though the combination is unusual
-level: medium
-```
-
-#### 10. SCKit SQLite3 Cookie Database Theft
-
-Detects sqlite3.exe execution targeting browser cookie databases, used by SCKit to steal ScreenConnect session cookies.
-
-<!-- audit: sigma check passed after UUID fix; sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
-
-**Status**: Compiled (Splunk, LogScale) | **Confidence**: Medium (behavioral -- sqlite3 may be used legitimately)
-
-```yaml
-title: SCKit SQLite3 Cookie Database Theft
-id: d6f0a2b9-5e11-4c60-b4f1-7e9a1d6c0f58
-status: experimental
-description: Detects sqlite3.exe execution targeting browser cookie databases, a technique used by SCKit to steal ScreenConnect session cookies
-references:
-    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
-    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
-author: Actioner CTI
-date: 2026-11-16
-tags:
-    - attack.credential_access
-    - attack.t1539
-    - attack.t1555.003
-logsource:
-    category: process_creation
-    product: windows
-detection:
-    selection:
-        Image|endswith: '\sqlite3.exe'
-        CommandLine|contains:
-            - 'Cookies'
-            - '.ASPXAUTH'
-            - 'cookie'
-    condition: selection
-falsepositives:
-    - Database administration tools querying browser databases for legitimate purposes
-level: high
-```
+<!-- DROPPED: Sigma #9 (Port Proxy Redirect via Netsh) -- too generic; matching any netsh portproxy with 127.0.0.1 and substring "88" fires on legitimate configurations. -->
+<!-- DROPPED: Sigma #10 (SQLite3 Cookie Database Theft) -- not SCKit-specific; generic credential theft pattern applicable to many toolkits. -->
 
 ### YARA Rules
 

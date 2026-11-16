@@ -1,0 +1,28 @@
+# SCKit ScreenConnect Worm - Suricata Detection Rules
+# 11 rules: DNS lookups (6), IP connections (3), HTTP patterns (2)
+# Generated 2026-11-16
+# References:
+#   - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+#   - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - ns.mo7sen.dev"; dns.query; content:"ns.mo7sen.dev"; nocase; sid:2026111601; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - payproofkit.com"; dns.query; content:"payproofkit.com"; nocase; sid:2026111602; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - cdn007-digitaldownloads.com"; dns.query; content:"cdn007-digitaldownloads.com"; nocase; sid:2026111603; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - newnewnew.gotdns.org"; dns.query; content:"newnewnew.gotdns.org"; nocase; sid:2026111604; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - soxnewwork.homedns.org"; dns.query; content:"soxnewwork.homedns.org"; nocase; sid:2026111605; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert dns $HOME_NET any -> any any (msg:"SCKIT C2 DNS Lookup - from-ak.com"; dns.query; content:"from-ak.com"; nocase; sid:2026111606; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity;)
+
+alert tcp $HOME_NET any -> 185.99.255.28 any (msg:"SCKIT C2 Connection to Known Attacker IP 185.99.255.28"; sid:2026111607; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert tcp $HOME_NET any -> 155.94.150.39 any (msg:"SCKIT C2 Connection to Known Attacker IP 155.94.150.39"; sid:2026111608; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert tcp $HOME_NET any -> 185.241.211.197 any (msg:"SCKIT C2 Connection to Known Attacker IP 185.241.211.197"; sid:2026111609; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.huntress.com/blog/sckit-worm-rogue-screenconnect; classtype:trojan-activity;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SCKIT C2 HTTP Request to EadF.php Stager"; flow:established,to_server; http.uri; content:"/EadF.php"; nocase; sid:2026111610; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SCKIT Rogue ScreenConnect MSI Download with Exploited Marker"; flow:established,to_server; http.uri; content:"ClientSetup.msi"; content:"c=Exploited"; sid:2026111611; rev:1; metadata:severity high, deployment Perimeter, created_at 2026_11_16; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; classtype:trojan-activity;)

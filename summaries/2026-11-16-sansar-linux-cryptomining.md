@@ -1,6 +1,8 @@
-# SANSAR Linux Cryptomining Malware (REF3364) -- Draft Technical Analysis
+<!-- revision: 2026-11-16 REVISE pass. Dropped Sigma-6 (nvidia-smi, no signal), Suricata-2 (ipify, too common), Suricata-3 (port 9051, generic). Fixed Sigma-4: downgraded to Low, corrected description (rule detects --norc --noprofile only, not HISTFILE env var), marked informational. Fixed Sigma-5: downgraded to Low, added /opt/vadi_/netns path anchoring. Fixed Suricata-4: flow direction to_client (SHELL command is controller-to-backdoor). Removed incorrect ATT&CK mappings: T1136.001, T1611, T1685.006, T1021.004. -->
 
-> **Status**: DRAFT -- Actioner automated analysis
+# SANSAR Linux Cryptomining Malware (REF3364) -- Technical Analysis
+
+> **Status**: REVISED -- Actioner automated analysis (reviewed)
 > **Date**: 2026-11-16
 > **Analyst**: Actioner (automated)
 > **Classification**: TLP:CLEAR
@@ -495,43 +497,9 @@ level: low
 
 ---
 
-### Sigma Rule 6: GPU Reconnaissance via nvidia-smi Query Format
+### ~~Sigma Rule 6: GPU Reconnaissance via nvidia-smi Query Format~~ (DROPPED)
 
-Detects the specific nvidia-smi query pattern used by SANSAR for GPU inventory.
-
-<!-- audit: sigma convert --without-pipeline -t splunk exit 0; sigma convert --without-pipeline -t log_scale exit 0 -->
-
-**Compile status**: compiled (Splunk + LogScale) | **Confidence**: Low (legitimate monitoring uses identical syntax)
-
-```yaml
-title: GPU Reconnaissance via nvidia-smi Query Format
-id: 6f8a0b2c-5e7d-9f1a-3b4c-6d8e0a2b4c5f
-status: experimental
-description: Detects nvidia-smi executed with the specific --query-gpu flag and CSV output format used by SANSAR for GPU inventory collection during initial reconnaissance.
-references:
-    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
-    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
-author: Actioner
-date: 2026-11-16
-tags:
-    - attack.t1082
-    - attack.t1496.001
-logsource:
-    category: process_creation
-    product: linux
-detection:
-    selection:
-        Image|endswith: '/nvidia-smi'
-        CommandLine|contains|all:
-            - '--query-gpu'
-            - '--format=csv'
-    condition: selection
-falsepositives:
-    - Legitimate GPU monitoring and inventory scripts frequently use this syntax
-level: low
-```
-
-> **Caveat**: This pattern is extremely common in legitimate GPU monitoring; use only as a correlation indicator alongside other SANSAR artifacts.
+> **Dropped during review**: The `nvidia-smi --query-gpu --format=csv` syntax is standard GPU monitoring usage with zero SANSAR-specific signal. Every GPU monitoring script, Prometheus exporter, and ML framework uses identical syntax. Removed to avoid alert fatigue.
 
 ---
 
@@ -698,49 +666,31 @@ alert tcp $HOME_NET any -> any any (msg:"SANSAR Ethereum RPC eth_call to Netns C
 
 ---
 
-### Suricata Rule 2: SANSAR Public IP Discovery DNS Lookup
+### ~~Suricata Rule 2: SANSAR Public IP Discovery DNS Lookup~~ (DROPPED)
 
-Detects DNS queries to `api.ipify.org`, used by SANSAR as the first service in its public IP discovery chain.
-
-<!-- audit: suricata -T exit 0 -->
-
-**Compile status**: compiled (suricata -T) | **Confidence**: Low (legitimate services commonly query ipify)
-
-```
-alert dns $HOME_NET any -> any any (msg:"SANSAR Public IP Discovery Service DNS Lookup"; dns.query; content:"api.ipify.org"; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:policy-violation; sid:2026002; rev:1;)
-```
-
-> **Caveat**: Use only as a correlation indicator; ipify is widely used by legitimate applications.
+> **Dropped during review**: `api.ipify.org` is used by a vast number of legitimate applications, cloud agents, and monitoring tools. No SANSAR-specific content distinguishes this traffic. Removed to avoid overwhelming analysts with false positives.
 
 ---
 
-### Suricata Rule 3: Potential TOR Hidden Service C2 on Port 9051
+### ~~Suricata Rule 3: Potential TOR Hidden Service C2 on Port 9051~~ (DROPPED)
 
-Detects outbound TCP connections to port 9051, the C2 port used by SANSAR's TOR hidden service.
-
-<!-- audit: suricata -T exit 0 -->
-
-**Compile status**: compiled (suricata -T) | **Confidence**: Low (port 9051 is also used by the Tor control protocol)
-
-```
-alert tcp $HOME_NET any -> any 9051 (msg:"SANSAR Potential TOR Hidden Service C2 on Port 9051"; flow:established,to_server; threshold:type limit,track by_src,count 1,seconds 300; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:trojan-activity; sid:2026003; rev:1;)
-```
-
-> **Caveat**: Port 9051 is the standard Tor control port; this rule is useful only in environments where Tor is not expected.
+> **Dropped during review**: Port 9051 is the standard Tor control port. A generic port match with no SANSAR-specific payload content provides no actionable signal beyond "Tor traffic exists." Removed.
 
 ---
 
 ### Suricata Rule 4: Netns Backdoor SHELL Command
 
-Detects the `SHELL ` command prefix at the start of TCP payload on port 8080, matching the netns backdoor's command protocol.
+Detects the `SHELL ` command prefix in TCP traffic on port 8080, matching the netns backdoor's command protocol. The netns binary on the compromised host connects outbound to the controller on port 8080; the controller then sends `SHELL <host> <port>` commands back, so the content travels in the `to_client` direction.
 
-<!-- audit: suricata -T exit 0 -->
+<!-- audit: suricata -T exit 0 (v2 -- flow direction fixed from to_server to to_client) -->
 
-**Compile status**: compiled (suricata -T) | **Confidence**: Medium (the "SHELL " prefix at offset 0 is distinctive but could match other protocols)
+**Compile status**: compiled (suricata -T) | **Confidence**: Medium (the "SHELL " prefix at offset 0 is distinctive but could match other protocols on port 8080)
 
 ```
-alert tcp $HOME_NET any -> any 8080 (msg:"SANSAR Netns Backdoor SHELL Command"; flow:established,to_server; content:"SHELL "; depth:6; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:trojan-activity; sid:2026004; rev:1;)
+alert tcp $HOME_NET any -> any 8080 (msg:"SANSAR Netns Backdoor SHELL Command"; flow:established,to_client; content:"SHELL "; depth:6; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:trojan-activity; sid:2026004; rev:2;)
 ```
+
+> **Caveat**: Port 8080 carries high-volume HTTP traffic in most environments. This rule may generate noise from HTTP responses that happen to start with "SHELL ". Consider scoping `$EXTERNAL_NET` or tuning with additional content matches in high-traffic environments.
 
 ---
 
