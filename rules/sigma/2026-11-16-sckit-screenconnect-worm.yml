@@ -1,0 +1,219 @@
+# SCKit ScreenConnect Worm - Sigma Detection Rules
+# 8 rules covering C2 infrastructure, persistence, staging, and toolkit indicators
+# Generated 2026-11-16 | Revised 2026-11-16 (REVISE pass)
+# References:
+#   - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+#   - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+---
+title: SCKit Campaign C2 Infrastructure DNS Lookups
+id: f7a1c3e2-9b44-4d81-a6e3-8c2f1d5b7e90
+status: experimental
+description: Detects DNS queries or network connections to known SCKit campaign C2 domains
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.command_and_control
+    - attack.t1071.004
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection:
+        QueryName|endswith:
+            - '.mo7sen.dev'
+            - '.payproofkit.com'
+            - '.from-ak.com'
+            - 'cdn007-digitaldownloads.com'
+            - 'newnewnew.gotdns.org'
+            - 'soxnewwork.homedns.org'
+    condition: selection
+falsepositives:
+    - Unlikely but validate against your environment
+level: high
+---
+title: SCKit Campaign C2 Network Connections to Known IPs
+id: b8d2e4f1-7c33-4a92-b5d6-9e1f3c8a2d70
+status: experimental
+description: Detects outbound network connections to known SCKit attacker infrastructure IP addresses
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.command_and_control
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        DestinationIp:
+            - '185.99.255.28'
+            - '155.94.150.39'
+            - '185.241.211.197'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: high
+---
+title: SCKit RelayTrap Persistence via Registry Run Key
+id: c9e3f5a2-8d44-4b93-a7e4-0d2f4c9b3e81
+status: experimental
+description: Detects creation of the RelayTrapLiteAlert registry Run key value used by SCKit for persistence
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.persistence
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\CurrentVersion\Run'
+        Details|contains: 'RelayTrap'
+    condition: selection
+falsepositives:
+    - Unlikely
+level: critical
+---
+title: SCKit TrapWatch Scheduled Task Creation
+id: d0f4a6b3-9e55-4c04-b8f5-1e3a5d0c4f92
+status: experimental
+description: Detects creation of TrapWatch scheduled task used by SCKit worm for persistence and service hijacking
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.persistence
+    - attack.t1053.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'TrapWatch'
+    condition: selection_schtasks
+falsepositives:
+    - Unlikely
+level: critical
+---
+title: SCKit Rogue ScreenConnect MSI Download via Curl
+id: e1a5b7c4-0f66-4d15-c9a6-2f4a6e1d5a03
+status: experimental
+description: Detects curl.exe downloading a ScreenConnect MSI installer with the Exploited marker in the URL, characteristic of the SCKit campaign
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.execution
+    - attack.t1105
+    - attack.t1219
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains|all:
+            - 'ClientSetup.msi'
+            - 'c=Exploited'
+    condition: selection
+falsepositives:
+    - Unlikely given the Exploited marker is specific to the SCKit campaign
+level: high
+---
+title: SCKit Toolkit Command Line Indicators
+id: f2b6c8d5-1a77-4e26-d0b7-3a5a7f2e6b14
+status: experimental
+description: Detects process execution with command-line strings characteristic of the SCKit toolkit including staging paths and tool names
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://www.huntress.com/blog/sckit-worm-rogue-screenconnect
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_toolkit:
+        CommandLine|contains:
+            - 'SCKitBundle'
+            - 'RelayTrap'
+            - 'TrapWatch'
+            - 'ToolboxRelayUploader'
+            - 'Panel-Lateral'
+            - 'sckit-decoder'
+            - 'sckit-loader'
+            - 'sckit-run'
+            - 'EadF.php'
+            - 'Stage0Loader'
+    condition: selection_toolkit
+falsepositives:
+    - Unlikely given the specificity of these strings
+level: high
+---
+title: SCKit Defender Exclusion for RelayTrap Staging Directory
+id: a3c7d9e6-2b88-4f37-e1c8-4b6a8a3f7c25
+status: experimental
+description: Detects registry writes adding Windows Defender path exclusions that reference RelayTrap, the SCKit persistence component
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.defense_evasion
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_path:
+        TargetObject|contains: '\Windows Defender\Exclusions\Paths'
+    selection_details:
+        Details|contains: 'RelayTrap'
+    condition: selection_path and selection_details
+falsepositives:
+    - Unlikely given RelayTrap is specific to the SCKit campaign
+level: high
+---
+title: SCKit Generated PowerShell Loader File Pattern
+id: b4d8e0f7-3c99-4a48-f2d9-5c7a9b4a8d36
+status: experimental
+description: Detects creation of temporary PowerShell files matching the SCKit loader naming pattern (k followed by 32 hex characters)
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner CTI
+date: 2026-11-16
+tags:
+    - attack.execution
+    - attack.t1059.001
+    - attack.defense_evasion
+    - attack.t1070.004
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|re: '\\Temp\\k[a-f0-9]{32}\.ps1$'
+    condition: selection
+falsepositives:
+    - Other tools that create similarly named temporary PowerShell scripts in the Temp directory
+level: medium

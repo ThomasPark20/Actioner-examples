@@ -1,0 +1,169 @@
+# SANSAR Linux Cryptomining Toolkit (REF3364) - Sigma Detection Rules
+# Source: Elastic Security Labs + Actioner automated analysis
+# Revision: 2026-11-16 (reviewed; Rule 6 nvidia-smi dropped for lack of signal)
+---
+title: SANSAR Cryptomining Toolkit Component Execution
+id: 7a3e1f4b-8c2d-4e5a-b6f7-9d0e1c2a3b4c
+status: experimental
+description: Detects execution of known SANSAR toolkit binaries (sansar, kurt, tilki, lyrebird, netns) associated with REF3364 cryptomining operations.
+references:
+    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
+    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
+author: Actioner
+date: 2026-11-16
+tags:
+    - attack.t1496.001
+    - attack.t1059.004
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_path:
+        Image|contains: '/opt/vadi_/'
+    selection_name:
+        Image|endswith:
+            - '/sansar'
+            - '/kurt'
+            - '/tilki'
+            - '/lyrebird'
+            - '/netns'
+    condition: selection_path or selection_name
+falsepositives:
+    - Legitimate use of identically named binaries in custom paths is unlikely but possible
+level: high
+---
+title: NVML Library Backup File Creation Indicating GPU Telemetry Hooking
+id: 2b4c6d8e-1a3f-5b7c-9d0e-2f4a6c8e0b1d
+status: experimental
+description: Detects creation of a hidden backup copy of the genuine NVIDIA Management Library, which the SANSAR toolkit creates before replacing it with a hooked wrapper that falsifies GPU utilization readings.
+references:
+    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
+    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
+author: Actioner
+date: 2026-11-16
+tags:
+    - attack.t1014
+    - attack.t1496.001
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: '.libnvidia-ml.so.1.backup'
+    condition: selection
+falsepositives:
+    - Legitimate NVIDIA driver management scripts creating backups with this exact hidden filename pattern
+level: high
+---
+title: Suspicious acpi_thermal_mgr Kernel Module Activity
+id: 3c5d7e9f-2b4a-6c8d-0e1f-3a5b7d9e1c2f
+status: experimental
+description: Detects loading or DKMS building of acpi_thermal_mgr kernel module, used by REF3364 as an ftrace-based rootkit to hide cryptomining processes, files, and network connections.
+references:
+    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
+    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
+author: Actioner
+date: 2026-11-16
+tags:
+    - attack.t1014
+    - attack.t1547.006
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_insmod:
+        Image|endswith:
+            - '/insmod'
+            - '/modprobe'
+        CommandLine|contains: 'acpi_thermal_mgr'
+    selection_dkms:
+        Image|endswith: '/dkms'
+        CommandLine|contains: 'acpi_thermal_mgr'
+    condition: selection_insmod or selection_dkms
+falsepositives:
+    - Legitimate kernel module with the same name is extremely unlikely
+level: critical
+---
+title: SANSAR Anti-Forensic Shell Execution
+id: 4d6e8f0a-3c5b-7d9e-1f2a-4b6c8e0f2a3d
+status: experimental
+description: >
+    Detects bash execution with --norc --noprofile flags from non-login-shell parent processes.
+    SANSAR uses this pattern when opening interactive C2 shells (it also sets HISTFILE=/dev/null
+    via environment variable, which this rule cannot observe). Use as a correlation indicator
+    alongside other SANSAR detection rules, not as a standalone alert.
+references:
+    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
+    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
+author: Actioner
+date: 2026-11-16
+tags:
+    - attack.t1059.004
+    - attack.t1690
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection:
+        Image|endswith: '/bash'
+        CommandLine|contains|all:
+            - '--norc'
+            - '--noprofile'
+    filter_login:
+        ParentImage|endswith:
+            - '/sshd'
+            - '/login'
+            - '/su'
+    filter_automation:
+        ParentImage|endswith:
+            - '/docker'
+            - '/containerd-shim'
+            - '/ansible'
+            - '/python'
+            - '/jenkins'
+    condition: selection and not filter_login and not filter_automation
+falsepositives:
+    - Docker container entrypoints
+    - Ansible playbook execution
+    - CI/CD runners and build systems
+    - Shell initialization scripts
+level: low
+---
+title: Netns Backdoor Systemd Service Installation
+id: 5e7f9a1b-4d6c-8e0f-2a3b-5c7d9f1a3b4e
+status: experimental
+description: >
+    Detects systemctl commands enabling or starting a netns-related service that references
+    the SANSAR staging directory, or direct execution of the netns backdoor binary. The bare
+    service name "netns" collides with Linux network namespace tooling; the path-based
+    selection anchors detection to the REF3364 toolkit.
+references:
+    - https://www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware
+    - https://thehackernews.com/2026/11/sansar-linux-cryptomining-malware-uses.html
+author: Actioner
+date: 2026-11-16
+tags:
+    - attack.t1543.002
+    - attack.t1102.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_systemctl_path:
+        Image|endswith: '/systemctl'
+        CommandLine|contains:
+            - '/opt/vadi_/netns'
+    selection_systemctl_service:
+        Image|endswith: '/systemctl'
+        CommandLine|contains: 'netns.service'
+    selection_action:
+        CommandLine|contains:
+            - 'enable'
+            - 'start'
+    selection_direct:
+        Image|contains: '/opt/vadi_/netns'
+    condition: ((selection_systemctl_path or selection_systemctl_service) and selection_action) or selection_direct
+falsepositives:
+    - Linux network namespace management tools using netns naming (mitigated by path anchoring)
+    - Container orchestration platforms managing network namespaces
+level: low

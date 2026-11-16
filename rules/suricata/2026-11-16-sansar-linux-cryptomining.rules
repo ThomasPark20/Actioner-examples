@@ -1,0 +1,14 @@
+# SANSAR Linux Cryptomining Toolkit (REF3364) - Suricata Detection Rules
+# Source: Elastic Security Labs + Actioner automated analysis
+# Date: 2026-11-16
+# Revision: Dropped ipify DNS (SID 2026002, too common) and port 9051 (SID 2026003, generic).
+#           Fixed SID 2026004 flow direction: SHELL command is controller-to-backdoor (to_client).
+
+# Rule 1: Ethereum RPC eth_call to the specific contract used by the netns backdoor
+alert tcp $HOME_NET any -> any any (msg:"SANSAR Ethereum RPC eth_call to Netns Controller Contract"; flow:established,to_server; content:"eth_call"; content:"43eb291f56688c63c93e8a93c4591fc997cf6349"; nocase; distance:0; within:200; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:trojan-activity; sid:2026001; rev:1;)
+
+# Rule 4: Netns backdoor SHELL command (controller sends "SHELL <host> <port>" back to backdoor client)
+# Note: The compromised host connects OUT to the controller on port 8080; the SHELL command
+# is sent from the controller (server) back to the compromised host (client), hence to_client.
+# Caveat: Port 8080 carries high-volume HTTP traffic; tune or scope as needed.
+alert tcp $HOME_NET any -> any 8080 (msg:"SANSAR Netns Backdoor SHELL Command"; flow:established,to_client; content:"SHELL "; depth:6; reference:url,www.elastic.co/security-labs/threat-command/sansar-linux-cryptomining-malware; classtype:trojan-activity; sid:2026004; rev:2;)
