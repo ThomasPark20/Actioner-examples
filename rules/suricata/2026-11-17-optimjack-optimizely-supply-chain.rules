@@ -1,0 +1,15 @@
+# OPTIMJACK Optimizely Supply Chain Attack - Suricata Rules
+# Author: Actioner
+# Date: 2026-11-17
+# Reference: https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+
+# DNS Queries to Malicious Domains
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Primary C2 Domain 1688360.cc"; flow:to_server; dns.query; content:"1688360.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200001; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Domain (5vobauua3ojpklx.icu)"; flow:to_server; dns.query; content:"5vobauua3ojpklx.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200002; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Domain (eil786npto9u5bq.icu)"; flow:to_server; dns.query; content:"eil786npto9u5bq.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200003; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Injector Domain webshell.lol"; flow:to_server; dns.query; content:"webshell.lol"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200004; rev:1;)
+
+# HTTP Requests to C2 Endpoints
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK HTTP Request to track.js Payload on C2 Domain"; flow:established,to_server; http.host; content:"1688360.cc"; fast_pattern; http.uri; content:"/track.js"; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200010; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Card Skimmer Exfiltration to card.php"; flow:established,to_server; http.host; content:"1688360.cc"; http.uri; content:"/card.php"; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200011; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Cookie and Screenshot Exfiltration to hit.php"; flow:established,to_server; http.host; content:"1688360.cc"; http.uri; content:"/hit.php"; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-17; sid:2200012; rev:1;)

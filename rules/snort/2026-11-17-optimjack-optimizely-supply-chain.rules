@@ -1,0 +1,8 @@
+# OPTIMJACK Optimizely Supply Chain Attack - Snort Rules
+# Author: Actioner
+# Date: 2026-11-17
+# Reference: https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to C2 Domain 1688360.cc"; flow:to_server; content:"|07|1688360|02|cc|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100001; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to Injector Domain webshell.lol"; flow:to_server; content:"|08|webshell|03|lol|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100002; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Domain 5vobauua3ojpklx.icu"; flow:to_server; content:"|0F|5vobauua3ojpklx|03|icu|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100003; rev:2;)

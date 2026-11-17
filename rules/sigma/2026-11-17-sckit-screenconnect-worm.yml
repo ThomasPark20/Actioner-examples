@@ -1,0 +1,145 @@
+title: SCKit Campaign Infrastructure Network Connection
+id: 7a3e1d9f-4b2c-4e8a-9d6f-1c0b3a5e7f2d
+status: experimental
+description: >
+    Detects network connections to known SCKit campaign infrastructure domains
+    and IP addresses used for C2, unauthorized ScreenConnect panels, and payload delivery.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+    - https://thehackernews.com/2026/11/connectwise-warns-screenconnect-attacks.html
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+    - attack.t1105
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection_domains:
+        DestinationHostname|endswith:
+            - 'mo7sen.dev'
+            - 'payproofkit.com'
+            - 'cdn007-digitaldownloads.com'
+            - 'newnewnew.gotdns.org'
+            - 'soxnewwork.homedns.org'
+    selection_ips:
+        DestinationIp:
+            - '185.99.255.28'
+            - '155.94.150.39'
+            - '185.241.211.197'
+    condition: selection_domains or selection_ips
+falsepositives:
+    - Legitimate use of newnewnew.gotdns.org or soxnewwork.homedns.org subdomains unrelated to this campaign
+level: high
+---
+title: SCKit RelayTrap Persistence via Registry Run Key
+id: 2f8c5a1d-9e3b-4d7a-8c6e-0a4f1b2d3e5c
+status: experimental
+description: >
+    Detects creation of the RelayTrapLiteAlert registry Run value used by the
+    SCKit toolkit for persistence, or registry data referencing RelayTrap components.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_valuename:
+        TargetObject|endswith: '\RelayTrapLiteAlert'
+    selection_valuedata:
+        Details|contains: 'RelayTrap'
+    condition: selection_valuename or selection_valuedata
+falsepositives:
+    - Unlikely; RelayTrapLiteAlert is a distinctive campaign artifact
+level: critical
+---
+title: SCKit Toolkit Command-Line Indicators
+id: 4d1e9a3c-6b7f-4c2d-8e5a-3f0b1c9d7e6a
+status: experimental
+description: >
+    Detects process execution with command-line strings distinctive to the SCKit
+    campaign, including the EadF.php retrieval path, the Exploited client marker,
+    and toolkit script names.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1059.001
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        CommandLine|contains:
+            - 'EadF.php'
+            - 'c=Exploited'
+            - 'Panel-Lateral'
+            - 'RelayTrap'
+            - 'TrapWatch'
+            - 'SCKitBundle'
+            - 'ToolboxRelayUploader'
+            - 'Stage0Loader'
+            - 'Lite-Alert.ps1'
+    condition: selection
+falsepositives:
+    - Custom internal tools reusing these distinctive names is extremely unlikely
+level: high
+---
+title: SCKit Generated PowerShell Loader File Creation
+id: 8b2d4e6f-1a3c-4f5e-9d7b-0c8a2e4f6d1b
+status: experimental
+description: >
+    Detects creation of temporary PowerShell loader files matching the SCKit naming
+    pattern k followed by 32 hex characters and a .ps1 extension, typically dropped
+    in the user Temp directory.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1059.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|re: '\\k[a-f0-9]{32}\.ps1$'
+    condition: selection
+falsepositives:
+    - Applications generating temporary PowerShell scripts with a similar naming convention
+level: medium
+---
+title: SCKit Defender Exclusion for ScreenConnect Installer Path
+id: 5c9e3a1b-7d4f-4e2c-8b6a-2d0f1e3c5a7b
+status: experimental
+description: >
+    Detects registry writes adding Microsoft Defender path exclusions for paths
+    consistent with SCKit staging locations, specifically CWInstall directories
+    and Windows Temp MSI files used by the campaign.
+references:
+    - https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_path:
+        TargetObject|contains: '\Microsoft\Windows Defender\Exclusions\Paths'
+    selection_value:
+        Details|contains:
+            - 'CWInstall'
+            - '\sc.msi'
+    condition: selection_path and selection_value
+falsepositives:
+    - Legitimate IT administrators excluding ConnectWise installation paths from Defender scanning
+level: medium

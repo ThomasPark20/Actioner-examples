@@ -1,0 +1,29 @@
+# PerfectPioneer / KUKURAT HTTP/3 RATs — Snort Detection Rules
+# Campaign: TGR-STA-0049 targeting Southeast Asian governments
+# Reference: https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+# Generated: 2026-11-17 | Version: 1.1 (revised)
+# Validation: snort -T exit 0 (Snort 2.9.20)
+# Notes: QUIC payload matching targets Initial/ClientHello SNI before encryption.
+#        HTTP rules use http_uri + http_header sticky buffers with Host header narrowing.
+
+# --- QUIC/SNI domain detection (UDP/443) ---
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to PerfectPioneer C2 Domain maui-cocktailbar.com"; content:"|10|maui-cocktailbar|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100010; rev:1;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain cloudflacecdn.com"; content:"|0d|cloudflacecdn|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100011; rev:1;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain police.gr.com"; content:"|06|police|02|gr|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100012; rev:1;)
+
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain investigationj6.com"; content:"|0f|investigationj6|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100013; rev:1;)
+
+# --- HTTP C2 URI with Host header narrowing (TCP) ---
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to maui-cocktailbar.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"maui-cocktailbar.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100014; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to ads-edge.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"ads-edge.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100015; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to wkuyda.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"wkuyda.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100016; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to thailisting.net"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"thailisting.net"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100017; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to yangon.it.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"yangon.it.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100018; rev:1;)

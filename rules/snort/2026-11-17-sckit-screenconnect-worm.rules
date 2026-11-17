@@ -1,0 +1,8 @@
+# SCKit ScreenConnect Worm Campaign - Snort Rules
+# Author: Actioner
+# Date: 2026-11-17
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SCKit HTTP Request to EadF.php Payload Endpoint"; flow:established,to_server; content:"/EadF.php"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; sid:2100010; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SCKit ScreenConnect Installer with Exploited Marker"; flow:established,to_server; content:"ScreenConnect.ClientSetup.msi"; http_uri; fast_pattern; content:"c=Exploited"; http_uri; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; sid:2100011; rev:1;)
