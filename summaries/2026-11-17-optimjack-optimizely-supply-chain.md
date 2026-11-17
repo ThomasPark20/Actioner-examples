@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-17
-Version: 1.0 DRAFT
+Version: 1.1
 
 ## Executive Summary
 
@@ -212,6 +212,7 @@ TRON wallet `TMLQvDvpgSyx94maptc3TxvmCVtT5qHVup` was used for cash-outs in March
 - **Page reload:** 60-second reload cycle on iOS 18.6 or earlier (visible symptom)
 - **Detection strings:** `1688360`, `atob(`, `track.js`, `.icu`, `BIGNIAO` (Coruna telemetry channel code)
 
+<!-- revision: replaced T1204.001 (User Execution) with T1565.002 (Transmitted Data Manipulation) for address swapping; replaced T1005 (Data from Local System) with T1113 (Screen Capture) for screenshot component -->
 ## MITRE ATT&CK Mapping
 
 | TID | Technique | Observed Behavior |
@@ -221,11 +222,11 @@ TRON wallet `TMLQvDvpgSyx94maptc3TxvmCVtT5qHVup` was used for cash-outs in March
 | T1185 | Browser Session Hijacking | Hooks Function.prototype.call/apply, clipboard, fetch, XHR to intercept and modify browser sessions |
 | T1056.003 | Input Capture: Web Portal Capture | Card skimmer captures card number, expiry, CVV from form submissions |
 | T1115 | Clipboard Data | Hooks clipboard and copy events to swap wallet addresses |
-| T1005 | Data from Local System | Exfiltrates document.cookie and captures page screenshots |
+| T1113 | Screen Capture | Captures page screenshot via html2canvas and exfiltrates it along with document.cookie to /hit.php |
 | T1041 | Exfiltration Over C2 Channel | Card data to /card.php, cookies/screenshots to /hit.php via sendBeacon/POST |
 | T1027 | Obfuscated Files or Information | Base64-encoded loader URL, XOR-encoded C2 strings, inline eval fallback |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication over HTTPS |
-| T1204.001 | User Execution: Malicious Link | Crypto address replacement tricks users into sending funds to attacker wallets |
+| T1565.002 | Data Manipulation: Transmitted Data Manipulation | Crypto address replacement modifies wallet addresses in transit (page content, clipboard, fetch/XHR bodies) to redirect funds to attacker wallets |
 | T1203 | Exploitation for Client Execution | iOS exploit kits (Coruna, DarkSword) delivered to mobile visitors |
 | T1587.001 | Develop Capabilities: Malware | Custom multi-function payload (clipper, skimmer, screenshotter, iOS router) |
 
@@ -240,6 +241,9 @@ TRON wallet `TMLQvDvpgSyx94maptc3TxvmCVtT5qHVup` was used for cash-outs in March
 ## Detection & Remediation
 
 ### Immediate Detection
+
+<!-- revision: added defanging exception note for detection query blocks -->
+> **Note:** Indicators in the search query blocks below appear without defanging (e.g., `1688360.cc` not `1688360[.]cc`) so they can be copied directly into search tools. Un-defang the IOC table entries before using them in queries, or use the literal forms shown here.
 
 Search Optimizely Project JavaScript and experiment custom code for:
 ```
@@ -274,7 +278,7 @@ Non-native Function.prototype.call or Function.prototype.apply
 3. **Treat card entries as exposed:** Any card data entered on affected sites' own forms between 13:43 and ~21:00 UTC on 16 November should be considered compromised; notify payment processor
 4. **Rotate cookie secrets:** Invalidate sessions and rotate secrets for non-HttpOnly cookies
 5. **Verify cryptocurrency transactions:** Any wallet addresses displayed on affected pages during the exposure window may have been swapped
-6. **Update iOS devices:** Ensure iOS 18.7.3+ or 26.3+ to mitigate Coruna/DarkSword exploit chains
+6. **Update iOS devices:** Ensure iOS 18.7.3+ or 26.3+ to mitigate Coruna/DarkSword exploit chains (these version thresholds are derived from comments in the exploit kit code; verify against Apple's official security updates at https://support.apple.com/en-us/100100 before treating as authoritative)
 7. **Contact Optimizely:** Request confirmation of which project IDs were modified
 
 ### Long-Term Hardening
@@ -402,11 +406,12 @@ level: high
 
 Detects DNS queries to the OPTIMJACK primary C2 domain and key infrastructure domains using DNS label-length encoding.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: snort -T exit 0 with custom config including classification.config. Snort 2.9.20. DNS label encoding: |07|=7-byte label "1688360", |02|=2-byte "cc", |00|=root; |08|=8-byte "webshell", |03|=3-byte "lol"; |10|=16-byte "5vobauua3ojpklx", |03|=3-byte "icu". -->
+<!-- audit: snort -T exit 0 with custom config including classification.config. Snort 2.9.20. DNS label encoding: |07|=7-byte label "1688360", |02|=2-byte "cc", |00|=root; |08|=8-byte "webshell", |03|=3-byte "lol"; |0F|=15-byte "5vobauua3ojpklx", |03|=3-byte "icu". -->
+<!-- revision: fixed DNS label length for 5vobauua3ojpklx from |10| (hex 16) to |0F| (hex 15); "5vobauua3ojpklx" is 15 bytes -->
 ```snort
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to C2 Domain 1688360.cc"; flow:to_server; content:"|07|1688360|02|cc|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100001; rev:1;)
 alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to Injector Domain webshell.lol"; flow:to_server; content:"|08|webshell|03|lol|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100002; rev:1;)
-alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Domain 5vobauua3ojpklx.icu"; flow:to_server; content:"|10|5vobauua3ojpklx|03|icu|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100003; rev:1;)
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Domain 5vobauua3ojpklx.icu"; flow:to_server; content:"|0F|5vobauua3ojpklx|03|icu|00|"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; sid:2100003; rev:1;)
 ```
 
 ### Suricata: OPTIMJACK DNS Queries to Malicious Domains
@@ -435,8 +440,9 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Cookie 
 ### YARA: OPTIMJACK track.js Payload Detection
 
 Detects the OPTIMJACK track.js payload via its distinctive JavaScript globals, exfiltration endpoints, and hardcoded attacker wallet addresses.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on constructed positive containing published globals (window._k7 etc.), exfil endpoints (/card.php, /hit.php), domain (1688360.cc), and wallet addresses from source IOC table; quiet on benign analytics script. Positive strings are from Report URI and StepSecurity published analysis, not invented. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed positive (not a real capture)
+<!-- audit: yarac exit 0. Sample test: fired on constructed positive containing published globals (window._k7 etc.), exfil endpoints (/card.php, /hit.php), domain (1688360.cc), and wallet addresses from source IOC table; quiet on benign analytics script. Positive strings are from Report URI and StepSecurity published analysis, not invented. The positive sample was fabricated from published IOCs, not a real malware capture. -->
+<!-- revision: relabeled "sample: fired" to "sample: constructed positive (not a real capture)" for honesty about test methodology -->
 ```yara
 rule Supply_Chain_OPTIMJACK_TrackJS_Payload
 {
@@ -474,8 +480,9 @@ rule Supply_Chain_OPTIMJACK_TrackJS_Payload
 ### YARA: OPTIMJACK Loader Variant Detection
 
 Detects OPTIMJACK loader variants injected into Optimizely Project JavaScript, including the base64-obfuscated and inline eval forms, and the iOS exploit router markers.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
-<!-- audit: yarac exit 0. Sample test: fired on positive containing "1688360.cc/track.js"; quiet on benign. The plain loader string is the most direct indicator; atob+_k7 catches the obfuscated variant; channel code 02111110 + iOS paths catch the mobile router. -->
+**Status:** compile ✅ compiles · confidence: high · sample: constructed positive (not a real capture)
+<!-- audit: yarac exit 0. Sample test: fired on constructed positive containing "1688360.cc/track.js"; quiet on benign. The plain loader string is the most direct indicator; atob+_k7 catches the obfuscated variant; channel code 02111110 + iOS paths catch the mobile router. The positive sample was fabricated from published IOCs, not a real malware capture. -->
+<!-- revision: relabeled "sample: fired" to "sample: constructed positive (not a real capture)" for honesty about test methodology -->
 ```yara
 rule Supply_Chain_OPTIMJACK_Loader_Variants
 {

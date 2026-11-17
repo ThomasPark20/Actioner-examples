@@ -1,0 +1,86 @@
+title: OPTIMJACK C2 Domain in Proxy Logs
+id: 7f3a8b1c-4e2d-4a6f-9c5b-2d1e0f8a3c7b
+status: experimental
+description: >
+    Detects proxy/web log requests to the OPTIMJACK C2 domain 1688360.cc, used to
+    serve the crypto clipper, card skimmer, and data exfiltration endpoints (track.js,
+    card.php, hit.php) in the Optimizely supply chain attack of November 2026.
+references:
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://thehackernews.com/2026/11/hijacked-optimizely-scripts-served-card.html
+    - https://stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-host|contains: '1688360.cc'
+    condition: selection
+falsepositives:
+    - None expected; this is an attacker-registered domain
+level: high
+---
+title: OPTIMJACK DNS Query to Known Malicious Domains
+id: 9e4c2d1f-5b3a-4f8e-a7d6-3c0b1e9f2a5d
+status: experimental
+description: >
+    Detects DNS queries to domains associated with the OPTIMJACK Optimizely supply chain
+    attack, including the primary C2 domain, iOS exploit delivery domains, and the
+    webshell.lol injector domain.
+references:
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://thehackernews.com/2026/11/hijacked-optimizely-scripts-served-card.html
+    - https://stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '1688360.cc'
+            - 'webshell.lol'
+            - '5vobauua3ojpklx.icu'
+            - 'eil786npto9u5bq.icu'
+            - 'l7bcsnwc7nzr3uo.icu'
+            - 'je4ft3gn8vxudum.icu'
+            - 'ios-hack.icu'
+            - 'q1ls1ho9x7wsxlu.icu'
+            - 'p55abnw2pnsz0bo.icu'
+            - '1y69gy2mdzaltz1.icu'
+            - 'gm38duxoihbmy5o.icu'
+            - 'linkforge.cc'
+    condition: selection
+falsepositives:
+    - None expected; all are attacker-registered domains
+level: high
+---
+title: OPTIMJACK Network Connection to C2 IP
+id: b2d4e6f8-1a3c-5b7d-9e0f-4c2a6b8d0e1f
+status: experimental
+description: >
+    Detects outbound network connections to the IP address 136.113.106.136, which hosted
+    the OPTIMJACK C2 domain 1688360.cc used in the Optimizely supply chain attack.
+references:
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp: '136.113.106.136'
+    condition: selection
+falsepositives:
+    - IP may be reassigned in the future; verify with current DNS resolution
+level: high
