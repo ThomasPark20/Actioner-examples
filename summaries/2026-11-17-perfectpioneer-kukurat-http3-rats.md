@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -314,7 +314,7 @@ Get-ItemProperty "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" | Format-
 Get-ChildItem "\Windows\Temp\MxA.tar" -ErrorAction SilentlyContinue
 
 # Check for suspicious QUIC traffic (requires network visibility)
-# Monitor for outbound UDP/443 to known C2 IPs: 27.254.164.212, 27.254.164.209
+# Monitor for outbound UDP/443 to known C2 IPs: 27[.]254[.]164[.]212, 27[.]254[.]164[.]209
 
 # Check for Exchange mailbox permission abuse
 Get-MailboxPermission -Identity <mailbox> | Where-Object { $_.AccessRights -contains "FullAccess" -and $_.IsInherited -eq $false }
@@ -325,7 +325,7 @@ Get-ManagementRoleAssignment -Role:ApplicationImpersonation
 
 ### Remediation
 
-1. **Block outbound UDP/443 (QUIC)** to force C2 fallback to inspectable TCP/HTTP/2 channels, then inspect for the known C2 URI patterns.
+1. **Block outbound UDP/443 (QUIC)** to force C2 fallback to inspectable TCP/HTTP/2 channels, then inspect for the known C2 URI patterns. **Caveat:** Blocking QUIC will affect legitimate services that rely on HTTP/3 (Google Search, YouTube, Gmail, Microsoft 365, Cloudflare-fronted sites). Evaluate operational impact before deploying; consider selective blocking to known C2 IPs/domains or deploying QUIC inspection instead of a blanket block.
 2. **Block known C2 domains** at DNS and proxy: maui-cocktailbar[.]com, ads-edge[.]com, wkuyda[.]com, thailisting[.]net, yangon[.]it[.]com, cloudflacecdn[.]com, police[.]gr[.]com, investigationj6[.]com, sacofficegov[.]com.
 3. **Block known C2 IPs:** 27[.]254[.]164[.]212, 27[.]254[.]164[.]209.
 4. **Hunt for file hashes** across endpoints using the SHA256 IOC list above.
@@ -350,6 +350,7 @@ These detections target the PerfectPioneer/KUKURAT campaign at PoC/advisory-spec
 Detects DNS queries to the nine known C2 domains used by PerfectPioneer and KUKURAT malware associated with TGR-STA-0049.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue, not rule error); splunk convert exit 0; log_scale convert exit 0. All domains from Unit 42 published IOC list. Domains are actor-registered and highly distinctive. -->
+<!-- revision: v1.1 — Removed attack.t1568 (Dynamic Resolution) tag. These are static known domains, not dynamically resolved. Retained attack.t1071.001 (Web Protocols). -->
 ```yaml
 title: PerfectPioneer/KUKURAT Known C2 Domain DNS Query
 id: 7a3e8c1f-4d2b-4e9a-b6c3-1f8d5e2a9b74
@@ -364,7 +365,6 @@ author: Actioner
 date: 2026/11/17
 tags:
     - attack.t1071.001
-    - attack.t1568
 logsource:
     category: dns_query
 detection:
@@ -386,9 +386,10 @@ level: high
 ```
 
 ### Sigma: PerfectPioneer RAT C2 URI Path Pattern
-Detects HTTP requests matching PerfectPioneer's `/agent/*` C2 URI pattern in proxy logs. Scope to known C2 domains or suspicious destinations to reduce false positives from legitimate APIs.
+Detects HTTP requests matching PerfectPioneer's `/agent/*` C2 URI pattern in proxy logs, narrowed to known C2 domains and IPs to avoid false positives from legitimate REST APIs using the same path conventions.
 **Status:** compile ✅ compiles · confidence: medium
-<!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue); splunk convert exit 0; log_scale convert exit 0. URI pattern is moderately distinctive -- /agent/ prefix may appear in legitimate APIs; pairing with C2 domain IOCs recommended. -->
+<!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue); splunk convert exit 0; log_scale convert exit 0. URI pattern alone is too generic (/agent/ prefix common in REST APIs). Now AND-gated with cs-host matching known C2 domains/IPs. -->
+<!-- revision: v1.1 — Added cs-host condition with 9 C2 domains and 2 IPs (AND logic) per critic finding that /agent/* paths are common REST API patterns. -->
 ```yaml
 title: PerfectPioneer RAT C2 URI Path Pattern
 id: 2c9d4e8f-5b3a-41d6-8e7c-3a2f1d6b4c95
@@ -396,7 +397,7 @@ status: experimental
 description: >
     Detects HTTP requests matching the PerfectPioneer RAT C2 URI path
     pattern (/agent/register, /agent/heartbeat, /agent/tasks, /agent/result)
-    indicative of TGR-STA-0049 campaign activity.
+    to known C2 domains, indicative of TGR-STA-0049 campaign activity.
 references:
     - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
 author: Actioner
@@ -406,22 +407,37 @@ tags:
 logsource:
     category: proxy
 detection:
-    selection:
+    selection_uri:
         cs-uri-stem|startswith:
             - '/agent/register'
             - '/agent/heartbeat'
             - '/agent/tasks'
             - '/agent/result'
-    condition: selection
+    selection_host:
+        cs-host|endswith:
+            - 'maui-cocktailbar.com'
+            - 'ads-edge.com'
+            - 'wkuyda.com'
+            - 'thailisting.net'
+            - 'yangon.it.com'
+            - 'cloudflacecdn.com'
+            - 'police.gr.com'
+            - 'investigationj6.com'
+            - 'sacofficegov.com'
+        cs-host:
+            - '27.254.164.212'
+            - '27.254.164.209'
+    condition: selection_uri and selection_host
 falsepositives:
-    - Legitimate APIs using /agent/ path prefix; scope to known C2 domains or suspicious destinations
+    - Unlikely when paired with known C2 host conditions
 level: medium
 ```
 
 ### Sigma: LSASS Dump via Comsvcs.dll Ordinal Call
-Detects the specific credential dumping technique observed in this campaign: rundll32 calling comsvcs.dll MiniDump by ordinal (`#+000024`).
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue); splunk convert exit 0; log_scale convert exit 0. Technique is well-documented (LOLBAS); ordinal call pattern is highly distinctive and rarely used legitimately. CommandLine values are real (not defanged). -->
+Detects the credential dumping technique observed in this campaign: rundll32 calling comsvcs.dll MiniDump by ordinal (`#+000024`), with campaign-specific output filename `MxA.tar` for additional specificity.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue); splunk convert exit 0; log_scale convert exit 0. Technique is well-documented (LOLBAS) and used across multiple campaigns (not campaign-specific), hence medium confidence. CommandLine values are real (not defanged). -->
+<!-- revision: v1.1 — Downgraded confidence from high to medium (generic TTP, not campaign-specific). Added '#+000024' to match patterns alongside '#24' since these are not substring-equivalent. Added campaign-specific output filename 'MxA.tar' as additional OR condition for specificity. -->
 ```yaml
 title: LSASS Dump via Comsvcs.dll Ordinal Call
 id: 4f8a1b3c-6d2e-49f5-a7b8-5c3e2d1f4a86
@@ -442,20 +458,29 @@ logsource:
 detection:
     selection_binary:
         Image|endswith: '\rundll32.exe'
-    selection_cmdline:
+    selection_ordinal_generic:
         CommandLine|contains|all:
             - 'comsvcs.dll'
             - '#24'
-    condition: selection_binary and selection_cmdline
+    selection_ordinal_padded:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - '#+000024'
+    selection_campaign_output:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - 'MxA.tar'
+    condition: selection_binary and (selection_ordinal_generic or selection_ordinal_padded or selection_campaign_output)
 falsepositives:
     - Legitimate use of comsvcs.dll MiniDump is extremely rare
-level: high
+level: medium
 ```
 
 ### Sigma: KUKURAT Watchdog Named Pipe Creation
 Detects creation of the `WINDOW_SEC_WATCHDOG` named pipe, a unique artifact of KUKURAT's watchdog persistence mechanism.
 **Status:** compile ✅ compiles · confidence: high
 <!-- audit: sigma check failed due to MITRE ATT&CK data fetch (network issue); splunk convert exit 0; log_scale convert exit 0. Pipe name is unique to KUKURAT and not known to be used by any legitimate software. Requires Sysmon EID 17/18 logging. -->
+<!-- revision: v1.1 — Changed MITRE tag from attack.t1559.001 (COM) to attack.t1559 (Inter-Process Communication). Named pipes are IPC, not COM. -->
 ```yaml
 title: KUKURAT Watchdog Named Pipe Creation
 id: 8e5f2c7d-3a1b-4d96-9f8e-6b4c3d2a1e57
@@ -469,7 +494,7 @@ references:
 author: Actioner
 date: 2026/11/17
 tags:
-    - attack.t1559.001
+    - attack.t1559
 logsource:
     category: pipe_created
     product: windows
@@ -514,26 +539,36 @@ falsepositives:
 level: high
 ```
 
-### Snort: Outbound QUIC to Known C2 Domains and PerfectPioneer URI
-Detects outbound QUIC (UDP/443) traffic containing DNS-encoded C2 domain labels and HTTP PerfectPioneer C2 registration URI. Note: QUIC payload matching may have limited effectiveness depending on encryption state.
+### Snort: Outbound QUIC to Known C2 Domains and PerfectPioneer URI with Host Narrowing
+Detects outbound QUIC (UDP/443) traffic containing DNS-encoded C2 domain labels and HTTP PerfectPioneer C2 registration URI narrowed to known C2 Host headers. Note: QUIC payload matching may have limited effectiveness depending on encryption state.
 **Status:** compile ✅ compiles · confidence: medium
 <!-- audit: snort -c /etc/snort/snort.conf include rule -T exit 0 (Snort 2.9.20). QUIC content matching targets Initial/ClientHello SNI before encryption. HTTP rule uses http_uri sticky buffer for TCP fallback. The QUIC rules match DNS-encoded labels in the initial handshake; post-handshake encrypted traffic will not match. -->
+<!-- revision: v1.1 — Fixed DNS label length bytes: sid:2100010 |12| (18) corrected to |10| (16) for "maui-cocktailbar"; sid:2100013 |10| (16) corrected to |0f| (15) for "investigationj6". Added Host header match to sid:2100014 for C2 domain narrowing. -->
 ```snort
-alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to PerfectPioneer C2 Domain maui-cocktailbar.com"; content:"|12|maui-cocktailbar|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100010; rev:1;)
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to PerfectPioneer C2 Domain maui-cocktailbar.com"; content:"|10|maui-cocktailbar|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100010; rev:1;)
 
 alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain cloudflacecdn.com"; content:"|0d|cloudflacecdn|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100011; rev:1;)
 
 alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain police.gr.com"; content:"|06|police|02|gr|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100012; rev:1;)
 
-alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain investigationj6.com"; content:"|10|investigationj6|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100013; rev:1;)
+alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to KUKURAT C2 Domain investigationj6.com"; content:"|0f|investigationj6|03|com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100013; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration URI"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100014; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to maui-cocktailbar.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"maui-cocktailbar.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100014; rev:2;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to ads-edge.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"ads-edge.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100015; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to wkuyda.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"wkuyda.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100016; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to thailisting.net"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"thailisting.net"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100017; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to yangon.it.com"; flow:established,to_server; content:"/agent/register"; http_uri; fast_pattern; content:"yangon.it.com"; http_header; nocase; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created 2026-11-17; sid:2100018; rev:1;)
 ```
 
-### Suricata: DNS Queries to C2 Domains, QUIC IP Detection, and C2 URI
-Detects DNS queries for all known PerfectPioneer and KUKURAT C2 domains, outbound QUIC traffic to known C2 IPs, and HTTP C2 URI patterns.
+### Suricata: DNS Queries to C2 Domains and C2 URI with Host Narrowing
+Detects DNS queries for all nine known PerfectPioneer and KUKURAT C2 domains, and HTTP C2 URI patterns narrowed to known C2 Host headers.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: suricata -T exit 0 (Suricata 7.0.3). DNS rules use dns.query sticky buffer for precise domain matching. IP-based QUIC rules use hex-encoded IP bytes in UDP/443 payload. HTTP URI rule uses http.uri dot-notation buffer. DNS and domain-based rules are highest confidence; IP/QUIC rules may have limited visibility into encrypted payloads. -->
+<!-- audit: suricata -T exit 0 (Suricata 7.0.3). DNS rules use dns.query sticky buffer for precise domain matching. HTTP URI rules use http.uri and http.host sticky buffers for precise matching. All 9 C2 domains now covered in DNS rules. -->
+<!-- revision: v1.1 — Dropped sid:2200017 and sid:2200018 (QUIC IP payload content match on encrypted traffic is unreliable). Added DNS rules for missing domains wkuyda.com (sid:2200024) and yangon.it.com (sid:2200025). Narrowed sid:2200019 HTTP URI rule with http.host matching for known C2 domains, split into per-domain rules (sid:2200019-2200023). -->
 ```suricata
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer/KUKURAT C2 Domain maui-cocktailbar.com"; dns.query; content:"maui-cocktailbar.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200010; rev:1;)
 
@@ -549,11 +584,19 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer 
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain sacofficegov.com"; dns.query; content:"sacofficegov.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200016; rev:1;)
 
-alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to Known PerfectPioneer/KUKURAT C2 IP 27.254.164.212"; content:"|1b fe a4 d4|"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200017; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain wkuyda.com"; dns.query; content:"wkuyda.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200024; rev:1;)
 
-alert udp $HOME_NET any -> $EXTERNAL_NET 443 (msg:"Actioner - Outbound QUIC to Known PerfectPioneer/KUKURAT C2 IP 27.254.164.209"; content:"|1b fe a4 d1|"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200018; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain yangon.it.com"; dns.query; content:"yangon.it.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200025; rev:1;)
 
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration URI"; flow:established,to_server; http.uri; content:"/agent/register"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200019; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to Known C2 Domain"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"maui-cocktailbar.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200019; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to ads-edge.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"ads-edge.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200020; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to wkuyda.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"wkuyda.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200021; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to thailisting.net"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"thailisting.net"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200022; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to yangon.it.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"yangon.it.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200023; rev:1;)
 ```
 
 ### YARA: PerfectPioneer and KUKURAT RAT Detection

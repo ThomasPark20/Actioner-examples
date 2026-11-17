@@ -1,0 +1,169 @@
+# PerfectPioneer / KUKURAT HTTP/3 RATs — Sigma Detection Rules
+# Campaign: TGR-STA-0049 targeting Southeast Asian governments
+# Reference: https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+# Generated: 2026-11-17 | Version: 1.1 (revised)
+# Validation: sigma convert (splunk, log_scale) exit 0; sigma check blocked by MITRE ATT&CK data fetch (network)
+
+---
+title: PerfectPioneer/KUKURAT Known C2 Domain DNS Query
+id: 7a3e8c1f-4d2b-4e9a-b6c3-1f8d5e2a9b74
+status: experimental
+description: >
+    Detects DNS queries to known C2 domains used by PerfectPioneer RAT and
+    KUKURAT malware families associated with TGR-STA-0049 targeting
+    Southeast Asian government entities.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - 'maui-cocktailbar.com'
+            - 'ads-edge.com'
+            - 'wkuyda.com'
+            - 'thailisting.net'
+            - 'yangon.it.com'
+            - 'cloudflacecdn.com'
+            - 'police.gr.com'
+            - 'investigationj6.com'
+            - 'sacofficegov.com'
+    condition: selection
+falsepositives:
+    - Unlikely; these are actor-controlled domains
+level: high
+
+---
+title: PerfectPioneer RAT C2 URI Path Pattern
+id: 2c9d4e8f-5b3a-41d6-8e7c-3a2f1d6b4c95
+status: experimental
+description: >
+    Detects HTTP requests matching the PerfectPioneer RAT C2 URI path
+    pattern (/agent/register, /agent/heartbeat, /agent/tasks, /agent/result)
+    to known C2 domains, indicative of TGR-STA-0049 campaign activity.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_uri:
+        cs-uri-stem|startswith:
+            - '/agent/register'
+            - '/agent/heartbeat'
+            - '/agent/tasks'
+            - '/agent/result'
+    selection_host:
+        cs-host|endswith:
+            - 'maui-cocktailbar.com'
+            - 'ads-edge.com'
+            - 'wkuyda.com'
+            - 'thailisting.net'
+            - 'yangon.it.com'
+            - 'cloudflacecdn.com'
+            - 'police.gr.com'
+            - 'investigationj6.com'
+            - 'sacofficegov.com'
+        cs-host:
+            - '27.254.164.212'
+            - '27.254.164.209'
+    condition: selection_uri and selection_host
+falsepositives:
+    - Unlikely when paired with known C2 host conditions
+level: medium
+
+---
+title: LSASS Dump via Comsvcs.dll Ordinal Call
+id: 4f8a1b3c-6d2e-49f5-a7b8-5c3e2d1f4a86
+status: experimental
+description: >
+    Detects the credential dumping technique observed in PerfectPioneer/KUKURAT
+    campaigns where rundll32 calls comsvcs.dll MiniDump by ordinal (#+000024)
+    to dump LSASS memory, outputting to MxA.tar.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_binary:
+        Image|endswith: '\rundll32.exe'
+    selection_ordinal_generic:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - '#24'
+    selection_ordinal_padded:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - '#+000024'
+    selection_campaign_output:
+        CommandLine|contains|all:
+            - 'comsvcs.dll'
+            - 'MxA.tar'
+    condition: selection_binary and (selection_ordinal_generic or selection_ordinal_padded or selection_campaign_output)
+falsepositives:
+    - Legitimate use of comsvcs.dll MiniDump is extremely rare
+level: medium
+
+---
+title: KUKURAT Watchdog Named Pipe Creation
+id: 8e5f2c7d-3a1b-4d96-9f8e-6b4c3d2a1e57
+status: experimental
+description: >
+    Detects creation of the WINDOW_SEC_WATCHDOG named pipe used by KUKURAT
+    malware for heartbeat communication between the RAT and its watchdog
+    companion process.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1559
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName: '\WINDOW_SEC_WATCHDOG'
+    condition: selection
+falsepositives:
+    - None known; this is a unique malware artifact
+level: high
+
+---
+title: Suspicious File Activity in Cortex XDR Masquerade Directory
+id: 1b6d3e8f-4c2a-5d97-a8b9-7e5f4c3d2b16
+status: experimental
+description: >
+    Detects file creation in the C:\ProgramData\Cyvera\Ransomware directory,
+    a path associated with Cortex XDR that KUKURAT abuses to hide its
+    watchdog process.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026/11/17
+tags:
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|startswith: 'C:\ProgramData\Cyvera\Ransomware\'
+    filter_legit:
+        Image|startswith: 'C:\Program Files\Palo Alto Networks\'
+    condition: selection and not filter_legit
+falsepositives:
+    - Legitimate Cortex XDR activity writing to this path
+level: high

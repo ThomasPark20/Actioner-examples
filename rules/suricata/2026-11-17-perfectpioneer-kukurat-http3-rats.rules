@@ -1,0 +1,39 @@
+# PerfectPioneer / KUKURAT HTTP/3 RATs — Suricata Detection Rules
+# Campaign: TGR-STA-0049 targeting Southeast Asian governments
+# Reference: https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+# Generated: 2026-11-17 | Version: 1.1 (revised)
+# Validation: suricata -T exit 0 (Suricata 7.0.3)
+# Notes: DNS rules use dns.query sticky buffer. HTTP rules use http.uri + http.host.
+#        All 9 known C2 domains covered. QUIC IP payload rules dropped (unreliable on encrypted traffic).
+
+# --- DNS queries to known C2 domains (all 9) ---
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer/KUKURAT C2 Domain maui-cocktailbar.com"; dns.query; content:"maui-cocktailbar.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain ads-edge.com"; dns.query; content:"ads-edge.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200011; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to KUKURAT C2 Domain cloudflacecdn.com"; dns.query; content:"cloudflacecdn.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200012; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to KUKURAT C2 Domain police.gr.com"; dns.query; content:"police.gr.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200013; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to KUKURAT C2 Domain investigationj6.com"; dns.query; content:"investigationj6.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200014; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain thailisting.net"; dns.query; content:"thailisting.net"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200015; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain sacofficegov.com"; dns.query; content:"sacofficegov.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200016; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain wkuyda.com"; dns.query; content:"wkuyda.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200024; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to PerfectPioneer C2 Domain yangon.it.com"; dns.query; content:"yangon.it.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200025; rev:1;)
+
+# --- HTTP C2 URI with host narrowing ---
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to Known C2 Domain"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"maui-cocktailbar.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200019; rev:2;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to ads-edge.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"ads-edge.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200020; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to wkuyda.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"wkuyda.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200021; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to thailisting.net"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"thailisting.net"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200022; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - PerfectPioneer RAT C2 Agent Registration to yangon.it.com"; flow:established,to_server; http.uri; content:"/agent/register"; http.host; content:"yangon.it.com"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/; metadata:author Actioner, created_at 2026-11-17; sid:2200023; rev:1;)
