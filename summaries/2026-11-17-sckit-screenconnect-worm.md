@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-17
-Version: 1.0 (DRAFT)
+Version: 1.1 (REVISED)
 
 ## Executive Summary
 
@@ -179,7 +179,8 @@ The campaign affects MSP environments running ConnectWise ScreenConnect with the
 ### Immediate Detection
 
 Search for the following in your environment:
-- **Network connections** to `ns.mo7sen.dev`, `sc.payproofkit.com`, `cdn007-digitaldownloads.com`, `newnewnew.gotdns.org`, `soxnewwork.homedns.org`, or IPs `185.99.255.28`, `155.94.150.39`, `185.241.211.197`
+- **Network connections** to `ns[.]mo7sen[.]dev`, `sc[.]payproofkit[.]com`, `cdn007-digitaldownloads[.]com`, `newnewnew[.]gotdns[.]org`, `soxnewwork[.]homedns[.]org`, or IPs `185[.]99[.]255[.]28`, `155[.]94[.]150[.]39`, `185[.]241[.]211[.]197` (un-defang before use in search queries)
+<!-- revision: defanged all IOCs in Immediate Detection section with [.] notation -->
 - **Process command lines** containing `EadF.php`, `c=Exploited`, `Panel-Lateral`, `RelayTrap`, `TrapWatch`, `SCKitBundle`, `ToolboxRelayUploader`, or `Stage0Loader`
 - **Registry values** named `RelayTrapLiteAlert` or containing `RelayTrap` under Run keys
 - **Scheduled tasks** with actions referencing `RelayTrap` or `TrapWatch`
@@ -204,7 +205,8 @@ Search for the following in your environment:
 - Audit and minimize third-party ScreenConnect extensions; apply the principle of least privilege to extension access keys
 - Require non-default, strong access keys for all ScreenConnect extensions
 - Monitor for unauthorized ScreenConnect client installations across the fleet
-- Implement network-level monitoring for connections to known dynamic DNS providers (gotdns.org, homedns.org) and bulletproof hosting ranges
+- Implement network-level monitoring for connections to known dynamic DNS providers (gotdns[.]org, homedns[.]org) and bulletproof hosting ranges
+<!-- revision: defanged gotdns.org and homedns.org with [.] notation in Long-Term Hardening section -->
 - Segment technician workstations from client endpoint management where feasible
 
 ## Detection Rules
@@ -214,7 +216,8 @@ These detections target the SCKit campaign's distinctive artifacts: C2 infrastru
 ### Sigma: SCKit Campaign Infrastructure Network Connection
 Detects network connections to known SCKit C2 domains and IP addresses used for payload delivery, unauthorized panels, and ScreenConnect relays.
 **Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE ATT&CK data fetch 403, network issue, not a rule defect); splunk convert exit 0; log_scale convert exit 0. gotdns.org/homedns.org are dynamic DNS providers with legitimate use — FP possible if the organization uses those providers for unrelated purposes. -->
+<!-- audit: sigma check failed (MITRE ATT&CK data fetch 403, network issue, not a rule defect); splunk convert exit 0; log_scale convert exit 0. Domain matching now uses campaign-specific subdomains (newnewnew.gotdns.org, soxnewwork.homedns.org) rather than broad dynamic DNS provider domains. -->
+<!-- revision: replaced broad endswith 'gotdns.org' and 'homedns.org' with campaign-specific subdomains 'newnewnew.gotdns.org' and 'soxnewwork.homedns.org' to avoid matching all subdomains of popular dynamic DNS providers -->
 ```yaml
 title: SCKit Campaign Infrastructure Network Connection
 id: 7a3e1d9f-4b2c-4e8a-9d6f-1c0b3a5e7f2d
@@ -239,8 +242,8 @@ detection:
             - 'mo7sen.dev'
             - 'payproofkit.com'
             - 'cdn007-digitaldownloads.com'
-            - 'gotdns.org'
-            - 'homedns.org'
+            - 'newnewnew.gotdns.org'
+            - 'soxnewwork.homedns.org'
     selection_ips:
         DestinationIp:
             - '185.99.255.28'
@@ -248,7 +251,7 @@ detection:
             - '185.241.211.197'
     condition: selection_domains or selection_ips
 falsepositives:
-    - Legitimate use of gotdns.org or homedns.org dynamic DNS subdomains unrelated to this campaign
+    - Legitimate use of newnewnew.gotdns.org or soxnewwork.homedns.org subdomains unrelated to this campaign
 level: high
 ```
 
@@ -355,8 +358,9 @@ level: medium
 
 ### Sigma: SCKit Defender Exclusion for ScreenConnect Installer Path
 Detects registry writes adding Defender path exclusions for paths consistent with SCKit staging locations (`CWInstall` directories and `sc.msi`). Scope to environments where ScreenConnect installations are centrally managed to reduce FP.
-**Status:** compile ✅ compiles · confidence: high
-<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. FP possible if IT admins legitimately exclude CWInstall paths during authorized deployments. -->
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma check failed (MITRE data fetch 403); splunk convert exit 0; log_scale convert exit 0. FP possible if IT admins legitimately exclude CWInstall paths during authorized deployments. CWInstall appears in legitimate ConnectWise deployment paths. -->
+<!-- revision: downgraded confidence from high to medium — CWInstall appears in legitimate ConnectWise deployment paths and IT admins routinely add Defender exclusions for ConnectWise installation directories -->
 ```yaml
 title: SCKit Defender Exclusion for ScreenConnect Installer Path
 id: 5c9e3a1b-7d4f-4e2c-8b6a-2d0f1e3c5a7b
@@ -437,8 +441,9 @@ alert dns $HOME_NET any -> any any (msg:"Actioner - SCKit DNS Query to cdn007-di
 
 ### YARA: SCKit Toolkit Strings
 Detects SCKit toolkit components via distinctive strings found in PowerShell scripts, batch files, and C# source, requiring 3 or more campaign-specific strings in a single file.
-**Status:** compile ✅ compiles · confidence: high · sample: fired ✓
+**Status:** compile ✅ compiles · confidence: high · sample: constructed (from published strings)
 <!-- audit: yarac exit 0. yara pos.txt matched SCKit_Toolkit_Strings; yara neg.txt silent. Positive sample constructed from published source strings (SCKitBundle, RelayTrap, EadF.php, X-Lab-Half, X-Lab-Salt, lab-context.json, -PollSeconds). 3-of-15 threshold balances coverage and FP avoidance. -->
+<!-- revision: relabeled sample status from 'fired ✓' to 'constructed (from published strings)' — the positive was a synthetic sample, not a real malware sample -->
 ```yara
 rule SCKit_Toolkit_Strings
 {

@@ -1,0 +1,12 @@
+# SCKit ScreenConnect Worm Campaign - Suricata Rules
+# Author: Actioner
+# Date: 2026-11-17
+# Reference: https://www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SCKit HTTP Request to EadF.php Payload Endpoint"; flow:established,to_server; http.uri; content:"/EadF.php"; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created_at 2026-11-17; sid:2200010; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SCKit DNS Query to mo7sen.dev C2 Domain"; flow:to_server; dns.query; content:"mo7sen.dev"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created_at 2026-11-17; sid:2200011; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SCKit DNS Query to payproofkit.com C2 Domain"; flow:to_server; dns.query; content:"payproofkit.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created_at 2026-11-17; sid:2200012; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - SCKit DNS Query to cdn007-digitaldownloads.com"; flow:to_server; dns.query; content:"cdn007-digitaldownloads.com"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.microsoft.com/en-us/security/blog/2026/11/13/sckit-abuses-screenconnect-deploy-remote-access-target-technician-sessions/; metadata:author Actioner, created_at 2026-11-17; sid:2200013; rev:1;)
