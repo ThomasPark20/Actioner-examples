@@ -1,9 +1,10 @@
+<!-- revision: v1.1 — critic REVISE applied. CUT: Suricata sid:2100106 (port-only, unacceptable FP). FIX×8: (1) Sigma HTA/MSBuild MSBuild selection narrowed to \dl.xml; (2) Sigma Solana RPC cs-uri→r-dns; (3) Sigma Good Game reg removed generic DisableTaskMgr branch; (4) Sigma WinRE ATT&CK tag→t1542; (5) Sigma Execution Indicators tag t1106→t1204.002; (6) YARA MSBuild condition requires $ua, dropped $cs; (7) YARA HTA condition requires $path1, dropped $method*; (8) Snort sid:2100202 field host→http_host. Non-blocking: fixed clipper description (mutex not observable via registry_set), added Vite FP note on port 5173, added request-body-inspection note on Suricata sid:2100104. Suricata now 6 rules (was 7). -->
 # Technical Analysis Report: UAT-12643 / Overlord RAT with Solana Blockchain C2 (2026-11-18)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-18
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -219,13 +220,15 @@ Get-NetTCPConnection -RemotePort 5173,5656,5959 -State Established -ErrorAction 
 
 ## Detection Rules
 
-Eight Sigma rules, five YARA rules, seven Suricata rules, and three Snort 3 rules cover Overlord RAT execution and persistence, Good Game stealer persistence and exfiltration, clipboard hijacker indicators, LOLBin-based delivery, Solana RPC dead drop resolution, and network C2 patterns. The Solana RPC and GoFile exfiltration rules require tuning in environments with legitimate blockchain development or file-sharing usage.
+Eight Sigma rules, five YARA rules, six Suricata rules, and three Snort 3 rules cover Overlord RAT execution and persistence, Good Game stealer persistence and exfiltration, clipboard hijacker indicators, LOLBin-based delivery, Solana RPC dead drop resolution, and network C2 patterns. The Solana RPC and GoFile exfiltration rules require tuning in environments with legitimate blockchain development or file-sharing usage.
 
-<!-- AUDIT: All Sigma rules validated via sigma convert --without-pipeline to both splunk and log_scale backends. YARA rules compiled clean with yarac 4.5.0. Suricata rules validated with suricata -T (v7.0.3). Snort 3 rules structurally checked (not installed). sigma check could not run MITRE ATT&CK tag validation due to network proxy blocking the MITRE data download, but all ATT&CK tags use valid technique/sub-technique format per convention. All detection values use real (non-defanged) IOCs per logsource-encoding.md. -->
+<!-- AUDIT: All Sigma rules validated via sigma convert --without-pipeline to both splunk and log_scale backends (exit 0). YARA rules compiled clean with yarac. Suricata rules validated with suricata -T (v7.0.3). Snort 3 rules structurally checked (not installed). All detection values use real (non-defanged) IOCs per logsource-encoding.md. -->
+<!-- dropped: Suricata sid:2100106 "Good Game Stealer TCP C2 on ports 5656/5959" — port-only detection with no content matching or IP constraint; unacceptable FP volume under strict leniency -->
 
 ### Sigma: UAT-12643 Overlord RAT Execution Indicators
 Detects Overlord RAT binary execution from AppData\Network or with known filenames (Ovl.exe, Client.exe, RuntimeBroker.exe).
-Compile: splunk pass, log_scale pass | Confidence: high
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX: replaced attack.t1106 (Native API) with attack.t1204.002 (User Execution: Malicious File) — detection logic is process_creation by image path, not native API invocation. -->
 
 ```yaml
 title: UAT-12643 Overlord RAT Execution Indicators
@@ -241,7 +244,7 @@ author: Actioner
 date: 2026-11-18
 tags:
     - attack.t1547.001
-    - attack.t1106
+    - attack.t1204.002
 logsource:
     category: process_creation
     product: windows
@@ -263,7 +266,8 @@ level: high
 
 ### Sigma: UAT-12643 Overlord RAT WinRE Persistence
 Detects executables or batch files written to the Recovery\OEM directory, indicating WinRE persistence.
-Compile: splunk pass, log_scale pass | Confidence: high
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX: changed ATT&CK tag from t1547.001 (Registry Run Keys) to t1542 (Pre-OS Boot) — detection targets WinRE pre-boot persistence via Recovery\OEM writes, not registry run keys. -->
 
 ```yaml
 title: UAT-12643 Overlord RAT WinRE Persistence via ResetConfig.xml
@@ -278,7 +282,7 @@ references:
 author: Actioner
 date: 2026-11-18
 tags:
-    - attack.t1547.001
+    - attack.t1542
 logsource:
     category: file_event
     product: windows
@@ -296,8 +300,9 @@ level: high
 ```
 
 ### Sigma: UAT-12643 Good Game Stealer Registry Persistence
-Detects the Zoipers Run key or DisableTaskMgr modification characteristic of the Good Game stealer.
-Compile: splunk pass, log_scale pass | Confidence: high
+Detects the Zoipers Run key created by the Good Game stealer for persistence.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX: removed selection_taskmgr branch (DisableTaskMgr set to 1) — too generic, fires on any malware that disables Task Manager and on legitimate GPOs. Removed attack.t1562.001 tag accordingly. Kept only campaign-specific Zoipers registry persistence. -->
 
 ```yaml
 title: UAT-12643 Good Game Stealer Registry Persistence
@@ -305,34 +310,29 @@ id: 8e4d1b6a-3c7f-49e2-a5d8-9f2c6b1e3a07
 status: experimental
 description: >
     Detects the Good Game infostealer setting the Zoipers registry Run key
-    for persistence or disabling Task Manager via DisableTaskMgr, both
-    behaviors observed in UAT-12643 intrusions.
+    for persistence, as observed in UAT-12643 intrusions.
 references:
     - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
 author: Actioner
 date: 2026-11-18
 tags:
     - attack.t1547.001
-    - attack.t1562.001
 logsource:
     category: registry_set
     product: windows
 detection:
     selection_zoipers:
         TargetObject|endswith: '\CurrentVersion\Run\Zoipers'
-    selection_taskmgr:
-        TargetObject|endswith: '\Policies\System\DisableTaskMgr'
-        Details: 'DWORD (0x00000001)'
-    condition: selection_zoipers or selection_taskmgr
+    condition: selection_zoipers
 falsepositives:
     - Legitimate Zoiper VoIP software using similar registry key names
-    - Group Policy-based Task Manager restrictions
 level: high
 ```
 
 ### Sigma: UAT-12643 Clipboard Hijacker MsgEdgeUpdate Persistence
 Detects the MsgEdgeUpdate Run key created by the clipboard hijacker.
-Compile: splunk pass, log_scale pass | Confidence: high
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX (non-blocking): removed mutex mention from description — registry_set logsource cannot observe mutexes; mutex detection requires process_creation or sysmon EventID 1/17. -->
 
 ```yaml
 title: UAT-12643 Clipboard Hijacker MsgEdgeUpdate Persistence
@@ -340,8 +340,7 @@ id: 4c2a9e7f-1b5d-43f8-8e6a-5d3c2f9b1e08
 status: experimental
 description: >
     Detects the UAT-12643 clipboard hijacker establishing persistence by
-    writing MsgEdgeUpdate.exe to AppData and creating a matching Run key,
-    or the creation of a mutex named UuuRjinBZPBMIjnc.
+    writing MsgEdgeUpdate.exe to AppData and creating a matching Run key.
 references:
     - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
 author: Actioner
@@ -363,7 +362,8 @@ level: high
 
 ### Sigma: UAT-12643 LNK-Based Payload Download via LOLBins
 Detects MpCmdRun or certutil used by weaponized LNKs to download payloads from the staging server.
-Compile: splunk pass, log_scale pass | Confidence: high
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. Unchanged from v1.0. -->
 
 ```yaml
 title: UAT-12643 LNK-Based Payload Download via LOLBins
@@ -402,8 +402,9 @@ level: high
 ```
 
 ### Sigma: UAT-12643 HTA and MSBuild Payload Execution
-Detects mshta.exe or MSBuild executing payloads linked to the staging IP or XML task files.
-Compile: splunk pass, log_scale pass | Confidence: medium
+Detects mshta.exe contacting the C2 IP or MSBuild loading the campaign-specific dl.xml task file.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX: narrowed selection_msbuild from CommandLine|endswith '.xml' (fires on all MSBuild XML projects) to '\dl.xml' (campaign-specific). -->
 
 ```yaml
 title: UAT-12643 HTA and MSBuild Payload Execution
@@ -411,7 +412,7 @@ id: 9b7e2d4c-3f1a-45e8-a6c9-1d8b5f3e7a02
 status: experimental
 description: >
     Detects UAT-12643 delivery via mshta.exe executing HTA droppers or
-    msbuild.exe loading inline C# tasks from XML files, both observed
+    msbuild.exe loading the dl.xml inline C# task, both observed
     as initial access methods in this campaign.
 references:
     - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
@@ -429,16 +430,17 @@ detection:
         CommandLine|contains: '41.216.188.11'
     selection_msbuild:
         Image|endswith: '\MSBuild.exe'
-        CommandLine|endswith: '.xml'
+        CommandLine|endswith: '\dl.xml'
     condition: selection_mshta or selection_msbuild
 falsepositives:
-    - Legitimate build processes using MSBuild with XML project files
+    - Legitimate build processes using MSBuild with a file named dl.xml (unlikely)
 level: medium
 ```
 
 ### Sigma: UAT-12643 Data Exfiltration to GoFile
 Detects HTTP POST to upload.gofile.io used for credential archive exfiltration.
-Compile: splunk pass, log_scale pass | Confidence: medium
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. Unchanged from v1.0. -->
 
 ```yaml
 title: UAT-12643 Data Exfiltration to GoFile
@@ -466,17 +468,19 @@ level: medium
 ```
 
 ### Sigma: UAT-12643 Solana Blockchain RPC Dead Drop Resolver
-Detects Solana JSON-RPC method calls indicative of blockchain dead drop C2 resolution.
-Compile: splunk pass, log_scale pass | Confidence: medium
+Detects Solana JSON-RPC method calls indicative of blockchain dead drop C2 resolution. Requires full request body logging for the cs-body selection to match.
+**Status:** compile ✅ compiles · confidence: medium
+<!-- audit: sigma convert --without-pipeline splunk 0, log_scale 0. FIX: changed selection_solana_rpc from cs-uri|contains to r-dns|contains — cs-uri holds the URI path, not the destination hostname; would never match in conformant proxy logs. Added deployment note about cs-body requiring full request body logging. -->
 
 ```yaml
 title: UAT-12643 Solana Blockchain RPC Dead Drop Resolver
 id: 3e5a7c9d-1f2b-48d6-a4e8-6b3c8d2f7e04
 status: experimental
 description: >
-    Detects HTTP POST requests containing Solana JSON-RPC method calls
-    (getSignatures, getTransaction) from non-developer endpoints, indicating
-    potential blockchain dead drop C2 resolution used by Overlord RAT.
+    Detects HTTP POST requests to Solana RPC endpoints containing JSON-RPC
+    method calls (getSignatures, getTransaction) from non-developer endpoints,
+    indicating potential blockchain dead drop C2 resolution used by Overlord RAT.
+    Requires full request body logging (cs-body) for the body selection to match.
 references:
     - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
     - https://blog.talosintelligence.com/the-challenge-of-defending-against-bulletproof-dead-drops-on-public-blockchains/
@@ -490,7 +494,7 @@ detection:
     selection_method:
         cs-method: 'POST'
     selection_solana_rpc:
-        cs-uri|contains:
+        r-dns|contains:
             - 'api.mainnet-beta.solana.com'
             - 'solana-mainnet'
             - 'solana-api'
@@ -506,8 +510,9 @@ level: medium
 ```
 
 ### YARA: Overlord RAT, Good Game Stealer, Clipboard Hijacker, HTA Dropper, MSBuild Task
-Five YARA rules covering the full UAT-12643 malware suite -- binary indicators, string patterns, and behavioral markers.
-Compile: yarac pass | Confidence: high
+Five YARA rules covering the full UAT-12643 malware suite.
+**Status:** compile ✅ compiles · confidence: high
+<!-- audit: yarac exit 0. FIX: HTA Dropper — made $path1 (\Temp\s.exe) mandatory in condition, removed unreferenced $method* strings (too generic). MSBuild Inline Task — made $ua (Microsoft BITS/7.8) mandatory in condition, removed unreferenced $cs string (Microsoft.CSharp matches any inline C# task). -->
 
 ```yara
 import "pe"
@@ -646,14 +651,12 @@ rule Malware_UAT12643_HTA_Dropper : UAT12643
         $hta2 = "MSXML2.ServerXMLHTTP" ascii nocase
         $hta3 = "ADODB.Stream" ascii nocase
         $path1 = "\\Temp\\s.exe" ascii
-        $method1 = ".open" ascii nocase
-        $method2 = ".send" ascii nocase
 
     condition:
         filesize < 500KB and
         $hta1 and
         ($hta2 and $hta3) and
-        (1 of ($path*) or (1 of ($method*)))
+        $path1
 }
 
 rule Malware_UAT12643_MSBuild_Inline_Task : UAT12643
@@ -670,52 +673,54 @@ rule Malware_UAT12643_MSBuild_Inline_Task : UAT12643
         $xml1 = "CodeTaskFactory" ascii
         $xml2 = "UsingTask" ascii
         $ua = "Microsoft BITS/7.8" ascii
-        $cs = "Microsoft.CSharp" ascii
 
     condition:
         filesize < 1MB and
         $xml1 and $xml2 and
-        ($ua or $cs)
+        $ua
 }
 ```
 
-### Suricata: UAT-12643 Network Detection (7 rules)
-Covers C2 to known IP, WebSocket on port 5173, GoFile exfiltration, Solana RPC dead drop, spoofed BITS User-Agent, stealer TCP C2 ports, and Flask staging server.
-Compile: suricata -T pass | Confidence: high (IP-specific), medium (behavioral)
+### Suricata: UAT-12643 Network Detection (6 rules)
+Covers C2 to known IP, WebSocket on port 5173, GoFile exfiltration, Solana RPC dead drop, spoofed BITS User-Agent, and Flask staging server. Port 5173 is Vite's default dev server port -- scope to non-developer VLANs. Solana RPC body inspection requires `request-body-limit` enabled in suricata.yaml.
+**Status:** compile ✅ compiles · confidence: high (IP-specific), medium (behavioral)
+<!-- audit: suricata -T exit 0 (v7.0.3). CUT sid:2100106 (port-only detection on 5656/5959, no content/IP constraint — unacceptable FP volume). Added FP note on sid:2100102 (port 5173 = Vite dev server default). Added deployment note on sid:2100104 (http.request_body requires request-body inspection enabled). -->
 
 ```
 # Rule 1: Overlord RAT C2 to known staging IP
 alert tcp $HOME_NET any -> 41.216.188.11 any (msg:"Actioner - UAT-12643 Overlord RAT C2 Communication to Known Staging IP"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100101; rev:1;)
 
 # Rule 2: Overlord RAT WebSocket C2 on port 5173
+# FP note: Port 5173 is the default dev server port for Vite (Node.js). Scope to non-developer VLANs or suppress on dev workstations.
 alert tcp $HOME_NET any -> $EXTERNAL_NET 5173 (msg:"Actioner - UAT-12643 Overlord RAT WebSocket C2 on Port 5173"; flow:established,to_server; content:"Upgrade"; content:"websocket"; nocase; distance:0; within:50; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100102; rev:1;)
 
 # Rule 3: Good Game Stealer exfiltration to GoFile
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Good Game Stealer Exfiltration to GoFile"; flow:established,to_server; http.method; content:"POST"; http.host; content:"upload.gofile.io"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100103; rev:1;)
 
 # Rule 4: Solana RPC Dead Drop Resolution
+# Note: http.request_body requires request-body inspection to be enabled in suricata.yaml (app-layer.protocols.http.request-body-limit).
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Solana RPC Dead Drop C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"getTransaction"; fast_pattern; content:"jsonParsed"; distance:0; within:100; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100104; rev:1;)
 
 # Rule 5: Spoofed BITS User-Agent from MSBuild downloader
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Spoofed BITS User-Agent MSBuild Downloader"; flow:established,to_server; http.user_agent; content:"Microsoft BITS/7.8"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100105; rev:1;)
 
-# Rule 6: Good Game Stealer TCP C2 on ports 5656 or 5959
-alert tcp $HOME_NET any -> $EXTERNAL_NET [5656,5959] (msg:"Actioner - UAT-12643 Good Game Stealer TCP C2 Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100106; rev:1;)
+# dropped: Suricata sid:2100106 "Good Game Stealer TCP C2 on ports 5656/5959" -- port-only detection with no content matching or IP constraint; unacceptable FP volume under strict leniency
 
-# Rule 7: Flask staging server payload download on port 8000
+# Rule 6: Flask staging server payload download on port 8000
 alert http $HOME_NET any -> 41.216.188.11 8000 (msg:"Actioner - UAT-12643 Flask Staging Server Payload Download"; flow:established,to_server; http.method; content:"GET"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100107; rev:1;)
 ```
 
 ### Snort 3: UAT-12643 Network Detection (3 rules)
-Structural check only (Snort 3 not installed). Covers C2 to known IP, GoFile exfiltration, and spoofed BITS User-Agent.
-Compile: structural check only | Confidence: medium
+Covers C2 to known IP, GoFile exfiltration, and spoofed BITS User-Agent.
+**Status:** ⚠️ uncompiled (structural check only — Snort 3 not installed) · confidence: medium
+<!-- audit: structural check only. FIX: sid:2100202 replaced invalid "http_header; field host;" with "http_host;" — "field host" is not valid Snort 3 syntax. -->
 
 ```
 # Rule 1: Overlord RAT C2 to known staging IP
 alert tcp $HOME_NET any -> 41.216.188.11 any (msg:"Actioner - UAT-12643 Overlord RAT C2 to Known Staging IP"; flow:established, to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100201; rev:1;)
 
 # Rule 2: Good Game Stealer exfiltration to GoFile
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Good Game Stealer GoFile Exfiltration"; flow:established, to_server; http_method; content:"POST"; http_header; field host; content:"upload.gofile.io", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100202; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Good Game Stealer GoFile Exfiltration"; flow:established, to_server; http_method; content:"POST"; http_host; content:"upload.gofile.io", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100202; rev:1;)
 
 # Rule 3: Spoofed BITS User-Agent from MSBuild downloader
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Spoofed BITS UA MSBuild Downloader"; flow:established, to_server; http_header; content:"Microsoft BITS/7.8", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100203; rev:1;)

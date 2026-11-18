@@ -1,0 +1,227 @@
+title: UAT-12643 Overlord RAT Execution Indicators
+id: 7a3c8e1f-4b2d-4f9a-b6e1-8d3c7a5f2e09
+status: experimental
+description: >
+    Detects execution of Overlord RAT payloads associated with UAT-12643.
+    The RAT uses filenames like Ovl.exe, Client.exe, and RuntimeBroker.exe
+    and persists via the Network folder in the user AppData profile.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1547.001
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_names:
+        Image|endswith:
+            - '\Ovl.exe'
+            - '\Client.exe'
+            - '\RuntimeBroker.exe'
+        Image|contains:
+            - '\AppData\'
+    selection_appdata_network:
+        Image|contains: '\AppData\Roaming\Network\'
+    condition: (selection_names) or selection_appdata_network
+falsepositives:
+    - Legitimate RuntimeBroker.exe runs from System32, not AppData
+level: high
+---
+title: UAT-12643 Overlord RAT WinRE Persistence via ResetConfig.xml
+id: 2f9b4c3d-5a1e-48f7-9d6c-3b7e8f1a2c05
+status: experimental
+description: >
+    Detects modification of ResetConfig.xml used by Overlord RAT to persist
+    through Windows Recovery Environment reset operations. The RAT writes
+    payloads to Recovery\OEM and patches ResetConfig.xml to register them.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1542
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains|all:
+            - '\Recovery\OEM\'
+        TargetFilename|endswith:
+            - '.exe'
+            - '.bat'
+    condition: selection
+falsepositives:
+    - OEM system recovery customization by IT administrators
+level: high
+---
+title: UAT-12643 Good Game Stealer Registry Persistence
+id: 8e4d1b6a-3c7f-49e2-a5d8-9f2c6b1e3a07
+status: experimental
+description: >
+    Detects the Good Game infostealer setting the Zoipers registry Run key
+    for persistence, as observed in UAT-12643 intrusions.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_zoipers:
+        TargetObject|endswith: '\CurrentVersion\Run\Zoipers'
+    condition: selection_zoipers
+falsepositives:
+    - Legitimate Zoiper VoIP software using similar registry key names
+level: high
+---
+title: UAT-12643 Clipboard Hijacker MsgEdgeUpdate Persistence
+id: 4c2a9e7f-1b5d-43f8-8e6a-5d3c2f9b1e08
+status: experimental
+description: >
+    Detects the UAT-12643 clipboard hijacker establishing persistence by
+    writing MsgEdgeUpdate.exe to AppData and creating a matching Run key.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1547.001
+    - attack.t1115
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\MsgEdgeUpdate'
+    condition: selection
+falsepositives:
+    - Unlikely; MsgEdgeUpdate is not a legitimate Microsoft Edge component
+level: high
+---
+title: UAT-12643 LNK-Based Payload Download via LOLBins
+id: 5d8f3a2c-6e1b-47c9-9f4d-2a7b5c3e8d01
+status: experimental
+description: >
+    Detects UAT-12643 initial access techniques where weaponized LNK files
+    invoke MpCmdRun.exe with -DownloadFile or certutil with -urlcache -f
+    to download payloads from the staging server.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1105
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mpcmdrun:
+        Image|endswith: '\MpCmdRun.exe'
+        CommandLine|contains|all:
+            - '-DownloadFile'
+            - 'RuntimeBroker'
+    selection_certutil:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains|all:
+            - '-urlcache'
+            - '-f'
+            - '41.216.188.11'
+    condition: selection_mpcmdrun or selection_certutil
+falsepositives:
+    - Legitimate use of MpCmdRun -DownloadFile is rare outside Defender management
+level: high
+---
+title: UAT-12643 HTA and MSBuild Payload Execution
+id: 9b7e2d4c-3f1a-45e8-a6c9-1d8b5f3e7a02
+status: experimental
+description: >
+    Detects UAT-12643 delivery via mshta.exe executing HTA droppers or
+    msbuild.exe loading the dl.xml inline C# task, both observed
+    as initial access methods in this campaign.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1218.005
+    - attack.t1127.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mshta:
+        Image|endswith: '\mshta.exe'
+        CommandLine|contains: '41.216.188.11'
+    selection_msbuild:
+        Image|endswith: '\MSBuild.exe'
+        CommandLine|endswith: '\dl.xml'
+    condition: selection_mshta or selection_msbuild
+falsepositives:
+    - Legitimate build processes using MSBuild with a file named dl.xml (unlikely)
+level: medium
+---
+title: UAT-12643 Data Exfiltration to GoFile
+id: 6a1c3e8d-2b5f-49d7-8e3a-4c9b7d2f1e06
+status: experimental
+description: >
+    Detects HTTP POST exfiltration to upload.gofile.io used by UAT-12643
+    Good Game stealer to upload stolen credential archives.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1567.002
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-method: 'POST'
+        r-dns|contains: 'upload.gofile.io'
+    condition: selection
+falsepositives:
+    - Legitimate use of GoFile for file sharing by employees
+level: medium
+---
+title: UAT-12643 Solana Blockchain RPC Dead Drop Resolver
+id: 3e5a7c9d-1f2b-48d6-a4e8-6b3c8d2f7e04
+status: experimental
+description: >
+    Detects HTTP POST requests to Solana RPC endpoints containing JSON-RPC
+    method calls (getSignatures, getTransaction) from non-developer endpoints,
+    indicating potential blockchain dead drop C2 resolution used by Overlord RAT.
+    Requires full request body logging (cs-body) for the body selection to match.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+    - https://blog.talosintelligence.com/the-challenge-of-defending-against-bulletproof-dead-drops-on-public-blockchains/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1102.001
+logsource:
+    category: proxy
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_solana_rpc:
+        r-dns|contains:
+            - 'api.mainnet-beta.solana.com'
+            - 'solana-mainnet'
+            - 'solana-api'
+    selection_body:
+        cs-body|contains:
+            - 'getSignatures'
+            - 'getTransaction'
+    condition: selection_method and (selection_solana_rpc or selection_body)
+falsepositives:
+    - Developers working with Solana blockchain applications
+    - Cryptocurrency trading platforms
+level: medium
