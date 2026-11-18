@@ -1,0 +1,17 @@
+# Agent-Framework PyPI Supply Chain Attack (2026-11-18)
+# Detects credential stealer exfiltration from compromised agent-framework 1.26.1/1.26.2
+
+# Detect HTTPS TLS SNI to webhook.site
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - TLS SNI to webhook.site"; flow:established,to_server; tls.sni; content:"webhook.site"; nocase; classtype:trojan-activity; sid:2026111801; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
+
+# Detect DNS query to webhook.site
+alert dns $HOME_NET any -> any any (msg:"MALWARE Agent-Framework Credential Stealer - DNS Query for webhook.site"; dns.query; content:"webhook.site"; nocase; classtype:trojan-activity; sid:2026111802; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
+
+# Detect HTTP POST to the specific exfiltration UUID endpoint
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - Exfiltration POST to webhook.site UUID"; flow:established,to_server; http.method; content:"POST"; http.host; content:"webhook.site"; http.uri; content:"/d381fd80-ec62-42ad-8f5c-d1b15103c9bb"; content:"t=telemetry"; classtype:trojan-activity; sid:2026111803; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
+
+# Detect User-Agent: af-runtime-diagnostics/1 (v1.26.1)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - Suspicious User-Agent af-runtime-diagnostics"; flow:established,to_server; http.user_agent; content:"af-runtime-diagnostics/1"; classtype:trojan-activity; sid:2026111804; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
+
+# Detect User-Agent: runtime-diagnostics/1 (v1.26.2)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - Suspicious User-Agent runtime-diagnostics"; flow:established,to_server; http.user_agent; content:"runtime-diagnostics/1"; classtype:trojan-activity; sid:2026111805; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)

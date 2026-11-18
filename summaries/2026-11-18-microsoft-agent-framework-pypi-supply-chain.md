@@ -1,9 +1,10 @@
+<!-- revision: dropped Rule 7 (Anti-Reentry Env Var — _AF_TEL set via os.environ does not appear in CommandLine process_creation events; documented as forensic artifact instead); fixed duplicate section numbering (3→4,4→5,5→6); defanged 169.254.169.254 consistently; removed T1041 (redundant with T1567); added flow:established,to_server to Suricata TLS SNI rule -->
 # Technical Analysis Report: Microsoft Agent Framework PyPI Supply Chain Attack (2026-11-18)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-18
-Version: 1.0-DRAFT
+Version: 1.0
 
 ## Executive Summary
 
@@ -77,12 +78,12 @@ The stealer performs comprehensive credential harvesting across multiple dimensi
 - Version 1.26.2 adds: `/home/runner/work/_temp/*`, `/home/runner/.azure/*.json`
 
 **Active token minting** -- the stealer does not just copy existing secrets; it requests fresh tokens:
-- Azure IMDS managed-identity tokens from `169.254.169.254` or `IDENTITY_ENDPOINT` / `MSI_ENDPOINT` for 12 resource audiences: ARM, Graph, Key Vault, Storage, Cognitive Services, Azure AI/ML, Search, Container Registry, Azure DevOps, AzureADTokenExchange
+- Azure IMDS managed-identity tokens from `169[.]254[.]169[.]254` or `IDENTITY_ENDPOINT` / `MSI_ENDPOINT` for 12 resource audiences: ARM, Graph, Key Vault, Storage, Cognitive Services, Azure AI/ML, Search, Container Registry, Azure DevOps, AzureADTokenExchange
 - Azure DevOps federation tokens via `SYSTEM_ACCESSTOKEN` and `SYSTEM_OIDCREQUESTURI` for audience `api://AzureADTokenExchange`
 - GitHub Actions OIDC tokens (1.26.2 only) via `ACTIONS_ID_TOKEN_REQUEST_URL` / `ACTIONS_ID_TOKEN_REQUEST_TOKEN` for audiences `api://AzureADTokenExchange` and `https://management.azure.com/`
 - Azure instance metadata from IMDS (up to 8,000 characters)
 
-### 3. C2 Infrastructure
+### 4. C2 Infrastructure
 
 The exfiltration endpoint is a single hardcoded webhook.site URL, stored as a Base64-encoded string in the malware source code:
 
@@ -97,7 +98,7 @@ Decoded: `hxxps://webhook[.]site/d381fd80-ec62-42ad-8f5c-d1b15103c9bb`
 - No fallback channel; failures are silently ignored and not retried
 - webhook.site free tier limit: 100 requests per unclaimed URL, expires after 7 days
 
-### 4. Platform-Specific Behavior
+### 5. Platform-Specific Behavior
 
 #### Linux (Primary Target)
 - Uses `os.fork()` + `os.setsid()` for process detachment
@@ -110,7 +111,7 @@ Decoded: `hxxps://webhook[.]site/d381fd80-ec62-42ad-8f5c-d1b15103c9bb`
 - Actively mints OIDC tokens for cloud access
 - Targets runner-specific paths: `/home/runner/work/_temp/*`, `/mnt/azure_nvme_temp/_work/*`
 
-### 5. Anti-Forensics / Evasion Techniques
+### 6. Anti-Forensics / Evasion Techniques
 
 - **Benign naming**: Files named `_telemetry.py`, `af_runtime_diag.py`; docstrings describe "Lightweight runtime diagnostics hook"
 - **Error suppression**: All operations wrapped in `try/except Exception: pass`
@@ -173,10 +174,9 @@ Decoded: `hxxps://webhook[.]site/d381fd80-ec62-42ad-8f5c-d1b15103c9bb`
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious code injected into legitimate PyPI package releases |
 | T1059.006 | Command and Scripting Interpreter: Python | Payload executes as Python code via .pth startup hook |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Reads credential files: .azure/, .git-credentials, .npmrc, .netrc, .docker/config.json, etc. |
-| T1552.007 | Unsecured Credentials: Container API | Requests managed-identity tokens from Azure IMDS (169.254.169.254) |
+| T1552.007 | Unsecured Credentials: Container API | Requests managed-identity tokens from Azure IMDS (169[.]254[.]169[.]254) |
 | T1057 | Process Discovery | Enumerates /proc/*/environ to harvest secrets from other running processes |
 | T1567 | Exfiltration Over Web Service | Data exfiltrated via HTTPS POST to webhook.site |
-| T1041 | Exfiltration Over C2 Channel | Single HTTPS POST carries all collected data to hardcoded endpoint |
 | T1071.001 | Application Layer Protocol: Web Protocols | HTTPS POST with custom User-Agent for exfiltration |
 | T1550.001 | Use Alternate Authentication Material: Application Access Token | Actively mints Azure OIDC and managed-identity tokens |
 | T1078.004 | Valid Accounts: Cloud Accounts | Stolen Azure and GitHub OIDC tokens enable cloud account access |
@@ -244,7 +244,7 @@ env | grep _AF_TEL
 
 ## Detection Rules
 
-The rules below cover host-level file artifacts (Sigma, YARA), network exfiltration indicators (Sigma, Suricata, Snort), and malicious code patterns (YARA). All rules target specific IOCs from this incident; the `/proc/*/environ` and `webhook.site` DNS rules additionally detect the behavioral pattern at slightly broader scope. `sigma check` could not run due to proxy restrictions on MITRE ATT&CK data download, but all Sigma rules validated via `sigma convert` to both Splunk and LogScale.
+The rules below cover host-level file artifacts (Sigma, YARA), network exfiltration indicators (Sigma, Suricata, Snort), and malicious code patterns (YARA). All rules target specific IOCs from this incident; the `/proc/*/environ` and `webhook.site` DNS rules additionally detect the behavioral pattern at slightly broader scope. `sigma check` could not run due to proxy restrictions on MITRE ATT&CK data download, but all Sigma rules validated via `sigma convert` to both Splunk and LogScale. One originally drafted rule (Anti-Reentry Env Var) was dropped because `_AF_TEL` set via `os.environ` does not appear in `CommandLine` process_creation events; it is documented as a forensic artifact instead.
 
 ### Sigma: Malicious agent-framework PTH File in Site-Packages
 
@@ -390,7 +390,6 @@ author: Actioner
 date: 2026-11-18
 tags:
     - attack.t1567
-    - attack.t1041
 logsource:
     category: proxy
 detection:
@@ -479,41 +478,7 @@ falsepositives:
 level: critical
 ```
 
-### Sigma: Agent-Framework Anti-Reentry Environment Variable
-
-Detects processes with the `_AF_TEL` environment variable, used as the stealer's anti-reentry guard.
-
-<!-- audit: compile=convert-splunk-pass,convert-logscale-pass | confidence=medium — relies on command line logging capturing env var references; _AF_TEL is not a standard variable but detection depends on visibility -->
-
-**compile: pass (convert) | confidence: medium**
-
-```yaml
-title: Agent-Framework Anti-Reentry Environment Variable Set
-id: 9a4c1d67-e8f2-4b35-c7a0-5d3e2f1b8a94
-status: experimental
-description: >
-    Detects a process setting the _AF_TEL environment variable, which the
-    compromised agent-framework credential stealer uses as a re-entry guard
-    to prevent the payload from running multiple times in child processes.
-references:
-    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
-author: Actioner
-date: 2026-11-18
-tags:
-    - attack.t1059.006
-    - attack.t1195.002
-logsource:
-    category: process_creation
-detection:
-    selection:
-        CommandLine|contains: '_AF_TEL'
-    filter_main:
-        CommandLine|contains: 'grep'
-    condition: selection and not filter_main
-falsepositives:
-    - Unlikely; _AF_TEL is not a standard environment variable name
-level: high
-```
+<!-- dropped: "Agent-Framework Anti-Reentry Env Var" — _AF_TEL set via os.environ does not appear in CommandLine process_creation events; documented as forensic artifact instead. Check manually on suspect hosts: env | grep _AF_TEL -->
 
 ### YARA: Agent-Framework Supply Chain Stealer Detection
 
@@ -645,7 +610,7 @@ Five Suricata rules detecting TLS SNI, DNS queries, HTTP POST to the specific UU
 
 ```
 # Detect HTTPS TLS SNI to webhook.site
-alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - TLS SNI to webhook.site"; tls.sni; content:"webhook.site"; nocase; classtype:trojan-activity; sid:2026111801; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE Agent-Framework Credential Stealer - TLS SNI to webhook.site"; flow:established,to_server; tls.sni; content:"webhook.site"; nocase; classtype:trojan-activity; sid:2026111801; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
 
 # Detect DNS query to webhook.site
 alert dns $HOME_NET any -> any any (msg:"MALWARE Agent-Framework Credential Stealer - DNS Query for webhook.site"; dns.query; content:"webhook.site"; nocase; classtype:trojan-activity; sid:2026111802; rev:1; metadata:created_at 2026_11_18, updated_at 2026_11_18;)
