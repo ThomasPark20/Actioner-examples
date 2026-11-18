@@ -1,9 +1,10 @@
+<!-- revision: v1.1 — (1) added missing YARA hash-based rule (SupplyChain_OPTIMJACK_Known_Hashes) using 10 SHA256 hashes from File System IOC table; (2) fixed Snort SIDs 1100001/1100002/1100003/1100005: replaced http_header with http_host for domain-matching content; (3) YARA section now has 3 rules matching its header claim; total rule count 24 is now accurate. -->
 # Technical Analysis Report: OPTIMJACK (2026-11-18)
 
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-18
-Version: 1.0 (DRAFT)
+Version: 1.1
 
 ## Executive Summary
 
@@ -474,11 +475,13 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK TLS Conn
 
 Three YARA rules detecting the malicious track.js payload (via behavioral markers and C2/exfil strings), the iOS boot.js exploit loader (via path markers and domain fragments), and known file hashes.
 
-<!-- audit: compile ✅ yarac passed; SupplyChain_OPTIMJACK_TrackJS_Payload matches on window._k7/_cc/_qxc/_shot globals + exfil paths + wallet addresses; SupplyChain_OPTIMJACK_BootJS_iOS_Loader matches on JIUJIU888/BIGNIAO/02111110 + .icu domain fragments; hash-based rule is intentionally broad (any JS file) since hashes rotate; filesize limits prevent scanning overhead; no PE-only conditions since targets are JavaScript -->
+<!-- audit: compile ✅ yarac passed (all 3 rules); SupplyChain_OPTIMJACK_TrackJS_Payload matches on window._k7/_cc/_qxc/_shot globals + exfil paths + wallet addresses; SupplyChain_OPTIMJACK_BootJS_iOS_Loader matches on JIUJIU888/BIGNIAO/02111110 + .icu domain fragments; SupplyChain_OPTIMJACK_Known_Hashes covers 10 SHA256 hashes from File System IOC table (4 track.js builds + iOS loaders + Coruna stages); hash rule uses import "hash" module; filesize limits prevent scanning overhead; no PE-only conditions since targets are JavaScript -->
 
 **Compile**: ✅ yarac | **Confidence**: high (behavioral rules), medium (hash rule — hashes rotated across builds)
 
 ```yara
+import "hash"
+
 rule SupplyChain_OPTIMJACK_TrackJS_Payload
 {
     meta:
@@ -558,26 +561,59 @@ rule SupplyChain_OPTIMJACK_BootJS_iOS_Loader
             (1 of ($domain*) and $path1 and ($ios_check or $ios_check2))
         )
 }
+
+rule SupplyChain_OPTIMJACK_Known_Hashes
+{
+    meta:
+        description = "Detects known OPTIMJACK malicious files by SHA256 hash. Covers track.js payload builds, iOS exploit loaders, and Coruna stage files. Forensic lookback rule — hashes rotated across 26 builds on Nov 16."
+        author = "Actioner"
+        date = "2026-11-18"
+        reference = "https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/"
+        tlp = "WHITE"
+        severity = "critical"
+        hash1 = "acdf428f9cc564a9d16ff2a4f67e9af53dfa1bced92b4925283c8151581091fb"
+        hash2 = "814a963c0da480e2449d9b6664480156e1cd6d731014117401bf635badec3a0f"
+        hash3 = "f7b84b9a94f749f8ced3f0112d0a66894e8bbc3b4aa5592021d1b8976a9bad40"
+        hash4 = "617df364120adc47fb4f55dcc0c69a9b6c9e108a92c60bc2b64a266254ab02f3"
+        hash5 = "f33e040e5416be881f103186c226ad325381a287a6d0ee1f5e9fbfddcbc24507"
+        hash6 = "e027f69d350f83965519e5ad7d947807c17d763138eaa24d2042a2f5ac6f339e"
+        hash7 = "d024dc37d8633382c3e2bed176132fd64322f4ce1c1bd11d563e700553c3b36c"
+        hash8 = "1bd3c4ed902616fefc29e92b8d8f0eaa0e8eaa96b4064f3d6c80b6e13977d3b6"
+        hash9 = "54a54421cbdadc281a224713a97e3ccd9ba6dd3e2578e7e72864a47052ab4d00"
+        hash10 = "d437b6799fc200f02832ee70a377b361471468bd887a133e26eb52832b7b2664"
+
+    condition:
+        hash.sha256(0, filesize) == "acdf428f9cc564a9d16ff2a4f67e9af53dfa1bced92b4925283c8151581091fb" or
+        hash.sha256(0, filesize) == "814a963c0da480e2449d9b6664480156e1cd6d731014117401bf635badec3a0f" or
+        hash.sha256(0, filesize) == "f7b84b9a94f749f8ced3f0112d0a66894e8bbc3b4aa5592021d1b8976a9bad40" or
+        hash.sha256(0, filesize) == "617df364120adc47fb4f55dcc0c69a9b6c9e108a92c60bc2b64a266254ab02f3" or
+        hash.sha256(0, filesize) == "f33e040e5416be881f103186c226ad325381a287a6d0ee1f5e9fbfddcbc24507" or
+        hash.sha256(0, filesize) == "e027f69d350f83965519e5ad7d947807c17d763138eaa24d2042a2f5ac6f339e" or
+        hash.sha256(0, filesize) == "d024dc37d8633382c3e2bed176132fd64322f4ce1c1bd11d563e700553c3b36c" or
+        hash.sha256(0, filesize) == "1bd3c4ed902616fefc29e92b8d8f0eaa0e8eaa96b4064f3d6c80b6e13977d3b6" or
+        hash.sha256(0, filesize) == "54a54421cbdadc281a224713a97e3ccd9ba6dd3e2578e7e72864a47052ab4d00" or
+        hash.sha256(0, filesize) == "d437b6799fc200f02832ee70a377b361471468bd887a133e26eb52832b7b2664"
+}
 ```
 
 ### Snort: OPTIMJACK Network Detection (6 rules)
 
 Six Snort 3 rules covering payload download, card/cookie exfiltration, and exploit kit path access.
 
-<!-- audit: ⚠️ uncompiled — Snort not installed; structural validation only: underscore-notation sticky buffers (http_method, http_uri, http_header), flow directives, unique SIDs 1100001-1100006, balanced parentheses, semicolon termination verified -->
+<!-- audit: ⚠️ uncompiled — Snort not installed; structural validation only: underscore-notation sticky buffers (http_method, http_uri, http_host), flow directives, unique SIDs 1100001-1100006, balanced parentheses, semicolon termination verified. Rev 1.1: fixed SIDs 1100001/1100002/1100003/1100005 — replaced http_header with http_host for domain-matching content (http_header matches all raw headers, http_host matches the Host header specifically). -->
 
-**Compile**: ⚠️ uncompiled (Snort not installed) | **Confidence**: medium
+**Compile**: ⚠️ uncompiled (structural check only) | **Confidence**: medium
 
 ```
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK track.js Payload Download"; flow:established,to_server; content:"GET"; http_method; content:"/track.js"; http_uri; content:"1688360.cc"; http_header; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100001; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK track.js Payload Download"; flow:established,to_server; content:"GET"; http_method; content:"/track.js"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100001; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Card Skimmer Exfil to card.php"; flow:established,to_server; content:"POST"; http_method; content:"/card.php"; http_uri; content:"1688360.cc"; http_header; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100002; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Card Skimmer Exfil to card.php"; flow:established,to_server; content:"POST"; http_method; content:"/card.php"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100002; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Cookie Screenshot Exfil to hit.php"; flow:established,to_server; content:"POST"; http_method; content:"/hit.php"; http_uri; content:"1688360.cc"; http_header; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100003; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Cookie Screenshot Exfil to hit.php"; flow:established,to_server; content:"POST"; http_method; content:"/hit.php"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100003; rev:1;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Coruna Exploit JIUJIU888 Path"; flow:established,to_server; content:"/JIUJIU888/"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100004; rev:1;)
 
-alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK iOS boot.js Loader on ICU Domain"; flow:established,to_server; content:"/boot.js"; http_uri; content:".icu"; http_header; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100005; rev:1;)
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK iOS boot.js Loader on ICU Domain"; flow:established,to_server; content:"/boot.js"; http_uri; content:".icu"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100005; rev:1;)
 
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Coruna Telemetry POST /api/iptj"; flow:established,to_server; content:"POST"; http_method; content:"/api/iptj"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100006; rev:1;)
 ```

@@ -1,0 +1,11 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK track.js Payload Download"; flow:established,to_server; content:"GET"; http_method; content:"/track.js"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100001; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Card Skimmer Exfil to card.php"; flow:established,to_server; content:"POST"; http_method; content:"/card.php"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100002; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Cookie Screenshot Exfil to hit.php"; flow:established,to_server; content:"POST"; http_method; content:"/hit.php"; http_uri; content:"1688360.cc"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100003; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Coruna Exploit JIUJIU888 Path"; flow:established,to_server; content:"/JIUJIU888/"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100004; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK iOS boot.js Loader on ICU Domain"; flow:established,to_server; content:"/boot.js"; http_uri; content:".icu"; http_host; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100005; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - OPTIMJACK Coruna Telemetry POST /api/iptj"; flow:established,to_server; content:"POST"; http_method; content:"/api/iptj"; http_uri; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-18; sid:1100006; rev:1;)
