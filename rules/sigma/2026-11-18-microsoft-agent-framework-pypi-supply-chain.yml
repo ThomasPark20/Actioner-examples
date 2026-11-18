@@ -1,0 +1,171 @@
+title: Malicious agent-framework PTH File in Site-Packages
+id: 7a3f1d82-e4b6-4c91-9f2a-8d5e0b7c6a14
+status: experimental
+description: >
+    Detects the creation of malicious .pth files associated with the compromised
+    agent-framework PyPI package versions 1.26.1 and 1.26.2. These .pth files
+    execute credential-stealing code on every Python interpreter startup.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://www.securityweek.com/microsoft-agent-framework-releases-poisoned-with-credential-stealer/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - 'agent_framework_meta.pth'
+            - 'af_runtime_diag.pth'
+    condition: selection
+falsepositives:
+    - None expected; these filenames are unique to the compromised package versions
+level: critical
+---
+title: Agent-Framework Credential Stealer Module on Disk
+id: 2b8e4c17-f5a3-4d69-b1e0-9c7f6a2d3e58
+status: experimental
+description: >
+    Detects creation of the credential-stealing Python modules dropped by
+    compromised agent-framework 1.26.1 (_telemetry.py) and 1.26.2
+    (af_runtime_diag.py) in site-packages directories.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://socket.dev/blog/agent-framework-pypi-package-compromised-with-credential-stealer
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - 'agent_framework_meta/_telemetry.py'
+            - 'af_runtime_diag.py'
+    condition: selection
+falsepositives:
+    - None expected; these files are unique to the compromised package
+level: critical
+---
+title: Python Process Reading Other Process Environment Variables via Proc
+id: 5c9d2e73-a6f1-4b08-e3d4-1f8a0c5b7d96
+status: experimental
+description: >
+    Detects a Python process reading /proc/*/environ files to harvest credentials
+    from other running processes, as performed by the agent-framework credential
+    stealer. The stealer reads up to 300 /proc/*/environ files looking for tokens
+    and secrets.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1552.001
+    - attack.t1057
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection_process:
+        Image|endswith:
+            - '/python'
+            - '/python3'
+            - '/python3.10'
+            - '/python3.11'
+            - '/python3.12'
+            - '/python3.13'
+    selection_target:
+        TargetFilename|contains: '/proc/'
+        TargetFilename|endswith: '/environ'
+    condition: selection_process and selection_target
+falsepositives:
+    - Legitimate monitoring tools that inspect process environments
+    - Container orchestration health checks
+level: high
+---
+title: Agent-Framework Credential Exfiltration to Webhook.site
+id: 8f1a3b56-d7c4-4e29-a0b5-2e9d6c8f4a71
+status: experimental
+description: >
+    Detects HTTPS POST requests to the specific webhook.site endpoint used by the
+    compromised agent-framework package to exfiltrate stolen credentials. The
+    hardcoded exfiltration URL includes a unique UUID path and telemetry query
+    parameter.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://socket.dev/blog/agent-framework-pypi-package-compromised-with-credential-stealer
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1567
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-method: 'POST'
+        r-dns: 'webhook.site'
+        cs-uri-stem|contains: 'd381fd80-ec62-42ad-8f5c-d1b15103c9bb'
+    condition: selection
+falsepositives:
+    - Legitimate developer testing using webhook.site with this specific UUID is extremely unlikely
+level: critical
+---
+title: DNS Query to Webhook.site from Python Process
+id: 4e7c9a21-b3d8-4f56-8e1a-6d0f2c5b9a73
+status: experimental
+description: >
+    Detects DNS resolution of webhook.site initiated by a Python process, which
+    may indicate credential exfiltration by the compromised agent-framework
+    package or similar supply chain malware using webhook.site as a dead drop.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1567
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith: 'webhook.site'
+        Image|endswith:
+            - '/python'
+            - '/python3'
+            - '\python.exe'
+            - '\python3.exe'
+    condition: selection
+falsepositives:
+    - Developers testing webhook integrations from Python scripts
+level: high
+---
+title: Suspicious af-runtime-diagnostics User-Agent String
+id: 6d2f8b45-c1e7-4a93-b5d0-3f7e9a1c8b62
+status: experimental
+description: >
+    Detects HTTP requests using the distinctive User-Agent strings hardcoded in
+    the compromised agent-framework credential stealer: af-runtime-diagnostics/1
+    (version 1.26.1) and runtime-diagnostics/1 (version 1.26.2).
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1071.001
+    - attack.t1567
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-User-Agent:
+            - 'af-runtime-diagnostics/1'
+            - 'runtime-diagnostics/1'
+    condition: selection
+falsepositives:
+    - None expected; these User-Agent strings are unique to the malware
+level: critical

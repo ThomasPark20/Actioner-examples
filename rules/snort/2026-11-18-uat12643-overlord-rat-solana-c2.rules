@@ -1,0 +1,8 @@
+# Rule 1: Overlord RAT C2 to known staging IP
+alert tcp $HOME_NET any -> 41.216.188.11 any (msg:"Actioner - UAT-12643 Overlord RAT C2 to Known Staging IP"; flow:established, to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100201; rev:1;)
+
+# Rule 2: Good Game Stealer exfiltration to GoFile
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Good Game Stealer GoFile Exfiltration"; flow:established, to_server; http_method; content:"POST"; http_host; content:"upload.gofile.io", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100202; rev:1;)
+
+# Rule 3: Spoofed BITS User-Agent from MSBuild downloader
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Spoofed BITS UA MSBuild Downloader"; flow:established, to_server; http_header; content:"Microsoft BITS/7.8", fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created 2026-11-18; sid:2100203; rev:1;)

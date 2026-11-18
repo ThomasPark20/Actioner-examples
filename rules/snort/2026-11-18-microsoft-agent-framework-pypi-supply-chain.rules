@@ -1,0 +1,9 @@
+# Agent-Framework PyPI Supply Chain Attack (2026-11-18)
+# Detects credential stealer exfiltration from compromised agent-framework 1.26.1/1.26.2
+# WARNING: uncompiled (structural check only) - snort not installed in build environment
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Agent-Framework Credential Stealer - POST to webhook.site exfil endpoint"; flow:established,to_server; content:"POST"; http_method; content:"webhook.site"; http_header; content:"/d381fd80-ec62-42ad-8f5c-d1b15103c9bb"; http_uri; content:"t=telemetry"; http_uri; classtype:trojan-activity; sid:2026111810; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Agent-Framework Credential Stealer - User-Agent af-runtime-diagnostics"; flow:established,to_server; content:"af-runtime-diagnostics/1"; http_header; classtype:trojan-activity; sid:2026111811; rev:1;)
+
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE Agent-Framework Credential Stealer - User-Agent runtime-diagnostics"; flow:established,to_server; content:"runtime-diagnostics/1"; http_header; classtype:trojan-activity; sid:2026111812; rev:1;)

@@ -1,0 +1,111 @@
+title: OPTIMJACK Supply Chain Attack - C2 Domain Access via Proxy
+id: 7a3e1c4f-9b2d-4e8a-b6c5-1d0f3e7a9b2c
+status: experimental
+description: >
+    Detects web proxy requests to known OPTIMJACK C2 and exfiltration domains
+    used in the Optimizely supply chain attack on November 16, 2026. The
+    attacker injected malicious JavaScript into Optimizely customer projects
+    that loaded payloads from these domains.
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://www.stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection:
+        c-uri|contains:
+            - '1688360.cc'
+            - 'eil786npto9u5bq.icu'
+            - '5vobauua3ojpklx.icu'
+            - 'l7bcsnwc7nzr3uo.icu'
+            - '1y69gy2mdzaltz1.icu'
+            - 'gm38duxoihbmy5o.icu'
+            - 'p55abnw2pnsz0bo.icu'
+            - 'je4ft3gn8vxudum.icu'
+            - 'q1ls1ho9x7wsxlu.icu'
+            - 'ios-hack.icu'
+            - 'webshell.lol'
+            - 'moiubpagedocs.cc'
+            - 'netvigator.cc'
+            - 'k68k.xyz'
+    condition: selection
+falsepositives:
+    - Unlikely given the specificity of these domains
+level: critical
+---
+title: OPTIMJACK Supply Chain Attack - DNS Query to C2 Domains
+id: 8b4f2d5e-0c3a-4f9b-a7d6-2e1a4b8c0d3e
+status: experimental
+description: >
+    Detects DNS resolution attempts for known OPTIMJACK command and control
+    domains associated with the Optimizely supply chain attack. These domains
+    hosted the malicious track.js payload, card skimmer exfiltration endpoints,
+    and iOS exploit kit infrastructure.
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1195.002
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '1688360.cc'
+            - 'eil786npto9u5bq.icu'
+            - '5vobauua3ojpklx.icu'
+            - 'l7bcsnwc7nzr3uo.icu'
+            - '1y69gy2mdzaltz1.icu'
+            - 'gm38duxoihbmy5o.icu'
+            - 'p55abnw2pnsz0bo.icu'
+            - 'je4ft3gn8vxudum.icu'
+            - 'q1ls1ho9x7wsxlu.icu'
+            - 'ios-hack.icu'
+            - 'webshell.lol'
+            - 'moiubpagedocs.cc'
+            - 'netvigator.cc'
+            - 'k68k.xyz'
+    condition: selection
+falsepositives:
+    - Unlikely given the specificity of these domains
+level: critical
+---
+title: OPTIMJACK Supply Chain Attack - Exfiltration Path Access
+id: 9c5a3e6f-1d4b-5a0c-b8e7-3f2a5b9c1d4e
+status: experimental
+description: >
+    Detects HTTP requests to specific URL paths used by the OPTIMJACK payload
+    for card data exfiltration (card.php), cookie and screenshot theft (hit.php),
+    and payload delivery (track.js) on the primary C2 domain 1688360.cc.
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://www.stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+author: Actioner
+date: 2026-11-18
+tags:
+    - attack.t1041
+    - attack.t1005
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains: '1688360.cc'
+    selection_paths:
+        c-uri|contains:
+            - '/track.js'
+            - '/card.php'
+            - '/hit.php'
+            - '/html2canvas.min.js'
+    condition: selection_domain and selection_paths
+falsepositives:
+    - None expected for this specific domain and path combination
+level: critical

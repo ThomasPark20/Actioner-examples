@@ -1,0 +1,21 @@
+# Rule 1: Overlord RAT C2 to known staging IP
+alert tcp $HOME_NET any -> 41.216.188.11 any (msg:"Actioner - UAT-12643 Overlord RAT C2 Communication to Known Staging IP"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100101; rev:1;)
+
+# Rule 2: Overlord RAT WebSocket C2 on port 5173
+# FP note: Port 5173 is the default dev server port for Vite (Node.js). Scope to non-developer VLANs or suppress on dev workstations.
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5173 (msg:"Actioner - UAT-12643 Overlord RAT WebSocket C2 on Port 5173"; flow:established,to_server; content:"Upgrade"; content:"websocket"; nocase; distance:0; within:50; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100102; rev:1;)
+
+# Rule 3: Good Game Stealer exfiltration to GoFile
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Good Game Stealer Exfiltration to GoFile"; flow:established,to_server; http.method; content:"POST"; http.host; content:"upload.gofile.io"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100103; rev:1;)
+
+# Rule 4: Solana RPC Dead Drop Resolution
+# Note: http.request_body requires request-body inspection to be enabled in suricata.yaml (app-layer.protocols.http.request-body-limit).
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Solana RPC Dead Drop C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"getTransaction"; fast_pattern; content:"jsonParsed"; distance:0; within:100; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100104; rev:1;)
+
+# Rule 5: Spoofed BITS User-Agent from MSBuild downloader
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - UAT-12643 Spoofed BITS User-Agent MSBuild Downloader"; flow:established,to_server; http.user_agent; content:"Microsoft BITS/7.8"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100105; rev:1;)
+
+# dropped: Suricata sid:2100106 "Good Game Stealer TCP C2 on ports 5656/5959" -- port-only detection with no content matching or IP constraint; unacceptable FP volume under strict leniency
+
+# Rule 6: Flask staging server payload download on port 8000
+alert http $HOME_NET any -> 41.216.188.11 8000 (msg:"Actioner - UAT-12643 Flask Staging Server Payload Download"; flow:established,to_server; http.method; content:"GET"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata:author Actioner, created_at 2026-11-18; sid:2100107; rev:1;)
