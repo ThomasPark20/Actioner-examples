@@ -3,7 +3,8 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-19
-Version: DRAFT 1.0
+Version: 1.0
+<!-- revision: v1.0 — applied critic fixes: added cs-method POST filter to Sigma webhook rule; renumbered Suricata SID 2100101→1000101 (custom range); dropped sid:2100102 DNS-only rule (too broad); verified T1546.016 valid -->
 
 ## Executive Summary
 
@@ -236,7 +237,7 @@ grep -rE "(af-runtime-diagnostics|runtime-diagnostics)/1" /var/log/
 
 ## Detection Rules
 
-These rules cover the three key detection surfaces: malicious package installation, file system artifacts from the .pth hooks, and network exfiltration to the known webhook[.]site endpoint. The YARA rules target the actual malicious Python files for retrospective scanning. The primary caveat is that the exfiltration endpoint (webhook[.]site) is a legitimate service, so the proxy/Suricata rules pair the domain with the specific User-Agent strings or URI path to reduce false positives.
+These rules cover the three key detection surfaces: malicious package installation, file system artifacts from the .pth hooks, and network exfiltration to the known webhook[.]site endpoint. The YARA rules target the actual malicious Python files for retrospective scanning. The primary caveat is that the exfiltration endpoint (webhook[.]site) is a legitimate service, so the Sigma proxy rule and Suricata rule pair the domain with the specific User-Agent strings, HTTP method, and/or URI path to reduce false positives.
 
 ### Sigma: Pip Install of Malicious Agent Framework Versions
 
@@ -317,7 +318,7 @@ level: critical
 ### Sigma: Outbound Connection to Webhook.site with Diagnostics User-Agent
 
 Detects HTTP traffic to webhook[.]site with the specific User-Agent strings used by the credential stealer.
-<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0, sigma convert --without-pipeline -t log_scale exit 0); sigma check failed due to external endpoint unreachable, not rule defect; proxy logsource fields cs-host and cs-useragent are standard W3C proxy log fields -->
+<!-- audit: compile-status=pass (sigma convert --without-pipeline -t splunk exit 0, sigma convert --without-pipeline -t log_scale exit 0); sigma check failed due to external endpoint unreachable, not rule defect; proxy logsource fields cs-method, cs-host, and cs-useragent are standard W3C proxy log fields; cs-method POST filter added per reviewer feedback -->
 **compile: pass (convert) | confidence: medium**
 
 ```yaml
@@ -339,13 +340,15 @@ tags:
 logsource:
     category: proxy
 detection:
+    selection_method:
+        cs-method: 'POST'
     selection_domain:
         cs-host|contains: 'webhook.site'
     selection_ua:
         cs-useragent:
             - 'af-runtime-diagnostics/1'
             - 'runtime-diagnostics/1'
-    condition: selection_domain and selection_ua
+    condition: selection_method and selection_domain and selection_ua
 falsepositives:
     - Custom developer tooling using identical User-Agent strings against webhook.site
 level: high
@@ -418,13 +421,11 @@ rule Supply_Chain_AgentFramework_PTH_Hook
 ### Suricata: Agent Framework Credential Stealer Exfiltration
 
 Detects the specific exfiltration POST to the known webhook[.]site UUID path with the diagnostics User-Agent substring.
-<!-- audit: compile-status=pass (suricata -T exit 0); sid:2100101 targets the specific UUID path + UA, sid:2100102 is a broader DNS query alert for webhook.site as a supplementary indicator; the DNS rule will fire on legitimate webhook.site usage and should be tuned per environment -->
-**compile: pass | confidence: high (sid:2100101), medium (sid:2100102)**
+<!-- audit: compile-status=pass (suricata -T exit 0); sid:1000101 targets the specific UUID path + UA; SID in custom range 1000000-1999999; DNS-only webhook.site rule dropped (too broad for a legitimate service) -->
+**compile: pass | confidence: high**
 
 ```
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Agent Framework Credential Stealer Exfil to Webhook.site"; flow:established,to_server; http.method; content:"POST"; http.host; content:"webhook.site"; fast_pattern; http.uri; content:"/d381fd80-ec62-42ad-8f5c-d1b15103c9bb"; http.user_agent; content:"diagnostics/1"; classtype:trojan-activity; reference:url,www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi; metadata:author Actioner, created_at 2026-11-19; sid:2100101; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"Actioner - DNS Query to Webhook.site Potential Exfil Endpoint"; flow:to_server; dns.query; content:"webhook.site"; nocase; fast_pattern; classtype:trojan-activity; reference:url,www.stepsecurity.io/blog/microsoft-agent-framework-pypi-package-compromised; metadata:author Actioner, created_at 2026-11-19; sid:2100102; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Agent Framework Credential Stealer Exfil to Webhook.site"; flow:established,to_server; http.method; content:"POST"; http.host; content:"webhook.site"; fast_pattern; http.uri; content:"/d381fd80-ec62-42ad-8f5c-d1b15103c9bb"; http.user_agent; content:"diagnostics/1"; classtype:trojan-activity; reference:url,www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi; metadata:author Actioner, created_at 2026-11-19; sid:1000101; rev:1;)
 ```
 
 ## Lessons Learned
