@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-19
-Version: DRAFT 1.0
+Version: 1.0
 
 ## Executive Summary
 
@@ -98,8 +98,8 @@ For visitors on iPhones and iPads, the loader fetches `boot.js` from two `.icu` 
 | `je4ft3gn8vxudum[.]icu` | Fallback C2 (boot.js reference) | Active |
 | `ioshack[.]icu` | Fallback C2 (boot.js reference) | Active |
 | `136.113.106[.]136` | IP for `1688360[.]cc` | Historical |
-| `34.96.213[.]201` | GCP-hosted infrastructure | Historical, may be reassigned |
-| `34.87.36[.]58` | GCP-hosted infrastructure | Historical, may be reassigned |
+| `34.96.213[.]201` | GCP-hosted infrastructure | Historical, may be reassigned; retire by 2026-12-19 |
+| `34.87.36[.]58` | GCP-hosted infrastructure | Historical, may be reassigned; retire by 2026-12-19 |
 
 ### 6. Anti-Forensics and Evasion
 
@@ -130,8 +130,8 @@ For visitors on iPhones and iPads, the loader fetches `boot.js` from two `.icu` 
 | Domain | `je4ft3gn8vxudum[.]icu` | Fallback C2 |
 | Domain | `ioshack[.]icu` | Fallback C2 |
 | IP | `136.113.106[.]136` | Resolved from 1688360[.]cc |
-| IP | `34.96.213[.]201` | GCP-hosted infrastructure (may be reassigned) |
-| IP | `34.87.36[.]58` | GCP-hosted infrastructure (may be reassigned) |
+| IP | `34.96.213[.]201` | GCP-hosted infrastructure (may be reassigned; retire by 2026-12-19) |
+| IP | `34.87.36[.]58` | GCP-hosted infrastructure (may be reassigned; retire by 2026-12-19) |
 | URL | `hxxps://1688360[.]cc/track.js` | Malicious payload loader |
 | URL | `hxxps://1688360[.]cc/card.php` | Card skimmer exfil endpoint |
 | URL | `hxxps://1688360[.]cc/hit.php` | Beacon/data exfil endpoint |
@@ -170,8 +170,8 @@ For visitors on iPhones and iPads, the loader fetches `boot.js` from two `.icu` 
 | T1195.002 | Supply Chain Compromise: Compromise Software Supply Chain | Malicious code injected into Optimizely's platform, served to visitors via trusted CDN |
 | T1059.007 | Command and Scripting Interpreter: JavaScript | Malicious JavaScript payloads (track.js, boot.js) executed in browser context |
 | T1071.001 | Application Layer Protocol: Web Protocols | C2 communication over HTTP/HTTPS to attacker domains |
-| T1185 | Browser Session Hijacking | Cookie theft via document.cookie exfiltration |
-| T1056.004 | Input Capture: Credential API Hooking | Card skimmer intercepting form submissions and POST bodies |
+| T1539 | Steal Web Session Cookie | Cookie theft via document.cookie exfiltration |
+| T1056 | Input Capture | Card skimmer intercepting web form submissions and POST bodies |
 | T1115 | Clipboard Data | Crypto clipper monitoring and replacing clipboard contents |
 | T1113 | Screen Capture | html2canvas JPEG page screenshots |
 | T1565.002 | Data Manipulation: Transmitted Data Manipulation | Crypto address replacement in outgoing fetch/XHR requests |
@@ -210,7 +210,7 @@ grep -E '1688360\.cc|webshell\.lol|5vobauua3ojpklx|eil786npto9u5bq|l7bcsnwc7nzr3
 **Splunk query for proxy logs (from Sigma conversion):**
 
 ```spl
-"cs-host" IN ("*1688360.cc", "*webshell.lol", "*5vobauua3ojpklx.icu", "*eil786npto9u5bq.icu", "*l7bcsnwc7nzr3uo.icu", "*je4ft3gn8vxudum.icu", "*ioshack.icu", "*linkforge.cc") OR "cs-uri-stem" IN ("*/track.js*", "*/card.php*", "*/hit.php*", "*/get.js*", "*/boot.js*", "*/html2canvas.min.js*")
+"cs-host" IN ("*1688360.cc", "*webshell.lol", "*5vobauua3ojpklx.icu", "*eil786npto9u5bq.icu", "*l7bcsnwc7nzr3uo.icu", "*je4ft3gn8vxudum.icu", "*ioshack.icu", "*linkforge.cc")
 ```
 
 ### Remediation
@@ -284,15 +284,16 @@ compile: sigma convert splunk/log_scale exit 0 | confidence: **high** (IOC-speci
 
 Detects HTTP/HTTPS requests to known OPTIMJACK payload URLs and C2 domains in proxy logs.
 
-<!-- audit: Dual-selection rule: selection_domain matches 8 C2 domains by host header; selection_uri matches 6 payload paths. OR condition means either domain or path match triggers. URI-only matches (track.js, boot.js on other domains) may generate false positives; tune selection_uri with domain correlation in production. sigma convert splunk/log_scale exit 0. -->
+<!-- revision: removed selection_uri OR leg — /track.js, /boot.js, /get.js, /html2canvas.min.js are common filenames that caused FPs on any domain. Now domain-only. sigma convert splunk exit 0, log_scale exit 0. -->
 
 ```yaml
 title: OPTIMJACK Proxy Access to Malicious Payload URLs
 id: 2b4d6f8a-1c3e-5a7b-9d0f-4e2c8a6b1d3e
 status: experimental
 description: >
-    Detects HTTP/HTTPS requests to known OPTIMJACK payload URLs including
-    track.js loader, card.php skimmer exfil, and hit.php beacon endpoints.
+    Detects HTTP/HTTPS proxy requests to known OPTIMJACK C2 and payload
+    domains used for payload delivery, card skimmer exfiltration, and
+    iOS exploit kit routing.
 references:
     - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
     - https://thehackernews.com/2026/11/hijacked-optimizely-scripts-served-card.html
@@ -314,27 +315,19 @@ detection:
             - 'je4ft3gn8vxudum.icu'
             - 'ioshack.icu'
             - 'linkforge.cc'
-    selection_uri:
-        cs-uri-stem|contains:
-            - '/track.js'
-            - '/card.php'
-            - '/hit.php'
-            - '/get.js'
-            - '/boot.js'
-            - '/html2canvas.min.js'
-    condition: selection_domain or selection_uri
+    condition: selection_domain
 falsepositives:
-    - Legitimate use of track.js or boot.js filenames on other domains (selection_uri alone may require tuning)
+    - Unlikely given the specificity of these domains
 level: high
 ```
 
-compile: sigma convert splunk/log_scale exit 0 | confidence: **high** (IOC-specific, URI-only leg may need tuning)
+compile: sigma convert splunk/log_scale exit 0 | confidence: **high** (IOC-specific)
 
 #### OPTIMJACK Network Connection to Known C2 IP Addresses
 
 Detects outbound connections to IP addresses associated with OPTIMJACK infrastructure.
 
-<!-- audit: Matches 3 IPs: 136.113.106.136 (1688360.cc resolution), 34.96.213.201 and 34.87.36.58 (GCP-hosted). GCP IPs may be reassigned to legitimate services; flag for time-limited deployment. sigma convert splunk/log_scale exit 0. -->
+<!-- revision: added GCP IP expiry (review-by 2026-12-19) to description and false-positive note. sigma convert splunk exit 0, log_scale exit 0. -->
 
 ```yaml
 title: OPTIMJACK Network Connection to Known C2 IP Addresses
@@ -342,7 +335,8 @@ id: 9c5e7a1b-3d2f-4b6a-8e0c-2f4d6a8b1c3e
 status: experimental
 description: >
     Detects outbound network connections to IP addresses associated with
-    the OPTIMJACK supply chain attack infrastructure.
+    the OPTIMJACK supply chain attack infrastructure. GCP IPs (34.96.213.201,
+    34.87.36.58) may be reassigned; review and retire by 2026-12-19.
 references:
     - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
     - https://phoenix.security/optimjack-optimizely-supply-chain-attack-card-skimmer-ios/
@@ -371,9 +365,13 @@ compile: sigma convert splunk/log_scale exit 0 | confidence: **high** (IOC-speci
 
 Ten Suricata rules covering DNS queries to all eight C2/payload/exploit domains and HTTP requests to the track.js and card.php endpoints.
 
-<!-- audit: All 10 rules validated with suricata -T exit 0. DNS rules use dns.query sticky buffer with nocase. HTTP rules use http.host + http.uri sticky buffers. SIDs 2100101-2100110. All use flow:to_server or flow:established,to_server as appropriate. -->
+> **SID range note:** SIDs 2100101-2100110 fall within the Emerging Threats reserved range. Remap to your local SID allocation (e.g., 1000001+) before production deployment.
+
+<!-- revision: added SID-range conflict note. suricata -T exit 0. -->
 
 ```
+# NOTE: SIDs 2100101-2100110 are in the ET reserved range. Remap before production use.
+
 alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Payload Domain 1688360.cc"; flow:to_server; dns.query; content:"1688360.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-19; sid:2100101; rev:1;)
 
 alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Injector Domain webshell.lol"; flow:to_server; dns.query; content:"webshell.lol"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-19; sid:2100102; rev:1;)
@@ -401,9 +399,11 @@ compile: suricata -T exit 0 | confidence: **high** (IOC-specific)
 
 Four YARA rules detecting OPTIMJACK JavaScript payload patterns and known hashes.
 
-<!-- audit: All 4 rules compiled with yarac exit 0. Rule 1 (TrackJS_Loader) matches domain+path or global+domain combinations. Rule 2 (iOS_Exploit_Router) matches .icu exploit domains with exploit paths. Rule 3 (Crypto_Clipper) matches the clipper's behavioral signature (domain + clipboard/beacon/cookie combinations). Rule 4 (TrackJS_Hash) matches the "1688360" string as a broad catch for any build — lower precision but useful for triage. All rules scoped to filesize < 500KB to reduce false positives on large legitimate files. -->
+<!-- revision: Rule 4 (TrackJS_Hash) rewritten — was bare string "1688360" matching any file; now uses import "hash" with hash.sha256(0, filesize) against the 4 known SHA-256 hashes. yarac exit 0 on all 4 rules. -->
 
 ```yara
+import "hash"
+
 rule Supply_Chain_OPTIMJACK_TrackJS_Loader
 {
     meta:
@@ -510,21 +510,20 @@ rule Supply_Chain_OPTIMJACK_TrackJS_Hash
         severity = "critical"
         tlp = "WHITE"
 
-    strings:
-        $s = "1688360" ascii
-
     condition:
-        filesize < 500KB and $s
+        filesize < 500KB and
+        (
+            hash.sha256(0, filesize) == "f7b84b9a94f749f8ced3f0112d0a66894e8bbc3b4aa5592021d1b8976a9bad40" or
+            hash.sha256(0, filesize) == "617df364120adc47fb4f55dcc0c69a9b6c9e108a92c60bc2b64a266254ab02f3" or
+            hash.sha256(0, filesize) == "814a963c0da480e2449d9b6664480156e1cd6d731014117401bf635badec3a0f" or
+            hash.sha256(0, filesize) == "c2a34c579e4c2e8802752c93b3a9cca0230610f3e4dd6688f4272459c7c7c162"
+        )
 }
 ```
 
-compile: yarac exit 0 | confidence: **high** (Rules 1-3: pattern-based with IOC anchors), **high** (Rule 4: string triage)
+compile: yarac exit 0 | confidence: **high** (Rules 1-3: pattern-based with IOC anchors), **high** (Rule 4: exact SHA-256 hash matching via `import "hash"`)
 
-### Snort Rules
-
-The Suricata rules above can be adapted for Snort 3 by converting dot-notation sticky buffers to underscore notation (e.g., `http.uri` to `http_uri`).
-
-compile: **uncompiled (structural check only)** | confidence: **high** (IOC-specific)
+<!-- revision: removed hollow Snort section — no actual Snort rules were provided or validated. -->
 
 ## Lessons Learned
 

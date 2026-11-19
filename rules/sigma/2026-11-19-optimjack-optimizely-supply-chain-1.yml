@@ -1,0 +1,31 @@
+title: OPTIMJACK DNS Query to Known C2 or Payload Domains
+id: 7a1c3e9b-4f2d-48a6-b5c7-1d8e0f3a2b9c
+status: experimental
+description: >
+    Detects DNS queries to domains used by the OPTIMJACK supply chain attack
+    for payload delivery, data exfiltration, and iOS exploit kit routing.
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://thehackernews.com/2026/11/hijacked-optimizely-scripts-served-card.html
+author: Actioner
+date: 2026-11-19
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '1688360.cc'
+            - 'webshell.lol'
+            - '5vobauua3ojpklx.icu'
+            - 'eil786npto9u5bq.icu'
+            - 'l7bcsnwc7nzr3uo.icu'
+            - 'je4ft3gn8vxudum.icu'
+            - 'ioshack.icu'
+            - 'linkforge.cc'
+    condition: selection
+falsepositives:
+    - Unlikely given the specificity of these domains
+level: high

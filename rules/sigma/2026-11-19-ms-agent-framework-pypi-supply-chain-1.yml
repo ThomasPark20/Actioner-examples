@@ -1,0 +1,32 @@
+title: Pip Install of Malicious Microsoft Agent Framework Versions
+id: 7a6925ef-ecb8-4d72-b79f-9d1a434936d3
+status: experimental
+description: >
+    Detects pip install commands targeting the compromised agent-framework
+    versions 1.26.1 or 1.26.2, which contain a credential-stealing payload
+    that executes at Python startup via .pth hooks.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://www.stepsecurity.io/blog/microsoft-agent-framework-pypi-package-compromised
+author: Actioner
+date: 2026-11-19
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+logsource:
+    category: process_creation
+detection:
+    selection_pip:
+        CommandLine|contains:
+            - 'pip install'
+            - 'pip3 install'
+    selection_package:
+        CommandLine|contains:
+            - 'agent-framework==1.26.1'
+            - 'agent-framework==1.26.2'
+            - 'agent_framework==1.26.1'
+            - 'agent_framework==1.26.2'
+    condition: selection_pip and selection_package
+falsepositives:
+    - Unlikely, as these specific versions have been quarantined and removed from PyPI
+level: critical

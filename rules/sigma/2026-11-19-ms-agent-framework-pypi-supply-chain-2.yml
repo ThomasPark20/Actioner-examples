@@ -1,0 +1,26 @@
+title: Suspicious PTH File Creation in Python Site-Packages
+id: 83594a26-96ee-4528-a1d5-62237e6d500c
+status: experimental
+description: >
+    Detects the creation of .pth files associated with the malicious
+    agent-framework versions 1.26.1 and 1.26.2 in Python site-packages
+    directories. These hooks execute code at every Python interpreter startup.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://socket.dev/blog/agent-framework-pypi-package-compromised-with-credential-stealer
+author: Actioner
+date: 2026-11-19
+tags:
+    - attack.t1546.016
+    - attack.t1195.002
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - 'agent_framework_meta.pth'
+            - 'af_runtime_diag.pth'
+    condition: selection
+falsepositives:
+    - Legitimate package installations that happen to use these exact filenames are extremely unlikely
+level: critical
