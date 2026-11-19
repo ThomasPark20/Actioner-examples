@@ -1,0 +1,30 @@
+title: Outbound Connection to Webhook.site with Diagnostics User-Agent
+id: 5ea7ad92-1a36-4f18-ad1d-c9c60e68558c
+status: experimental
+description: >
+    Detects HTTP POST requests to webhook.site using User-Agent strings
+    associated with the malicious agent-framework credential stealer.
+    The malware exfiltrates stolen credentials to this endpoint.
+references:
+    - https://www.wiz.io/blog/malicious-version-of-microsofts-agent-framework-published-to-pypi
+    - https://www.mend.io/blog/microsoft-agent-framework-pypi-credential-stealer/
+author: Actioner
+date: 2026-11-19
+tags:
+    - attack.t1041
+    - attack.t1567
+logsource:
+    category: proxy
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_domain:
+        cs-host|contains: 'webhook.site'
+    selection_ua:
+        cs-useragent:
+            - 'af-runtime-diagnostics/1'
+            - 'runtime-diagnostics/1'
+    condition: selection_method and selection_domain and selection_ua
+falsepositives:
+    - Custom developer tooling using identical User-Agent strings against webhook.site
+level: high

@@ -1,0 +1,27 @@
+title: OPTIMJACK Network Connection to Known C2 IP Addresses
+id: 9c5e7a1b-3d2f-4b6a-8e0c-2f4d6a8b1c3e
+status: experimental
+description: >
+    Detects outbound network connections to IP addresses associated with
+    the OPTIMJACK supply chain attack infrastructure. GCP IPs (34.96.213.201,
+    34.87.36.58) may be reassigned; review and retire by 2026-12-19.
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://phoenix.security/optimjack-optimizely-supply-chain-attack-card-skimmer-ios/
+author: Actioner
+date: 2026-11-19
+tags:
+    - attack.t1071.001
+    - attack.t1195.002
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationIp:
+            - '136.113.106.136'
+            - '34.96.213.201'
+            - '34.87.36.58'
+    condition: selection
+falsepositives:
+    - The GCP IP addresses 34.96.213.201 and 34.87.36.58 may be reassigned to legitimate services over time
+level: high
