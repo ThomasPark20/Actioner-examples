@@ -1,0 +1,64 @@
+# CVE-2026-123007 - NGINX HTTP/2 Flow Control Integer Underflow (nginx2root)
+# These rules require TLS decryption or cleartext HTTP/2 (h2c) visibility.
+# They target the exploit's characteristic traffic patterns: excessive WINDOW_UPDATE
+# frames on stream 0 and rapid RST_STREAM bursts following SETTINGS changes.
+#
+# References:
+#   https://www.circl.lu/pub/tr-105/
+#   https://rapid7.com/blog/post/ve-cve-2026-123007-critical-nginx-http-2-integer-underflow-leads-to-rce-fixed
+#   https://censys.com/blog/nginx2root-simple-test/
+#
+# WARNING: Uncompiled (structural check only). Requires Suricata 7.0+ with
+# http2 keyword support and TLS decryption for production use.
+
+# Rule 1: Detect excessive connection-level WINDOW_UPDATE frames (stream 0)
+# The exploit sends large volumes of WINDOW_UPDATE frames on stream 0 to inflate
+# the connection send window past 2^31-1. HTTP/2 WINDOW_UPDATE is frame type 0x08.
+# A burst of >100 WINDOW_UPDATE frames in a threshold window is anomalous.
+# NOTE: This rule does not filter to stream 0 (connection-level) specifically;
+# Suricata's http2.frametype matches all WINDOW_UPDATE frames regardless of stream ID.
+# Operators should tune the threshold (count 100, seconds 10) against their baseline.
+alert http2 any any -> $HOME_NET any ( \
+    msg:"ET EXPLOIT CVE-2026-123007 NGINX HTTP/2 Excessive Connection-Level WINDOW_UPDATE (nginx2root)"; \
+    flow:to_server,established; \
+    http2.frametype:8; \
+    threshold:type both, track by_src, count 100, seconds 10; \
+    reference:cve,2026-123007; \
+    classtype:attempted-admin; \
+    sid:9007001; rev:2; \
+    metadata:affected_product NGINX, attack_target Web_Server, deployment Perimeter, confidence Low, signature_severity Critical; \
+)
+
+# Rule 2: Detect HTTP/2 RST_STREAM bursts
+# NOTE: RST_STREAM bursts also characterize CVE-2023-44487 (HTTP/2 Rapid Reset),
+# gRPC cancellation storms, and aggressive HTTP/2 clients. This rule alone does not
+# distinguish CVE-2026-123007 from those scenarios. Correlate alerts from this SID
+# with SID 9007003 (SETTINGS_INITIAL_WINDOW_SIZE at maximum) on the same source IP
+# to increase confidence in CVE-2026-123007 exploitation.
+alert http2 any any -> $HOME_NET any ( \
+    msg:"ET EXPLOIT HTTP/2 Rapid RST_STREAM Burst - Possible nginx2root or Rapid Reset"; \
+    flow:to_server,established; \
+    http2.frametype:3; \
+    threshold:type both, track by_src, count 50, seconds 5; \
+    reference:cve,2026-123007; \
+    reference:cve,2023-44487; \
+    classtype:attempted-admin; \
+    sid:9007002; rev:2; \
+    metadata:affected_product NGINX, attack_target Web_Server, deployment Perimeter, confidence Low, signature_severity Critical; \
+)
+
+# Rule 3: Detect HTTP/2 SETTINGS frame with SETTINGS_INITIAL_WINDOW_SIZE at maximum
+# The exploit manipulates SETTINGS_INITIAL_WINDOW_SIZE (parameter ID 0x03) to adjust
+# stream windows, combined with the credit refund bug. SETTINGS_INITIAL_WINDOW_SIZE
+# set to 0x7FFFFFFF (2^31-1, the protocol maximum) is uncommon in legitimate traffic.
+# HTTP/2 SETTINGS is frame type 0x04, parameter 0x0003 with value 0x7FFFFFFF.
+alert http2 any any -> $HOME_NET any ( \
+    msg:"ET EXPLOIT CVE-2026-123007 NGINX HTTP/2 SETTINGS_INITIAL_WINDOW_SIZE at Maximum (nginx2root)"; \
+    flow:to_server,established; \
+    http2.frametype:4; \
+    content:"|00 03 7F FF FF FF|"; \
+    reference:cve,2026-123007; \
+    classtype:attempted-admin; \
+    sid:9007003; rev:1; \
+    metadata:affected_product NGINX, attack_target Web_Server, deployment Perimeter, confidence Medium, signature_severity Critical; \
+)
