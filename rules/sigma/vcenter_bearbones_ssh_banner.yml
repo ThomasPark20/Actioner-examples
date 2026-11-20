@@ -1,0 +1,23 @@
+title: BEARBONES Backdoored SSH Server Banner Detection
+id: a1c2d3e4-f5a6-4b7c-8d9e-0f1a2b3c4d5e
+status: experimental
+description: Detects the distinctive SSH banner string used by the BEARBONES backdoor (modified Dropbear SSH), associated with ARMORY CASTLE (UNC5221) campaigns targeting VMware vCenter infrastructure.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://support.broadcom.com/web/ecx/support-content-notification/-/external/content/SecurityAdvisories/0/39495
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.defense_evasion
+    - attack.t1036.005
+    - cve.2026-123890
+logsource:
+    category: network_connection
+    product: zeek
+detection:
+    selection:
+        server_banner|contains: 'SSH-2.0-pulsesecure_23345'
+    condition: selection
+falsepositives:
+    - Legitimate Pulse Secure VPN appliances may use similar banners, but the exact version string 23345 is not a known legitimate version
+level: high

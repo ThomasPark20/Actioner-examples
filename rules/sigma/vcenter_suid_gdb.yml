@@ -1,0 +1,25 @@
+title: SUID Bit Set on /bin/env via GDB - ARMORY CASTLE Privilege Escalation
+id: c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f
+status: experimental
+description: Detects the use of GDB to set the SUID bit on /bin/env, a privilege escalation technique observed in the ARMORY CASTLE campaign exploiting CVE-2026-123890. The attacker uses base64-encoded commands piped through GDB to escalate privileges on a compromised Linux appliance.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.privilege_escalation
+    - attack.t1548.001
+    - cve.2026-123890
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_gdb:
+        Image|endswith: '/gdb'
+        CommandLine|contains: '--command='
+    selection_base64:
+        CommandLine|contains: 'IWNobW9kIHUrcyAvYmluL2Vudg'
+    condition: selection_gdb or selection_base64
+falsepositives:
+    - Legitimate debugging sessions using GDB with command files; the base64 string is highly specific
+level: medium
