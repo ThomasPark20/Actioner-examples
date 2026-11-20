@@ -1,0 +1,33 @@
+title: OPTIMJACK Supply Chain Attack - Malicious URL Paths in Proxy Logs
+id: b8f4a2c3-0d5e-4f9b-a7a6-2b3c4d5e6f7a
+status: experimental
+description: Detects HTTP requests to known OPTIMJACK payload URLs including track.js delivery, card skimmer exfiltration, and cookie/screenshot theft endpoints observed in the Optimizely supply chain attack.
+references:
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://threatdefence.com/article/optimizely-web-experimentation-malicious-javascript-hunting
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+    - attack.exfiltration
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection_payload:
+        c-uri|contains:
+            - '1688360.cc/track.js'
+            - '1688360.cc/card.php'
+            - '1688360.cc/hit.php'
+            - '1688360.cc/html2canvas.min.js'
+            - 'webshell.lol/get.js'
+    selection_ios_exploit:
+        c-uri|contains:
+            - '5vobauua3ojpklx.icu/boot.js'
+            - 'eil786npto9u5bq.icu/boot.js'
+            - 'l7bcsnwc7nzr3uo.icu/api/iptj'
+    condition: selection_payload or selection_ios_exploit
+falsepositives:
+    - Unlikely, these are attacker-controlled URLs
+level: high

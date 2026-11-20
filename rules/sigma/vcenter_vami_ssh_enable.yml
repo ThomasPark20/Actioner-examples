@@ -1,0 +1,25 @@
+title: VMware vCenter VAMI API SSH Enablement
+id: b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e
+status: experimental
+description: Detects HTTP PUT requests to the vCenter VAMI API endpoint used to enable SSH access, a technique observed in ARMORY CASTLE exploitation of CVE-2026-123890. Attackers enable SSH via the management API to gain interactive shell access to the vCenter appliance.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://support.broadcom.com/web/ecx/support-content-notification/-/external/content/SecurityAdvisories/0/39495
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.persistence
+    - attack.t1021.004
+    - cve.2026-123890
+logsource:
+    category: webserver
+    product: vmware
+detection:
+    selection_method:
+        cs-method: 'PUT'
+    selection_uri:
+        cs-uri|contains: '/rest/appliance/access/ssh'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate vCenter administrators enabling SSH for maintenance; correlate with change management records
+level: medium

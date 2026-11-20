@@ -1,0 +1,43 @@
+# ARMORY CASTLE / CVE-2026-123890 Suricata Rules
+# Author: Actioner Research
+# Date: 2026-11-20
+# Reference: https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+
+# BEARBONES backdoored SSH banner detection
+alert ssh any any -> any any (msg:"ACTIONER BEARBONES Backdoor SSH Banner Detected"; ssh.software; content:"pulsesecure_23345"; sid:2026001; rev:1; classtype:trojan-activity; metadata:mitre_technique_id T1036.005, cve CVE-2026-123890, affected_product VMware_vCenter, threat_actor ARMORY_CASTLE;)
+
+# vCenter VAMI SSH enablement via PUT request
+alert http any any -> any 5480 (msg:"ACTIONER vCenter VAMI SSH Enable via PUT"; flow:to_server,established; http.method; content:"PUT"; http.uri; content:"/rest/appliance/access/ssh"; sid:2026002; rev:1; classtype:policy-violation; metadata:mitre_technique_id T1021.004, cve CVE-2026-123890, affected_product VMware_vCenter, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 103.147.251.5
+alert ip any any -> 103.147.251.5 any (msg:"ACTIONER ARMORY CASTLE C2 IP 103.147.251.5"; sid:2026003; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 103.190.38.3
+alert ip any any -> 103.190.38.3 any (msg:"ACTIONER ARMORY CASTLE C2 IP 103.190.38.3"; sid:2026004; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 118.174.128.34
+alert ip any any -> 118.174.128.34 any (msg:"ACTIONER ARMORY CASTLE C2 IP 118.174.128.34"; sid:2026005; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 118.174.128.36
+alert ip any any -> 118.174.128.36 any (msg:"ACTIONER ARMORY CASTLE C2 IP 118.174.128.36"; sid:2026006; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 118.174.128.38
+alert ip any any -> 118.174.128.38 any (msg:"ACTIONER ARMORY CASTLE C2 IP 118.174.128.38"; sid:2026007; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 176.9.89.66
+alert ip any any -> 176.9.89.66 any (msg:"ACTIONER ARMORY CASTLE C2 IP 176.9.89.66"; sid:2026008; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 185.71.15.109
+alert ip any any -> 185.71.15.109 any (msg:"ACTIONER ARMORY CASTLE C2 IP 185.71.15.109"; sid:2026009; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 220.121.128.41
+alert ip any any -> 220.121.128.41 any (msg:"ACTIONER ARMORY CASTLE C2 IP 220.121.128.41"; sid:2026010; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 222.108.77.44
+alert ip any any -> 222.108.77.44 any (msg:"ACTIONER ARMORY CASTLE C2 IP 222.108.77.44"; sid:2026011; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 61.216.56.127
+alert ip any any -> 61.216.56.127 any (msg:"ACTIONER ARMORY CASTLE C2 IP 61.216.56.127"; sid:2026012; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)
+
+# ARMORY CASTLE C2 IP - 81.45.89.43
+alert ip any any -> 81.45.89.43 any (msg:"ACTIONER ARMORY CASTLE C2 IP 81.45.89.43"; sid:2026013; rev:1; classtype:trojan-activity; metadata:cve CVE-2026-123890, threat_actor ARMORY_CASTLE;)

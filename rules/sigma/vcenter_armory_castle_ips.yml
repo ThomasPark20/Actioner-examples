@@ -1,0 +1,31 @@
+title: ARMORY CASTLE Network Infrastructure IOC Match
+id: f6a7b8c9-d0e1-4f2a-3b4c-5d6e7f8a9b0c
+status: experimental
+description: Detects network connections to IP addresses attributed to the ARMORY CASTLE (UNC5221) obfuscation network, as published by Google Threat Intelligence Group in their analysis of CVE-2026-123890 exploitation.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.command_and_control
+    - cve.2026-123890
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip:
+            - '103.147.251.5'
+            - '103.190.38.3'
+            - '118.174.128.34'
+            - '118.174.128.36'
+            - '118.174.128.38'
+            - '176.9.89.66'
+            - '185.71.15.109'
+            - '220.121.128.41'
+            - '222.108.77.44'
+            - '61.216.56.127'
+            - '81.45.89.43'
+    condition: selection
+falsepositives:
+    - These IPs are compromised third-party infrastructure and may host legitimate services; validate context before escalating
+level: high

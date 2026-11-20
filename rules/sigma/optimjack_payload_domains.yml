@@ -1,0 +1,36 @@
+title: OPTIMJACK Supply Chain Attack - C2 Domain Communication
+id: a7e3f1b2-9c4d-4e8a-b6f5-1a2b3c4d5e6f
+status: experimental
+description: Detects DNS queries or HTTP connections to known OPTIMJACK C2 and payload delivery domains used in the Optimizely supply chain compromise (November 2026).
+references:
+    - https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://threatdefence.com/article/optimizely-web-experimentation-malicious-javascript-hunting
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: dns_query
+detection:
+    selection:
+        QueryName|endswith:
+            - '1688360.cc'
+            - 'webshell.lol'
+            - 'linkforge.cc'
+            - '5vobauua3ojpklx.icu'
+            - 'eil786npto9u5bq.icu'
+            - 'l7bcsnwc7nzr3uo.icu'
+            - 'je4ft3gn8vxudum.icu'
+            - 'q1ls1ho9x7wsxlu.icu'
+            - 'ios-hack.icu'
+            - 'p55abnw2pnsz0bo.icu'
+            - '1y69gy2mdzaltz1.icu'
+            - 'gm38duxoihbmy5o.icu'
+    condition: selection
+falsepositives:
+    - Unlikely, these are attacker-registered domains
+level: high

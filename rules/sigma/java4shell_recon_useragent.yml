@@ -1,0 +1,33 @@
+title: Java4Shell Reconnaissance Scanner User-Agent Detection
+id: b5d8f3a2-9c5e-4f0b-a7d4-2e3b4c5d6e78
+status: experimental
+description: >
+    Detects HTTP requests using the 'java4shell-recon' User-Agent string observed
+    by watchTowr in scanning activity targeting CVE-2026-114938. This User-Agent
+    was seen in early exploitation probing immediately following public disclosure.
+references:
+    - https://thehackernews.com/2026/11/cisa-urges-immediate-patching-of.html
+    - https://watchtowr.com/intelligence/java4shell-cve-2026-114938-faq/
+    - https://previdian.com/CVE-2026-114938
+author: Actioner Research
+date: 2026-11-20
+modified: 2026-11-20
+tags:
+    - attack.reconnaissance
+    - attack.t1595
+    - cve.2026.114938
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-User-Agent|contains: 'java4shell-recon'
+    condition: selection
+fields:
+    - cs-uri
+    - cs-method
+    - c-ip
+    - sc-status
+    - cs-User-Agent
+falsepositives:
+    - Security researchers and authorized penetration testers using the same scanner
+level: high

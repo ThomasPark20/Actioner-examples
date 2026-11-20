@@ -1,0 +1,49 @@
+# OPTIMJACK Supply Chain Attack - Suricata/Snort Network Detection Rules
+# Author: Actioner Research
+# Date: 2026-11-20
+# References:
+#   https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+#   https://threatdefence.com/article/optimizely-web-experimentation-malicious-javascript-hunting
+
+# Rule 1: Detect DNS lookup for primary C2 domain
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Primary C2 Domain 1688360.cc"; dns.query; content:"1688360.cc"; nocase; classtype:trojan-activity; sid:2026111601; rev:1;)
+
+# Rule 2: Detect DNS lookup for webshell.lol loader domain
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Loader Domain webshell.lol"; dns.query; content:"webshell.lol"; nocase; classtype:trojan-activity; sid:2026111602; rev:1;)
+
+# Rule 3: Detect DNS lookup for iOS exploit router domains
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for iOS Exploit Router 5vobauua3ojpklx.icu"; dns.query; content:"5vobauua3ojpklx.icu"; nocase; classtype:trojan-activity; sid:2026111603; rev:1;)
+
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for iOS Exploit Router eil786npto9u5bq.icu"; dns.query; content:"eil786npto9u5bq.icu"; nocase; classtype:trojan-activity; sid:2026111604; rev:1;)
+
+# Rule 4: Detect DNS lookup for Coruna telemetry domain
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Coruna Telemetry l7bcsnwc7nzr3uo.icu"; dns.query; content:"l7bcsnwc7nzr3uo.icu"; nocase; classtype:trojan-activity; sid:2026111605; rev:1;)
+
+# Rule 5: Detect DNS lookup for linkforge.cc (earlier wave)
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Injector Domain linkforge.cc"; dns.query; content:"linkforge.cc"; nocase; classtype:trojan-activity; sid:2026111606; rev:1;)
+
+# Rule 6: Detect DNS lookup for fallback C2 domains
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Fallback C2 je4ft3gn8vxudum.icu"; dns.query; content:"je4ft3gn8vxudum.icu"; nocase; classtype:trojan-activity; sid:2026111607; rev:1;)
+
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Fallback C2 q1ls1ho9x7wsxlu.icu"; dns.query; content:"q1ls1ho9x7wsxlu.icu"; nocase; classtype:trojan-activity; sid:2026111608; rev:1;)
+
+alert dns $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for Fallback C2 ios-hack.icu"; dns.query; content:"ios-hack.icu"; nocase; classtype:trojan-activity; sid:2026111609; rev:1;)
+
+# Rule 7: Detect HTTP request for track.js payload
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - HTTP Request for track.js Payload"; flow:established,to_server; http.uri; content:"/track.js"; http.host; content:"1688360.cc"; classtype:trojan-activity; sid:2026111610; rev:1;)
+
+# Rule 8: Detect card data exfiltration to card.php
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Card Data Exfiltration to card.php"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/card.php"; http.host; content:"1688360.cc"; classtype:trojan-activity; sid:2026111611; rev:1;)
+
+# Rule 9: Detect cookie/screenshot exfiltration to hit.php
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Cookie/Screenshot Exfiltration to hit.php"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/hit.php"; http.host; content:"1688360.cc"; classtype:trojan-activity; sid:2026111612; rev:1;)
+
+# Rule 10: Detect Coruna telemetry POST
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Coruna iOS Exploit Kit Telemetry"; flow:established,to_server; http.method; content:"POST"; http.uri; content:"/api/iptj"; http.host; content:"l7bcsnwc7nzr3uo.icu"; classtype:trojan-activity; sid:2026111613; rev:1;)
+
+# Rule 11: Detect connections to known C2 IPs
+alert ip $HOME_NET any -> 136.113.106.136 any (msg:"OPTIMJACK - Connection to C2 IP 136.113.106.136"; classtype:trojan-activity; sid:2026111614; rev:1;)
+
+alert ip $HOME_NET any -> 34.96.213.201 any (msg:"OPTIMJACK - Connection to iOS Router IP 34.96.213.201"; classtype:trojan-activity; sid:2026111615; rev:1;)
+
+alert ip $HOME_NET any -> 34.87.36.58 any (msg:"OPTIMJACK - Connection to iOS Router IP 34.87.36.58"; classtype:trojan-activity; sid:2026111616; rev:1;)

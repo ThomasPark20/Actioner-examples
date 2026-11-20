@@ -1,0 +1,24 @@
+title: OPTIMJACK Supply Chain Attack - Known C2 IP Addresses
+id: c9a5a3d4-1e6f-4a0c-a8a7-3c4d5e6f7a8a
+status: experimental
+description: Detects network connections to IP addresses associated with OPTIMJACK C2 infrastructure during the Optimizely compromise window (November 9-17, 2026). These IPs are cloud-hosted and may be reassigned; treat matches outside this window with caution.
+references:
+    - https://blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/
+    - https://threatdefence.com/article/optimizely-web-experimentation-malicious-javascript-hunting
+author: Actioner Research
+date: 2026-11-20
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_ip:
+            - '136.113.106.136'
+            - '34.96.213.201'
+            - '34.87.36.58'
+    condition: selection
+falsepositives:
+    - Cloud-hosted IPs may be reassigned after the attack window; validate timestamps against Nov 9-17, 2026
+level: medium
