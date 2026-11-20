@@ -161,7 +161,7 @@ The payload was rebuilt 26 times during the active window, with markers `window.
 |---|---|---|
 | Initial Access | T1195.002 - Compromise Software Supply Chain | Attacker injected malicious JS via Optimizely's platform |
 | Execution | T1059.007 - JavaScript | Malicious JavaScript executed in victim browsers |
-| Persistence | T1547 - Boot or Logon Autostart Execution | Payload served on every page load via CDN snippet |
+| Persistence | T1195.002 - Supply Chain Compromise | Payload served on every page load via compromised Optimizely CDN snippet; the supply chain injection is itself the persistence mechanism |
 | Defense Evasion | T1027 - Obfuscated Files or Information | Base64-encoded loader variant using atob() |
 | Defense Evasion | T1036 - Masquerading | Payload served from legitimate cdn[.]optimizely[.]com |
 | Collection | T1185 - Browser Session Hijacking | Cookie theft and screenshot capture |
@@ -257,7 +257,7 @@ Detects the specific cryptocurrency wallet addresses used by the OPTIMJACK attac
 
 **File**: `/tmp/actioner/optimjack_c2_network.rules`
 
-16 rules covering DNS queries for all C2 domains (rules 1-9), HTTP requests for specific payload/exfiltration paths on the primary C2 (rules 10-12), Coruna telemetry POST (rule 13), and direct IP connections (rules 14-16). Rules use Suricata-style sticky buffers (dns.query, http.uri, http.host, http.method). Caveat: IP-based rules (SIDs 2026111614-16) should be time-bounded to the attack window due to cloud IP reassignment risk.
+16 rules covering DNS queries for 9 primary C2/exploit domains (rules 1-9), HTTP requests for specific payload/exfiltration paths on the primary C2 (rules 10-12), Coruna telemetry POST (rule 13), and direct IP connections (rules 14-16). Note: 3 shared-certificate domains (`p55abnw2pnsz0bo[.]icu`, `1y69gy2mdzaltz1[.]icu`, `gm38duxoihbmy5o[.]icu`) are covered by the Sigma DNS rule but not by Suricata DNS rules. Rules use Suricata-style sticky buffers (dns.query, http.uri, http.host, http.method). Caveat: IP-based rules (SIDs 2026111614-16) should be time-bounded to the attack window due to cloud IP reassignment risk.
 
 | Property | Value |
 |---|---|
