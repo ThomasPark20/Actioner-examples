@@ -1,0 +1,116 @@
+title: Malicious PTH File From Microsoft Agent-Framework Supply Chain Attack
+id: 7a3c1d4e-9f2b-4e8a-b6c5-d1e0f3a2b7c9
+status: experimental
+description: >
+    Detects the creation of malicious .pth files associated with the compromised
+    Microsoft agent-framework PyPI package (versions 1.26.1 and 1.26.2). The attack
+    plants .pth files in site-packages that execute credential-stealing code on every
+    Python interpreter startup.
+references:
+    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
+author: Actioner
+date: 2026/11/21
+tags:
+    - attack.t1195.001
+    - attack.t1546.016
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\agent_framework_meta.pth'
+            - '/agent_framework_meta.pth'
+            - '\af_runtime_diag.pth'
+            - '/af_runtime_diag.pth'
+    condition: selection
+falsepositives:
+    - None expected. These file names are unique to the malicious payload.
+level: critical
+---
+title: Malicious af_runtime_diag Module From Agent-Framework Compromise
+id: 8b4d2e5f-a0c3-4f9b-c7d6-e2f1a4b3c8da
+status: experimental
+description: >
+    Detects the creation of the af_runtime_diag.py module dropped by version 1.26.2
+    of the compromised Microsoft agent-framework PyPI package. This module collects
+    GitHub Actions OIDC tokens and broadens credential harvesting when imported via
+    the companion .pth startup hook.
+references:
+    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
+author: Actioner
+date: 2026/11/21
+tags:
+    - attack.t1195.001
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '\af_runtime_diag.py'
+            - '/af_runtime_diag.py'
+    selection_path:
+        TargetFilename|contains:
+            - 'site-packages'
+    condition: selection and selection_path
+falsepositives:
+    - None expected. This filename in a site-packages directory is specific to the malicious payload.
+level: critical
+---
+title: HTTP POST to Webhook.site C2 Endpoint Used by Agent-Framework Stealer
+id: ad6f4a7b-c2e5-4b1d-e9f8-a4b3c6d5eafc
+status: experimental
+description: >
+    Detects HTTPS POST requests to the specific webhook.site endpoint used for
+    credential exfiltration by the compromised Microsoft agent-framework PyPI package.
+    The payload is zlib-compressed and Base64-encoded stolen credentials and tokens.
+references:
+    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
+author: Actioner
+date: 2026/11/21
+tags:
+    - attack.t1195.001
+    - attack.t1041
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-method: 'POST'
+        r-dns|contains: 'webhook.site'
+        cs-uri-stem|contains: '/d381fd80-ec62-42ad-8f5c-d1b15103c9bb'
+    condition: selection
+falsepositives:
+    - None expected. The UUID path is unique to this attack campaign.
+level: critical
+---
+title: Installation of Compromised Microsoft Agent-Framework Package Versions
+id: da9c7dae-f5b8-4e4a-bcd1-d7e6f9a8bdcf
+status: experimental
+description: >
+    Detects pip install commands targeting the malicious versions 1.26.1 or 1.26.2
+    of the Microsoft agent-framework PyPI package. These versions contain a credential
+    stealer that runs on every Python interpreter startup.
+references:
+    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
+author: Actioner
+date: 2026/11/21
+tags:
+    - attack.t1195.001
+    - attack.t1059.006
+logsource:
+    category: process_creation
+detection:
+    selection_pip:
+        CommandLine|contains:
+            - 'pip install'
+            - 'pip3 install'
+    selection_package:
+        CommandLine|contains:
+            - 'agent-framework==1.26.1'
+            - 'agent-framework==1.26.2'
+            - 'agent_framework==1.26.1'
+            - 'agent_framework==1.26.2'
+    condition: selection_pip and selection_package
+falsepositives:
+    - None expected. These specific versions are known malicious.
+level: critical

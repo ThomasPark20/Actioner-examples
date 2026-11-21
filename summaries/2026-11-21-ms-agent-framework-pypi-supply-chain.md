@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-21
-Version: 1.0 (DRAFT)
+Version: 1.1 (FINAL)
 
 ## Executive Summary
 
@@ -74,7 +74,7 @@ The exfiltration mechanism is straightforward:
 3. The compressed data is Base64-encoded
 4. An HTTPS POST sends the payload to: `hxxps://webhook[.]site/d381fd80-ec62-42ad-8f5c-d1b15103c9bb`
 
-The use of `webhook[.]site` -- a legitimate webhook testing service -- as the exfiltration endpoint allows the attacker to blend into normal developer traffic and avoid domain-reputation-based blocking, while providing easy access to stolen data through the webhook.site web interface.
+The use of `webhook[.]site` -- a legitimate webhook testing service -- as the exfiltration endpoint allows the attacker to blend into normal developer traffic and avoid domain-reputation-based blocking, while providing easy access to stolen data through the webhook[.]site web interface.
 
 ### 4. Platform-Specific Behavior
 
@@ -146,8 +146,8 @@ Note: No SHA256 hashes for the malicious wheel files have been published in the 
 | T1555 | Credentials from Password Stores | Harvests credentials from Azure CLI, Docker, npm, pip, git, and Hugging Face credential stores |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Reads credential files from well-known paths (~/.azure/, .npmrc, .netrc, .git-credentials, .docker/config.json) |
 | T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | Queries Azure IMDS (169.254.169.254) for managed identity tokens |
-| T1041 | Exfiltration Over C2 Channel | Stolen data POSTed to webhook.site via HTTPS |
-| T1027 | Obfuscated Files or Information | Exfiltrated data is zlib-compressed and Base64-encoded |
+| T1041 | Exfiltration Over C2 Channel | Stolen data POSTed to webhook[.]site via HTTPS |
+| T1132.001 | Data Encoding: Standard Encoding | Exfiltrated data is zlib-compressed and Base64-encoded before transmission |
 
 ## Impact Assessment
 
@@ -182,7 +182,7 @@ grep -r "agent-framework-1.26.[12]" /var/log/ ~/.pip/ 2>/dev/null
 1. **Isolate** affected hosts and CI runners immediately
 2. **Pin** to version 1.26.0 in all requirements files and rebuild environments from clean state: `agent-framework==1.26.0`
 3. **Remove** malicious files if found: `agent_framework_meta.pth`, `af_runtime_diag.pth`, `af_runtime_diag.py` from site-packages
-4. **Search** proxy/DNS logs for requests to `webhook.site` (specifically the UUID `d381fd80-ec62-42ad-8f5c-d1b15103c9bb`)
+4. **Search** proxy/DNS logs for requests to `webhook[.]site` (specifically the UUID `d381fd80-ec62-42ad-8f5c-d1b15103c9bb`)
 5. **Rotate** all credentials that may have been exposed, from a clean system:
    - Azure CLI credentials (`az login` from clean environment)
    - Azure managed identity keys (rotate if possible, review access logs)
@@ -201,12 +201,12 @@ grep -r "agent-framework-1.26.[12]" /var/log/ ~/.pip/ 2>/dev/null
 - **Pin dependency versions** in all requirements files and lock files; never allow unconstrained minor/patch version resolution in production or CI
 - **Use hash verification** (`pip install --require-hashes`) to prevent installation of unexpected package content
 - **Monitor site-packages** for unexpected `.pth` files using file-integrity monitoring
-- **Deploy egress filtering** to block or alert on outbound connections to `webhook.site` and similar testing services from production environments
+- **Deploy egress filtering** to block or alert on outbound connections to `webhook[.]site` and similar testing services from production environments
 - **Implement dependency scanning** in CI/CD to detect known-malicious package versions
 
 ## Detection Rules
 
-Seven Sigma rules, three YARA rules, and two Suricata rules cover the file-system artifacts (malicious .pth hooks and stealer module), network indicators (C2 exfiltration to webhook.site), behavioral patterns (credential file access and Azure IMDS queries by Python), and package content (strings characteristic of the stealer payload). The webhook.site DNS rule may produce false positives in developer environments where webhook.site is used for legitimate testing.
+Four Sigma rules, three YARA rules, and one Suricata rule cover the file-system artifacts (malicious .pth hooks and stealer module), network indicators (C2 exfiltration to webhook[.]site), and package content (strings characteristic of the stealer payload). Four rules were removed during critic review (three behavioral detections and one shared-domain DNS rule that did not meet the specific/strict altitude bar).
 
 ### Sigma: Malicious .pth File Creation
 
@@ -287,43 +287,7 @@ level: critical
 
 <!-- audit: sigma convert pass for splunk and log_scale. Scoped to site-packages to reduce FP from unrelated files named af_runtime_diag.py. -->
 
-### Sigma: DNS Query to webhook.site C2
-
-Detects DNS resolution of the exfiltration service used by the stealer.
-
-compile: splunk/logscale pass | confidence: medium
-
-```yaml
-title: DNS Query to Webhook.site C2 Used by Agent-Framework Credential Stealer
-id: 9c5e3f6a-b1d4-4a0c-d8e7-f3a2b5c4d9eb
-status: experimental
-description: >
-    Detects DNS resolution of webhook.site, the exfiltration endpoint used by the
-    compromised Microsoft agent-framework PyPI package (versions 1.26.1 and 1.26.2).
-    Stolen credentials are zlib-compressed, Base64-encoded, and POSTed to a specific
-    webhook.site URL.
-references:
-    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
-author: Actioner
-date: 2026/11/21
-tags:
-    - attack.t1195.001
-    - attack.t1041
-logsource:
-    category: dns_query
-detection:
-    selection:
-        QueryName|endswith:
-            - 'webhook.site'
-    condition: selection
-falsepositives:
-    - Legitimate developer testing using webhook.site for webhook debugging. Investigate in context of Python process and agent-framework installation.
-level: medium
-```
-
-<!-- audit: sigma convert pass. Level medium due to legitimate use of webhook.site by developers. Best deployed with correlation to Python process context. -->
-
-### Sigma: HTTP POST to Specific webhook.site Exfiltration UUID
+### Sigma: HTTP POST to Specific webhook[.]site Exfiltration UUID
 
 Detects the exact exfiltration endpoint in proxy logs.
 
@@ -358,91 +322,6 @@ level: critical
 ```
 
 <!-- audit: sigma convert pass. UUID is campaign-specific. Real value used (not defanged) per logsource-encoding spec. -->
-
-### Sigma: Python Process Accessing Multiple Credential Files
-
-Detects the credential harvesting file access pattern.
-
-compile: splunk/logscale pass | confidence: medium
-
-```yaml
-title: Suspicious Credential File Access by Python Process Matching Agent-Framework Stealer Pattern
-id: be7a5b8c-d3f6-4c2e-fab9-b5c4d7e6fbad
-status: experimental
-description: >
-    Detects Python processes accessing multiple credential files matching the pattern
-    used by the compromised Microsoft agent-framework package. The stealer harvests
-    Azure CLI credentials, .npmrc, pip.conf, .netrc, .git-credentials, Docker config,
-    and Hugging Face tokens.
-references:
-    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
-author: Actioner
-date: 2026/11/21
-tags:
-    - attack.t1555
-    - attack.t1552.001
-logsource:
-    category: file_event
-detection:
-    selection_process:
-        Image|endswith:
-            - '/python'
-            - '/python3'
-            - '\python.exe'
-            - '\python3.exe'
-    selection_files:
-        TargetFilename|contains:
-            - '.azure/'
-            - '.npmrc'
-            - '.netrc'
-            - '.git-credentials'
-            - '.docker/config.json'
-    condition: selection_process and selection_files
-falsepositives:
-    - Legitimate Python-based CI/CD tooling or configuration management scripts that read these files. Correlate with pip install activity of agent-framework.
-level: high
-```
-
-<!-- audit: sigma convert pass. Behavioral rule matching Python reading credential files. Medium confidence due to potential legitimate CI/CD tools reading subsets of these files. -->
-
-### Sigma: Python Process Querying Azure IMDS
-
-Detects Python querying Azure IMDS for managed identity tokens.
-
-compile: splunk/logscale pass | confidence: medium
-
-```yaml
-title: Python Process Querying Azure IMDS Matching Agent-Framework Stealer Pattern
-id: cf8b6c9d-e4a7-4d3f-abc0-c6d5e8f7acbe
-status: experimental
-description: >
-    Detects a Python process making HTTP connections to the Azure Instance Metadata
-    Service (169.254.169.254) to steal managed identity tokens, as performed by the
-    compromised Microsoft agent-framework package.
-references:
-    - https://thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html
-author: Actioner
-date: 2026/11/21
-tags:
-    - attack.t1552.005
-    - attack.t1195.001
-logsource:
-    category: network_connection
-detection:
-    selection:
-        Image|endswith:
-            - '/python'
-            - '/python3'
-            - '\python.exe'
-            - '\python3.exe'
-        DestinationIp: '169.254.169.254'
-    condition: selection
-falsepositives:
-    - Legitimate Python applications running on Azure that query IMDS for instance metadata or managed identity tokens. Correlate with agent-framework package presence.
-level: medium
-```
-
-<!-- audit: sigma convert pass. Level medium because legitimate Azure SDKs in Python query IMDS. Best as a contextual signal in combination with other IOCs. -->
 
 ### Sigma: pip Install of Malicious Package Versions
 
@@ -574,19 +453,17 @@ rule Supply_Chain_MS_Agent_Framework_Malicious_Wheel
 
 <!-- audit: yarac compiled all three rules successfully (exit code 0). PTH_Hook rule uses filesize < 1KB to scope to the tiny .pth files. Credential_Stealer requires C2 URL as anchor. Malicious_Wheel requires ZIP magic at offset 0. -->
 
-### Suricata: C2 Exfiltration and DNS
+### Suricata: C2 Exfiltration
 
-Two Suricata rules detect the HTTPS POST exfiltration to the specific webhook.site UUID endpoint and DNS lookups to webhook.site.
+One Suricata rule detects the HTTPS POST exfiltration to the specific webhook[.]site UUID endpoint.
 
 compile: suricata -T pass ("Configuration provided was successfully loaded") | confidence: high
 
 ```
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"SUPPLY-CHAIN Microsoft agent-framework credential exfiltration to webhook.site"; flow:established,to_server; http.method; content:"POST"; http.host; content:"webhook.site"; http.uri; content:"/d381fd80-ec62-42ad-8f5c-d1b15103c9bb"; reference:url,thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html; classtype:trojan-activity; sid:2026111801; rev:1;)
-
-alert dns $HOME_NET any -> any any (msg:"SUPPLY-CHAIN DNS query to webhook.site potential agent-framework C2"; dns.query; content:"webhook.site"; nocase; reference:url,thehackernews.com/2026/11/attackers-compromise-microsofts-agent.html; classtype:trojan-activity; sid:2026111802; rev:1;)
 ```
 
-<!-- audit: suricata -T -S validated successfully. HTTP rule requires TLS inspection/decryption to match http.host and http.uri on HTTPS traffic. DNS rule will match in cleartext DNS; DoH/DoT bypass possible. -->
+<!-- audit: suricata -T -S validated successfully. HTTP rule requires TLS inspection/decryption to match http.host and http.uri on HTTPS traffic. -->
 
 ## Lessons Learned
 
@@ -598,7 +475,7 @@ alert dns $HOME_NET any -> any any (msg:"SUPPLY-CHAIN DNS query to webhook.site 
 
 4. **Supply chain attacks against high-download packages have outsized impact.** At 190,000 downloads/month, even a 24-hour exposure window means thousands of potential victims, particularly automated CI/CD pipelines that install dependencies on every run.
 
-5. **Webhook testing services as C2 infrastructure.** Services like `webhook.site` provide free, anonymous data-collection endpoints that blend into developer traffic. Network policies should restrict or monitor outbound access to such services, especially from production and CI/CD environments.
+5. **Webhook testing services as C2 infrastructure.** Services like `webhook[.]site` provide free, anonymous data-collection endpoints that blend into developer traffic. Network policies should restrict or monitor outbound access to such services, especially from production and CI/CD environments.
 
 ## Sources
 
@@ -607,3 +484,5 @@ alert dns $HOME_NET any -> any any (msg:"SUPPLY-CHAIN DNS query to webhook.site 
 
 ---
 *Report generated by Actioner*
+
+<!-- revision: v1.1 2026-11-21 — Dropped 4 rules (Sigma DNS webhook.site, Sigma credential file access, Sigma IMDS query, Suricata DNS webhook.site) per critic review: behavioral/shared-domain detections that failed specific/strict altitude bar. Fixed T1027→T1132.001 for zlib+base64 encoding. Defanged webhook.site throughout prose. Updated rule counts to 4 Sigma + 3 YARA + 1 Suricata = 8 total. -->
