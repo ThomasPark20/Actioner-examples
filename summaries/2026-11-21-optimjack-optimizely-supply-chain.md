@@ -3,7 +3,7 @@
 Prepared by: Actioner
 Classification: TLP:WHITE
 Date: 2026-11-21
-Version: 1.0 DRAFT
+Version: 1.1 FINAL
 
 ## Executive Summary
 
@@ -218,6 +218,8 @@ Exfiltration paths on `1688360[.]cc`:
 ## Detection & Remediation
 
 ### Immediate Detection
+
+> **Note:** Search patterns below use live (non-defanged) values for direct copy-paste use in log queries and monitoring tools.
 
 **Search Optimizely Project JavaScript and custom experiment code for:**
 ```
@@ -503,7 +505,7 @@ rule Supply_Chain_OPTIMJACK_Injector
 
 ### Suricata: OPTIMJACK Network Detection (8 rules)
 
-Eight Suricata rules detecting HTTP exfiltration to the primary C2 and DNS queries to all known OPTIMJACK infrastructure domains.
+Eight Suricata rules detecting HTTP exfiltration to the primary C2 and DNS queries to primary OPTIMJACK C2, exploit, injector, and telemetry domains.
 
 compile: suricata -T pass | confidence: high
 

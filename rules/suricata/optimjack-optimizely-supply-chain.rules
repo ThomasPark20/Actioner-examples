@@ -1,0 +1,15 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Card Skimmer Exfiltration to 1688360.cc/card.php"; flow:established,to_server; http.host; content:"1688360.cc"; http.uri; content:"/card.php"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100101; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Cookie and Screenshot Theft to 1688360.cc/hit.php"; flow:established,to_server; http.host; content:"1688360.cc"; http.uri; content:"/hit.php"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100102; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - OPTIMJACK Malicious Payload Delivery track.js from 1688360.cc"; flow:established,to_server; http.host; content:"1688360.cc"; http.uri; content:"/track.js"; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100103; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Primary C2 Domain 1688360.cc"; dns.query; content:"1688360.cc"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100104; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Router 5vobauua3ojpklx.icu"; dns.query; content:"5vobauua3ojpklx.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100105; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to iOS Exploit Router eil786npto9u5bq.icu"; dns.query; content:"eil786npto9u5bq.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100106; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Injector Domain webshell.lol"; dns.query; content:"webshell.lol"; nocase; fast_pattern; classtype:trojan-activity; reference:url,blog.report-uri.com/worlds-largest-brands-infected-with-malware-via-optimizely/; metadata:author Actioner, created_at 2026-11-21; sid:2100107; rev:1;)
+
+alert dns $HOME_NET any -> any any (msg:"Actioner - OPTIMJACK DNS Query to Coruna Telemetry Domain l7bcsnwc7nzr3uo.icu"; dns.query; content:"l7bcsnwc7nzr3uo.icu"; nocase; fast_pattern; classtype:trojan-activity; reference:url,unit42.paloaltonetworks.com/optimjack-supply-chain-attack/; metadata:author Actioner, created_at 2026-11-21; sid:2100108; rev:1;)
