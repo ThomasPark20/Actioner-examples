@@ -1,7 +1,7 @@
 # Microsoft Agent Framework PyPI Supply Chain Attack
 
 **Date:** 2026-11-22
-**Status:** DRAFT
+**Status:** FINAL
 **TLP:** WHITE
 **Severity:** Critical
 
@@ -161,7 +161,7 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 | Technique | ID | Description |
 |-----------|----|-------------|
 | Supply Chain Compromise: Compromise Software Supply Chain | T1195.002 | Malicious PyPI package versions |
-| Event Triggered Execution | T1546 | Python `.pth` startup hooks for persistence |
+| Event Triggered Execution | T1546 | Python `.pth` startup hooks for persistence (Python .pth startup hook; no exact sub-technique) |
 | Command and Scripting Interpreter: Python | T1059.006 | Python-based stealer execution |
 | Unsecured Credentials: Credentials In Files | T1552.001 | Harvesting credential files (Azure CLI, .npmrc, .git-credentials, etc.) |
 | Unsecured Credentials: Cloud Instance Metadata API | T1552.005 | Azure IMDS token theft |
@@ -209,7 +209,7 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 
 - Enforce hash-pinned dependencies in lockfiles
 - Use tools like Socket, SafeDep, or Aikido to monitor for supply chain anomalies
-- Restrict webhook[.]site and similar data-forwarding services at the egress proxy
+- Restrict webhook[.]site and similar data-forwarding services at the egress proxy. **Note:** Blanket blocking of webhook[.]site may disrupt legitimate developer and QA workflows that rely on the service for webhook testing and debugging. Recommend allowlisting by team or documented purpose rather than blanket blocking.
 - Monitor for `.pth` file creation in Python `site-packages` directories as a persistence vector
 
 ---
@@ -243,18 +243,11 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 - **Log source:** `proxy`
 - **Compile status:** PASS (sigma convert to Splunk and LogScale successful)
 - **Confidence:** High
-- **ATT&CK:** T1567, T1041
+- **ATT&CK:** T1567
 
-#### 4. DNS Query to Webhook.site From Python Process
+<!-- revision: dropped Sigma #4 (DNS Query to Webhook.site From Python Process) by critic — webhook.site is a widely-used legitimate developer tool; Python + webhook.site is a common developer pattern; pure FP noise -->
 
-- **File:** `sigma-agent-framework-dns-webhook.yml`
-- **ID:** `7ccf30d7-3963-4e00-9c8d-68a8433d6ea6`
-- **Log source:** `dns_query`
-- **Compile status:** PASS (sigma convert to Splunk and LogScale successful)
-- **Confidence:** Medium (webhook[.]site has legitimate uses)
-- **ATT&CK:** T1567, T1071.001
-
-#### 5. Suspicious af-runtime-diagnostics User-Agent String
+#### 4. Suspicious af-runtime-diagnostics User-Agent String
 
 - **File:** `sigma-agent-framework-useragent.yml`
 - **ID:** `ca8c120c-9717-41f3-bb9c-70cab6a53336`
@@ -263,7 +256,7 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 - **Confidence:** High
 - **ATT&CK:** T1071.001, T1567
 
-#### 6. Agent Framework Stealer Execution Guard Environment Variable
+#### 5. Agent Framework Stealer Execution Guard Environment Variable
 
 - **File:** `sigma-agent-framework-env-guard.yml`
 - **ID:** `b1bcb13e-76fd-4fa3-829b-031e421bbe69`
@@ -271,8 +264,9 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 - **Compile status:** PASS (sigma convert to Splunk and LogScale successful)
 - **Confidence:** Medium
 - **ATT&CK:** T1059.006, T1546
+- **Caveat:** Requires EDR telemetry that captures process environment variables (e.g., CrowdStrike); will not fire from Sysmon or standard Windows event logs.
 
-> **Note:** `sigma check` could not complete ATT&CK tag validation due to network restrictions in the validation environment (MITRE ATT&CK endpoint unreachable). All 6 rules parse successfully and convert to both Splunk SPL and LogScale query syntax without errors.
+> **Note:** `sigma check` could not complete ATT&CK tag validation due to network restrictions in the validation environment (MITRE ATT&CK endpoint unreachable). All 5 rules parse successfully and convert to both Splunk SPL and LogScale query syntax without errors.
 
 ### YARA Rules
 
@@ -308,7 +302,7 @@ Both malicious versions abuse Python's `.pth` file mechanism. When a `.pth` file
 | 2200001 | POST to Webhook.site exfiltration UUID | PASS | High |
 | 2200002 | User-Agent af-runtime-diagnostics/1 | PASS | High |
 | 2200003 | User-Agent runtime-diagnostics/1 | PASS | High |
-| 2200004 | DNS query to webhook[.]site | PASS | Medium |
+<!-- revision: dropped Suricata SID 2200004 (DNS query to webhook.site) by critic — bare DNS detection for a legitimate service with no process context; every developer querying webhook.site fires this -->
 
 > Suricata validated with `suricata -T`: "Configuration provided was successfully loaded. Exiting."
 
