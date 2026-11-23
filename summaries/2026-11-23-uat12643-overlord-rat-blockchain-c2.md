@@ -66,6 +66,7 @@ Cisco Talos published research on **UAT-12643**, a suspected North Korea-aligned
 | T1218.005 | System Binary Proxy Execution: Mshta | HTA stager via mshta.exe |
 | T1127.001 | Trusted Developer Utilities: MSBuild | Inline C# CodeTaskFactory downloader |
 | T1105 | Ingress Tool Transfer | certutil, MpCmdRun -DownloadFile |
+| T1140 | Deobfuscate/Decode Files or Information | certutil -urlcache used to download and decode payloads |
 | T1547.001 | Boot/Logon Autostart: Registry Run Keys | Zoipers, MsgEdgeUpdate, randomized values |
 | T1542 | Pre-OS Boot | WinRE OEM folder persistence with ResetConfig.xml |
 | T1036.005 | Masquerading: Match Legitimate Name | RuntimeBroker.exe, MsgEdgeUpdate.exe |
@@ -236,7 +237,7 @@ Cisco Talos published research on **UAT-12643**, a suspected North Korea-aligned
 
 ### Sigma Rules
 
-All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `-t log_scale`. Note: `sigma check` could not complete due to offline MITRE ATT&CK data dependency; rules parsed and converted successfully.
+All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `-t log_scale` (all 10 converted successfully). Tags contain only technique/sub-technique identifiers (no tactic-level tags). Note: `sigma check` was not run; tag correctness was verified by manual review against the MITRE ATT&CK framework.
 
 #### 1. Overlord RAT RuntimeBroker Masquerade
 - **File:** `/tmp/actioner/sigma-uat12643-overlord-rat-process.yml`
@@ -273,9 +274,9 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 #### 5. HTA Stager via Mshta
 - **File:** `/tmp/actioner/sigma-uat12643-hta-stager.yml`
 - **Log Source:** process_creation / windows
-- **Logic:** mshta.exe with HTTP URLs or .hta references in command line
+- **Logic:** mshta.exe with remote HTTP/HTTPS URLs in command line (bare .hta match removed to avoid FP on legitimate local HTA invocations)
 - **Compile:** Splunk SPL / LogScale -- converted successfully
-- **Confidence:** medium (some legitimate HTA applications exist)
+- **Confidence:** medium (some legitimate HTA applications fetch remote resources)
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 6. Clipboard Hijacker MsgEdgeUpdate Persistence
@@ -340,7 +341,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 | SID | Description | Confidence |
 |---|---|---|
 | 2026112301 | Known C2 IP 41[.]216[.]188[.]11 | high |
-| 2026112302 | WebSocket C2 on port 5173 | high |
+| 2026112302 | WebSocket C2 on port 5173 | medium (port 5173 is Vite dev server default; FP risk in dev environments) |
 | 2026112303 | Flask payload server known filenames on port 8000 | high |
 | 2026112304 | Spoofed BITS/7.8 User-Agent | high |
 | 2026112305 | Exfiltration to gofile[.]io /uploadFile | medium |

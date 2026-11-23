@@ -93,7 +93,7 @@ On Python interpreter start:
 **Active Token Minting:**
 - **Azure DevOps OIDC** (both versions): POSTs to `SYSTEM_OIDCREQUESTURI` using `SYSTEM_ACCESSTOKEN` to obtain a federated token for `api://AzureADTokenExchange`
 - **GitHub Actions OIDC** (1.26.2 only): Requests JWTs for `api://AzureADTokenExchange` and `https://management.azure.com/` using `ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN` (requires `id-token: write` permission)
-- **Azure Managed Identity** (both versions): Requests tokens for 12 resources via IMDS (`169.254.169[.]254`) or `IDENTITY_ENDPOINT`/`MSI_ENDPOINT`. Target resources include: Azure Management, Key Vault (`vault.azure.net`), Storage, Graph, Container Registry, Azure DevOps (`499b84ac-1321-427f-aa17-267ca6975798`), and `api://AzureADTokenExchange`
+- **Azure Managed Identity** (both versions): Requests tokens for 12 resources via IMDS (`169[.]254[.]169[.]254`) or `IDENTITY_ENDPOINT`/`MSI_ENDPOINT`. Target resources include: Azure Management, Key Vault (`vault.azure.net`), Storage, Graph, Container Registry, Azure DevOps (`499b84ac-1321-427f-aa17-267ca6975798`), and `api://AzureADTokenExchange`
 - Also retrieves Azure IMDS instance metadata (up to 8,000 characters)
 
 ### 4. Exfiltration
@@ -171,12 +171,12 @@ No second-stage remote code loading, scheduled tasks, or additional persistence 
 | T1546.016 | Event Triggered Execution: Installer Packages | `.pth` startup hook executes stealer on every Python interpreter start |
 | T1059.006 | Command and Scripting Interpreter: Python | Payload is Python code triggered by the interpreter's own startup mechanism |
 | T1552.001 | Unsecured Credentials: Credentials In Files | Reads `~/.azure/*.json`, `.npmrc`, `.netrc`, `.git-credentials`, `.docker/config.json`, `.env` files |
-| T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | Queries Azure IMDS at `169.254.169.254` for managed-identity tokens and instance metadata |
+| T1552.005 | Unsecured Credentials: Cloud Instance Metadata API | Queries Azure IMDS at `169[.]254[.]169[.]254` for managed-identity tokens and instance metadata |
 | T1528 | Steal Application Access Token | Mints Azure DevOps OIDC tokens, GitHub Actions OIDC tokens, and Azure managed-identity tokens |
 | T1003.007 | OS Credential Dumping: Proc Filesystem | Reads `/proc/[0-9]*/environ` to harvest credentials from other processes |
 | T1041 | Exfiltration Over C2 Channel | Compressed, encoded credential bundles sent via HTTPS POST to webhook[.]site |
 | T1567 | Exfiltration Over Web Service | Uses webhook[.]site (legitimate web service) for data exfiltration |
-| T1070.004 | Indicator Removal: File Deletion | Suppresses all exceptions; writes no logs or markers; v1.26.2 restores clean `__init__.py` |
+| T1070 | Indicator Removal on Host | Suppresses all exceptions; writes no logs or markers; v1.26.2 restores clean `__init__.py` to remove evidence of compromise |
 
 ## Impact Assessment
 
@@ -331,7 +331,7 @@ level: critical
 ### Sigma: agent-framework Credential Stealer Anti-Recursion Environment Marker
 Detects the `_AF_TEL` environment variable used as the stealer's anti-recursion guard.
 **Status:** compile ✅ compiles (sigma convert splunk exit=0, log_scale exit=0) · confidence: medium
-<!-- audit: sigma check exit=1 (D3FEND 403 env block); splunk exit=0; log_scale exit=0. The _AF_TEL marker is distinctive but short; medium because other telemetry frameworks could theoretically use the same name. Requires process_creation logsource with environment variable capture (e.g., Sysmon Event ID 1 with EnvironmentVariables). -->
+<!-- audit: sigma check exit=1 (D3FEND 403 env block); splunk exit=0; log_scale exit=0. The _AF_TEL marker is distinctive but short; medium because other telemetry frameworks could theoretically use the same name. Requires process_creation logsource with environment variable capture (e.g., Sysmon Event ID 1 with EnvironmentVariables). The EnvironmentVariables field is Sysmon-specific which limits portability. -->
 ```yaml
 title: agent-framework Credential Stealer Anti-Recursion Environment Marker
 id: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a
@@ -339,9 +339,11 @@ status: experimental
 description: >
     Detects process creation with the _AF_TEL environment variable set, which is the
     anti-recursion guard used by the malicious agent-framework credential stealer.
-    When the payload executes, it sets _AF_TEL=1 to prevent re-entry on subsequent
-    Python interpreter starts. The presence of this variable in a process environment
-    indicates the stealer has executed.
+    When the payload executes, it sets _AF_TEL=1 via os.environ to prevent re-entry
+    on subsequent Python interpreter starts. The presence of this variable in a process
+    environment indicates the stealer has executed. Note: This rule relies on the
+    Sysmon EnvironmentVariables field (Event ID 1), which limits portability to
+    non-Sysmon log sources.
 references:
     - https://research.jfrog.com/post/agent-framework-hijack/
     - https://github.com/advisories/GHSA-764m-3ppc-5m73
@@ -349,15 +351,12 @@ author: Actioner
 date: 2026/11/23
 tags:
     - attack.t1059.006
-    - attack.t1552.001
 logsource:
     category: process_creation
 detection:
-    selection:
-        CommandLine|contains: '_AF_TEL'
     selection_env:
         EnvironmentVariables|contains: '_AF_TEL=1'
-    condition: selection or selection_env
+    condition: selection_env
 falsepositives:
     - Custom telemetry frameworks using the same environment variable name (unlikely)
 level: high

@@ -322,7 +322,6 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.persistence
     - attack.t1547.001
 logsource:
     category: registry_set
@@ -331,16 +330,14 @@ detection:
     selection_key:
         TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run'
     selection_suspicious_paths:
-        Details|contains:
-            - '\ProgramData\Cyvera\'
-            - '\Ransomware\'
+        Details|contains: '\ProgramData\Cyvera\Ransomware\'
     condition: selection_key and selection_suspicious_paths
 falsepositives:
     - Cortex XDR installations using C:\ProgramData\Cyvera path (legitimate Cortex XDR uses different subdir names)
 level: high
 ```
 
-<!-- audit: SIGMA-1 -- advisory-specific. Keys on Run key + Cyvera\Ransomware path combination. FP risk: low (legitimate Cortex XDR does not use Ransomware subdir). Splunk: TargetObject="*\Software\Microsoft\Windows\CurrentVersion\Run*" Details IN ("*\ProgramData\Cyvera\*", "*\Ransomware\*"). -->
+<!-- audit: SIGMA-1 -- advisory-specific. Keys on Run key + Cyvera\Ransomware path combination. FP risk: low (legitimate Cortex XDR does not use Ransomware subdir). Splunk: TargetObject="*\Software\Microsoft\Windows\CurrentVersion\Run*" Details="*\ProgramData\Cyvera\Ransomware\*". -->
 
 ---
 
@@ -360,7 +357,6 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.credential_access
     - attack.t1003.001
 logsource:
     category: process_creation
@@ -405,8 +401,7 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.defense_evasion
-    - attack.t1036
+    - attack.t1036.005
 logsource:
     category: registry_set
     product: windows
@@ -441,7 +436,6 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.execution
     - attack.t1559
 logsource:
     category: pipe_created

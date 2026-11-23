@@ -1,0 +1,43 @@
+# =============================================================================
+# Snort/Suricata Rules: UAT-12643 Network Detection
+# Author: Actioner Draft (revised)
+# Date: 2026-11-23
+# Reference: https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+# =============================================================================
+
+# --- Rule 1: UAT-12643 Overlord RAT C2 Server Communication (IP-based) ---
+# Detects outbound connections to known UAT-12643 infrastructure
+# Confidence: high
+alert ip $HOME_NET any -> 41.216.188.11 any (msg:"UAT-12643 Overlord RAT Known C2 IP 41.216.188.11"; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112301; rev:1;)
+
+# --- Rule 2: UAT-12643 Overlord RAT WebSocket C2 on port 5173 ---
+# Detects WebSocket upgrade attempts to non-standard port 5173 (Overlord RAT C2)
+# Confidence: medium (port 5173 is also the default Vite dev server port; expect
+# false positives in development environments running Vite/HMR)
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5173 (msg:"UAT-12643 Overlord RAT WebSocket C2 Port 5173"; flow:established,to_server; content:"Upgrade: websocket"; nocase; http_header; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112302; rev:2;)
+
+# --- Rule 3: UAT-12643 Flask File Server on Port 8000 ---
+# Detects HTTP requests to port 8000 for known UAT-12643 payload filenames
+# Confidence: high
+alert tcp $HOME_NET any -> $EXTERNAL_NET 8000 (msg:"UAT-12643 Flask Payload Server Known Filenames"; flow:established,to_server; content:"GET "; depth:4; content:".exe"; distance:0; pcre:"/GET\s+\/(Payload|MyApp2|Ovl|Client|Ova|Microsip-config|microsip-config1)\.exe/i"; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112303; rev:1;)
+
+# --- Rule 4: UAT-12643 Spoofed BITS User-Agent (MSBuild Downloader) ---
+# Detects the specific spoofed BITS/7.8 user-agent used in MSBuild inline task
+# Confidence: high
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"UAT-12643 MSBuild Downloader Spoofed BITS/7.8 User-Agent"; flow:established,to_server; content:"User-Agent: Microsoft BITS/7.8"; nocase; http_header; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112304; rev:1;)
+
+# --- Rule 5: UAT-12643 Good Game Stealer Exfiltration to gofile.io ---
+# Detects data exfiltration uploads to gofile.io
+# Confidence: medium
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"UAT-12643 Good Game Stealer Exfiltration to gofile.io"; flow:established,to_server; content:"upload.gofile.io"; nocase; http_header; content:"POST"; http_method; content:"/uploadFile"; http_uri; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112305; rev:1;)
+
+# --- Rule 6: Solana JSON-RPC getSignaturesForAddress ---
+# Detects Solana RPC calls used by Overlord RAT for blockchain dead-drop C2 resolution
+# Confidence: medium
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"UAT-12643 Solana RPC getSignaturesForAddress - Blockchain Dead-Drop C2"; flow:established,to_server; content:"getSignaturesForAddress"; nocase; http_client_body; reference:url,blog.talosintelligence.com/the-challenge-of-defending-against-bulletproof-dead-drops-on-public-blockchains/; classtype:trojan-activity; sid:2026112306; rev:1;)
+
+# --- Rule 7: UAT-12643 Python Stealer TCP C2 to Known IP ---
+# Detects outbound connections to known UAT-12643 C2 IP on stealer-specific ports.
+# Scoped to known C2 IP to avoid false positives from generic port-only matching.
+# Confidence: high (IP-scoped)
+alert tcp $HOME_NET any -> 41.216.188.11 [5656,5959] (msg:"UAT-12643 Python Stealer TCP C2 to Known IP on Ports 5656/5959"; flow:established,to_server; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; classtype:trojan-activity; sid:2026112307; rev:2;)
