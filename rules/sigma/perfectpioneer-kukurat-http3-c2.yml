@@ -1,0 +1,147 @@
+title: PerfectPioneer RAT - Registry Run Key Persistence
+id: a1b2c3d4-1111-4aaa-bbbb-100000000001
+status: experimental
+description: Detects registry Run key persistence set by PerfectPioneer RAT variants (RatAAkk-tt, rat_http3_cc) targeting Southeast Asian government entities. The RAT writes to HKCU Run for automatic launch on user logon.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection_key:
+        TargetObject|contains: '\Software\Microsoft\Windows\CurrentVersion\Run'
+    selection_suspicious_paths:
+        Details|contains: '\ProgramData\Cyvera\Ransomware\'
+    condition: selection_key and selection_suspicious_paths
+falsepositives:
+    - Cortex XDR installations using C:\ProgramData\Cyvera path (legitimate Cortex XDR uses different subdir names)
+level: high
+---
+title: PerfectPioneer - LSASS Dump via comsvcs.dll Ordinal 24
+id: a1b2c3d4-1111-4aaa-bbbb-100000000002
+status: experimental
+description: Detects the LSASS credential dumping technique used by TGR-STA-0049 operators via PerfectPioneer campaigns. The actor uses rundll32.exe to call comsvcs.dll MiniDump by ordinal number (+000024 / #24) to avoid string-based detection, dumping LSASS to a tar file in Windows\Temp.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1003.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_rundll32:
+        Image|endswith: '\rundll32.exe'
+    selection_comsvcs_ordinal:
+        CommandLine|contains:
+            - 'comsvcs.dll'
+    selection_ordinal_patterns:
+        CommandLine|contains:
+            - '#+000024'
+            - '#24'
+            - 'MiniDump'
+    selection_output:
+        CommandLine|contains:
+            - '\Windows\Temp\MxA.tar'
+    condition: selection_rundll32 and selection_comsvcs_ordinal and (selection_ordinal_patterns or selection_output)
+falsepositives:
+    - Legitimate crash dump collection tools using comsvcs.dll MiniDump (should be investigated)
+level: critical
+---
+title: KUKURAT - Suspicious Chrome Registry Camouflage Activity
+id: a1b2c3d4-1111-4aaa-bbbb-100000000003
+status: experimental
+description: Detects KUKURAT RAT heuristic camouflage behavior where the malware writes to, reads back, and deletes values under HKCU\Software\Google\Chrome\BrowserCrashRecovery and enumerates HKCU\Software\Google\Update\ClientState to blend in with legitimate Chrome telemetry.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1036.005
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|contains: '\Software\Google\Chrome\BrowserCrashRecovery'
+    filter_chrome:
+        Image|endswith: '\chrome.exe'
+    condition: selection and not filter_chrome
+falsepositives:
+    - Third-party Chrome management or monitoring tools writing to this specific subkey
+level: high
+---
+title: KUKURAT - Watchdog Named Pipe WINDOW_SEC_WATCHDOG
+id: a1b2c3d4-1111-4aaa-bbbb-100000000004
+status: experimental
+description: Detects creation of the WINDOW_SEC_WATCHDOG named pipe used by the KUKURAT watchdog component for heartbeat communication with the main RAT agent. The watchdog relaunches KUKURAT after 15 seconds without a heartbeat.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1559
+logsource:
+    category: pipe_created
+    product: windows
+detection:
+    selection:
+        PipeName: '\WINDOW_SEC_WATCHDOG'
+    condition: selection
+falsepositives:
+    - None known
+level: critical
+---
+title: TGR-STA-0049 - Exchange Mailbox FullAccess Permission Grant
+id: a1b2c3d4-1111-4aaa-bbbb-100000000005
+status: experimental
+description: Detects bulk Exchange mailbox FullAccess permission grants used by TGR-STA-0049 operators for email collection. The actor pipes Get-Mailbox results into Add-MailboxPermission with FullAccess access rights via web shells on compromised Exchange servers.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1114.002
+    - attack.t1098.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_powershell:
+        Image|endswith:
+            - '\powershell.exe'
+            - '\pwsh.exe'
+    selection_exchange_commands:
+        CommandLine|contains|all:
+            - 'Add-MailboxPermission'
+            - 'FullAccess'
+    condition: selection_powershell and selection_exchange_commands
+falsepositives:
+    - Legitimate Exchange administration scripts granting FullAccess permissions (should be audited)
+level: high
+---
+title: KUKURAT - Executable in Fake Cortex XDR Directory
+id: a1b2c3d4-1111-4aaa-bbbb-100000000006
+status: experimental
+description: Detects process execution from C:\ProgramData\Cyvera\Ransomware, a directory path used by KUKURAT watchdog to masquerade as a Cortex XDR component. Legitimate Cortex XDR uses C:\ProgramData\Cyvera but not a Ransomware subdirectory for executable files.
+references:
+    - https://unit42.paloaltonetworks.com/custom-rats-target-southeast-asia-governments/
+author: Actioner
+date: 2026-11-23
+tags:
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|contains: '\ProgramData\Cyvera\Ransomware\'
+    condition: selection
+falsepositives:
+    - None known - legitimate Cortex XDR does not place executables in a Ransomware subdirectory
+level: critical

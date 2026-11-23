@@ -1,0 +1,152 @@
+title: Malicious agent-framework .pth Startup Hook File Creation
+id: a1b2c3d4-5e6f-7a8b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects the creation of malicious .pth startup hook files dropped by compromised
+    versions (1.26.1 and 1.26.2) of Microsoft's agent-framework PyPI package. These
+    files (agent_framework_meta.pth and af_runtime_diag.pth) execute a credential
+    stealer on every Python interpreter start without requiring an explicit import.
+references:
+    - https://research.jfrog.com/post/agent-framework-hijack/
+    - https://github.com/advisories/GHSA-764m-3ppc-5m73
+    - https://www.stepsecurity.io/blog/microsoft-agent-framework-pypi-package-compromised
+author: Actioner
+date: 2026/11/23
+tags:
+    - attack.t1195.002
+    - attack.t1546.016
+    - attack.t1059.006
+logsource:
+    category: file_event
+detection:
+    selection:
+        TargetFilename|endswith:
+            - 'agent_framework_meta.pth'
+            - 'af_runtime_diag.pth'
+    condition: selection
+falsepositives:
+    - None expected; these filenames are unique to the malicious versions
+level: high
+---
+title: Malicious agent-framework Credential Stealer Module File Creation
+id: b2c3d4e5-6f7a-8b9c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects the creation of malicious Python modules dropped by compromised versions
+    of Microsoft's agent-framework PyPI package. Version 1.26.1 drops
+    agent_framework_meta/_telemetry.py and version 1.26.2 drops af_runtime_diag.py,
+    both containing credential-stealing payloads targeting Azure, CI/CD, and cloud
+    credentials.
+references:
+    - https://research.jfrog.com/post/agent-framework-hijack/
+    - https://github.com/advisories/GHSA-764m-3ppc-5m73
+author: Actioner
+date: 2026/11/23
+tags:
+    - attack.t1195.002
+    - attack.t1059.006
+    - attack.t1552.001
+logsource:
+    category: file_event
+detection:
+    selection_v1:
+        TargetFilename|endswith: 'agent_framework_meta/_telemetry.py'
+    selection_v2:
+        TargetFilename|endswith: 'af_runtime_diag.py'
+    condition: selection_v1 or selection_v2
+falsepositives:
+    - None expected; these module paths are unique to the malicious versions
+level: high
+---
+title: agent-framework Credential Exfiltration to webhook.site
+id: c3d4e5f6-7a8b-9c0d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects network connections to the webhook.site exfiltration endpoint used by
+    malicious versions 1.26.1 and 1.26.2 of Microsoft's agent-framework PyPI package.
+    The stealer sends zlib-compressed, base64-encoded credential bundles via HTTPS POST
+    to a specific webhook.site UUID path. Also detects the distinctive User-Agent
+    strings used by the payload.
+references:
+    - https://research.jfrog.com/post/agent-framework-hijack/
+    - https://github.com/advisories/GHSA-764m-3ppc-5m73
+author: Actioner
+date: 2026/11/23
+tags:
+    - attack.t1041
+    - attack.t1567
+logsource:
+    category: proxy
+detection:
+    selection_url:
+        c-uri|contains: 'd381fd80-ec62-42ad-8f5c-d1b15103c9bb'
+    selection_ua:
+        c-useragent|contains:
+            - 'af-runtime-diagnostics/1'
+            - 'runtime-diagnostics/1'
+    condition: selection_url or selection_ua
+falsepositives:
+    - Legitimate use of webhook.site with this specific UUID (extremely unlikely)
+level: critical
+---
+title: agent-framework Credential Stealer Anti-Recursion Environment Marker
+id: d4e5f6a7-8b9c-0d1e-2f3a-4b5c6d7e8f9a
+status: experimental
+description: >
+    Detects process creation with the _AF_TEL environment variable set, which is the
+    anti-recursion guard used by the malicious agent-framework credential stealer.
+    When the payload executes, it sets _AF_TEL=1 via os.environ to prevent re-entry
+    on subsequent Python interpreter starts. The presence of this variable in a process
+    environment indicates the stealer has executed. Note: This rule relies on the
+    Sysmon EnvironmentVariables field (Event ID 1), which limits portability to
+    non-Sysmon log sources.
+references:
+    - https://research.jfrog.com/post/agent-framework-hijack/
+    - https://github.com/advisories/GHSA-764m-3ppc-5m73
+author: Actioner
+date: 2026/11/23
+tags:
+    - attack.t1059.006
+logsource:
+    category: process_creation
+detection:
+    selection_env:
+        EnvironmentVariables|contains: '_AF_TEL=1'
+    condition: selection_env
+falsepositives:
+    - Custom telemetry frameworks using the same environment variable name (unlikely)
+level: high
+---
+title: agent-framework Credential Stealer /proc/environ Scraping
+id: e5f6a7b8-9c0d-1e2f-3a4b-5c6d7e8f9a0b
+status: experimental
+description: >
+    Detects access patterns consistent with the malicious agent-framework credential
+    stealer scraping /proc/*/environ to harvest environment variables from other
+    processes. The payload reads the first 300 entries looking for TOKEN, SECRET,
+    PASSWORD, KEY, and other credential-bearing variable patterns.
+references:
+    - https://research.jfrog.com/post/agent-framework-hijack/
+    - https://www.stepsecurity.io/blog/microsoft-agent-framework-pypi-package-compromised
+author: Actioner
+date: 2026/11/23
+tags:
+    - attack.t1552.001
+    - attack.t1003.007
+logsource:
+    category: file_access
+    product: linux
+detection:
+    selection:
+        TargetFilename|re: '/proc/[0-9]+/environ'
+    filter_known:
+        Image|endswith:
+            - '/systemd'
+            - '/proc'
+            - '/ps'
+            - '/top'
+            - '/htop'
+    condition: selection and not filter_known
+falsepositives:
+    - Monitoring tools, container runtimes, and debugging utilities that read /proc/*/environ
+level: medium

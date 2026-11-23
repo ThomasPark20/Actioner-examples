@@ -1,0 +1,32 @@
+# PerfectPioneer / KUKURAT HTTP/3 C2 - DNS Lookups
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE PerfectPioneer RAT C2 DNS Lookup (maui-cocktailbar)"; dns.query; content:"maui-cocktailbar"; nocase; classtype:trojan-activity; sid:2026110001; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE PerfectPioneer RAT C2 DNS Lookup (ads-edge.com)"; dns.query; content:"ads-edge.com"; nocase; classtype:trojan-activity; sid:2026110002; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE PerfectPioneer RAT C2 DNS Lookup (wkuyda.com)"; dns.query; content:"wkuyda.com"; nocase; classtype:trojan-activity; sid:2026110003; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE PerfectPioneer RAT C2 DNS Lookup (thailisting.net)"; dns.query; content:"thailisting.net"; nocase; classtype:trojan-activity; sid:2026110004; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE PerfectPioneer RAT C2 DNS Lookup (yangon.it.com)"; dns.query; content:"yangon.it.com"; nocase; classtype:trojan-activity; sid:2026110005; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE KUKURAT RAT C2 DNS Lookup (cloudflacecdn.com)"; dns.query; content:"cloudflacecdn"; nocase; classtype:trojan-activity; sid:2026110006; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE KUKURAT RAT C2 DNS Lookup (police.gr.com)"; dns.query; content:"police.gr.com"; nocase; classtype:trojan-activity; sid:2026110007; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE KUKURAT RAT C2 DNS Lookup (investigationj6.com)"; dns.query; content:"investigationj6"; nocase; classtype:trojan-activity; sid:2026110008; rev:1;)
+alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE TGR-STA-0049 Associated Domain DNS Lookup (sacofficegov.com)"; dns.query; content:"sacofficegov"; nocase; classtype:trojan-activity; sid:2026110009; rev:1;)
+
+# PerfectPioneer / KUKURAT HTTP/3 C2 - QUIC SNI Detection (requires Suricata 7.0+)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (maui-cocktailbar)"; quic.sni; content:"maui-cocktailbar"; nocase; classtype:trojan-activity; sid:2026110010; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (ads-edge.com)"; quic.sni; content:"ads-edge.com"; nocase; classtype:trojan-activity; sid:2026110011; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (thailisting.net)"; quic.sni; content:"thailisting.net"; nocase; classtype:trojan-activity; sid:2026110012; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (cloudflacecdn.com)"; quic.sni; content:"cloudflacecdn"; nocase; classtype:trojan-activity; sid:2026110013; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (police.gr.com)"; quic.sni; content:"police.gr.com"; nocase; classtype:trojan-activity; sid:2026110014; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (investigationj6.com)"; quic.sni; content:"investigationj6"; nocase; classtype:trojan-activity; sid:2026110015; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (wkuyda.com)"; quic.sni; content:"wkuyda.com"; nocase; classtype:trojan-activity; sid:2026110023; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (yangon.it.com)"; quic.sni; content:"yangon.it.com"; nocase; classtype:trojan-activity; sid:2026110024; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE TGR-STA-0049 Associated QUIC SNI (sacofficegov.com)"; quic.sni; content:"sacofficegov"; nocase; classtype:trojan-activity; sid:2026110025; rev:1;)
+
+# PerfectPioneer / KUKURAT HTTP/3 C2 - IP-Based Detection
+alert udp $HOME_NET any -> 27.254.164.212 443 (msg:"ETPRO MALWARE TGR-STA-0049 C2 IP (27.254.164.212 UDP/443 QUIC)"; classtype:trojan-activity; sid:2026110016; rev:1;)
+alert udp $HOME_NET any -> 27.254.164.209 443 (msg:"ETPRO MALWARE TGR-STA-0049 C2 IP (27.254.164.209 UDP/443 QUIC)"; classtype:trojan-activity; sid:2026110017; rev:1;)
+alert tcp $HOME_NET any -> 27.254.164.212 443 (msg:"ETPRO MALWARE TGR-STA-0049 C2 IP (27.254.164.212 TCP/443 HTTP2 fallback)"; classtype:trojan-activity; sid:2026110018; rev:1;)
+alert tcp $HOME_NET any -> 27.254.164.209 443 (msg:"ETPRO MALWARE TGR-STA-0049 C2 IP (27.254.164.209 TCP/443 HTTP2 fallback)"; classtype:trojan-activity; sid:2026110019; rev:1;)
+
+# PerfectPioneer / KUKURAT HTTP/3 C2 - HTTP Endpoint Detection (requires TLS inspection)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer HTTP C2 Registration Endpoint"; http.uri; content:"/agent/register"; http.host; content:"maui-cocktailbar"; classtype:trojan-activity; sid:2026110020; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer HTTP C2 Heartbeat Endpoint"; http.uri; content:"/agent/heartbeat"; http.host; content:"maui-cocktailbar"; classtype:trojan-activity; sid:2026110021; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT HTTP C2 Hashed Heartbeat Endpoint"; http.uri; content:"/c8a4e192"; classtype:trojan-activity; sid:2026110022; rev:1;)
