@@ -1,0 +1,279 @@
+title: UAT-12643 Overlord RAT Execution via RuntimeBroker Masquerade
+id: a1f3c8d2-9e47-4b1a-8c5f-6d2e1a0b3f7c
+status: experimental
+description: >
+    Detects the Overlord RAT delivered by UAT-12643 masquerading as RuntimeBroker.exe
+    when launched from atypical locations (outside System32). The RAT is downloaded
+    via certutil or MpCmdRun and saved as RuntimeBroker.exe in user-writable directories.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+    - https://github.com/Cisco-Talos/IOCs/tree/main/2026/11
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1036.005
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_masquerade:
+        Image|endswith: '\RuntimeBroker.exe'
+    filter_legitimate:
+        Image|startswith:
+            - 'C:\Windows\System32\'
+            - 'C:\Windows\SysWOW64\'
+    condition: selection_masquerade and not filter_legitimate
+falsepositives:
+    - Legitimate software incorrectly named RuntimeBroker.exe outside System32
+level: high
+---
+title: UAT-12643 Payload Download via MpCmdRun DownloadFile
+id: b2e4d9f3-0a58-4c2b-9d60-7e3f2b1c4a8d
+status: experimental
+description: >
+    Detects abuse of Microsoft Defender's MpCmdRun.exe with the -DownloadFile flag
+    to fetch remote payloads, a technique used by UAT-12643 to deliver the Overlord
+    RAT. The downloaded file is saved as RuntimeBroker.exe.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1105
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MpCmdRun.exe'
+        CommandLine|contains|all:
+            - '-DownloadFile'
+            - '-url'
+    condition: selection
+falsepositives:
+    - Legitimate administrative use of MpCmdRun -DownloadFile for Defender signature updates
+level: high
+---
+title: UAT-12643 Payload Download via Certutil URLCache
+id: c3f5ea04-1b69-4d3c-ae71-8f4a3c2d5b9e
+status: experimental
+description: >
+    Detects certutil.exe used with -urlcache -f flags to download remote payloads,
+    a technique used by UAT-12643 LNK files to fetch and save malicious executables.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1105
+    - attack.t1140
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\certutil.exe'
+        CommandLine|contains|all:
+            - '-urlcache'
+            - '-f'
+            - 'http'
+    condition: selection
+falsepositives:
+    - Legitimate certificate or CRL caching operations (rare with -f and http)
+level: high
+---
+title: UAT-12643 MSBuild Inline Task Execution with BITS User-Agent
+id: d4a6fb15-2c7a-4e4d-bf82-9a5b4d3e6c0f
+status: experimental
+description: >
+    Detects MSBuild.exe executing XML project files, used by UAT-12643 to compile
+    and run inline C# downloader tasks in memory. The actor distributes dl.xml
+    with a spoofed Microsoft BITS/7.8 user-agent.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1127.001
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MSBuild.exe'
+        CommandLine|endswith:
+            - '.xml'
+            - '.csproj'
+            - '.proj'
+    filter_visual_studio:
+        ParentImage|endswith:
+            - '\devenv.exe'
+            - '\dotnet.exe'
+    condition: selection and not filter_visual_studio
+falsepositives:
+    - Legitimate build systems using MSBuild from command line
+level: medium
+---
+title: UAT-12643 HTA Stager Writing Executable to Temp
+id: e5b7ac26-3d8b-4f5e-c093-ab6c5e4f7d1a
+status: experimental
+description: >
+    Detects mshta.exe execution with remote URL arguments, which may download and
+    write an executable to the user temp directory. UAT-12643 uses HTA files that
+    leverage ServerXMLHTTP and ADODB.Stream to fetch and write s.exe to %TEMP%.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1218.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_mshta:
+        Image|endswith: '\mshta.exe'
+    selection_remote:
+        CommandLine|contains:
+            - 'http://'
+            - 'https://'
+    condition: selection_mshta and selection_remote
+falsepositives:
+    - Legitimate HTA applications fetching remote resources
+level: medium
+---
+title: UAT-12643 Clipboard Hijacker MsgEdgeUpdate Persistence
+id: f6c8bd37-4e9c-5a6f-d1a4-bc7d6f5a8e2b
+status: experimental
+description: >
+    Detects the UAT-12643 clipboard hijacker establishing persistence by copying
+    itself to %APPDATA%\MsgEdgeUpdate.exe and creating a registry Run key named
+    MsgEdgeUpdate. The binary masquerades as a Microsoft Edge update component.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1547.001
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MsgEdgeUpdate.exe'
+        Image|contains: '\AppData\Roaming\'
+    condition: selection
+falsepositives:
+    - Unlikely; MsgEdgeUpdate.exe is not a legitimate Microsoft binary name
+level: high
+---
+title: UAT-12643 Good Game Stealer Zoipers Registry Persistence
+id: a7d9ce48-5fa0-6b7a-e2b5-cd8e7a6b9f3c
+status: experimental
+description: >
+    Detects the Good Game infostealer establishing persistence through a registry
+    Run key named "Zoipers" (mimicking the VoIP client Zoiper). Used by UAT-12643.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1547.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\CurrentVersion\Run\Zoipers'
+    condition: selection
+falsepositives:
+    - Legitimate Zoiper VoIP client using this exact registry value name (unlikely, Zoiper uses different names)
+level: high
+---
+title: UAT-12643 Overlord RAT WinRE OEM Persistence
+id: b8eadf59-6ab1-7c8b-f3c6-de9f8b7ca0d4
+status: experimental
+description: >
+    Detects modification of the Windows Recovery Environment (WinRE) OEM directory
+    or ResetConfig.xml, used by UAT-12643's Overlord RAT for pre-OS boot persistence.
+    The actor places a randomly-named executable and batch launcher in the
+    Recovery\OEM folder and modifies ResetConfig.xml.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1542
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection_oem_exe:
+        TargetFilename|contains: '\Recovery\OEM\'
+        TargetFilename|endswith:
+            - '.exe'
+            - '.bat'
+    selection_resetconfig:
+        TargetFilename|endswith: '\ResetConfig.xml'
+    condition: selection_oem_exe or selection_resetconfig
+falsepositives:
+    - OEM manufacturers writing legitimate recovery scripts during system provisioning
+level: high
+---
+title: UAT-12643 Good Game Stealer Disables Task Manager During Exfiltration
+id: c9fbea6a-7bc2-8d9c-a4d7-ef0a9c8db1e5
+status: experimental
+description: >
+    Detects the DisableTaskMgr registry policy being set, which UAT-12643's Good
+    Game stealer uses during data exfiltration to prevent user intervention. The
+    value is set to 1 during exfiltration and reset to 0 afterward.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Policies\System\DisableTaskMgr'
+        Details: 'DWORD (0x00000001)'
+    condition: selection
+falsepositives:
+    - Group Policy or MDM configurations disabling Task Manager intentionally
+level: high
+---
+title: UAT-12643 Solana Blockchain RPC Dead-Drop Resolver
+id: d0acfb7b-8cd3-9eae-b5e8-fa1bac9ec2f6
+status: experimental
+description: >
+    Detects processes making outbound connections to known Solana JSON-RPC endpoints
+    or containing Solana RPC method names in command-line or DNS queries. UAT-12643
+    Overlord RAT queries Solana transaction memos to retrieve encrypted C2 addresses.
+references:
+    - https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+    - https://blog.talosintelligence.com/the-challenge-of-defending-against-bulletproof-dead-drops-on-public-blockchains/
+author: Actioner Draft
+date: 2026-11-23
+tags:
+    - attack.t1102.001
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection_solana_providers:
+        QueryName|contains:
+            - 'api.mainnet-beta.solana.com'
+            - 'solana-mainnet.g.alchemy.com'
+            - 'rpc.ankr.com/solana'
+            - 'solana.quiknode.pro'
+            - 'api.tatum.io'
+    condition: selection_solana_providers
+falsepositives:
+    - Legitimate blockchain developers or Solana wallet applications
+    - Cryptocurrency trading platforms
+level: medium
