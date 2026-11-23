@@ -1,10 +1,10 @@
 # PerfectPioneer RAT & KUKURAT -- HTTP/3 C2 RATs Targeting Southeast Asian Governments
 
-> **Status:** Draft -- generated 2026-11-23 by Actioner
+> **Status:** Revised -- generated 2026-11-23, revised 2026-11-23 by Actioner
 > **Altitude:** PoC / advisory-specific
 > **Viability Gate:** PASS -- Unit 42 primary research with 60+ SHA256 hashes, 9 C2 domains, 2 C2 IPs, PDB paths, named pipes, full C2 protocol documentation, process chains, and persistence mechanisms. Exceptionally rich IOC set supports all rule types.
 
-<!-- audit: source fetched 2026-11-23; Unit 42 blog (primary). All IOCs extracted from single authoritative source. Sigma check blocked by MITRE ATT&CK data fetch (network proxy 403); sigma convert to splunk and loki used as structural validation -- all 6 rules parse and convert cleanly. YARA: 5/5 pass yara-python compile. Suricata: structural check only (no suricata binary available). -->
+<!-- audit: source fetched 2026-11-23; Unit 42 blog (primary). All IOCs extracted from single authoritative source. REVISE pass 2026-11-23: removed tactic tags from all 6 Sigma rules (technique-only), fixed SIGMA-1 OR-to-single-string logic bug, upgraded T1036 to T1036.005 in SIGMA-3/SIGMA-6, fixed YARA-5 pipe space typo, corrected ATT&CK table (T1098.002->Persistence, T1055->Defense Evasion), added 3 missing QUIC SNI rules (SID 2026110023-25). Sigma: 6/6 convert clean (splunk + log_scale). YARA: 5/5 pass yara-python 4.5.4 compile. Suricata: 25 rules, structural check only (no suricata binary available). -->
 
 ---
 
@@ -302,7 +302,7 @@ Web Shell (ASPXSpy, Godzilla, Suo5, Bysunue.aspx variants) on Exchange/IIS
 
 ### Sigma Rules
 
-All six Sigma rules validate via `sigma convert --without-pipeline -t splunk` and `sigma convert --without-pipeline -t loki`. `sigma check` could not run (MITRE ATT&CK data fetch blocked by network proxy).
+All six Sigma rules validate via `sigma convert --without-pipeline -t splunk` and `sigma convert --without-pipeline -t log_scale`. Tags are technique/sub-technique only (no tactic tags).
 
 ---
 
