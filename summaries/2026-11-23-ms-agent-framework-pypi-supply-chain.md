@@ -501,8 +501,8 @@ rule AgentFramework_PyPI_PthHook
         author = "Actioner"
         date = "2026-11-23"
         reference = "https://research.jfrog.com/post/agent-framework-hijack/"
-        hash = "21f28e8517a10ffe431f8d68f5875c85eca4001ae6d118322b0a41873998eb5e"
-        hash = "325e7e9f0ec94e41ad1a1b7a3f18a6b8b5bffece2e2b97b8d3369eb967452f93"
+        hash1 = "21f28e8517a10ffe431f8d68f5875c85eca4001ae6d118322b0a41873998eb5e"
+        hash2 = "325e7e9f0ec94e41ad1a1b7a3f18a6b8b5bffece2e2b97b8d3369eb967452f93"
         severity = "high"
 
     strings:
