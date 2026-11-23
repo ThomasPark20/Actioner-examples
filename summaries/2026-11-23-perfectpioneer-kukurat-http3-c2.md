@@ -281,9 +281,9 @@ Web Shell (ASPXSpy, Godzilla, Suo5, Bysunue.aspx variants) on Exchange/IIS
 | Collection | T1113 | Screen Capture | KUKURAT screenshot module |
 | C2 | T1071.001 | Web Protocols | HTTP/3 over QUIC |
 | C2 | T1090 | Proxy | SOCKS5 proxy capability |
-| C2 | T1055 | Process Injection | KUKURAT process_inject command |
+| Defense Evasion | T1055 | Process Injection | KUKURAT process_inject command |
 | Exfiltration | T1041 | Exfiltration Over C2 Channel | File exfiltration over HTTP/3 |
-| Impact | T1098.002 | Exchange Email Delegate Permissions | Bulk FullAccess grants |
+| Persistence | T1098.002 | Exchange Email Delegate Permissions | Bulk FullAccess grants |
 
 ---
 
@@ -469,7 +469,6 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.collection
     - attack.t1114.002
     - attack.t1098.002
 logsource:
@@ -510,9 +509,7 @@ references:
 author: Actioner
 date: 2026-11-23
 tags:
-    - attack.defense_evasion
-    - attack.t1036
-    - attack.persistence
+    - attack.t1036.005
 logsource:
     category: process_creation
     product: windows
@@ -788,7 +785,7 @@ rule KUKURAT_PsExecService_Module
 
     strings:
         $pdb = "MyPsExec-master\\PsExecService" ascii
-        $pipe = "\\\\.\\ pipe\\PSEXEC" ascii wide nocase
+        $pipe = "\\\\.\\pipe\\PSEXEC" ascii wide nocase
         $pipe2 = "PSEXEC" ascii wide
         $svc = "PsExec" ascii wide
 
@@ -804,9 +801,9 @@ rule KUKURAT_PsExecService_Module
 
 ### Suricata Rules
 
-Structural check only (no Suricata binary available). 22 rules total: 9 DNS-based, 6 QUIC SNI-based (requires Suricata 7.0+), 4 IP-based, 3 HTTP endpoint-based.
+Structural check only (no Suricata binary available). 25 rules total: 9 DNS-based, 9 QUIC SNI-based (requires Suricata 7.0+), 4 IP-based, 3 HTTP endpoint-based.
 
-**Note on QUIC/HTTP3 detection challenges:** HTTP/3 traffic is encrypted after the QUIC handshake, making deep packet inspection of C2 commands impossible without TLS termination. The QUIC SNI rules (SID 2026110010-2026110015) match the Server Name Indication in the cleartext QUIC Client Hello (Initial) packet. The DNS rules provide the broadest coverage. The HTTP endpoint rules (SID 2026110020-2026110022) require TLS decryption/inspection to function.
+**Note on QUIC/HTTP3 detection challenges:** HTTP/3 traffic is encrypted after the QUIC handshake, making deep packet inspection of C2 commands impossible without TLS termination. The QUIC SNI rules (SID 2026110010-2026110015, 2026110023-2026110025) match the Server Name Indication in the cleartext QUIC Client Hello (Initial) packet. The DNS rules provide the broadest coverage. The HTTP endpoint rules (SID 2026110020-2026110022) require TLS decryption/inspection to function.
 
 ---
 
@@ -828,7 +825,7 @@ alert dns $HOME_NET any -> any any (msg:"ETPRO MALWARE TGR-STA-0049 Associated D
 
 ---
 
-#### SURICATA-10 through SURICATA-15: QUIC SNI Detection
+#### SURICATA-10 through SURICATA-15, SURICATA-23 through SURICATA-25: QUIC SNI Detection
 
 **Status:** structural PASS -- confidence: high
 **Requires:** Suricata 7.0+ with `quic.sni` keyword support
@@ -840,6 +837,9 @@ alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer
 alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (cloudflacecdn.com)"; quic.sni; content:"cloudflacecdn"; nocase; classtype:trojan-activity; sid:2026110013; rev:1;)
 alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (police.gr.com)"; quic.sni; content:"police.gr.com"; nocase; classtype:trojan-activity; sid:2026110014; rev:1;)
 alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE KUKURAT QUIC C2 SNI (investigationj6.com)"; quic.sni; content:"investigationj6"; nocase; classtype:trojan-activity; sid:2026110015; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (wkuyda.com)"; quic.sni; content:"wkuyda.com"; nocase; classtype:trojan-activity; sid:2026110023; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE PerfectPioneer QUIC C2 SNI (yangon.it.com)"; quic.sni; content:"yangon.it.com"; nocase; classtype:trojan-activity; sid:2026110024; rev:1;)
+alert quic $HOME_NET any -> $EXTERNAL_NET any (msg:"ETPRO MALWARE TGR-STA-0049 Associated QUIC SNI (sacofficegov.com)"; quic.sni; content:"sacofficegov"; nocase; classtype:trojan-activity; sid:2026110025; rev:1;)
 ```
 
 ---

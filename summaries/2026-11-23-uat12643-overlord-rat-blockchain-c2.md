@@ -1,7 +1,7 @@
 # UAT-12643: North Korea-aligned Actor with Blockchain C2 and Overlord RAT
 
 **Date:** 2026-11-23
-**Classification:** DRAFT
+**Classification:** REVISED
 **TLP:** TLP:CLEAR (based on public Cisco Talos research)
 **Source:** Cisco Talos primary research
 **Viability Gate:** PASS — Talos primary research with 11 SHA-256 hashes, 1 IP address, named malware families, detailed behavioral analysis, and ClamAV/Snort signatures published.
@@ -240,7 +240,7 @@ Cisco Talos published research on **UAT-12643**, a suspected North Korea-aligned
 All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `-t log_scale` (all 10 converted successfully). Tags contain only technique/sub-technique identifiers (no tactic-level tags). Note: `sigma check` was not run; tag correctness was verified by manual review against the MITRE ATT&CK framework.
 
 #### 1. Overlord RAT RuntimeBroker Masquerade
-- **File:** `/tmp/actioner/sigma-uat12643-overlord-rat-process.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 1 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** RuntimeBroker.exe executing from outside System32/SysWOW64
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -248,7 +248,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 2. MpCmdRun -DownloadFile Abuse
-- **File:** `/tmp/actioner/sigma-uat12643-lnk-mpcmdrun-download.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 2 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** MpCmdRun.exe with -DownloadFile and -url flags
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -256,7 +256,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 3. Certutil URLCache Download
-- **File:** `/tmp/actioner/sigma-uat12643-certutil-download.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 3 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** certutil.exe with -urlcache -f and http in command line
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -264,7 +264,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 4. MSBuild Inline Task Execution
-- **File:** `/tmp/actioner/sigma-uat12643-msbuild-inline-task.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 4 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** MSBuild.exe executing .xml/.csproj/.proj without Visual Studio parent
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -272,7 +272,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 5. HTA Stager via Mshta
-- **File:** `/tmp/actioner/sigma-uat12643-hta-stager.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 5 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** mshta.exe with remote HTTP/HTTPS URLs in command line (bare .hta match removed to avoid FP on legitimate local HTA invocations)
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -280,7 +280,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 6. Clipboard Hijacker MsgEdgeUpdate Persistence
-- **File:** `/tmp/actioner/sigma-uat12643-clipboard-hijacker-persistence.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 6 of 10)
 - **Log Source:** process_creation / windows
 - **Logic:** MsgEdgeUpdate.exe running from AppData\Roaming
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -288,7 +288,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 7. Good Game Stealer Zoipers Registry Persistence
-- **File:** `/tmp/actioner/sigma-uat12643-goodgame-persistence.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 7 of 10)
 - **Log Source:** registry_set / windows
 - **Logic:** Registry Run key value "Zoipers" created
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -296,7 +296,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 8. WinRE OEM Persistence
-- **File:** `/tmp/actioner/sigma-uat12643-winre-persistence.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 8 of 10)
 - **Log Source:** file_event / windows
 - **Logic:** Executable or batch file written to Recovery\OEM\ or ResetConfig.xml modified
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -304,7 +304,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 9. DisableTaskMgr During Exfiltration
-- **File:** `/tmp/actioner/sigma-uat12643-disable-taskmgr.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 9 of 10)
 - **Log Source:** registry_set / windows
 - **Logic:** DisableTaskMgr DWORD set to 1 under Policies\System
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -312,7 +312,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 - **Status:** ✅ converted (Splunk, LogScale)
 
 #### 10. Solana RPC Dead-Drop Resolver
-- **File:** `/tmp/actioner/sigma-uat12643-solana-rpc-beacon.yml`
+- **File:** `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` (rule 10 of 10)
 - **Log Source:** dns_query / windows
 - **Logic:** DNS queries to known Solana RPC provider domains
 - **Compile:** Splunk SPL / LogScale -- converted successfully
@@ -321,7 +321,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 
 ### YARA Rules
 
-- **File:** `/tmp/actioner/yara-uat12643-overlord-rat.yar`
+- **File:** `rules/yara/uat12643-overlord-rat-blockchain-c2.yar`
 - **Status:** ⚠️ uncompiled (structural check only)
 - **Rules contained:**
 
@@ -334,7 +334,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 
 ### Snort/Suricata Rules
 
-- **File:** `/tmp/actioner/snort-uat12643-c2.rules`
+- **File:** `rules/snort/uat12643-overlord-rat-blockchain-c2.rules`
 - **Status:** ⚠️ uncompiled (structural check only)
 - **Rules contained:**
 
@@ -346,7 +346,7 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 | 2026112304 | Spoofed BITS/7.8 User-Agent | high |
 | 2026112305 | Exfiltration to gofile[.]io /uploadFile | medium |
 | 2026112306 | Solana RPC getSignaturesForAddress (blockchain dead-drop) | medium |
-| 2026112307 | Python stealer non-standard TCP ports 5656/5959 | medium |
+| 2026112307 | Python stealer TCP C2 to known IP 41[.]216[.]188[.]11 on ports 5656/5959 | high (IP-scoped to reduce FP from generic port matching) |
 
 ---
 
@@ -385,15 +385,6 @@ All Sigma rules validated via `sigma convert --without-pipeline -t splunk` and `
 
 | File | Type | Rules | Status |
 |---|---|---|---|
-| `/tmp/actioner/sigma-uat12643-overlord-rat-process.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-lnk-mpcmdrun-download.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-certutil-download.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-msbuild-inline-task.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-hta-stager.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-clipboard-hijacker-persistence.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-goodgame-persistence.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-winre-persistence.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-disable-taskmgr.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/sigma-uat12643-solana-rpc-beacon.yml` | Sigma | 1 | ✅ converted |
-| `/tmp/actioner/yara-uat12643-overlord-rat.yar` | YARA | 4 | ⚠️ uncompiled |
-| `/tmp/actioner/snort-uat12643-c2.rules` | Snort/Suricata | 7 | ⚠️ uncompiled |
+| `rules/sigma/uat12643-overlord-rat-blockchain-c2.yml` | Sigma | 10 | ✅ converted (Splunk, LogScale) |
+| `rules/yara/uat12643-overlord-rat-blockchain-c2.yar` | YARA | 4 | ⚠️ uncompiled (structural check only) |
+| `rules/snort/uat12643-overlord-rat-blockchain-c2.rules` | Snort/Suricata | 7 | ⚠️ uncompiled (structural check only) |
