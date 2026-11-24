@@ -1,0 +1,57 @@
+# OPTIMJACK Supply Chain Attack - Suricata Rules
+# References:
+#   https://www.stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+#   https://www.reversinglabs.com/blog/optimjack-when-trusted-javascript-becomes-a-supply-chain-attack
+#   https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+
+# DNS query for primary C2 domain 1688360.cc
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for Primary C2 Domain 1688360.cc"; dns.query; content:"1688360.cc"; nocase; sid:2200001; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+# DNS query for webshell.lol (earlier wave)
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for webshell.lol"; dns.query; content:"webshell.lol"; nocase; sid:2200002; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+# DNS query for iOS exploit .icu domains
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain 5vobauua3ojpklx.icu"; dns.query; content:"5vobauua3ojpklx.icu"; nocase; sid:2200003; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain eil786npto9u5bq.icu"; dns.query; content:"eil786npto9u5bq.icu"; nocase; sid:2200004; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for Coruna Telemetry Domain l7bcsnwc7nzr3uo.icu"; dns.query; content:"l7bcsnwc7nzr3uo.icu"; nocase; sid:2200005; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain ios-hack.icu"; dns.query; content:"ios-hack.icu"; nocase; sid:2200006; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+# HTTP request to track.js payload on 1688360.cc
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - HTTP Request for track.js Payload"; http.host; content:"1688360.cc"; http.uri; content:"/track.js"; sid:2200007; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1195.002;)
+
+# HTTP POST to card.php exfiltration endpoint
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Card Data Exfiltration to card.php"; http.host; content:"1688360.cc"; http.uri; content:"/card.php"; http.method; content:"POST"; sid:2200008; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1056;)
+
+# HTTP POST to hit.php exfiltration endpoint
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Data Exfiltration to hit.php"; http.host; content:"1688360.cc"; http.uri; content:"/hit.php"; http.method; content:"POST"; sid:2200009; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1041;)
+
+# HTTP request for boot.js iOS exploit loader on .icu domains
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - iOS Exploit Loader boot.js Request"; http.uri; content:"/boot.js"; http.host; content:".icu"; sid:2200010; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+# HTTP request to JIUJIU888 exploit path
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - iOS Exploit Path JIUJIU888"; http.uri; content:"/JIUJIU888/"; sid:2200011; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1203;)
+
+# HTTP request to webshell.lol/get.js
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Request for webshell.lol get.js"; http.host; content:"webshell.lol"; http.uri; content:"/get.js"; sid:2200012; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1195.002;)
+
+# TLS SNI match for primary C2
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - TLS Connection to 1688360.cc"; tls.sni; content:"1688360.cc"; sid:2200013; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.001;)
+
+# Coruna telemetry POST to /api/iptj
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"OPTIMJACK - Coruna Telemetry POST to /api/iptj"; http.uri; content:"/api/iptj"; http.method; content:"POST"; http.host; content:".icu"; sid:2200014; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1189;)
+
+# DNS queries for remaining OPTIMJACK-associated domains (coverage gap fill)
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain je4ft3gn8vxudum.icu"; dns.query; content:"je4ft3gn8vxudum.icu"; nocase; sid:2200015; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain p55abnw2pnsz0bo.icu"; dns.query; content:"p55abnw2pnsz0bo.icu"; nocase; sid:2200016; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain 1y69gy2mdzaltz1.icu"; dns.query; content:"1y69gy2mdzaltz1.icu"; nocase; sid:2200017; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain gm38duxoihbmy5o.icu"; dns.query; content:"gm38duxoihbmy5o.icu"; nocase; sid:2200018; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for iOS Exploit Domain q1ls1ho9x7wsxlu.icu"; dns.query; content:"q1ls1ho9x7wsxlu.icu"; nocase; sid:2200019; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)
+
+alert dns $HOME_NET any -> any any (msg:"OPTIMJACK - DNS Query for linkforge.cc"; dns.query; content:"linkforge.cc"; nocase; sid:2200020; rev:1; metadata: author Actioner, created_at 2026_11_24, attack_id T1071.004;)

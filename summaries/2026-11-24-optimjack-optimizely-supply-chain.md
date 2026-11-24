@@ -1,7 +1,9 @@
 # OPTIMJACK: Optimizely Web Experimentation Supply Chain Attack
 
+<!-- revision: 2026-11-24 — Applied critic fixes: (1) Sigma DNS ATT&CK tag T1071.001→T1071.004; (2) Sigma iOS exploit rule condition tightened to domain-only, added 3 missing .icu domains, removed path-only branch; (3) Suricata DNS gap filled with 6 new rules SID 2200015-2200020; (4) YARA Loader_ProjectJS overly broad atob/eval/createElement/script branch removed; (5) YARA iOS_ExploitKit_Loader $keychain now requires domain/path context; (6) YARA CardSkimmer_Behavior $session_key narrowed to sessionStorage.setItem/getItem("cc_") pattern, confidence MEDIUM; non-blocking: T1185→T1539, Snort DNS coverage note added. -->
+
 **Date:** 2026-11-24  
-**Status:** DRAFT  
+**Status:** FINAL  
 **TLP:** CLEAR  
 **Author:** Actioner  
 
@@ -75,7 +77,7 @@ Beginning at 13:43 UTC, the payload:
 - Exfiltrated card data via `navigator.sendBeacon` to `https://1688360[.]cc/card.php` with fields `n` (number), `e` (expiry), `c` (CVV), `u` (page URL)
 - Stored captured cards in `sessionStorage` with keys prefixed `cc_` to avoid re-capture
 
-### Stage 5: Session Data Collection (T1113, T1185)
+### Stage 5: Session Data Collection (T1113, T1539)
 
 The payload collected:
 
@@ -213,7 +215,7 @@ Per Report URI's analysis of affected sites:
 | Input Capture | T1056 | Payment card skimming via form interception |
 | Clipboard Data | T1115 | Cryptocurrency wallet address replacement via clipboard hooks |
 | Screen Capture | T1113 | Page screenshots via html2canvas |
-| Browser Session Hijacking | T1185 | Cookie theft and session data collection |
+| Steal Web Session Cookie | T1539 | Cookie theft and session data collection |
 | Transmitted Data Manipulation | T1565.002 | Cryptocurrency address replacement in outgoing transactions |
 | Acquire Infrastructure: Server | T1583.004 | Google Cloud infrastructure for C2 and exploit delivery |
 
@@ -263,17 +265,17 @@ Detects proxy-logged HTTP requests to the four known exfiltration paths on `1688
 **Rule 3: iOS Exploit Kit Delivery Path**  
 File: `sigma_optimjack_ios_exploit.yml`  
 Compile status: Passes `sigma convert` to Splunk and LogScale  
-Confidence: HIGH for `.icu` domain matches; MEDIUM for path-only matches (paths like `/boot.js` are generic without domain context)
+Confidence: HIGH (domain-only condition; all 9 .icu domains are campaign-specific)
 
-Detects proxy-logged requests to known iOS exploit delivery domains and paths used by the Coruna and DarkSword exploit kits.
+Detects proxy-logged requests to known OPTIMJACK iOS exploit delivery `.icu` domains used by the Coruna and DarkSword exploit kits. Covers all 9 campaign-associated `.icu` domains. Path-only matching was removed to eliminate false positives from generic paths like `/boot.js`.
 
-### Suricata Rules (14 rules, SID 2200001-2200014)
+### Suricata Rules (20 rules, SID 2200001-2200020)
 
 File: `suricata_optimjack.rules`  
 Compile status: Passes `suricata -T` validation (Suricata 7.0.3)  
 Confidence: HIGH for domain-specific rules; MEDIUM for path-pattern rules
 
-Covers DNS queries for C2 domains, HTTP requests to payload/exfiltration endpoints, TLS SNI detection for `1688360[.]cc`, iOS boot.js loader requests, JIUJIU888 exploit paths, and Coruna telemetry POSTs.
+Covers DNS queries for all 12 IOC domains (SIDs 2200001-2200006, 2200015-2200020), HTTP requests to payload/exfiltration endpoints, TLS SNI detection for `1688360[.]cc`, iOS boot.js loader requests, JIUJIU888 exploit paths, and Coruna telemetry POSTs.
 
 ### Snort Rules (9 rules, SID 2100001-2100009)
 
@@ -281,20 +283,20 @@ File: `snort_optimjack.rules`
 Compile status: Syntax validated (Snort 2.9.20); full config test blocked by environment constraints  
 Confidence: HIGH for domain+path combination rules; MEDIUM for DNS-encoded rules
 
-Covers HTTP requests to track.js/card.php/hit.php on `1688360[.]cc`, webshell[.]lol/get.js, boot.js on .icu domains, JIUJIU888 paths, and DNS queries for primary domains.
+Covers HTTP requests to track.js/card.php/hit.php on `1688360[.]cc`, webshell[.]lol/get.js, boot.js on .icu domains, JIUJIU888 paths, and DNS queries for primary domains. Note: Snort DNS coverage is limited to 2 domains (`1688360[.]cc`, `webshell[.]lol`) vs. Sigma's 12 and Suricata's 12; Snort 2.9 DNS-encoded content matching is fragile for long domain labels, so use Suricata or Sigma for comprehensive DNS coverage.
 
 ### YARA Rules (5 rules)
 
 File: `yara_optimjack.yar`  
 Compile status: Passes `yarac` compilation (YARA 4.5.0)  
-Confidence: HIGH for hash and wallet/domain rules; MEDIUM for behavioral pattern rules
+Confidence: HIGH for hash and wallet/domain rules; MEDIUM for behavioral pattern rules (OPTIMJACK_CardSkimmer_Behavior)
 
 | Rule | Description |
 |------|-------------|
 | `OPTIMJACK_TrackJS_Payload` | Matches track.js payload by domain references, global variables, or attacker wallet addresses |
-| `OPTIMJACK_Loader_ProjectJS` | Matches OPTIMJACK loader code injected into Optimizely Project JavaScript, including .icu domains and obfuscated loader patterns |
-| `OPTIMJACK_iOS_ExploitKit_Loader` | Matches iOS exploit kit loader (boot.js) by exploit paths, channel identifiers, and .icu domains |
-| `OPTIMJACK_CardSkimmer_Behavior` | Behavioral detection of card skimming patterns: sendBeacon + card.php, html2canvas + hit.php, sessionStorage cc_ prefixes |
+| `OPTIMJACK_Loader_ProjectJS` | Matches OPTIMJACK loader code injected into Optimizely Project JavaScript by C2 URL, channel code attributes, or .icu domain clusters (overly broad atob/eval behavioral branch removed) |
+| `OPTIMJACK_iOS_ExploitKit_Loader` | Matches iOS exploit kit loader (boot.js) by exploit paths, channel identifiers, and .icu domains; keychain-2.db match now requires domain or path context |
+| `OPTIMJACK_CardSkimmer_Behavior` | Behavioral detection of card skimming patterns: sendBeacon + card.php, html2canvas + hit.php, sessionStorage cc_ prefixes with Function.prototype hooks |
 | `OPTIMJACK_TrackJS_SHA256` | Hash-based detection of four known track.js builds |
 
 ---
@@ -312,4 +314,4 @@ Confidence: HIGH for hash and wallet/domain rules; MEDIUM for behavioral pattern
 
 ---
 
-*This is a DRAFT report. IOCs should be validated against your environment before deploying blocking rules. Detection rules carry experimental status and should be tested in monitor-only mode before enforcement.*
+*IOCs should be validated against your environment before deploying blocking rules. Detection rules carry experimental status and should be tested in monitor-only mode before enforcement.*

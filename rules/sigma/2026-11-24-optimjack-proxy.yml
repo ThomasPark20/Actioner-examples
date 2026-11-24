@@ -1,0 +1,28 @@
+title: OPTIMJACK Supply Chain Attack - Web Proxy Request to Exfiltration Endpoints
+id: a2c4e6f8-1b3d-5a7c-9e0f-2d4b6a8c0e12
+status: experimental
+description: Detects HTTP requests to known OPTIMJACK exfiltration endpoints including track.js payload delivery, card.php card skimming, and hit.php data collection.
+references:
+    - https://www.stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+    - https://www.reversinglabs.com/blog/optimjack-when-trusted-javascript-becomes-a-supply-chain-attack
+    - https://phoenix.security/optimjack-optimizely-supply-chain-attack-card-skimmer-ios/
+author: Actioner
+date: 2026/11/24
+tags:
+    - attack.t1195.002
+    - attack.t1059.007
+logsource:
+    category: proxy
+detection:
+    selection_domain:
+        c-uri|contains: '1688360.cc'
+    selection_paths:
+        c-uri|endswith:
+            - '/track.js'
+            - '/card.php'
+            - '/hit.php'
+            - '/html2canvas.min.js'
+    condition: selection_domain and selection_paths
+falsepositives:
+    - Unlikely
+level: high

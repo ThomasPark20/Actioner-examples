@@ -1,0 +1,32 @@
+# OPTIMJACK Supply Chain Attack - Snort 2.9 Rules
+# References:
+#   https://www.stepsecurity.io/blog/optimjack-optimizely-hosted-scripts-crypto-clipper-card-skimmer
+#   https://www.reversinglabs.com/blog/optimjack-when-trusted-javascript-becomes-a-supply-chain-attack
+#   https://unit42.paloaltonetworks.com/optimjack-supply-chain-attack/
+
+# HTTP request to 1688360.cc track.js payload
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - HTTP Request for track.js on 1688360.cc"; flow:to_server,established; content:"GET"; http_method; content:"/track.js"; http_uri; content:"1688360.cc"; http_header; sid:2100001; rev:1;)
+
+# HTTP POST to card.php exfiltration
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - Card Data Exfil POST to card.php"; flow:to_server,established; content:"POST"; http_method; content:"/card.php"; http_uri; content:"1688360.cc"; http_header; sid:2100002; rev:1;)
+
+# HTTP POST to hit.php exfiltration
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - Data Exfil POST to hit.php"; flow:to_server,established; content:"POST"; http_method; content:"/hit.php"; http_uri; content:"1688360.cc"; http_header; sid:2100003; rev:1;)
+
+# HTTP request for webshell.lol get.js
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - Request for webshell.lol get.js"; flow:to_server,established; content:"/get.js"; http_uri; content:"webshell.lol"; http_header; sid:2100004; rev:1;)
+
+# HTTP request for boot.js iOS exploit loader
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - iOS Exploit Loader boot.js on .icu Domain"; flow:to_server,established; content:"/boot.js"; http_uri; content:".icu"; http_header; sid:2100005; rev:1;)
+
+# HTTP request to JIUJIU888 exploit path
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - iOS Exploit Path JIUJIU888"; flow:to_server,established; content:"/JIUJIU888/"; http_uri; sid:2100006; rev:1;)
+
+# DNS query for 1688360.cc
+alert udp $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for 1688360.cc"; content:"|07|1688360|02|cc|00|"; nocase; sid:2100007; rev:1;)
+
+# DNS query for webshell.lol
+alert udp $HOME_NET any -> any 53 (msg:"OPTIMJACK - DNS Query for webshell.lol"; content:"|08|webshell|03|lol|00|"; nocase; sid:2100008; rev:1;)
+
+# HTTP request to html2canvas on attacker host
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"OPTIMJACK - html2canvas.min.js from 1688360.cc"; flow:to_server,established; content:"/html2canvas.min.js"; http_uri; content:"1688360.cc"; http_header; sid:2100009; rev:1;)
