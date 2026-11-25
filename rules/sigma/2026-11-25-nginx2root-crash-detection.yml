@@ -1,0 +1,38 @@
+title: NGINX Worker Process Crash Detected via Signal
+id: e5d2f8a1-6b4c-49e3-8a7d-c1f03e9b2d75
+status: experimental
+description: >
+    Detects NGINX error log messages indicating worker process termination by
+    signal (SIGSEGV, SIGABRT, SIGBUS), which may indicate failed exploitation
+    attempts of CVE-2026-123007 or CVE-2026-123633 use-after-free vulnerabilities.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-123633-nginx-http2-vulnerability/
+    - https://thehackernews.com/2026/11/10-year-old-nginx-http2-flaw-lets.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection_process:
+        SyslogMessage|contains: 'nginx'
+    selection_signal:
+        SyslogMessage|contains:
+            - 'worker process'
+            - 'exited on signal'
+    selection_crash_signal:
+        SyslogMessage|contains:
+            - 'signal 11'
+            - 'signal 6'
+            - 'signal 7'
+            - 'SIGSEGV'
+            - 'SIGABRT'
+            - 'SIGBUS'
+            - 'core dumped'
+    condition: selection_process and selection_signal and selection_crash_signal
+falsepositives:
+    - NGINX crashes due to legitimate bugs or memory issues
+    - Third-party module crashes in NGINX workers
+level: medium

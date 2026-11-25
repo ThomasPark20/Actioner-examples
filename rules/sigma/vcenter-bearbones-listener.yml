@@ -1,0 +1,22 @@
+title: BEARBONES Backdoor Connection on TCP 33992
+id: a2d5e7f3-6b91-4c8e-ad47-f3e8b2c16a09
+status: experimental
+description: >
+    Detects network connections to or from TCP port 33992, used by
+    the BEARBONES Dropbear-based SSH backdoor deployed by Armory Castle
+    during exploitation of VMware vCenter CVE-2026-123890.
+references:
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1571
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationPort: 33992
+    condition: selection
+falsepositives:
+    - Uncommon but possible legitimate services on this port
+level: critical

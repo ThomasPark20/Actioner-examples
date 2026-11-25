@@ -1,0 +1,25 @@
+title: MsgEdgeUpdate Registry Run Key Persistence - UAT-12643 Clipboard Hijacker
+id: bcf8856a-910b-4a7d-893a-9db8e7e9e007
+status: experimental
+description: >
+    Detects creation of a registry Run key named MsgEdgeUpdate, used by
+    UAT-12643 clipboard hijacker for persistence while masquerading as
+    a Microsoft Edge update component. This is not a legitimate Microsoft
+    process or update mechanism.
+references:
+    - https://blog.talosintelligence.com/uat-12643-overlord-rat/
+author: Actioner
+date: 2026-11-25
+tags:
+    - attack.t1547.001
+    - attack.t1115
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Run\MsgEdgeUpdate'
+    condition: selection
+falsepositives:
+    - Unlikely - MsgEdgeUpdate is not a legitimate Microsoft Edge update process name
+level: high

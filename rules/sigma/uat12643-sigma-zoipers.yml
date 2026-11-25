@@ -1,0 +1,25 @@
+title: Zoipers Registry Run Key Persistence - UAT-12643 Stealer
+id: 2605f79c-43fe-48ca-9c94-3c08878163c7
+status: experimental
+description: >
+    Detects creation of a registry Run key named Zoipers, used by
+    UAT-12643 Good Game Stealer for persistence while masquerading as
+    the legitimate Zoiper VoIP application. The legitimate software
+    uses the name Zoiper, not Zoipers.
+references:
+    - https://blog.talosintelligence.com/uat-12643-overlord-rat/
+author: Actioner
+date: 2026-11-25
+tags:
+    - attack.t1547.001
+    - attack.t1555
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Run\Zoipers'
+    condition: selection
+falsepositives:
+    - Legitimate Zoiper VoIP software uses the name Zoiper without the trailing s
+level: medium

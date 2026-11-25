@@ -1,0 +1,1 @@
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - CVE-2026-84869 MSI Payload Download from masterdarky.com"; flow:established,to_server; content:"masterdarky.com"; http_header; content:".msi"; http_uri; fast_pattern; sid:2100101; rev:1; classtype:trojan-activity; reference:url,www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation;)

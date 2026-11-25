@@ -1,0 +1,26 @@
+title: MSI Administrative Install to Local AppData with Suspicious Naming
+id: 9c5d3e6f-1a4b-4d0c-c3f8-7e2a5b9d1f4c
+status: experimental
+description: >
+    Detects msiexec performing an administrative install (/a) to a LocalAppData
+    path matching the wclient_<hex> pattern used by the CVE-2026-84869 rogue installer.
+references:
+    - https://www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1218.007
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\msiexec.exe'
+        CommandLine|contains|all:
+            - '/a'
+            - 'wclient_'
+            - '\AppData\Local\'
+    condition: selection
+falsepositives:
+    - Unlikely; the wclient_ prefix with msiexec /a is highly specific to this campaign
+level: critical

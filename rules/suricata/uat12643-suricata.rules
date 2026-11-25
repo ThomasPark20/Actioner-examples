@@ -1,0 +1,10 @@
+# Suricata rules for UAT-12643 Overlord RAT / Solana Blockchain C2
+# Reference: https://blog.talosintelligence.com/uat-12643-overlord-rat/
+
+alert tcp $HOME_NET any -> 41.216.188.11 [5173,5656,5959] (msg:"Actioner - UAT-12643 Overlord RAT C2 to Known Infrastructure"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-overlord-rat/; metadata:author Actioner, created_at 2026-11-25; sid:2100010; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Spoofed Microsoft BITS/7.8 User-Agent Associated with UAT-12643"; flow:established,to_server; http.user_agent; content:"Microsoft BITS/7.8"; fast_pattern; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-overlord-rat/; metadata:author Actioner, created_at 2026-11-25; sid:2100011; rev:1;)
+
+alert tcp $HOME_NET any -> 41.216.188.11 8000 (msg:"Actioner - UAT-12643 Flask C2 Server Communication"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-overlord-rat/; metadata:author Actioner, created_at 2026-11-25; sid:2100013; rev:1;)
+
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Exfiltration via gofile.io POST with BITS UA - UAT-12643"; flow:established,to_server; http.method; content:"POST"; http.host; content:"gofile.io"; endswith; http.user_agent; content:"BITS"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-overlord-rat/; metadata:author Actioner, created_at 2026-11-25; sid:2100014; rev:1;)

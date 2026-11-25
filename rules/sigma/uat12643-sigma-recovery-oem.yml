@@ -1,0 +1,29 @@
+title: Executable Dropped in Windows Recovery OEM Directory
+id: 59d797df-333e-4a5c-a184-10290de60359
+status: experimental
+description: >
+    Detects creation of executable files in the Windows Recovery OEM directory,
+    a rarely inspected persistence location used by UAT-12643 to stage
+    Overlord RAT components outside typical forensic search paths.
+references:
+    - https://blog.talosintelligence.com/uat-12643-overlord-rat/
+author: Actioner
+date: 2026-11-25
+tags:
+    - attack.t1036.005
+    - attack.t1074.001
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|contains: '\Recovery\OEM\'
+        TargetFilename|endswith:
+            - '.exe'
+            - '.dll'
+            - '.scr'
+            - '.bat'
+    condition: selection
+falsepositives:
+    - OEM system recovery software installation or updates
+level: high
