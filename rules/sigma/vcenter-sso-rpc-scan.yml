@@ -1,0 +1,27 @@
+title: Network Scan Targeting vCenter SSO RPC and Management Ports
+id: b4f6a8c2-3d71-4e5f-9c20-e1a7d5b39f82
+status: experimental
+description: >
+    Detects network connections to VMware vCenter SSO RPC port 2012
+    combined with management ports 9080 or 5480, matching the
+    reconnaissance pattern used by Armory Castle prior to exploiting
+    CVE-2026-123890.
+references:
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1046
+logsource:
+    category: network_connection
+detection:
+    selection:
+        DestinationPort:
+            - 2012
+            - 9080
+            - 5480
+    condition: selection
+falsepositives:
+    - Legitimate VMware management traffic
+    - vCenter health monitoring
+level: medium

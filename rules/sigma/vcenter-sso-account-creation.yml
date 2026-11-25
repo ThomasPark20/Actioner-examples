@@ -1,0 +1,26 @@
+title: Suspicious vCenter SSO Account Creation Matching Armory Castle Pattern
+id: 9e1b4c56-d8f2-4a37-b5e1-c6d9a2f80734
+status: experimental
+description: >
+    Detects creation of local vCenter SSO administrator accounts matching
+    the pattern sps-*@vsphere.local, observed in Armory Castle campaign
+    exploiting CVE-2026-123890 for SAML STS hijacking.
+references:
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1136.001
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        - 'sps-'
+        - '@vsphere.local'
+    filter_expected:
+        - 'vmware-stsd'
+    condition: selection and not filter_expected
+falsepositives:
+    - Legitimate VMware service provisioning accounts
+level: high

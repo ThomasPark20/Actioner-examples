@@ -1,0 +1,1 @@
+alert tcp any any -> $HOME_NET 33992 (msg:"Actioner - BEARBONES Backdoor Inbound Connection TCP 33992"; flow:to_server; classtype:trojan-activity; reference:url,thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html; metadata:author Actioner, created 2026-11-25; sid:2100102; rev:1;)
