@@ -1,0 +1,28 @@
+title: NGINX Connection Drain Warning Indicating CVE-2026-123007 Prerequisite
+id: 7c8e4a2f-1b39-4d6e-a5f7-9e3c2d8b1a04
+status: experimental
+description: >
+    Detects the NGINX error log message indicating worker connection exhaustion
+    and connection draining. This condition is a prerequisite for CVE-2026-123007
+    and CVE-2026-123633 exploitation, where free worker_connections slots drop
+    below one sixteenth of the configured value.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-123633-nginx-http2-vulnerability/
+    - https://thehackernews.com/2026/11/10-year-old-nginx-http2-flaw-lets.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1190
+logsource:
+    product: linux
+    service: syslog
+detection:
+    selection:
+        SyslogMessage|contains|all:
+            - 'worker_connections are not enough'
+            - 'reusing connections'
+    condition: selection
+falsepositives:
+    - Legitimately overloaded NGINX instances under heavy organic traffic
+    - Misconfigured worker_connections setting with low values
+level: medium

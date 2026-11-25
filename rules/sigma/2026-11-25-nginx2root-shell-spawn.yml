@@ -1,0 +1,34 @@
+title: Suspicious Shell Process Spawned by NGINX Worker
+id: 3a1f5e9d-8c72-4b6a-d3e1-f7a2c9b04e56
+status: experimental
+description: >
+    Detects shell or command interpreter processes spawned by an NGINX worker
+    process, which may indicate post-exploitation of CVE-2026-123007 (nginx2root)
+    or CVE-2026-123633. NGINX workers should never spawn interactive shells.
+references:
+    - https://unit42.paloaltonetworks.com/cve-2026-123633-nginx-http2-vulnerability/
+    - https://thehackernews.com/2026/11/10-year-old-nginx-http2-flaw-lets.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1059.004
+    - attack.t1190
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith: '/nginx'
+    selection_shell:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+            - '/zsh'
+            - '/ksh'
+            - '/csh'
+    condition: selection_parent and selection_shell
+falsepositives:
+    - Custom NGINX modules that intentionally execute shell commands
+    - NGINX health check scripts executed via exec directives
+level: high
