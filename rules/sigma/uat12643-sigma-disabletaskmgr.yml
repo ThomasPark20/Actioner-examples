@@ -1,0 +1,30 @@
+title: Task Manager Disabled via Registry - UAT-12643 Defense Evasion
+id: df7cd787-1302-44ee-b11d-8d360b5502d5
+status: experimental
+description: >
+    Detects the DisableTaskMgr registry value being set to 1 by a
+    non-standard process, a defense evasion technique used by UAT-12643
+    Overlord RAT to prevent victims from terminating malicious processes
+    via Task Manager.
+references:
+    - https://blog.talosintelligence.com/uat-12643-overlord-rat/
+author: Actioner
+date: 2026-11-25
+tags:
+    - attack.t1562.001
+logsource:
+    category: registry_set
+    product: windows
+detection:
+    selection:
+        TargetObject|endswith: '\Policies\Microsoft\Windows\System\DisableTaskMgr'
+    filter_system:
+        Image|endswith:
+            - '\svchost.exe'
+            - '\mmc.exe'
+            - '\gpedit.msc'
+    condition: selection and not filter_system
+falsepositives:
+    - Group Policy enforcement of Task Manager restrictions in corporate environments
+    - Parental control software disabling Task Manager
+level: high

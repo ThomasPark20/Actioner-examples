@@ -1,0 +1,27 @@
+title: MpCmdRun.exe Abused to Download File - UAT-12643 Overlord RAT Delivery
+id: f5687bd2-50ea-44ed-a129-ad31d2e50e98
+status: experimental
+description: >
+    Detects Windows Defender MpCmdRun.exe used with -DownloadFile to fetch
+    remote files, a living-off-the-land technique observed in UAT-12643
+    campaigns delivering Overlord RAT via RuntimeBroker.exe.
+references:
+    - https://blog.talosintelligence.com/uat-12643-overlord-rat/
+author: Actioner
+date: 2026-11-25
+tags:
+    - attack.t1105
+    - attack.t1218
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\MpCmdRun.exe'
+        CommandLine|contains|all:
+            - '-DownloadFile'
+            - '-url'
+    condition: selection
+falsepositives:
+    - Legitimate Windows Defender definition updates using MpCmdRun with -DownloadFile
+level: high
