@@ -1,0 +1,32 @@
+title: Rogue ScreenConnect Client Connecting to Attacker Relay on Port 8041
+id: 8b4c2d5e-0f3a-4c9b-b2e7-6d1f4a8c0e3b
+status: experimental
+description: >
+    Detects a ScreenConnect client executable connecting outbound on port 8041,
+    the relay port used by the CVE-2026-84869 campaign's rogue client (WindowsUpdate.WindowsClient.exe).
+references:
+    - https://www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation
+    - https://thehackernews.com/2026/11/hackers-exploit-critical-screenconnect.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1219
+    - attack.t1571
+logsource:
+    category: network_connection
+    product: windows
+detection:
+    selection:
+        Initiated: 'true'
+        DestinationPort: 8041
+        Image|endswith:
+            - '\WindowsUpdate.WindowsClient.exe'
+            - '\ScreenConnect.WindowsClient.exe'
+    filter_known:
+        DestinationHostname|endswith:
+            - '.screenconnect.com'
+            - '.connectwise.com'
+    condition: selection and not filter_known
+falsepositives:
+    - Self-hosted ScreenConnect instances using port 8041
+level: high

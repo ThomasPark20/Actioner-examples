@@ -1,0 +1,27 @@
+title: SecLogon Service Reconfigured to Auto Start via sc.exe
+id: 1e7f5a8b-3c6d-4f2e-e5b0-9a4c7d1f3b6e
+status: experimental
+description: >
+    Detects sc.exe reconfiguring the Secondary Logon (seclogon) service to auto
+    start, used in the CVE-2026-84869 exploitation chain to enable runas token manipulation.
+references:
+    - https://www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1543.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\sc.exe'
+        CommandLine|contains|all:
+            - 'config'
+            - 'seclogon'
+            - 'start='
+            - 'auto'
+    condition: selection
+falsepositives:
+    - System administrators legitimately reconfiguring the seclogon service
+level: medium

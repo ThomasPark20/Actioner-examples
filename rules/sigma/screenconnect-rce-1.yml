@@ -1,0 +1,34 @@
+title: ScreenConnect Guest-Pushed Batch Execution via CVE-2026-84869
+id: 7a3b1c4d-9e2f-4b8a-a1d6-5c0e3f7b9d2a
+status: experimental
+description: >
+    Detects ScreenConnect client executing guest-pushed batch or script files
+    from the session Temp directory, indicative of CVE-2026-84869 exploitation.
+references:
+    - https://www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation
+    - https://thehackernews.com/2026/11/hackers-exploit-critical-screenconnect.html
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1203
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '\ScreenConnect.WindowsClient.exe'
+            - '\ScreenConnect.ClientService.exe'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\wscript.exe'
+            - '\cscript.exe'
+    selection_path:
+        CommandLine|contains: '\Temp\'
+    condition: selection_parent and selection_child and selection_path
+falsepositives:
+    - Legitimate ScreenConnect remote support sessions running scripts from temp directories
+level: high

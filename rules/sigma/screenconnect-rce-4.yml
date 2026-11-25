@@ -1,0 +1,28 @@
+title: Curl Download of MSI Triggered by ScreenConnect Client Process
+id: 0d6e4f7a-2b5c-4e1d-d4a9-8f3b6c0e2a5d
+status: experimental
+description: >
+    Detects curl.exe downloading an MSI file where the grandparent process is a
+    ScreenConnect client, matching the CVE-2026-84869 exploitation chain.
+references:
+    - https://www.huntress.com/blog/cve-2026-84869-screenconnect-technician-exploitation
+author: Actioner
+date: 2026/11/25
+tags:
+    - attack.t1105
+    - attack.t1059.003
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\curl.exe'
+        CommandLine|contains: '.msi'
+    selection_parent:
+        ParentCommandLine|contains:
+            - 'update_'
+            - 'wupdate_'
+    condition: selection and selection_parent
+falsepositives:
+    - Legitimate scripts downloading MSI installers via curl
+level: high
