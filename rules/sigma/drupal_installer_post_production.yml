@@ -1,0 +1,28 @@
+title: Drupal Installer POST Request on Production Site - CVE-2026-132165
+id: 2b8f3a1c-6d4e-4f7a-9e5b-c8d2a1f6e3b0
+status: experimental
+description: >
+    Detects HTTP POST requests to Drupal install.php on a production site.
+    POST requests to the installer indicate an attacker may be submitting
+    database configuration forms to hijack a live site as part of the
+    CVE-2026-132165 (Fail2Install) exploit chain. Without body inspection
+    this rule cannot distinguish exploit submissions from legitimate installs.
+references:
+    - https://www.drupal.org/sa-core-2026-017
+    - https://www.drupal.org/sa-core-2026-019
+    - https://www.stepsecurity.io/blog/fail2install-cve-2026-132165
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1190
+logsource:
+    category: webserver
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains: '/install.php'
+    condition: selection_method and selection_uri
+falsepositives:
+    - Legitimate Drupal installation by an administrator
+level: high

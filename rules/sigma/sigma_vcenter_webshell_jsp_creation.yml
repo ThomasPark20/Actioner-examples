@@ -1,0 +1,26 @@
+title: Suspicious JSP Web Shell Creation on VMware Appliance
+id: 4e6a8c0b-2d3f-4a5b-7c9d-1e0f2a4b6c8d
+status: experimental
+description: >
+    Detects creation of JSP files associated with SLIMSAVAGE and CAGEMATCH web shells
+    used by Armory Castle (UNC5221) during exploitation of CVE-2026-123890. These web
+    shells were deployed on Linux appliances for command execution and file staging.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1505.003
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith:
+            - '/ActiveSer.jsp'
+            - '/u.jsp'
+    condition: selection
+falsepositives:
+    - ActiveSer.jsp is distinctive, but u.jsp is a single-character filename that may appear in unrelated web deployments
+level: medium

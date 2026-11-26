@@ -1,0 +1,32 @@
+title: Access to VMware vCenter Directory Service Database data.mdb
+id: 3b5d7f9a-1c2e-4a3b-6d8f-0a1c3e5b7d9f
+status: experimental
+description: >
+    Detects access to the VMware vCenter Directory Service LMDB database file data.mdb.
+    BONESAW, used by Armory Castle (UNC5221), exfiltrates this database to extract SAML
+    STS signing keys and create unauthorized administrator accounts. This is a critical
+    indicator of CVE-2026-123890 exploitation.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1005
+    - attack.t1552.004
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|contains: '/vmware-vmdir/data.mdb'
+    filter_vmware_processes:
+        Image|contains:
+            - '/vmware-vmdird'
+            - '/vmdird'
+            - '/vmafdd'
+    condition: selection and not filter_vmware_processes
+falsepositives:
+    - VMware backup tools accessing the VMDIR database
+    - Legitimate VMware support operations
+level: critical

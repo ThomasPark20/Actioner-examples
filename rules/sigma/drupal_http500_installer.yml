@@ -1,0 +1,29 @@
+title: Drupal HTTP 500 on Installer Access
+id: 9d1e4f6a-3b2c-4d8e-a7f5-e0b9c1d3a2f8
+status: experimental
+description: >
+    Detects HTTP 500 responses to requests targeting Drupal install.php,
+    which may indicate resource exhaustion as a precursor to CVE-2026-132165
+    (Fail2Install) exploitation. Database connection or file descriptor
+    exhaustion causes 500 errors that the installer misinterprets as
+    "not installed." This rule fires per event; aggregate by source IP
+    at the SIEM level for higher fidelity.
+references:
+    - https://www.drupal.org/sa-core-2026-017
+    - https://www.stepsecurity.io/blog/fail2install-cve-2026-132165
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1190
+    - attack.t1499.003
+logsource:
+    category: webserver
+detection:
+    selection:
+        sc-status: 500
+        cs-uri-stem|contains: '/install.php'
+    condition: selection
+falsepositives:
+    - Misconfigured Drupal installations
+    - Legitimate Drupal installation attempts encountering errors
+level: medium

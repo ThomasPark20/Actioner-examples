@@ -1,0 +1,27 @@
+title: Suspicious DLL Sideloading via Copied osk.exe in LocalAppData
+id: 7c3a1e4b-9f2d-4a6e-8b7c-1d5e8f0a3c2b
+status: experimental
+description: >
+    Detects execution of osk.exe (On-Screen Keyboard) from a non-standard location
+    under LocalAppData, which is indicative of DLL sideloading used by malicious NuGet
+    packages in the fake .NET job assessment supply chain attack. The attack copies
+    osk.exe to %LOCALAPPDATA%\osk\ alongside a malicious OskSupport.dll.
+references:
+    - https://socket.dev/blog/malicious-nuget-packages-fake-job-assessments
+    - https://thehackernews.com/2026/11/13-malicious-nuget-packages-turn-fake.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1574.002
+    - attack.t1195.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\osk.exe'
+        Image|contains: '\AppData\Local\osk\'
+    condition: selection
+falsepositives:
+    - Legitimate accessibility tool usage from non-standard paths (unlikely)
+level: high

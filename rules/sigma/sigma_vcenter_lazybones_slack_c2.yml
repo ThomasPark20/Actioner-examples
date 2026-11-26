@@ -1,0 +1,29 @@
+title: LAZYBONES Slack C2 Communication from Linux Appliance
+id: 9a0b1c2d-3e4f-5a6b-7c8d-9e0f1a2b3c4d
+status: experimental
+description: >
+    Detects outbound HTTPS connections to Slack API endpoints from Linux appliances.
+    The LAZYBONES backdoor used by Armory Castle (UNC5221) communicates over Slack
+    channels using conversations.history, files.getUploadURLExternal, and
+    files.completeUploadExternal API calls for C2.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1102.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection:
+        cs-host: 'slack.com'
+        cs-uri|contains:
+            - '/api/conversations.history'
+            - '/api/files.getUploadURLExternal'
+            - '/api/files.completeUploadExternal'
+    condition: selection
+falsepositives:
+    - Legitimate Slack integrations on monitored infrastructure
+    - ChatOps tooling using Slack APIs
+level: medium

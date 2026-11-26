@@ -1,0 +1,27 @@
+title: Suspicious GitHub API Requests with MyUpdater User-Agent
+id: 5a1b2c3d-4e5f-6789-abcd-ef0123456789
+status: experimental
+description: >
+    Detects HTTP requests to the GitHub API using the custom User-Agent string
+    'MyUpdater', which is used by the updater.exe and msedgewebview2.exe loaders
+    from the malicious NuGet package campaign. These loaders use GitHub repositories
+    as two-way C2 channels.
+references:
+    - https://socket.dev/blog/malicious-nuget-packages-fake-job-assessments
+    - https://thehackernews.com/2026/11/13-malicious-nuget-packages-turn-fake.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1102.002
+    - attack.t1071.001
+logsource:
+    category: proxy
+detection:
+    selection_ua:
+        c-useragent: 'MyUpdater'
+    selection_dest:
+        cs-host|contains: 'github'
+    condition: selection_ua and selection_dest
+falsepositives:
+    - Custom developer tools using 'MyUpdater' as User-Agent (unlikely)
+level: high

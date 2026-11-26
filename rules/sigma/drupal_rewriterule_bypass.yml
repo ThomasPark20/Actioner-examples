@@ -1,0 +1,27 @@
+title: Drupal Apache RewriteRule Bypass via PHP Path Suffix
+id: 4c9e2d7a-8b1f-4a3e-b5d6-f0c1a2e9d8b7
+status: experimental
+description: >
+    Detects HTTP requests containing .php/core/ in the URI path, which
+    indicates exploitation of the Apache RewriteRule bypass used in the
+    CVE-2026-132165 (Fail2Install) exploit chain. Drupal does not generate
+    URLs with this pattern. Attackers use this to execute PHP files that
+    would otherwise be blocked by the stock .htaccess rules.
+references:
+    - https://www.drupal.org/sa-core-2026-017
+    - https://www.stepsecurity.io/blog/fail2install-cve-2026-132165
+    - https://www.slcyber.io/research/fail2install-system-limits-pre-auth-rce-drupal
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1190
+    - attack.t1505.003
+logsource:
+    category: webserver
+detection:
+    selection:
+        cs-uri-stem|re: '\.php/core/.*\.php'
+    condition: selection
+falsepositives:
+    - None expected in production Drupal environments
+level: critical

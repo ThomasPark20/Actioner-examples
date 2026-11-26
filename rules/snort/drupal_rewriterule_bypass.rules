@@ -1,0 +1,1 @@
+alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Drupal Apache RewriteRule Bypass .php/core/ CVE-2026-132165"; flow:established,to_server; content:".php/core/"; http_uri; fast_pattern; classtype:web-application-attack; reference:url,www.drupal.org/sa-core-2026-017; reference:cve,2026-132165; metadata:author Actioner; sid:1000202; rev:1;)

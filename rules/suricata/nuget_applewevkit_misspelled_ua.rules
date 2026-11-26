@@ -1,0 +1,1 @@
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - Misspelled AppleWevKit User-Agent (NuGet Supply Chain)"; flow:established,to_server; http.user_agent; content:"AppleWevKit"; fast_pattern; classtype:trojan-activity; reference:url,socket.dev/blog/malicious-nuget-packages-fake-job-assessments; metadata:author Actioner, created_at 2026-11-26; sid:2100104; rev:1;)

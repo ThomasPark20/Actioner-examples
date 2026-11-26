@@ -1,0 +1,26 @@
+title: OskSupport.dll Written to LocalAppData osk Directory
+id: 4d9e7f2a-1b3c-4e5d-8a6f-0c2b1d8e7f3a
+status: experimental
+description: >
+    Detects the creation of OskSupport.dll in the %LOCALAPPDATA%\osk\ directory,
+    indicative of the DLL sideloading stager used by malicious NuGet packages in the
+    fake .NET job assessment campaign. The stager downloads this DLL from GitHub
+    and stages it alongside a copy of the legitimate osk.exe.
+references:
+    - https://socket.dev/blog/malicious-nuget-packages-fake-job-assessments
+    - https://thehackernews.com/2026/11/13-malicious-nuget-packages-turn-fake.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1574.002
+    - attack.t1105
+logsource:
+    category: file_event
+    product: windows
+detection:
+    selection:
+        TargetFilename|endswith: '\AppData\Local\osk\OskSupport.dll'
+    condition: selection
+falsepositives:
+    - None known
+level: critical
