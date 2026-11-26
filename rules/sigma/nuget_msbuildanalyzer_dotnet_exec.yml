@@ -1,0 +1,30 @@
+title: Dotnet Execution of MSBuildAnalyzer DLL From NuGet Package Cache
+id: 2f8b4c1a-6e3d-4a9f-b5d7-9c0e1f2a3b4c
+status: experimental
+description: >
+    Detects dotnet.exe executing MSBuildAnalyzer.dll from a NuGet package cache path,
+    indicative of the malicious DLL delivered via trojanized NuGet packages
+    (VS_Builder.MSBuildAnalyzer, HappyOne.MSBuildAnalyzer) as part of the fake .NET
+    job assessment supply chain attack. The DLL is executed via MSBuild targets after
+    every project build.
+references:
+    - https://socket.dev/blog/malicious-nuget-packages-fake-job-assessments
+    - https://thehackernews.com/2026/11/13-malicious-nuget-packages-turn-fake.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1195.002
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection:
+        Image|endswith: '\dotnet.exe'
+        CommandLine|contains|all:
+            - 'MSBuildAnalyzer.dll'
+            - '.nuget\packages'
+    condition: selection
+falsepositives:
+    - Legitimate MSBuild analyzer tools with similar naming in NuGet package cache (verify package source)
+level: high

@@ -1,0 +1,26 @@
+title: Suspicious vCenter SSO Account Creation with sps- Prefix
+id: 2a4b6c8d-0e1f-4a3b-9c5d-7e8f0a1b2c3d
+status: experimental
+description: >
+    Detects creation of vCenter SSO local administrator accounts with the sps- naming prefix.
+    Armory Castle (UNC5221) created accounts matching the pattern sps-*@vsphere.local after
+    exploiting CVE-2026-123890 to maintain persistent access to vCenter environments.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1136.001
+logsource:
+    product: vmware
+    service: vcenter
+detection:
+    selection:
+        EventType: 'com.vmware.sso.PrincipalManagement'
+    selection_username:
+        UserName|startswith: 'sps-'
+    condition: selection and selection_username
+falsepositives:
+    - VMware service provisioning accounts that follow the sps- naming convention
+level: critical

@@ -1,0 +1,25 @@
+title: Network Scanning for VMware vCenter RPC Port 2012
+id: 1b3d5f7a-9c0e-4a2b-8d6f-3e1c5a7b9d0f
+status: experimental
+description: >
+    Detects network scanning activity targeting VMware vCenter Directory Service
+    RPC port 2012. Armory Castle (UNC5221) used nmap to scan for ports 2012, 389,
+    443, 5480, and 9080 during reconnaissance before exploiting CVE-2026-123890.
+    Port 2012 is the vmdird RPC interface required for BONESAW exploitation.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1046
+logsource:
+    category: firewall
+detection:
+    selection:
+        dst_port: 2012
+    condition: selection
+falsepositives:
+    - Legitimate vCenter Enhanced Linked Mode replication traffic between vCenter nodes
+    - Authorized vulnerability scanning
+level: medium

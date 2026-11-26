@@ -1,0 +1,39 @@
+title: Drupal settings.php Modification by Web Server Process
+id: 5e2f8a3b-7c1d-4b6e-9d0a-f4c5b8e1a7d3
+status: experimental
+description: >
+    Detects modification of the Drupal settings.php file by a web server
+    process (apache, httpd, nginx, php-fpm). In the CVE-2026-132165
+    (Fail2Install) exploit chain, the attacker uses the installer to
+    rewrite settings.php with attacker-controlled database credentials,
+    redirecting the site to a malicious database. Note: false positives
+    may occur during legitimate initial installs, Composer-based updates,
+    or Drush operations running under the web server user.
+references:
+    - https://www.drupal.org/sa-core-2026-017
+    - https://www.stepsecurity.io/blog/fail2install-cve-2026-132165
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1190
+    - attack.t1565.001
+logsource:
+    category: file_change
+    product: linux
+detection:
+    selection_file:
+        TargetFilename|endswith: '/sites/default/settings.php'
+    selection_process:
+        Image|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/nginx'
+            - '/php-fpm'
+            - '/php-cgi'
+    condition: selection_file and selection_process
+falsepositives:
+    - Legitimate Drupal installation or update operations
+    - Automated deployment scripts that modify settings.php
+    - Composer-based updates running under the web server user
+    - Drush operations executed by the web server process
+level: high

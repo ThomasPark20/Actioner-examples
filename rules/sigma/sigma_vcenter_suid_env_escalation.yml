@@ -1,0 +1,33 @@
+title: SUID Bit Set on /bin/env via GDB - Privilege Escalation
+id: 7c9d1e0f-2a4b-4c6d-8e3f-5a7b9c0d1e2f
+status: experimental
+description: >
+    Detects the use of GDB to set the SUID bit on /bin/env for privilege escalation.
+    Armory Castle (UNC5221) used a base64-encoded command piped through /tmp/gdb_file
+    to set SUID on /bin/env, achieving root access on compromised Linux appliances
+    during the CVE-2026-123890 campaign.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1548.001
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_gdb:
+        Image|endswith: '/gdb'
+        CommandLine|contains|all:
+            - '-pid'
+            - '--command'
+    selection_chmod:
+        Image|endswith: '/chmod'
+        CommandLine|contains|all:
+            - 'u+s'
+            - '/bin/env'
+    condition: selection_gdb or selection_chmod
+falsepositives:
+    - Legitimate debugging sessions using GDB with PID attachment and command files
+    - Authorized system administration setting SUID bits
+level: medium

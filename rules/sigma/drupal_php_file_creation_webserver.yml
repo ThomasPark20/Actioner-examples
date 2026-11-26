@@ -1,0 +1,41 @@
+title: PHP File Creation by Web Server in Drupal Content Directories
+id: 8a4b1c3d-6e2f-4a9b-b7d5-c0e3f1a8d6b2
+status: experimental
+description: >
+    Detects creation of files with .php extension in Drupal module, site,
+    or theme directories by a web server process. In the CVE-2026-132165
+    (Fail2Install) exploit chain, the attacker plants a PHP file (via
+    SQLite database path manipulation) in the web root to establish a
+    web shell. SQLite-specific content detection is handled by YARA rule
+    Exploit_Drupal_Fail2Install_SQLite_PHP_Webshell.
+references:
+    - https://www.drupal.org/sa-core-2026-017
+    - https://www.stepsecurity.io/blog/fail2install-cve-2026-132165
+    - https://www.slcyber.io/research/fail2install-system-limits-pre-auth-rce-drupal
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1505.003
+    - attack.t1059.004
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename|endswith: '.php'
+        TargetFilename|contains:
+            - '/modules/'
+            - '/sites/'
+            - '/themes/'
+    selection_process:
+        Image|endswith:
+            - '/apache2'
+            - '/httpd'
+            - '/nginx'
+            - '/php-fpm'
+            - '/php-cgi'
+    condition: selection and selection_process
+falsepositives:
+    - Legitimate Drupal module installation via the web interface
+    - Composer-based updates running under the web server user
+level: high

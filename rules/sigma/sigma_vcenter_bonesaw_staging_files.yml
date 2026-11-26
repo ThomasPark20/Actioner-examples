@@ -1,0 +1,32 @@
+title: Armory Castle BONESAW and Related Tool Staging on Linux
+id: 5f7a9b1c-3d4e-4f6a-8b0c-2d1e3f5a7b9c
+status: experimental
+description: >
+    Detects creation of files associated with Armory Castle tooling on vCenter or Linux appliances.
+    BONESAW (/tmp/123), SAWSNAKE (/tmp/sss), and BEARBONES (/tmp/dbr) were staged in /tmp
+    during exploitation of CVE-2026-123890. Also detects LAZYBONES at /usr/bin/vmtoolscs.
+references:
+    - https://cloud.google.com/blog/topics/threat-intelligence/armory-castle-exploits-vsphere
+    - https://thehackernews.com/2026/11/china-linked-hackers-exploit-critical.html
+author: Actioner
+date: 2026-11-26
+tags:
+    - attack.t1105
+    - attack.t1036.005
+logsource:
+    category: file_event
+    product: linux
+detection:
+    selection:
+        TargetFilename:
+            - '/tmp/123'
+            - '/tmp/sss'
+            - '/tmp/dbr'
+            - '/tmp/123.rar'
+            - '/tmp/123.key'
+            - '/tmp/gdb_file'
+            - '/usr/bin/vmtoolscs'
+    condition: selection
+falsepositives:
+    - The path /tmp/123 individually has moderate false positive potential on general-purpose Linux hosts, though lower on dedicated vCenter appliances. The other paths are more specific.
+level: critical
