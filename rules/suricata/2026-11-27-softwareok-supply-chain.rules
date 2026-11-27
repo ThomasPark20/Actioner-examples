@@ -1,0 +1,17 @@
+# SoftwareOK Supply Chain Trojanization - Suricata Rules
+# Reference: https://asec.ahnlab.com/en/96827/
+
+# Detect DNS query for staging domain mail.c1a2.top
+alert dns $HOME_NET any -> any any (msg:"Actioner - SoftwareOK Supply Chain DNS Query for c1a2.top"; dns.query; content:"c1a2.top"; nocase; classtype:trojan-activity; sid:2200001; rev:1;)
+
+# Detect C2 communication to 8.210.69.51 on port 9876
+alert tcp $HOME_NET any -> 8.210.69.51 9876 (msg:"Actioner - SoftwareOK Supply Chain C2 Communication to 8.210.69.51:9876"; flow:to_server,established; classtype:trojan-activity; sid:2200002; rev:1;)
+
+# Detect TLS SNI for staging domain
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SoftwareOK Supply Chain TLS SNI to mail.c1a2.top"; tls.sni; content:"mail.c1a2.top"; nocase; classtype:trojan-activity; sid:2200003; rev:1;)
+
+# Detect HTTP request for RAT payload archive
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SoftwareOK Supply Chain RAT Payload Download dsv2_py39_agent.7z"; http.uri; content:"/dl/dsv2_py39_agent.7z"; classtype:trojan-activity; sid:2200004; rev:1;)
+
+# Detect HTTP request for 7zr.exe from staging domain
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SoftwareOK Supply Chain 7zr.exe Download from Staging"; http.uri; content:"/dl/7zr.exe"; http.host; content:"c1a2.top"; classtype:trojan-activity; sid:2200005; rev:1;)

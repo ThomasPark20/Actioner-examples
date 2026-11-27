@@ -1,7 +1,7 @@
 # SoftwareOK Supply Chain Trojanization: Q-Dir and DesktopOK
 
 **Date:** 2026-11-27  
-**Status:** DRAFT  
+**Status:** FINAL  
 **TLP:** CLEAR  
 **Author:** Actioner
 
@@ -160,11 +160,13 @@ The scheduled task `\UPnp\MicrosoftEdge_dcntel` is designed to blend in with leg
 1. **Hash verification.** Compare the SHA-256 hash of any installed Q-Dir or DesktopOK installer against the legitimate hashes listed above. Any match to a malicious hash confirms compromise.
 2. **Scheduled task hunt.** Search for the scheduled task `\UPnp\MicrosoftEdge_dcntel` on all endpoints. Its presence confirms active RAT persistence.
 3. **File system search.** Check for the directories `C:\ProgramData\Microsoft\DeviceSync\b2\` and `C:\ProgramData\DeviceSync\b2\`, and for `py_client_dsv2.py` anywhere on the system.
-4. **Network monitoring.** Block and alert on connections to `8.210.69.51:9876` and DNS lookups for `c1a2.top`.
+4. **Network monitoring.** Block and alert on connections to `8[.]210[.]69[.]51:9876` and DNS lookups for `c1a2[.]top`.
 5. **Reinstallation is not sufficient.** If compromised, the RAT must be independently removed. Remove the scheduled task, delete the RAT directories, and verify no additional malware was deployed.
 6. **Full scan.** Run updated antivirus scans. AhnLab detects these as Downloader/Win.Agent and Backdoor/Python.Agent.
 
 ## Detection Rules
+
+<!-- revision: critic-softwareok READY pass — (1) defanged IOCs in remediation prose, (2) added TLS-inspection caveats on HTTP network rules, (3) fixed contains|all→contains single-value modifier in schtasks Sigma rule, (4) marked GBHackers source as content-unavailable -->
 
 ### Sigma: Python RAT Execution from DeviceSync Directory
 
@@ -224,7 +226,7 @@ logsource:
 detection:
     selection_schtasks:
         Image|endswith: '\schtasks.exe'
-        CommandLine|contains|all:
+        CommandLine|contains:
             - 'MicrosoftEdge_dcntel'
     condition: selection_schtasks
 falsepositives:
@@ -392,6 +394,8 @@ alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SoftwareOK
 alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SoftwareOK Supply Chain 7zr.exe Download from Staging"; flow:to_server,established; content:"/dl/7zr.exe"; http_uri; content:"c1a2.top"; http_header; classtype:trojan-activity; sid:2100004; rev:1;)
 ```
 
+> **Note:** HTTP-layer rules (sid:2100003, sid:2100004) require TLS inspection to match; without decryption, use the DNS rule (sid:2100001) or deploy Suricata's TLS SNI rule (sid:2200003) which detects the connection without decryption.
+
 <!-- audit: snort -c minimal.conf -T: "Snort successfully validated the configuration!" exit 0. -->
 
 ### Suricata: SoftwareOK Supply Chain Network Detection
@@ -418,6 +422,8 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SoftwareOK Supply
 # Detect HTTP request for 7zr.exe from staging domain
 alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"Actioner - SoftwareOK Supply Chain 7zr.exe Download from Staging"; http.uri; content:"/dl/7zr.exe"; http.host; content:"c1a2.top"; classtype:trojan-activity; sid:2200005; rev:1;)
 ```
+
+> **Note:** HTTP-layer rules (sid:2200004, sid:2200005) require TLS inspection to match; the TLS SNI rule (sid:2200003) detects the connection without decryption.
 
 <!-- audit: suricata -T -S softwareok-supply-chain-suri.rules: "Configuration provided was successfully loaded. Exiting." exit 0. -->
 
@@ -552,4 +558,4 @@ rule SoftwareOK_Supply_Chain_RAT_Script
 2. **The Hacker News.** [Hackers Trojanize Official Q-Dir and DesktopOK Downloads to Deliver Remote Access Malware](https://thehackernews.com/2026/11/hackers-trojanize-official-q-dir-and.html). Ravie Lakshmanan, 2026-11-27.
 3. **Cryptika.** [Hackers Turn Trusted Windows Software Downloads Into Tools for Secretly Controlling PCs](https://www.cryptika.com/hackers-turn-trusted-windows-software-downloads-into-tools-for-secretly-controlling-pcs/). 2026-11-27.
 4. **ThreadLinqs.** [Software Supply Chain Attack via Official SoftwareOK Website: Trojanized Q-Dir and DesktopOK Installers Deliver Python RAT](https://intel.threadlinqs.com/threat/TL-2026-6949). TL-2026-6949.
-5. **GBHackers.** [Q-Dir and Desktop OK Installers](https://gbhackers.com/q-dir-and-desktop-ok-installers/). 2026-11-27. (Page returned empty content on fetch.)
+5. **GBHackers.** [Q-Dir and Desktop OK Installers](https://gbhackers.com/q-dir-and-desktop-ok-installers/). 2026-11-27. *(Referenced but content unavailable at fetch time.)*

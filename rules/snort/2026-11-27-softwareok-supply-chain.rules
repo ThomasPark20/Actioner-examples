@@ -1,0 +1,14 @@
+# SoftwareOK Supply Chain Trojanization - Snort 2.9 Rules
+# Reference: https://asec.ahnlab.com/en/96827/
+
+# Detect DNS query for staging domain mail.c1a2.top
+alert udp $HOME_NET any -> any 53 (msg:"Actioner - SoftwareOK Supply Chain DNS Query for mail.c1a2.top"; content:"|04|mail|04|c1a2|03|top|00|"; nocase; classtype:trojan-activity; sid:2100001; rev:1;)
+
+# Detect C2 communication to 8.210.69.51 on port 9876
+alert tcp $HOME_NET any -> 8.210.69.51 9876 (msg:"Actioner - SoftwareOK Supply Chain C2 Communication to 8.210.69.51:9876"; flow:to_server,established; classtype:trojan-activity; sid:2100002; rev:1;)
+
+# Detect HTTP GET for RAT payload archive
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SoftwareOK Supply Chain RAT Payload Download dsv2_py39_agent.7z"; flow:to_server,established; content:"/dl/dsv2_py39_agent.7z"; http_uri; classtype:trojan-activity; sid:2100003; rev:1;)
+
+# Detect HTTP GET for 7zr.exe used in attack chain
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"Actioner - SoftwareOK Supply Chain 7zr.exe Download from Staging"; flow:to_server,established; content:"/dl/7zr.exe"; http_uri; content:"c1a2.top"; http_header; classtype:trojan-activity; sid:2100004; rev:1;)
