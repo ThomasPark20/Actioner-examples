@@ -1,7 +1,7 @@
 # Cacti 4HTTP2ROOT Zero-Day: Unauthenticated RCE via Guest Access
 
 **Date:** 2026-11-27  
-**Status:** DRAFT  
+**Status:** FINAL  
 **Severity:** Critical (Provisional)  
 **CVE:** None assigned (unverified reference CVE-2026-132165 on Sploitus; treat as unconfirmed)  
 **Affected:** Cacti Core 1.2.31 (latest stable) with guest access enabled  
@@ -175,7 +175,7 @@ Commands execute with the privileges of the Cacti web server/poller process. In 
    - Check `poller_item` for unexpected values in `arg1`
 5. **Monitor the filesystem** for unexpected files in Cacti's `cache/` directory, especially PHP files.
 6. **Rotate credentials** stored on the Cacti host (SNMP communities, device credentials, database passwords) if compromise is suspected.
-7. **Disable stacked-statement support** in the database driver where possible (limits this class of injection).
+7. **Disable stacked-statement support** in the database driver where possible (limits this class of injection). Test in non-production first; Cacti may require multi-statement support for its own operations.
 8. **Apply the vendor patch** as soon as one is released for Cacti Core beyond 1.2.31.
 
 ### Detection Guidance
@@ -191,7 +191,7 @@ Commands execute with the privileges of the Cacti web server/poller process. In 
 
 Detects POST requests to `auth_profile.php` with `action=update_data`, the initial setting injection step of the 4HTTP2ROOT exploit chain.
 
-**Status:** ✅ Compiles | Confidence: **High**
+**Status:** ✅ Compiles | Confidence: **Medium**
 
 ```yaml
 title: Cacti 4HTTP2ROOT Guest Profile Setting Manipulation
@@ -211,61 +211,21 @@ logsource:
     category: webserver
     service: access
 detection:
-    selection_uri:
-        cs-uri-query|contains|all:
-            - 'auth_profile.php'
-            - 'action=update_data'
+    selection_path:
+        cs-uri-stem|contains: 'auth_profile.php'
+    selection_query:
+        cs-uri-query|contains: 'action=update_data'
     selection_method:
         cs-method: 'POST'
-    condition: selection_uri and selection_method
+    condition: selection_path and selection_query and selection_method
 falsepositives:
     - Legitimate Cacti administrators updating their profile display settings
-level: high
-```
-
-<!-- audit: sigma check passed (0 errors, 0 issues; tag validators excluded due to proxy blocking MITRE ATT&CK data fetch — HTTP 403). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. -->
-
-Legitimate admin profile updates will match; tune by excluding authenticated admin source IPs.
-
-### Sigma: Cacti 4HTTP2ROOT Realtime Graph Command Execution Trigger
-
-Detects GET requests to `graph_realtime.php` with `action=init` and PoC-default parameters (`ds_step`, `size`), indicating the command execution trigger stage.
-
-**Status:** ✅ Compiles | Confidence: **Medium**
-
-```yaml
-title: Cacti 4HTTP2ROOT Realtime Graph Command Execution Trigger
-id: 8b4d2f1a-3e5c-4a9b-c7f2-0b1d6e4a8f3c
-status: experimental
-description: Detects HTTP GET requests to Cacti graph_realtime.php with the action=init parameter combined with PoC-default parameters ds_step and size, indicating the command execution trigger stage of the 4HTTP2ROOT exploit chain.
-references:
-    - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
-    - https://github.com/ekomsSavior/Sad-Girls-0day-Club/tree/main/4http2shell
-    - https://watchtowr.com/intelligence/4http2root-cacti-zero-day-faq/
-author: Actioner
-date: 2026/11/27
-tags:
-    - attack.t1190
-    - attack.t1059.004
-logsource:
-    category: webserver
-    service: access
-detection:
-    selection:
-        cs-uri-query|contains|all:
-            - 'graph_realtime.php'
-            - 'action=init'
-            - 'ds_step='
-            - 'size='
-    condition: selection
-falsepositives:
-    - Legitimate use of Cacti realtime graphing by authenticated administrators
 level: medium
 ```
 
-<!-- audit: sigma check passed (0 errors, 0 issues; tag validators excluded due to proxy blocking MITRE ATT&CK data fetch — HTTP 403). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. -->
+<!-- audit: sigma check passed (0 errors, 0 issues; tag validators excluded due to proxy blocking MITRE ATT&CK data fetch — HTTP 403). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. REVISION: field split from cs-uri-query to cs-uri-stem (path) + cs-uri-query (action param); confidence downgraded high→medium because rule matches any POST to auth_profile.php?action=update_data, not only exploit-specific payloads. -->
 
-The `ds_step` and `size` parameters appear in the PoC default and in legitimate realtime graph usage; correlate with Stages 2-3 for higher fidelity.
+Confidence is medium: this rule matches any POST to `auth_profile.php?action=update_data`, including legitimate admin profile updates. Tune by excluding authenticated admin source IPs and correlate with Stages 3-4 for higher fidelity.
 
 ### Sigma: Cacti Web/Poller Process Spawning Shell
 
