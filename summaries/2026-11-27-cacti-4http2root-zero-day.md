@@ -187,6 +187,10 @@ Commands execute with the privileges of the Cacti web server/poller process. In 
 
 ## Detection Rules
 
+<!-- revision: 2026-11-27 critic pass — dropped 6 rules (Sigma realtime-graph, Snort 2100002/2100003, Suricata 2200002/2200003, YARA webshell); fixed Sigma profile-update field (cs-uri-stem) and downgraded high→medium; fixed Sigma process-spawn confidence medium→low and prose; added remediation 7 caveat. Final count: 2 Sigma, 1 Snort, 1 Suricata, 1 YARA. -->
+
+> **Revision note:** Five rules dropped during review: `graph_realtime.php` and `graph_view.php` network rules (Sigma, Snort SID 2100002/2100003, Suricata SID 2200002/2200003) matched standard Cacti operations and were not exploit-specific; the YARA `Cacti_4HTTP2ROOT_Webshell_Indicator` rule matched legitimate Cacti source files containing PHP shell functions.
+
 ### Sigma: Cacti Guest Profile Setting Manipulation
 
 Detects POST requests to `auth_profile.php` with `action=update_data`, the initial setting injection step of the 4HTTP2ROOT exploit chain.
@@ -229,15 +233,15 @@ Confidence is medium: this rule matches any POST to `auth_profile.php?action=upd
 
 ### Sigma: Cacti Web/Poller Process Spawning Shell
 
-Detects PHP or web server processes associated with Cacti's realtime poller spawning shell processes, indicating successful command execution.
+Detects PHP or web server processes associated with Cacti's realtime poller spawning shell processes, which may indicate successful command execution.
 
-**Status:** ✅ Compiles | Confidence: **Medium**
+**Status:** ✅ Compiles | Confidence: **Low**
 
 ```yaml
 title: Cacti Web Server Process Spawning Shell
 id: 9c5e3a2b-4f6d-4b0c-d8a3-1c2e7f5b9a4d
 status: experimental
-description: Detects the Cacti web server or PHP process spawning a shell process, which may indicate successful exploitation of the 4HTTP2ROOT vulnerability chain where a modified poller_item.arg1 value is executed via popen().
+description: Detects the Cacti web server or PHP process spawning a shell process, which may indicate exploitation of the 4HTTP2ROOT vulnerability chain where a modified poller_item.arg1 value is executed via popen(). Note - this rule will fire on normal Cacti realtime polling because cmd_realtime.php and poller_realtime.php legitimately call popen() for every SNMP poll.
 references:
     - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
     - https://github.com/ekomsSavior/Sad-Girls-0day-Club/tree/main/4http2shell
@@ -268,54 +272,44 @@ detection:
             - '/dash'
     condition: selection_parent and selection_child
 falsepositives:
-    - Legitimate Cacti poller operations that invoke shell commands
+    - Cacti realtime polling (cmd_realtime.php and poller_realtime.php legitimately call popen for every SNMP poll — this rule WILL fire on normal operations)
     - Custom Cacti scripts executed via the poller
-level: medium
+level: low
 ```
 
-<!-- audit: sigma check passed (0 errors, 0 issues; tag validators excluded due to proxy blocking MITRE ATT&CK data fetch — HTTP 403). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. This is a TTP/behavioral rule and therefore labeled medium confidence. -->
+<!-- audit: sigma check passed (0 errors, 0 issues; tag validators excluded due to proxy blocking MITRE ATT&CK data fetch — HTTP 403). sigma convert --without-pipeline -t splunk exit 0. sigma convert --without-pipeline -t log_scale exit 0. REVISION: confidence downgraded medium→low; popen() fires on every normal realtime SNMP poll. -->
 
-This is a behavioral/TTP rule that may fire on legitimate poller shell invocations; requires endpoint telemetry (Sysmon for Linux or auditd).
+This is a behavioral/TTP rule that **will** fire on legitimate poller shell invocations (`cmd_realtime.php` and `poller_realtime.php` legitimately call `popen()` for every SNMP poll). Requires endpoint telemetry: `ParentCommandLine` requires Sysmon for Linux; raw auditd does not populate this field. Use as a correlating signal alongside Stages 1-3, not as a standalone alert.
 
 ### Snort: Cacti 4HTTP2ROOT Detection
 
-Network-level detection for the profile update injection, SQL injection trigger, and command execution trigger stages.
+Network-level detection for the profile update injection stage of the exploit chain.
 
-**Status:** ✅ Compiles | Confidence: **High** (sids 2100001, 2100003), **Medium** (sid 2100002)
+**Status:** ✅ Compiles | Confidence: **High** (sid 2100001)
 
 ```
 alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT Guest Profile Setting Manipulation (POST auth_profile.php update_data)"; flow:to_server,established; content:"POST"; http_method; content:"/auth_profile.php"; http_uri; content:"action=update_data"; http_uri; content:"preview_graphs_per_page"; http_client_body; classtype:web-application-attack; sid:2100001; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
-
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT Realtime Graph Command Execution Trigger (graph_realtime.php action=init)"; flow:to_server,established; content:"/graph_realtime.php"; http_uri; content:"action=init"; http_uri; classtype:web-application-attack; sid:2100002; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
-
-alert tcp $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT SQL Injection Trigger via graph_view.php Preview"; flow:to_server,established; content:"/graph_view.php"; http_uri; content:"action=preview"; http_uri; content:"clear=1"; http_uri; classtype:web-application-attack; sid:2100003; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
 ```
 
-<!-- audit: snort -T -c (minimal config with rules appended) exit 0 — "Snort successfully validated the configuration!" Rules parsed with no errors. -->
-
-SID 2100002 will match legitimate realtime graph usage; deploy with threshold or suppress for known admin IPs.
+<!-- audit: snort -T -c (minimal config with rules appended) exit 0 — "Snort successfully validated the configuration!" -->
 
 ### Suricata: Cacti 4HTTP2ROOT Detection
 
-Network-level detection using Suricata sticky buffers for the exploit chain stages.
+Network-level detection using Suricata sticky buffers for the profile update injection stage.
 
-**Status:** ✅ Compiles | Confidence: **High** (sids 2200001, 2200003), **Medium** (sid 2200002)
+**Status:** ✅ Compiles | Confidence: **High** (sid 2200001)
 
 ```
 alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT Guest Profile Setting Manipulation (POST auth_profile.php update_data)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/auth_profile.php"; content:"action=update_data"; http.request_body; content:"preview_graphs_per_page"; classtype:web-application-attack; sid:2200001; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
-
-alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT Realtime Graph Command Execution Trigger (graph_realtime.php action=init)"; flow:to_server,established; http.uri; content:"/graph_realtime.php"; content:"action=init"; classtype:web-application-attack; sid:2200002; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
-
-alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT SQL Injection Trigger via graph_view.php Preview"; flow:to_server,established; http.uri; content:"/graph_view.php"; content:"action=preview"; content:"clear=1"; classtype:web-application-attack; sid:2200003; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
 ```
 
-<!-- audit: suricata -T -S /tmp/actioner/cacti-4http2root-suri.rules -l /tmp/actioner exit 0 — "Configuration provided was successfully loaded. Exiting." All 3 rules loaded without errors. -->
+<!-- audit: suricata -T -S exit 0 — "Configuration provided was successfully loaded. Exiting." -->
 
 ### YARA: Cacti 4HTTP2ROOT File Artifacts
 
-File-level detection for the PoC proof file and potential webshell artifacts associated with the 4HTTP2ROOT exploit chain.
+File-level detection for the PoC proof file associated with the 4HTTP2ROOT exploit chain.
 
-**Status:** ✅ Compiles | Confidence: **High** (Cacti_4HTTP2ROOT_Proof_File), **Low** (Cacti_4HTTP2ROOT_Webshell_Indicator)
+**Status:** ✅ Compiles | Confidence: **High** (Cacti_4HTTP2ROOT_Proof_File)
 
 ```yara
 rule Cacti_4HTTP2ROOT_Proof_File
@@ -336,34 +330,9 @@ rule Cacti_4HTTP2ROOT_Proof_File
     condition:
         filesize < 1MB and ($proof_filename or $poc_repo or ($poc_marker1 and $poc_marker2))
 }
-
-rule Cacti_4HTTP2ROOT_Webshell_Indicator
-{
-    meta:
-        description = "Detects potential web shells dropped via the Cacti 4HTTP2ROOT exploit chain in the Cacti cache directory"
-        author = "Actioner"
-        date = "2026-11-27"
-        reference = "https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html"
-
-    strings:
-        $php_tag = "<?php" ascii
-        $shell_func1 = "popen(" ascii
-        $shell_func2 = "system(" ascii
-        $shell_func3 = "exec(" ascii
-        $shell_func4 = "passthru(" ascii
-        $shell_func5 = "shell_exec(" ascii
-        $shell_func6 = "proc_open(" ascii
-        $cacti_marker1 = "cacti" ascii nocase
-        $cacti_marker2 = "poller" ascii nocase
-
-    condition:
-        filesize < 100KB and $php_tag and any of ($shell_func*) and any of ($cacti_marker*)
-}
 ```
 
-<!-- audit: yarac /tmp/actioner/cacti-4http2root.yar /dev/null exit 0 — compiled without errors. The webshell rule is behavioral (generic PHP shell detection scoped to Cacti context) and therefore labeled low confidence. -->
-
-The webshell indicator rule is broad and will match legitimate Cacti PHP files containing shell functions; scope scanning to the `cache/` directory.
+<!-- audit: yarac exit 0 — compiled without errors. -->
 
 ## Sources
 

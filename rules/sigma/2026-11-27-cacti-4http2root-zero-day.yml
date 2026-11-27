@@ -1,0 +1,70 @@
+# Cacti 4HTTP2ROOT Zero-Day — Sigma Detection Rules
+# Source: Actioner CTI report 2026-11-27-cacti-4http2root-zero-day
+# Post-review: 2 rules kept (profile-update at medium, process-spawn at low)
+# Dropped: realtime-graph rule (matched standard Cacti operations)
+---
+title: Cacti 4HTTP2ROOT Guest Profile Setting Manipulation
+id: 7c3a1e9f-2d4b-4f8a-b6e1-9a0c5d3f7e2b
+status: experimental
+description: Detects HTTP POST requests to Cacti auth_profile.php with action=update_data targeting the preview_graphs_per_page setting, which is the initial step of the 4HTTP2ROOT unauthenticated RCE exploit chain.
+references:
+    - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
+    - https://github.com/ekomsSavior/Sad-Girls-0day-Club/tree/main/4http2shell
+    - https://watchtowr.com/intelligence/4http2root-cacti-zero-day-faq/
+author: Actioner
+date: 2026/11/27
+tags:
+    - attack.t1190
+    - attack.t1565.001
+logsource:
+    category: webserver
+    service: access
+detection:
+    selection_path:
+        cs-uri-stem|contains: 'auth_profile.php'
+    selection_query:
+        cs-uri-query|contains: 'action=update_data'
+    selection_method:
+        cs-method: 'POST'
+    condition: selection_path and selection_query and selection_method
+falsepositives:
+    - Legitimate Cacti administrators updating their profile display settings
+level: medium
+---
+title: Cacti Web Server Process Spawning Shell
+id: 9c5e3a2b-4f6d-4b0c-d8a3-1c2e7f5b9a4d
+status: experimental
+description: Detects the Cacti web server or PHP process spawning a shell process, which may indicate exploitation of the 4HTTP2ROOT vulnerability chain where a modified poller_item.arg1 value is executed via popen(). Note - this rule will fire on normal Cacti realtime polling because cmd_realtime.php and poller_realtime.php legitimately call popen() for every SNMP poll.
+references:
+    - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
+    - https://github.com/ekomsSavior/Sad-Girls-0day-Club/tree/main/4http2shell
+author: Actioner
+date: 2026/11/27
+tags:
+    - attack.t1059.004
+    - attack.t1505.003
+logsource:
+    category: process_creation
+    product: linux
+detection:
+    selection_parent:
+        ParentImage|endswith:
+            - '/php-fpm'
+            - '/php-cgi'
+            - '/php'
+            - '/apache2'
+            - '/httpd'
+            - '/nginx'
+        ParentCommandLine|contains:
+            - 'cmd_realtime.php'
+            - 'poller_realtime.php'
+    selection_child:
+        Image|endswith:
+            - '/sh'
+            - '/bash'
+            - '/dash'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Cacti realtime polling (cmd_realtime.php and poller_realtime.php legitimately call popen for every SNMP poll — this rule WILL fire on normal operations)
+    - Custom Cacti scripts executed via the poller
+level: low

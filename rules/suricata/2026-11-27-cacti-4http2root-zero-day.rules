@@ -1,0 +1,6 @@
+# Cacti 4HTTP2ROOT Zero-Day — Suricata Detection Rules
+# Source: Actioner CTI report 2026-11-27-cacti-4http2root-zero-day
+# Post-review: 1 rule kept (SID 2200001 at high confidence)
+# Dropped: SID 2200002 (graph_realtime.php matched standard operations), SID 2200003 (graph_view.php matched standard cache reset)
+
+alert http $EXTERNAL_NET any -> $HOME_NET $HTTP_PORTS (msg:"Actioner - Cacti 4HTTP2ROOT Guest Profile Setting Manipulation (POST auth_profile.php update_data)"; flow:to_server,established; http.method; content:"POST"; http.uri; content:"/auth_profile.php"; content:"action=update_data"; http.request_body; content:"preview_graphs_per_page"; classtype:web-application-attack; sid:2200001; rev:1; reference:url,thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html; metadata:created_at 2026_11_27;)
