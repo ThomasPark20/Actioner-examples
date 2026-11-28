@@ -1,0 +1,34 @@
+title: SoftwareOK Supply Chain - Python RAT Execution from DeviceSync Directory
+id: b4a2c8d3-5e6f-4a7b-9c0d-1e2f3a4b5c6d
+status: experimental
+description: >
+    Detects execution of the Python RAT payload (py_client_dsv2.py) via pythonw.exe from the
+    ProgramData DeviceSync directories used by the trojanized Q-Dir/DesktopOK installers.
+references:
+    - https://asec.ahnlab.com/en/96827/
+    - https://thehackernews.com/2026/11/hackers-trojanize-official-q-dir-and.html
+author: Actioner Detection Engineering
+date: 2026-11-28
+tags:
+    - attack.execution
+    - attack.t1059.006
+    - attack.defense_evasion
+    - attack.t1036.005
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_rat_script:
+        CommandLine|contains: 'py_client_dsv2.py'
+    selection_devicesync_python:
+        Image|contains:
+            - '\Microsoft\DeviceSync\b2\py39\pythonw.exe'
+            - '\DeviceSync\b2\py39\pythonw.exe'
+    selection_programdata_pythonw:
+        Image|contains: '\ProgramData\'
+        Image|endswith: '\py39\pythonw.exe'
+        CommandLine|contains: '\agent\py_client_dsv2'
+    condition: selection_rat_script or selection_devicesync_python or selection_programdata_pythonw
+falsepositives:
+    - Legitimate Python development environments in ProgramData are uncommon but possible; validate path context
+level: critical

@@ -1,0 +1,39 @@
+title: SoftwareOK Supply Chain - Q-Dir or DesktopOK Installer Spawning Suspicious Child
+id: c5b3d9e4-6f7a-4b8c-0d1e-2f3a4b5c6d7e
+status: experimental
+description: >
+    Detects Q-Dir or DesktopOK installer processes spawning unexpected children such as
+    cmd.exe, powershell.exe, pythonw.exe, or 7zr.exe, indicating a trojanized installer
+    from the SoftwareOK supply chain attack.
+references:
+    - https://asec.ahnlab.com/en/96827/
+    - https://thehackernews.com/2026/11/hackers-trojanize-official-q-dir-and.html
+author: Actioner Detection Engineering
+date: 2026-11-28
+tags:
+    - attack.initial_access
+    - attack.t1195.002
+    - attack.execution
+    - attack.t1204.002
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_parent:
+        ParentImage|contains:
+            - 'Q-Dir'
+            - 'DesktopOK'
+    selection_child:
+        Image|endswith:
+            - '\cmd.exe'
+            - '\powershell.exe'
+            - '\pythonw.exe'
+            - '\python.exe'
+            - '\7zr.exe'
+            - '\schtasks.exe'
+            - '\curl.exe'
+            - '\certutil.exe'
+    condition: selection_parent and selection_child
+falsepositives:
+    - Q-Dir or DesktopOK launching cmd.exe for legitimate shell integration; review command line arguments
+level: high

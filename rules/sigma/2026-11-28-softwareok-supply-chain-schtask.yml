@@ -1,0 +1,35 @@
+title: SoftwareOK Supply Chain - Suspicious Scheduled Task Persistence (MicrosoftEdge_dcntel)
+id: a3f1b7c2-4d5e-4f6a-8b9c-0d1e2f3a4b5c
+status: experimental
+description: >
+    Detects the creation of a scheduled task named MicrosoftEdge_dcntel under the UPnp folder,
+    which is used by the Python RAT delivered through trojanized Q-Dir and DesktopOK installers
+    from the SoftwareOK supply chain compromise (November 2026).
+references:
+    - https://asec.ahnlab.com/en/96827/
+    - https://thehackernews.com/2026/11/hackers-trojanize-official-q-dir-and.html
+author: Actioner Detection Engineering
+date: 2026-11-28
+tags:
+    - attack.persistence
+    - attack.t1053.005
+    - attack.t1036.005
+    - detection.softwareok_supply_chain
+logsource:
+    category: process_creation
+    product: windows
+detection:
+    selection_schtasks:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - 'MicrosoftEdge_dcntel'
+    selection_taskname:
+        Image|endswith: '\schtasks.exe'
+        CommandLine|contains|all:
+            - '/create'
+            - '\UPnp\'
+    condition: selection_schtasks or selection_taskname
+falsepositives:
+    - Unlikely; the task name MicrosoftEdge_dcntel is specific to this campaign
+level: high

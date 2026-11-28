@@ -1,0 +1,20 @@
+# SoftwareOK Supply Chain Attack - Suricata Rules
+# Reference: https://asec.ahnlab.com/en/96827/
+
+# Detect DNS query for C2 domain c1a2.top
+alert dns $HOME_NET any -> any any (msg:"MALWARE SoftwareOK Supply Chain - DNS Query for C2 Domain c1a2.top"; dns.query; content:"c1a2.top"; nocase; classtype:trojan-activity; sid:2026112810; rev:1;)
+
+# Detect DNS query specifically for mail.c1a2.top
+alert dns $HOME_NET any -> any any (msg:"MALWARE SoftwareOK Supply Chain - DNS Query for mail.c1a2.top"; dns.query; content:"mail.c1a2.top"; nocase; classtype:trojan-activity; sid:2026112811; rev:1;)
+
+# Detect outbound connection to C2 IP 8.210.69.51 on port 9876
+alert tcp $HOME_NET any -> 8.210.69.51 9876 (msg:"MALWARE SoftwareOK Supply Chain - Outbound C2 Connection to 8.210.69.51:9876"; flow:to_server,established; classtype:trojan-activity; sid:2026112812; rev:1;)
+
+# Detect HTTP request for RAT payload archive
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SoftwareOK Supply Chain - RAT Archive Download dsv2_py39_agent.7z"; flow:to_server,established; http.method; content:"GET"; http.uri; content:"/dl/dsv2_py39_agent.7z"; classtype:trojan-activity; sid:2026112813; rev:1;)
+
+# Detect HTTP request for 7zr.exe from C2 staging server
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SoftwareOK Supply Chain - 7zr.exe Staged Tool Download"; flow:to_server,established; http.method; content:"GET"; http.uri; content:"/dl/7zr.exe"; http.host; content:"c1a2.top"; classtype:trojan-activity; sid:2026112814; rev:1;)
+
+# Detect any TLS connection to c1a2.top via SNI
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE SoftwareOK Supply Chain - TLS Connection to c1a2.top"; tls.sni; content:"c1a2.top"; classtype:trojan-activity; sid:2026112815; rev:1;)
