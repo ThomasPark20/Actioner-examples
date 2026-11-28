@@ -1,0 +1,28 @@
+title: SoftwareOK Supply Chain - C2 Communication to Known Infrastructure
+id: d6c4e0f5-7a8b-4c9d-1e2f-3a4b5c6d7e8f
+status: experimental
+description: >
+    Detects DNS queries or network connections to the C2 domain mail.c1a2.top or the
+    C2 IP 8.210.69.51 used by the Python RAT from the SoftwareOK supply chain attack.
+references:
+    - https://asec.ahnlab.com/en/96827/
+    - https://thehackernews.com/2026/11/hackers-trojanize-official-q-dir-and.html
+author: Actioner Detection Engineering
+date: 2026-11-28
+tags:
+    - attack.command_and_control
+    - attack.t1071.001
+    - attack.t1571
+logsource:
+    category: dns_query
+    product: windows
+detection:
+    selection_domain:
+        QueryName|endswith:
+            - '.c1a2.top'
+        QueryName|contains:
+            - 'mail.c1a2.top'
+    condition: selection_domain
+falsepositives:
+    - None expected; c1a2.top is attacker infrastructure
+level: critical

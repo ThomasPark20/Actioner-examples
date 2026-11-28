@@ -1,0 +1,30 @@
+# UAT-12643 / Overlord RAT / Good Game Stealer - Suricata Rules
+# Cisco Talos - November 2026
+# Reference: https://blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/
+
+# SURI-1: Solana JSON-RPC getSignaturesForAddress (C2 resolution)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE UAT-12643 Solana RPC - getSignaturesForAddress C2 Resolution"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"getSignaturesForAddress"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200001; rev:1;)
+
+# SURI-2: Solana JSON-RPC getTransaction with jsonParsed (C2 memo extraction)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE UAT-12643 Solana RPC - getTransaction jsonParsed Memo Extraction"; flow:established,to_server; http.method; content:"POST"; http.request_body; content:"getTransaction"; nocase; content:"jsonParsed"; nocase; distance:0; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200002; rev:1;)
+
+# SURI-3: Outbound connection to known staging/C2 IP 41.216.188.11
+alert ip $HOME_NET any -> 41.216.188.11 any (msg:"MALWARE UAT-12643 Overlord RAT - Connection to Known Staging Server 41.216.188.11"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200003; rev:1;)
+
+# SURI-4: Microsoft BITS/7.8 User-Agent spoof (MSBuild stager)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE UAT-12643 MSBuild Stager - Spoofed BITS User-Agent"; flow:established,to_server; http.user_agent; content:"Microsoft BITS/7.8"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200004; rev:1;)
+
+# SURI-5: Gofile.io exfiltration upload
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"MALWARE UAT-12643 Good Game Stealer - Gofile Exfiltration Upload"; flow:established,to_server; http.method; content:"POST"; http.host; content:"upload.gofile.io"; http.uri; content:"/uploadFile"; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200005; rev:2;)
+
+# SURI-6: Overlord RAT WebSocket C2 handshake on port 5173
+alert http $HOME_NET any -> $EXTERNAL_NET 5173 (msg:"MALWARE UAT-12643 Overlord RAT - WebSocket C2 Handshake on Port 5173"; flow:established,to_server; http.header; content:"Upgrade|3a 20|websocket"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200006; rev:1;)
+
+# SURI-7: DNS query for staging IP ipwhois.app (geolocation check)
+alert dns $HOME_NET any -> any any (msg:"MALWARE UAT-12643 Good Game Stealer - ipwhois.app Geolocation Lookup"; dns.query; content:"ipwhois.app"; nocase; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200007; rev:1;)
+
+# SURI-8: Good Game Stealer TCP C2 on port 5656
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5656 (msg:"MALWARE UAT-12643 Good Game Stealer - TCP C2 Port 5656"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200008; rev:1;)
+
+# SURI-9: Good Game Stealer TCP C2 on port 5959
+alert tcp $HOME_NET any -> $EXTERNAL_NET 5959 (msg:"MALWARE UAT-12643 Good Game Stealer - TCP C2 Port 5959"; flow:established,to_server; classtype:trojan-activity; reference:url,blog.talosintelligence.com/uat-12643-suspected-north-korea-aligned-actor-blends-blockchain-resilience-with-targeted-infostealing/; metadata: author Actioner, created_at 2026-11-28; sid:9200009; rev:1;)

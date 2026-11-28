@@ -1,0 +1,36 @@
+title: Cacti 4HTTP2SHELL Profile Update SQL Injection Attempt
+id: a7e3c4b1-9f28-4d6a-b5e2-1c8d7a3f6e09
+status: experimental
+description: >
+    Detects HTTP POST requests to Cacti's auth_profile.php endpoint with
+    action=update_data, which is the second step of the 4HTTP2SHELL exploit
+    chain. The attacker stores a non-numeric value (containing SQL injection
+    payload) into the preview_graphs_per_page user setting via the guest
+    account. This is a second-order SQL injection that fires when
+    graph_view.php later reads the stored value into a LIMIT clause.
+references:
+    - https://www.bleepingcomputer.com/news/security/unpatched-cacti-zero-day-with-public-poc-gives-remote-code-execution/
+    - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
+    - https://github.com/thiscitze/cacti-4http2shell
+author: Actioner
+date: 2026/11/28
+tags:
+    - attack.initial_access
+    - attack.t1190
+    - attack.t1078.001
+logsource:
+    category: webserver
+    product: apache
+detection:
+    selection_method:
+        cs-method: 'POST'
+    selection_uri:
+        cs-uri-stem|contains: 'auth_profile.php'
+    selection_param:
+        cs-uri-query|contains: 'update_data'
+    selection_body:
+        cs-body|contains: 'preview_graphs_per_page'
+    condition: selection_method and selection_uri and (selection_param or selection_body)
+falsepositives:
+    - Legitimate Cacti users updating their graph display preferences via the profile page
+level: medium

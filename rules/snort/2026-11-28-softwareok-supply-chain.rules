@@ -1,0 +1,14 @@
+# SoftwareOK Supply Chain Attack - Snort Rules
+# Reference: https://asec.ahnlab.com/en/96827/
+
+# Detect DNS query for C2 domain mail.c1a2.top
+alert udp $HOME_NET any -> any 53 (msg:"MALWARE SoftwareOK Supply Chain - DNS Query for C2 Domain c1a2.top"; content:"|01 00 00 01|"; offset:0; depth:4; content:"|04|mail|04|c1a2|03|top|00|"; nocase; classtype:trojan-activity; sid:2026112801; rev:1;)
+
+# Detect outbound connection to C2 IP 8.210.69.51 on port 9876
+alert tcp $HOME_NET any -> 8.210.69.51 9876 (msg:"MALWARE SoftwareOK Supply Chain - Outbound C2 Connection to 8.210.69.51:9876"; flow:to_server,established; classtype:trojan-activity; sid:2026112802; rev:1;)
+
+# Detect download of RAT payload archive dsv2_py39_agent.7z
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE SoftwareOK Supply Chain - RAT Archive Download dsv2_py39_agent.7z"; flow:to_server,established; content:"GET"; http_method; content:"/dl/dsv2_py39_agent.7z"; http_uri; classtype:trojan-activity; sid:2026112803; rev:1;)
+
+# Detect download of 7zr.exe extraction tool from C2
+alert tcp $HOME_NET any -> $EXTERNAL_NET $HTTP_PORTS (msg:"MALWARE SoftwareOK Supply Chain - 7zr.exe Download from C2 Domain"; flow:to_server,established; content:"GET"; http_method; content:"/dl/7zr.exe"; http_uri; content:"c1a2.top"; http_header; classtype:trojan-activity; sid:2026112804; rev:1;)

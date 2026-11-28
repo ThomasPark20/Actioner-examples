@@ -1,0 +1,37 @@
+title: Cacti 4HTTP2SHELL Realtime Graph Command Execution Request
+id: c9a5e6d3-1b4a-6f8c-d7a4-3e0f9c5b8a21
+status: experimental
+description: >
+    Detects HTTP requests to Cacti's graph_realtime.php endpoint with
+    action=init and default PoC parameters (clear=1, ds_step=10, size=90).
+    This is the fourth and final step of the 4HTTP2SHELL exploit chain
+    where the modified poller_item.arg1 value is passed to PHP popen()
+    for command execution. The combination of these specific default
+    parameters is characteristic of the public PoC.
+references:
+    - https://www.bleepingcomputer.com/news/security/unpatched-cacti-zero-day-with-public-poc-gives-remote-code-execution/
+    - https://thehackernews.com/2026/11/unpatched-cacti-zero-day-enables-rce-in.html
+    - https://intel.threadlinqs.com/threat/TL-2026-6953
+    - https://github.com/thiscitze/cacti-4http2shell
+author: Actioner
+date: 2026/11/28
+tags:
+    - attack.execution
+    - attack.t1059.004
+    - attack.t1190
+logsource:
+    category: webserver
+    product: apache
+detection:
+    selection_uri:
+        cs-uri-stem|contains: 'graph_realtime.php'
+    selection_action:
+        cs-uri-query|contains: 'action=init'
+    selection_poc_params:
+        cs-uri-query|contains|all:
+            - 'clear=1'
+            - 'ds_step='
+    condition: selection_uri and selection_action and selection_poc_params
+falsepositives:
+    - Legitimate Cacti users accessing the realtime graph feature with default settings
+level: medium
